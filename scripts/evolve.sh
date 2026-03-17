@@ -29,9 +29,9 @@ fi
 
 # ── Run the agent ─────────────────────────────────────────────────────────────
 
-cargo run
+cargo run; AGENT_EXIT=$?
 
-# ── Commit changes ────────────────────────────────────────────────────────────
+# ── Commit changes (always — captures failure journal entries too) ─────────────
 
 ITERATION=$(cat iteration_count 2>/dev/null || echo "?")
 
@@ -42,3 +42,5 @@ git add LEARNINGS.md 2>/dev/null || true
 
 git diff --cached --quiet || \
     git commit -m "iteration ${ITERATION}: self-improvement"
+
+exit $AGENT_EXIT
