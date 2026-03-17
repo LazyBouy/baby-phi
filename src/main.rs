@@ -1,8 +1,8 @@
 mod agent;
 use agent::{
-    agent_loop, AgentEvent, AgentTool, AnthropicProvider, BashTool, EditFileTool,
-    ListFilesTool, Message, OpenAiProvider, OpenRouterProvider, ReadFileTool,
-    RetryConfig, SearchTool, StreamProvider, WriteFileTool,
+    agent_loop, AgentEvent, AgentTool, AnthropicProvider, BashTool, EditFileTool, ListFilesTool,
+    Message, OpenAiProvider, OpenRouterProvider, ReadFileTool, RetryConfig, SearchTool,
+    StreamProvider, WriteFileTool,
 };
 use serde::Deserialize;
 use std::{io::Write, process::Command};
@@ -30,9 +30,9 @@ impl Config {
 
     fn api_key(&self) -> Result<String, Box<dyn std::error::Error>> {
         let var = match self.active.provider.as_str() {
-            "anthropic"   => "ANTHROPIC_API_KEY",
-            "openai"      => "OPENAI_API_KEY",
-            "openrouter"  => "OPENROUTER_API_KEY",
+            "anthropic" => "ANTHROPIC_API_KEY",
+            "openai" => "OPENAI_API_KEY",
+            "openrouter" => "OPENROUTER_API_KEY",
             other => return Err(format!("unknown provider '{other}'").into()),
         };
         std::env::var(var).map_err(|_| format!("{var} not set").into())
@@ -53,7 +53,7 @@ fn last_n_lines(text: &str, n: usize) -> String {
 
 fn load_context(cfg: &Config) -> (String, String, u64) {
     let identity = read_file_opt("identity.md");
-    let journal  = read_file_opt("journal.md");
+    let journal = read_file_opt("journal.md");
     let journal_excerpt = last_n_lines(&journal, cfg.journal_lines);
     let external = read_file_opt("Input.md");
 
@@ -65,9 +65,7 @@ fn load_context(cfg: &Config) -> (String, String, u64) {
     let next = count + 1;
     let _ = std::fs::write("iteration_count", next.to_string());
 
-    let user_msg = format!(
-        "## Recent Journal\n{journal_excerpt}\n\n## External Input\n{external}"
-    );
+    let user_msg = format!("## Recent Journal\n{journal_excerpt}\n\n## External Input\n{external}");
 
     (identity, user_msg, next)
 }
@@ -75,8 +73,13 @@ fn load_context(cfg: &Config) -> (String, String, u64) {
 // ── Test Gate ─────────────────────────────────────────────────────────────────
 
 fn test_gate(label: &str) -> Result<(), String> {
-    for (name, args) in [("build", vec!["build", "--quiet"]), ("test", vec!["test", "--quiet"])] {
-        let out = Command::new("cargo").args(&args).output()
+    for (name, args) in [
+        ("build", vec!["build", "--quiet"]),
+        ("test", vec!["test", "--quiet"]),
+    ] {
+        let out = Command::new("cargo")
+            .args(&args)
+            .output()
             .map_err(|e| format!("cargo {name}: {e}"))?;
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
@@ -97,9 +100,16 @@ fn append_journal(entry: &str) {
 fn on_event(event: AgentEvent) {
     match event {
         AgentEvent::TurnStart { turn } => println!("\n── turn {turn} ──────────────────────"),
-        AgentEvent::TextDelta(t)       => { print!("{t}"); let _ = std::io::stdout().flush(); }
+        AgentEvent::TextDelta(t) => {
+            print!("{t}");
+            let _ = std::io::stdout().flush();
+        }
         AgentEvent::ToolStart { name, input } => println!("\n[{name}] {input}"),
-        AgentEvent::ToolEnd { name, output, is_error } => {
+        AgentEvent::ToolEnd {
+            name,
+            output,
+            is_error,
+        } => {
             let tag = if is_error { "ERR" } else { "OK" };
             let preview: String = output.lines().take(5).collect::<Vec<_>>().join("\n");
             println!("[{name}/{tag}] {preview}");
@@ -112,22 +122,49 @@ fn on_event(event: AgentEvent) {
 
 #[tokio::main]
 async fn main() {
-    let cfg = Config::load().unwrap_or_else(|e| { eprintln!("config error: {e}"); std::process::exit(1) });
-    let api_key = cfg.api_key().unwrap_or_else(|e| { eprintln!("{e}"); std::process::exit(1) });
+    let cfg = Config::load().unwrap_or_else(|e| {
+        eprintln!("config error: {e}");
+        std::process::exit(1)
+    });
+    let api_key = cfg.api_key().unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1)
+    });
 
     // Pre-run test gate
-    if let Err(e) = test_gate("before") { eprintln!("{e}"); std::process::exit(1); }
+    if let Err(e) = test_gate("before") {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
 
     let (system, user_msg, iteration) = load_context(&cfg);
     println!("baby-phi — iteration {iteration}");
-    println!("provider: {} / model: {}", cfg.active.provider, cfg.active.model);
+    println!(
+        "provider: {} / model: {}",
+        cfg.active.provider, cfg.active.model
+    );
 
     // Build provider
     let provider: Box<dyn StreamProvider> = match cfg.active.provider.as_str() {
-        "anthropic"  => Box::new(AnthropicProvider  { endpoint: cfg.active.endpoint.clone(), api_key: api_key.clone(), model: cfg.active.model.clone() }),
-        "openai"     => Box::new(OpenAiProvider     { endpoint: cfg.active.endpoint.clone(), api_key: api_key.clone(), model: cfg.active.model.clone() }),
-        "openrouter" => Box::new(OpenRouterProvider { endpoint: cfg.active.endpoint.clone(), api_key: api_key.clone(), model: cfg.active.model.clone() }),
-        other => { eprintln!("unknown provider '{other}'"); std::process::exit(1); }
+        "anthropic" => Box::new(AnthropicProvider {
+            endpoint: cfg.active.endpoint.clone(),
+            api_key: api_key.clone(),
+            model: cfg.active.model.clone(),
+        }),
+        "openai" => Box::new(OpenAiProvider {
+            endpoint: cfg.active.endpoint.clone(),
+            api_key: api_key.clone(),
+            model: cfg.active.model.clone(),
+        }),
+        "openrouter" => Box::new(OpenRouterProvider {
+            endpoint: cfg.active.endpoint.clone(),
+            api_key: api_key.clone(),
+            model: cfg.active.model.clone(),
+        }),
+        other => {
+            eprintln!("unknown provider '{other}'");
+            std::process::exit(1);
+        }
     };
 
     let tools: Vec<Box<dyn AgentTool>> = vec![
@@ -142,7 +179,16 @@ async fn main() {
     let mut messages = vec![Message::user(user_msg)];
     let retry = RetryConfig::default();
 
-    if let Err(e) = agent_loop(&mut messages, provider.as_ref(), &tools, &system, &retry, &mut on_event).await {
+    if let Err(e) = agent_loop(
+        &mut messages,
+        provider.as_ref(),
+        &tools,
+        &system,
+        &retry,
+        &mut on_event,
+    )
+    .await
+    {
         let entry = format!("## Iteration {iteration} — FAILED\nProvider error: {e}");
         append_journal(&entry);
         eprintln!("agent error: {e}");
@@ -165,7 +211,7 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::{BashTool, EditFileTool, SearchTool, AgentTool};
+    use crate::agent::{AgentTool, BashTool, EditFileTool, SearchTool};
     use serde_json::json;
 
     #[test]
@@ -173,7 +219,7 @@ mod tests {
         let c = Config::load().expect("config.toml must parse");
         assert!(!c.active.provider.is_empty(), "provider must not be empty");
         assert!(!c.active.endpoint.is_empty(), "endpoint must not be empty");
-        assert!(!c.active.model.is_empty(),    "model must not be empty");
+        assert!(!c.active.model.is_empty(), "model must not be empty");
     }
 
     #[tokio::test]
@@ -189,18 +235,22 @@ mod tests {
         let f = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(f.path(), "abc").unwrap();
         let t = EditFileTool::new();
-        let r = t.execute(json!({
-            "path": f.path().to_str().unwrap(),
-            "old_string": "xyz",
-            "new_string": "def"
-        })).await;
+        let r = t
+            .execute(json!({
+                "path": f.path().to_str().unwrap(),
+                "old_string": "xyz",
+                "new_string": "def"
+            }))
+            .await;
         assert!(r.is_error, "must error when old_string not found");
     }
 
     #[tokio::test]
     async fn search_tool_does_not_crash() {
         let t = SearchTool::new();
-        let r = t.execute(json!({"pattern": "fn main", "path": "src/"})).await;
+        let r = t
+            .execute(json!({"pattern": "fn main", "path": "src/"}))
+            .await;
         assert!(!r.is_error, "search must not error (rg or grep)");
         assert!(r.content.contains("main"), "must find fn main in src/");
     }
