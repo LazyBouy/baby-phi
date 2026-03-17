@@ -2,8 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BABY_PHI_DIR="$REPO_ROOT/baby-phi"
+BABY_PHI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$BABY_PHI_DIR"
 

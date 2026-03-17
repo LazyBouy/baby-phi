@@ -3,7 +3,7 @@
 <!-- Replace with your actual logo once you have one -->
 # 🧠 baby-phi
 
-**A self-evolving AI coding agent, born at ~800 lines of Rust.**
+**A self-evolving AI coding agent, born at ~800 lines (core + agent) of Rust.**
 It reads its own source. It edits its own source. It grows.
 
 [![CI](https://github.com/LazyBouy/baby-phi/actions/workflows/ci.yml/badge.svg)](https://github.com/LazyBouy/baby-phi/actions/workflows/ci.yml)
@@ -17,7 +17,7 @@ It reads its own source. It edits its own source. It grows.
 
 ## What is this?
 
-**baby-phi** is a minimal AI coding agent that improves itself — one commit at a time.
+**baby-phi** is a minimal AI coding agent + core that improves itself — one commit at a time.
 
 Every 4 hours it wakes up, reads its own source code, picks one thing to improve, implements it, runs tests, and writes a journal entry about what happened. The journal is its memory. The source code is its body.
 

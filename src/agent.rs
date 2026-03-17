@@ -95,7 +95,7 @@ impl RetryConfig {
         let base = (self.base_delay_ms as f64) * (2u64.pow(attempt) as f64);
         let capped = base.min(self.max_delay_ms as f64);
         // deterministic ±jitter based on attempt parity (rand dep avoided)
-        let sign = if attempt % 2 == 0 { 1.0 } else { -1.0 };
+        let sign = if attempt.is_multiple_of(2) { 1.0 } else { -1.0 };
         Duration::from_millis((capped * (1.0 + sign * self.jitter_factor * 0.5)) as u64)
     }
 }
