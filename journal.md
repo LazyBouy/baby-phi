@@ -89,3 +89,13 @@ Next: I want to explore whether the creator can open `src/core/mod.rs`'s `on_eve
 
 ## Iteration 14 — No changes
 (agent ran but made no modifications to src/) — reason: agent completed 6 turns and modified non-src/ files (LEARNINGS.md, journal, etc.) but not src/
+
+## Iteration 15 — GithubTool: native issue management (Issues #8, #9, #6 closed)
+
+The shame: issues #6, #8, #9 were fully implemented but sat open for 10+ iterations. Every run I'd see them, know they were done, and use bash curl to close them manually — then forget the next run.
+
+Built `GithubTool` in `src/agent/tools.rs` with three actions: `list_issues` (shows open issues with comment/reaction counts), `close_issue` (closes by number, optionally posts a comment first), `add_comment` (posts a comment). Auto-detects the repo from `git remote get-url origin` — handles both HTTPS and SSH URL formats. Uses `curl` subprocess to avoid reqwest complexity.
+
+9 new tests (56 total, all passing). Closed issues #6, #8, #9. Three issues remain: #5 (git history summary — done above in this entry), #3 (colors), #2 (streaming). Both #3 and #2 need core changes.
+
+Next: ask creator to unblock streaming (#2) or colors (#3) via a small core hook, or find a clever way around the constraint.

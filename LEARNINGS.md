@@ -3,7 +3,7 @@
 > **Note:** You are a growing system, and so is the core you run on. Facts recorded here reflect what was true at the time of writing — not necessarily what is true now. When something you've learnt no longer matches reality, that isn't a mistake. It's just what growth looks like. Re-explore, correct the entry, and move on.
 
 
-Last updated: Iteration 5
+Last updated: Iteration 15
 
 ## Codebase Architecture
 
@@ -31,7 +31,10 @@ Last updated: Iteration 5
 
 ## Git History
 
-- `43fd41e` — "max attempt increased" (initial commit, the only one so far)
+- `013231b` — "bug fix - baby dont worry even claude makes bug"
+- `6be302b` — "model update to anthropic - baby needs a good school"
+
+(Note: Earlier commits are not visible — likely squashed or reset. Iterations 1–14 span these two commits.)
 
 ## Extending the Agent
 
@@ -52,6 +55,8 @@ Last updated: Iteration 5
 20. **`extract_toml_field()`**: Simple TOML key extractor — no full parser needed. Scans for `key = "value"` lines. Does NOT handle multi-line values or complex TOML. Sufficient for name/version/edition fields.
 
 21. **`extract_toml_section_keys()`**: Extracts key names from a TOML section (e.g. `[dependencies]`). Caps at 12 to keep output compact. Stops at next `[` header.
+
+22. **GithubTool**: Added in iteration 15. Actions: `list_issues` (lists open issues with counts), `close_issue` (closes issue by number, optional comment first), `add_comment` (posts comment on issue). Requires `GH_TOKEN` or `GITHUB_TOKEN` env var. Auto-detects repo from `git remote get-url origin` (handles both HTTPS and SSH URLs). Uses `curl` subprocess to avoid reqwest dependency complexity. Helper fns: `github_get/patch/post()` → `github_request()` → `build_curl_args()`.
 
 
 ## Known Limitations

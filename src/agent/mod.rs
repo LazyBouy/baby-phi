@@ -24,6 +24,7 @@ pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
         Box::new(tools::WorkingMemoryTool),
         Box::new(tools::ReadFileRangeTool),
         Box::new(tools::ProjectInfoTool),
+        Box::new(tools::GithubTool),
     ]
 }
 

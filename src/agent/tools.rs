@@ -614,6 +614,284 @@ async fn count_source_files(root: &str) -> Option<(usize, usize)> {
     Some((src_count, test_count))
 }
 
+// ── GitHub Tool ───────────────────────────────────────────────────────────────
+
+/// Interact with the GitHub API: list issues, close issues, add comments.
+/// Requires GH_TOKEN environment variable. Reads GITHUB_REPOSITORY env var
+/// or falls back to the repo param for the target repo (owner/name).
+///
+/// Actions:
+///   list_issues  — list open issues with comment counts and reaction counts
+///   close_issue  — close an issue (number required), optionally with a comment
+///   add_comment  — post a comment on an issue (number + body required)
+pub struct GithubTool;
+
+#[async_trait]
+impl AgentTool for GithubTool {
+    fn name(&self) -> &str {
+        "github"
+    }
+    fn description(&self) -> &str {
+        "Interact with GitHub: list open issues, close issues, add comments. \
+         Requires GH_TOKEN env var. \
+         Actions: list_issues | close_issue | add_comment. \
+         For close_issue/add_comment: provide 'number' (issue number). \
+         For close_issue: optionally provide 'comment' to post before closing. \
+         For add_comment: provide 'body'. \
+         Optional 'repo' param (default: auto-detected from git remote)."
+    }
+    fn parameters_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["list_issues", "close_issue", "add_comment"],
+                    "description": "What to do"
+                },
+                "number": {
+                    "type": "integer",
+                    "description": "Issue number (required for close_issue and add_comment)"
+                },
+                "comment": {
+                    "type": "string",
+                    "description": "Comment to post before closing (optional, for close_issue)"
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Comment body (required for add_comment)"
+                },
+                "repo": {
+                    "type": "string",
+                    "description": "GitHub repo in owner/name format (auto-detected if not provided)"
+                }
+            },
+            "required": ["action"]
+        })
+    }
+    async fn execute(&self, input: Value) -> ToolResult {
+        let action = match input["action"].as_str() {
+            Some(a) => a.to_string(),
+            None => return ToolResult { content: "missing 'action'".into(), is_error: true },
+        };
+
+        let token = match std::env::var("GH_TOKEN").or_else(|_| std::env::var("GITHUB_TOKEN")) {
+            Ok(t) if !t.is_empty() => t,
+            _ => return ToolResult {
+                content: "GH_TOKEN (or GITHUB_TOKEN) env var not set — cannot call GitHub API".into(),
+                is_error: true,
+            },
+        };
+
+        // Resolve repo: explicit param → git remote → error
+        let repo = if let Some(r) = input["repo"].as_str() {
+            r.to_string()
+        } else {
+            match detect_github_repo().await {
+                Some(r) => r,
+                None => return ToolResult {
+                    content: "could not detect GitHub repo from git remote; provide 'repo' param (owner/name)".into(),
+                    is_error: true,
+                },
+            }
+        };
+
+        match action.as_str() {
+            "list_issues" => github_list_issues(&token, &repo).await,
+            "close_issue" => {
+                let number = match input["number"].as_u64() {
+                    Some(n) => n,
+                    None => return ToolResult { content: "missing 'number' for close_issue".into(), is_error: true },
+                };
+                let comment = input["comment"].as_str().map(|s| s.to_string());
+                github_close_issue(&token, &repo, number, comment).await
+            }
+            "add_comment" => {
+                let number = match input["number"].as_u64() {
+                    Some(n) => n,
+                    None => return ToolResult { content: "missing 'number' for add_comment".into(), is_error: true },
+                };
+                let body = match input["body"].as_str() {
+                    Some(b) => b.to_string(),
+                    None => return ToolResult { content: "missing 'body' for add_comment".into(), is_error: true },
+                };
+                github_add_comment(&token, &repo, number, &body).await
+            }
+            other => ToolResult {
+                content: format!("unknown action '{other}' — must be list_issues, close_issue, or add_comment"),
+                is_error: true,
+            },
+        }
+    }
+}
+
+/// Auto-detect the GitHub repo slug from `git remote get-url origin`.
+async fn detect_github_repo() -> Option<String> {
+    let out = tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::process::Command::new("git")
+            .args(["remote", "get-url", "origin"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output(),
+    )
+    .await
+    .ok()?.ok()?;
+
+    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    // Match both HTTPS (https://github.com/owner/repo) and SSH (git@github.com:owner/repo)
+    // and strip .git suffix
+    let slug = if let Some(rest) = url.strip_prefix("https://github.com/") {
+        rest.trim_end_matches(".git").to_string()
+    } else if let Some(rest) = url.strip_prefix("git@github.com:") {
+        rest.trim_end_matches(".git").to_string()
+    } else {
+        return None;
+    };
+
+    if slug.contains('/') {
+        Some(slug)
+    } else {
+        None
+    }
+}
+
+/// List open issues with id, title, comments count, reactions count.
+async fn github_list_issues(token: &str, repo: &str) -> ToolResult {
+    let url = format!("https://api.github.com/repos/{repo}/issues?state=open&per_page=50");
+    match github_get(token, &url).await {
+        Err(e) => ToolResult { content: format!("GitHub API error: {e}"), is_error: true },
+        Ok(body) => {
+            match serde_json::from_str::<Value>(&body) {
+                Err(e) => ToolResult { content: format!("JSON parse error: {e}\nRaw: {}", &body[..body.len().min(200)]), is_error: true },
+                Ok(Value::Array(issues)) => {
+                    if issues.is_empty() {
+                        return ToolResult { content: "No open issues.".into(), is_error: false };
+                    }
+                    let lines: Vec<String> = issues.iter().map(|i| {
+                        let num = i["number"].as_u64().unwrap_or(0);
+                        let title = i["title"].as_str().unwrap_or("(no title)");
+                        let comments = i["comments"].as_u64().unwrap_or(0);
+                        let reactions = i["reactions"]["total_count"].as_u64().unwrap_or(0);
+                        format!("#{num}: {title} (comments:{comments}, reactions:{reactions})")
+                    }).collect();
+                    ToolResult { content: lines.join("\n"), is_error: false }
+                }
+                Ok(other) => {
+                    // API returned an error object
+                    let msg = other["message"].as_str().unwrap_or("unexpected response");
+                    ToolResult { content: format!("GitHub API: {msg}"), is_error: true }
+                }
+            }
+        }
+    }
+}
+
+/// Close a GitHub issue, optionally posting a comment first.
+async fn github_close_issue(token: &str, repo: &str, number: u64, comment: Option<String>) -> ToolResult {
+    // Post comment first if provided
+    if let Some(body) = comment {
+        let comment_result = github_add_comment(token, repo, number, &body).await;
+        if comment_result.is_error {
+            return ToolResult {
+                content: format!("Failed to post comment before closing: {}", comment_result.content),
+                is_error: true,
+            };
+        }
+    }
+
+    let url = format!("https://api.github.com/repos/{repo}/issues/{number}");
+    let payload = serde_json::json!({"state": "closed"}).to_string();
+
+    match github_patch(token, &url, &payload).await {
+        Err(e) => ToolResult { content: format!("GitHub API error: {e}"), is_error: true },
+        Ok(body) => {
+            match serde_json::from_str::<Value>(&body) {
+                Ok(resp) if resp["state"].as_str() == Some("closed") => ToolResult {
+                    content: format!("✓ Closed issue #{number}: {}", resp["title"].as_str().unwrap_or("?")),
+                    is_error: false,
+                },
+                Ok(resp) => {
+                    let msg = resp["message"].as_str().unwrap_or("unexpected response");
+                    ToolResult { content: format!("GitHub API: {msg}"), is_error: true }
+                }
+                Err(e) => ToolResult { content: format!("JSON parse error: {e}"), is_error: true },
+            }
+        }
+    }
+}
+
+/// Post a comment on a GitHub issue.
+async fn github_add_comment(token: &str, repo: &str, number: u64, body: &str) -> ToolResult {
+    let url = format!("https://api.github.com/repos/{repo}/issues/{number}/comments");
+    let payload = serde_json::json!({"body": body}).to_string();
+
+    match github_post(token, &url, &payload).await {
+        Err(e) => ToolResult { content: format!("GitHub API error: {e}"), is_error: true },
+        Ok(body_resp) => {
+            match serde_json::from_str::<Value>(&body_resp) {
+                Ok(resp) if resp["id"].is_number() => ToolResult {
+                    content: format!("✓ Comment posted on #{number} (id: {})", resp["id"]),
+                    is_error: false,
+                },
+                Ok(resp) => {
+                    let msg = resp["message"].as_str().unwrap_or("unexpected response");
+                    ToolResult { content: format!("GitHub API: {msg}"), is_error: true }
+                }
+                Err(e) => ToolResult { content: format!("JSON parse error: {e}"), is_error: true },
+            }
+        }
+    }
+}
+
+// ── GitHub HTTP helpers ───────────────────────────────────────────────────────
+
+async fn github_get(token: &str, url: &str) -> Result<String, String> {
+    github_request("GET", token, url, None).await
+}
+
+async fn github_patch(token: &str, url: &str, body: &str) -> Result<String, String> {
+    github_request("PATCH", token, url, Some(body)).await
+}
+
+async fn github_post(token: &str, url: &str, body: &str) -> Result<String, String> {
+    github_request("POST", token, url, Some(body)).await
+}
+
+async fn github_request(method: &str, token: &str, url: &str, body: Option<&str>) -> Result<String, String> {
+    let out = tokio::time::timeout(
+        Duration::from_secs(15),
+        tokio::process::Command::new("curl")
+            .args(build_curl_args(method, token, url, body))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output(),
+    )
+    .await
+    .map_err(|_| "HTTP request timed out (15s)".to_string())?
+    .map_err(|e| format!("curl exec error: {e}"))?;
+
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+fn build_curl_args(method: &str, token: &str, url: &str, body: Option<&str>) -> Vec<String> {
+    let mut args = vec![
+        "-s".to_string(),
+        "-X".to_string(), method.to_string(),
+        "-H".to_string(), format!("Authorization: Bearer {token}"),
+        "-H".to_string(), "Accept: application/vnd.github+json".to_string(),
+        "-H".to_string(), "X-GitHub-Api-Version: 2022-11-28".to_string(),
+    ];
+    if let Some(b) = body {
+        args.push("-H".to_string());
+        args.push("Content-Type: application/json".to_string());
+        args.push("-d".to_string());
+        args.push(b.to_string());
+    }
+    args.push(url.to_string());
+    args
+}
+
 // ── Shared Helper ─────────────────────────────────────────────────────────────
 
 async fn run_git_command(args: &[&str]) -> ToolResult {
@@ -1065,5 +1343,91 @@ tempfile = "3"
             "should cap at 12 deps, got {}",
             keys.len()
         );
+    }
+
+    // ── GithubTool tests ──────────────────────────────────────────────────────
+
+    #[test]
+    fn github_tool_definition_is_valid() {
+        let tool = GithubTool;
+        let def = tool.definition();
+        assert_eq!(def.name, "github");
+        assert!(!def.description.is_empty());
+        assert!(def.parameters.is_object());
+    }
+
+    #[test]
+    fn github_tool_parameters_has_required_action() {
+        let tool = GithubTool;
+        let schema = tool.parameters_schema();
+        let required = &schema["required"];
+        assert!(
+            required.as_array().map(|a| a.iter().any(|v| v.as_str() == Some("action"))).unwrap_or(false),
+            "action should be required: {schema}"
+        );
+    }
+
+    #[tokio::test]
+    async fn github_tool_missing_action_errors() {
+        let tool = GithubTool;
+        let result = tool.execute(serde_json::json!({})).await;
+        assert!(result.is_error, "missing action must be an error");
+        assert!(result.content.contains("action"), "error should mention 'action': {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn github_tool_unknown_action_errors() {
+        let tool = GithubTool;
+        // Even without a token, unknown action should be caught
+        let result = tool.execute(serde_json::json!({"action": "delete_everything"})).await;
+        // Either token error or unknown action error — both are is_error=true
+        assert!(result.is_error, "unknown action must be an error");
+    }
+
+    #[tokio::test]
+    async fn github_tool_close_issue_missing_number_errors() {
+        let tool = GithubTool;
+        // With no GH_TOKEN in test environment, this will fail at token check —
+        // but if token is set, it should fail at number validation.
+        // Either way is_error must be true.
+        let result = tool.execute(serde_json::json!({"action": "close_issue"})).await;
+        assert!(result.is_error, "close_issue without number must be an error");
+    }
+
+    #[tokio::test]
+    async fn github_tool_add_comment_missing_body_errors() {
+        let tool = GithubTool;
+        let result = tool.execute(serde_json::json!({"action": "add_comment", "number": 1})).await;
+        assert!(result.is_error, "add_comment without body must be an error");
+    }
+
+    #[test]
+    fn build_curl_args_get_no_body() {
+        let args = build_curl_args("GET", "mytoken", "https://api.github.com/test", None);
+        assert!(args.contains(&"GET".to_string()));
+        assert!(args.contains(&"Authorization: Bearer mytoken".to_string()));
+        assert!(args.contains(&"https://api.github.com/test".to_string()));
+        // No -d flag for GET
+        assert!(!args.contains(&"-d".to_string()));
+    }
+
+    #[test]
+    fn build_curl_args_post_with_body() {
+        let args = build_curl_args("POST", "tok", "https://api.github.com/x", Some(r#"{"key":"val"}"#));
+        assert!(args.contains(&"POST".to_string()));
+        assert!(args.contains(&"-d".to_string()));
+        assert!(args.contains(&r#"{"key":"val"}"#.to_string()));
+    }
+
+    #[tokio::test]
+    async fn detect_github_repo_returns_slug_or_none() {
+        // In a git repo, should return Some("owner/repo") or None (not panic)
+        let result = detect_github_repo().await;
+        // We can't assert the exact value in CI, but it must be well-formed if present
+        if let Some(slug) = result {
+            assert!(slug.contains('/'), "repo slug must be owner/name format: {slug}");
+            assert!(!slug.ends_with(".git"), "slug should not end with .git: {slug}");
+        }
+        // None is also valid (no git remote in some CI environments)
     }
 }
