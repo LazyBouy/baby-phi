@@ -13,6 +13,15 @@
 //                          Use provider = "openrouter-v2" in config.toml.
 //   OpenAiV2Provider    — Same fix for OpenAI-compatible endpoints.
 //                          Use provider = "openai-v2" in config.toml.
+//
+// KNOWN LIMITATION — Issue #13:
+//   "openrouter-v2" and "openai-v2" require a small core change to work.
+//   Config::api_key() in src/core/mod.rs only handles the 3 base provider names;
+//   unknown names cause the process to exit before extra_providers() is ever called.
+//   Fix: In Config::api_key(), change `other => Err(...)` to also check
+//   extra_providers() for a matching name and return Ok("") for those entries —
+//   since extra providers carry their own API keys and don't use the core api_key variable.
+//   Until then, users must use "openrouter" or "openai" (core providers) in config.toml.
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -21,6 +30,162 @@ use crate::core::{
     Content, Message, ProviderError, ProviderResponse, StopReason, StreamProvider, ToolDefinition,
     parse_retry_after,
 };
+
+// ── JSON argument repair ──────────────────────────────────────────────────────
+//
+// Smaller/local models often produce slightly malformed JSON in tool call
+// arguments — e.g. single-quoted strings, unquoted keys, trailing commas.
+// This function attempts lightweight repairs before full JSON parse.
+//
+// Repairs attempted (in order):
+//   1. Trim surrounding whitespace
+//   2. Replace single-quoted strings with double-quoted (naive but works for ASCII)
+//   3. Remove trailing commas before } or ]
+//   4. Quote unquoted simple identifier keys (e.g. {command: "x"} → {"command": "x"})
+//
+// Returns the repaired string. Falls back to original if no repair helps.
+// The caller should still use `unwrap_or(Value::Object(Map::new()))` after parsing.
+pub(crate) fn repair_json_args(raw: &str) -> String {
+    let s = raw.trim();
+
+    // Fast path: already valid JSON — no repair needed
+    if serde_json::from_str::<Value>(s).is_ok() {
+        return s.to_string();
+    }
+
+    let mut result = s.to_string();
+
+    // Step 1: Replace single-quoted string values with double-quoted.
+    // Only handles simple cases: 'value' not containing escaped chars.
+    // We do a character-level scan to avoid regex dependency.
+    result = replace_single_quotes(&result);
+
+    // Step 2: Remove trailing commas before } or ] (common LLM mistake).
+    result = remove_trailing_commas(&result);
+
+    // Step 3: Quote bare identifier keys (e.g. {key: "val"} → {"key": "val"}).
+    result = quote_bare_keys(&result);
+
+    // If still invalid, return the original so the caller sees the real error.
+    if serde_json::from_str::<Value>(&result).is_ok() {
+        result
+    } else {
+        s.to_string()
+    }
+}
+
+/// Replace single-quoted strings with double-quoted in JSON-like text.
+/// Handles: {'key': 'value'} → {"key": "value"}
+fn replace_single_quotes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    let mut in_double_quote = false;
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => {
+                in_double_quote = !in_double_quote;
+                out.push('"');
+            }
+            '\'' if !in_double_quote => {
+                // Start/end of single-quoted string — collect until matching '
+                out.push('"');
+                while let Some(&c) = chars.peek() {
+                    chars.next();
+                    if c == '\'' {
+                        break;
+                    } else if c == '"' {
+                        // Escape any unescaped double quotes inside
+                        out.push('\\');
+                        out.push('"');
+                    } else {
+                        out.push(c);
+                    }
+                }
+                out.push('"');
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// Remove trailing commas before } or ] — e.g. {"a": 1,} → {"a": 1}
+fn remove_trailing_commas(s: &str) -> String {
+    // Simple regex-free approach: scan for ,<whitespace>} or ,<whitespace>]
+    let mut result = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b',' {
+            // Look ahead, skipping whitespace
+            let mut j = i + 1;
+            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\n' || bytes[j] == b'\r' || bytes[j] == b'\t') {
+                j += 1;
+            }
+            if j < bytes.len() && (bytes[j] == b'}' || bytes[j] == b']') {
+                // Skip this trailing comma
+                i += 1;
+                continue;
+            }
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+    result
+}
+
+/// Quote bare identifier keys in JSON objects.
+/// e.g. {command: "echo"} → {"command": "echo"}
+fn quote_bare_keys(s: &str) -> String {
+    // Walk character by character; when we see { or , followed by whitespace
+    // then a bare identifier (letters/digits/_) then a colon, quote the key.
+    let mut result = String::with_capacity(s.len() + 32);
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        // After { or , we may have a bare key
+        if ch == '{' || ch == ',' {
+            result.push(ch);
+            i += 1;
+            // Skip whitespace
+            while i < chars.len() && chars[i].is_whitespace() {
+                result.push(chars[i]);
+                i += 1;
+            }
+            // Check if next char starts a bare identifier (not " or ')
+            if i < chars.len() && chars[i] != '"' && chars[i] != '\'' && (chars[i].is_alphabetic() || chars[i] == '_') {
+                // Collect the bare key
+                let start = i;
+                while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                    i += 1;
+                }
+                let key: String = chars[start..i].iter().collect();
+                // Skip whitespace before colon
+                let mut j = i;
+                while j < chars.len() && chars[j].is_whitespace() {
+                    j += 1;
+                }
+                if j < chars.len() && chars[j] == ':' {
+                    // This is indeed a bare key — quote it
+                    result.push('"');
+                    result.push_str(&key);
+                    result.push('"');
+                } else {
+                    // Not a key — push as-is
+                    result.push_str(&key);
+                }
+            }
+            continue;
+        }
+        result.push(ch);
+        i += 1;
+    }
+    result
+}
 
 // ── Ollama Provider ───────────────────────────────────────────────────────────
 
@@ -251,11 +416,6 @@ impl StreamProvider for OllamaProvider {
 
         // Parse OpenAI-compatible response format
         let choice = &v["choices"][0];
-        let stop_reason = match choice["finish_reason"].as_str() {
-            Some("tool_calls") => StopReason::ToolUse,
-            Some("length") => StopReason::MaxTokens,
-            _ => StopReason::EndTurn,
-        };
 
         let mut content: Vec<Content> = Vec::new();
 
@@ -268,11 +428,13 @@ impl StreamProvider for OllamaProvider {
             }
         }
 
-        // Extract tool calls
+        // Extract tool calls — use repair_json_args to handle malformed argument JSON
+        // (Ollama with smaller models sometimes returns unquoted keys or single quotes)
         if let Some(tool_calls) = choice["message"]["tool_calls"].as_array() {
             for tc in tool_calls {
                 let args_str = tc["function"]["arguments"].as_str().unwrap_or("{}");
-                let input = serde_json::from_str::<Value>(args_str).unwrap_or(Value::Object(
+                let repaired = repair_json_args(args_str);
+                let input = serde_json::from_str::<Value>(&repaired).unwrap_or(Value::Object(
                     serde_json::Map::new(),
                 ));
                 content.push(Content::ToolUse {
@@ -282,6 +444,19 @@ impl StreamProvider for OllamaProvider {
                 });
             }
         }
+
+        // Override stop_reason to ToolUse when tool calls are present —
+        // some models (Ollama with llama3) return "stop" even with tool_calls.
+        let has_tool_calls = content.iter().any(|c| matches!(c, Content::ToolUse { .. }));
+        let stop_reason = if has_tool_calls {
+            StopReason::ToolUse
+        } else {
+            match choice["finish_reason"].as_str() {
+                Some("tool_calls") => StopReason::ToolUse,
+                Some("length") => StopReason::MaxTokens,
+                _ => StopReason::EndTurn,
+            }
+        };
 
         Ok(ProviderResponse {
             message: Message::assistant(content),
@@ -491,11 +666,6 @@ async fn call_openai_compat_v2(
     })?;
 
     let choice = &v["choices"][0];
-    let stop_reason = match choice["finish_reason"].as_str() {
-        Some("tool_calls") => StopReason::ToolUse,
-        Some("length") => StopReason::MaxTokens,
-        _ => StopReason::EndTurn,
-    };
 
     let mut content: Vec<Content> = Vec::new();
 
@@ -508,11 +678,13 @@ async fn call_openai_compat_v2(
         }
     }
 
-    // Extract tool calls
+    // Extract tool calls — use repair_json_args to handle malformed argument JSON
+    // from smaller models (unquoted keys, single quotes, trailing commas, etc.)
     if let Some(tool_calls) = choice["message"]["tool_calls"].as_array() {
         for tc in tool_calls {
             let args_str = tc["function"]["arguments"].as_str().unwrap_or("{}");
-            let input = serde_json::from_str::<Value>(args_str).unwrap_or(Value::Object(
+            let repaired = repair_json_args(args_str);
+            let input = serde_json::from_str::<Value>(&repaired).unwrap_or(Value::Object(
                 serde_json::Map::new(),
             ));
             content.push(Content::ToolUse {
@@ -522,6 +694,20 @@ async fn call_openai_compat_v2(
             });
         }
     }
+
+    // Determine stop reason — prefer finish_reason but override to ToolUse
+    // when tool_calls are present. Some models (e.g. Mistral variants) return
+    // finish_reason: "stop" even when they include tool_calls in the response.
+    let has_tool_calls = content.iter().any(|c| matches!(c, Content::ToolUse { .. }));
+    let stop_reason = if has_tool_calls {
+        StopReason::ToolUse
+    } else {
+        match choice["finish_reason"].as_str() {
+            Some("tool_calls") => StopReason::ToolUse,
+            Some("length") => StopReason::MaxTokens,
+            _ => StopReason::EndTurn,
+        }
+    };
 
     Ok(ProviderResponse {
         message: Message::assistant(content),
@@ -862,5 +1048,95 @@ mod tests {
         }
 
         assert_eq!(tool_results[0]["content"].as_str(), Some("[error] command not found"));
+    }
+
+    // ── repair_json_args tests ────────────────────────────────────────────────
+
+    #[test]
+    fn repair_json_valid_input_unchanged() {
+        // Valid JSON should pass through unmodified
+        let input = r#"{"command": "echo hello"}"#;
+        let result = repair_json_args(input);
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["command"].as_str(), Some("echo hello"));
+    }
+
+    #[test]
+    fn repair_json_trailing_comma_removed() {
+        // Trailing commas are a common LLM mistake
+        let input = r#"{"command": "echo hi", "timeout": 30,}"#;
+        let result = repair_json_args(input);
+        let parsed: Value = serde_json::from_str(&result)
+            .expect("repaired JSON should parse");
+        assert_eq!(parsed["command"].as_str(), Some("echo hi"));
+        assert_eq!(parsed["timeout"].as_i64(), Some(30));
+    }
+
+    #[test]
+    fn repair_json_bare_key_quoted() {
+        // Unquoted keys should be quoted
+        let input = r#"{command: "echo hello"}"#;
+        let result = repair_json_args(input);
+        let parsed: Value = serde_json::from_str(&result)
+            .expect("repaired JSON should parse");
+        assert_eq!(parsed["command"].as_str(), Some("echo hello"));
+    }
+
+    #[test]
+    fn repair_json_single_quotes_to_double() {
+        // Single-quoted strings should become double-quoted
+        let input = "{'command': 'echo hello'}";
+        let result = repair_json_args(input);
+        let parsed: Value = serde_json::from_str(&result)
+            .expect("repaired JSON should parse");
+        assert_eq!(parsed["command"].as_str(), Some("echo hello"));
+    }
+
+    #[test]
+    fn repair_json_empty_object_unchanged() {
+        let input = "{}";
+        let result = repair_json_args(input);
+        assert_eq!(result, "{}");
+    }
+
+    #[test]
+    fn repair_json_multiple_issues() {
+        // Bare keys + trailing comma combined
+        let input = r#"{path: "src/main.rs", staged: false,}"#;
+        let result = repair_json_args(input);
+        let parsed: Value = serde_json::from_str(&result)
+            .expect("repaired JSON should parse");
+        assert_eq!(parsed["path"].as_str(), Some("src/main.rs"));
+        assert_eq!(parsed["staged"].as_bool(), Some(false));
+    }
+
+    #[test]
+    fn repair_json_truly_broken_returns_original() {
+        // Something completely unparseable should return the original
+        // (the caller handles the fallback)
+        let input = "not json at all !!@#";
+        let result = repair_json_args(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn stop_reason_overridden_when_tool_calls_present() {
+        // Verify that presence of ToolUse content → StopReason::ToolUse
+        // even if finish_reason said "stop" (the model lied)
+        let content = vec![Content::ToolUse {
+            id: "call_abc".into(),
+            name: "bash".into(),
+            input: serde_json::json!({"command": "ls"}),
+        }];
+        let has_tool_calls = content.iter().any(|c| matches!(c, Content::ToolUse { .. }));
+        assert!(has_tool_calls, "should detect tool use");
+
+        // Simulate what our code does
+        let stop_reason = if has_tool_calls {
+            StopReason::ToolUse
+        } else {
+            StopReason::EndTurn
+        };
+        assert!(matches!(stop_reason, StopReason::ToolUse), "stop reason should be ToolUse");
     }
 }

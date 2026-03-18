@@ -68,7 +68,11 @@ Last updated: Iteration 15
 
 27. **Tool-use guidance in extra_context()**: Added in iteration 20. A compact "## Tool Use Instructions" block is always injected. Tells weaker models to call tools immediately (don't describe, just do), use exact tool names, act autonomously without asking permission. Helps local/smaller models follow the tool-call loop reliably.
 
-28. **OpenRouterV2Provider / OpenAiV2Provider**: Added in iteration 21 in `src/agent/providers.rs`. Fix the silent tool-result loss in the core `call_openai_compat` function. Core flattens all messages to text-only, dropping `Content::ToolUse` and `Content::ToolResult`. The V2 providers use `call_openai_compat_v2()` which correctly emits: assistant tool calls as `tool_calls` array, tool results as separate `"tool"` role messages with `tool_call_id`. Also adds `max_tokens: 8096` and `tool_choice: "auto"` for reliability. Use `provider = "openrouter-v2"` or `provider = "openai-v2"` in config.toml.
+28. **OpenRouterV2Provider / OpenAiV2Provider**: Added in iteration 21 in `src/agent/providers.rs`. Fix the silent tool-result loss in the core `call_openai_compat` function. Core flattens all messages to text-only, dropping `Content::ToolUse` and `Content::ToolResult`. The V2 providers use `call_openai_compat_v2()` which correctly emits: assistant tool calls as `tool_calls` array, tool results as separate `"tool"` role messages with `tool_call_id`. Also adds `max_tokens: 8096` and `tool_choice: "auto"` for reliability. **KNOWN LIMITATION**: `provider = "openrouter-v2"` fails at startup because `Config::api_key()` in core only handles the 3 base names. Fix requires creator to change `api_key()` to return `Ok("")` for extra provider names. See Issue #13 comment for exact change needed.
+
+29. **`repair_json_args()`**: Added in iteration 22 in `src/agent/providers.rs`. Fixes common JSON mistakes from smaller/local models in tool call arguments: single-quoted strings → double-quoted, trailing commas → removed, bare identifier keys → quoted. Fast path: if already valid JSON, returns unchanged. Falls back to original string if repair fails. Used in both `OllamaProvider` and `call_openai_compat_v2`. Tests: `repair_json_valid_input_unchanged`, `repair_json_trailing_comma_removed`, `repair_json_bare_key_quoted`, `repair_json_single_quotes_to_double`, `repair_json_multiple_issues`, `repair_json_truly_broken_returns_original`.
+
+30. **StopReason override**: Added in iteration 22. Some models (Mistral, Llama variants) return `finish_reason: "stop"` even when their response includes `tool_calls`. This caused the agent to exit instead of executing tools. Fix: after extracting tool calls, check `has_tool_calls = content.iter().any(|c| matches!(c, Content::ToolUse { .. }))` — if true, override to `StopReason::ToolUse` regardless of `finish_reason`. Applied in both `OllamaProvider` and `call_openai_compat_v2`.
 
 
 ## Known Limitations
@@ -78,7 +82,9 @@ Last updated: Iteration 15
 - ~~No git awareness~~ → Added git_status, git_diff, git_log tools (iteration 4)
 - No REPL mode (runs once per invocation)
 - No conversation persistence between runs
-- OpenAI-compat providers lose tool_use/tool_result context (flattens to text) — **FIXED in iteration 21** via `OpenRouterV2Provider` and `OpenAiV2Provider` in `src/agent/providers.rs`. Use `provider = "openrouter-v2"` or `provider = "openai-v2"` to get proper multi-turn tool handling.
+- OpenAI-compat providers lose tool_use/tool_result context (flattens to text) — **FIXED in iteration 21** via `OpenRouterV2Provider` and `OpenAiV2Provider` in `src/agent/providers.rs`. Use `provider = "openrouter-v2"` or `provider = "openai-v2"` to get proper multi-turn tool handling. **BUT** these names currently fail at startup due to `Config::api_key()` in core (Issue #13) — needs creator fix in `src/core/mod.rs`.
+- Small/local models produce malformed tool call JSON — **FIXED in iteration 22** via `repair_json_args()` (single quotes, bare keys, trailing commas).
+- Some models return wrong `finish_reason` ("stop" instead of "tool_calls") when tool calls are present — **FIXED in iteration 22** by overriding `StopReason` based on actual content rather than trusting `finish_reason`.
 - No context window management (no compaction, no working memory)
 - **Working memory tool added (iteration 5)** — agent can now persist mid-run state
 - No turn limit in agent loop (could loop forever on tool-use cycles)

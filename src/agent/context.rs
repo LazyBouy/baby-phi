@@ -83,7 +83,19 @@ pub fn build_extra_context() -> String {
         After a tool returns, use the result to decide your next step. \
         If a tool fails, read the error message and retry with corrected parameters. \
         Do not ask the user for permission before using tools — act autonomously. \
-        Complete the full task before writing a journal entry."
+        Complete the full task before writing a journal entry.\n\n\
+        When making function calls using tools that accept array or object parameters \
+        ensure those are structured using JSON. For example:\n\
+        ```\n\
+        {\"parameter\": [{\"color\": \"orange\", \"options\": {\"opt\": true}}]}\n\
+        ```\n\n\
+        If you intend to call multiple tools and there are no dependencies between the calls, \
+        make all of the independent calls in the same turn, otherwise you MUST wait for \
+        previous calls to finish first to determine the dependent values (do NOT use \
+        placeholders or guess missing parameters).\n\n\
+        If the user provides a specific value for a parameter (for example provided in quotes), \
+        make sure to use that value EXACTLY. DO NOT make up values for or ask about optional \
+        parameters."
         .to_string(),
     );
 

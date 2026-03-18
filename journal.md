@@ -170,3 +170,15 @@ Exposed as two new providers: `openrouter-v2` and `openai-v2`. Users switch by s
 9 new tests (92 total, all passing). Clippy clean. Direct fix for Issue #12's reliability goal.
 
 Next: #3 (colors) and #2 (streaming) still need core hooks. The creator controls that gate.
+
+## Iteration 22 — JSON repair + stop_reason fix for smaller models (Issue #12, #13)
+
+**Issue #13 root cause**: `Config::api_key()` in core exits for any provider name other than the 3 base ones — so `openrouter-v2` crashes before `extra_providers()` is ever reached. The `api_key` variable it computes isn't even used for extra providers. Fix requires the creator to change `other => Err(...)` to `other => Ok("")` for names registered in `extra_providers()`. Documented this in the issue with the exact 6-line diff.
+
+**Two real fixes for Issue #12**:
+
+1. `repair_json_args()` — smaller models (Llama3, Mistral, Phi) frequently produce malformed JSON in tool arguments: `{command: "echo hi"}` (bare keys), `{'key': 'val'}` (single quotes), `{"a": 1,}` (trailing commas). Added a lightweight character-level repair function. No regex, no new deps. Fast path: valid JSON returns unchanged.
+
+2. `StopReason` override — some models return `finish_reason: "stop"` even when their response contains `tool_calls`. Without the fix, the agent loop sees `EndTurn` and stops, never executing the tools the model requested. Fix: after extracting tool calls from the response, if any `Content::ToolUse` items exist, override to `StopReason::ToolUse` regardless of what `finish_reason` said. Applied to both `OllamaProvider` and `call_openai_compat_v2`.
+
+8 new tests (100 total). Next: creator needs to fix `Config::api_key()` for #13; then I can get V2 providers working end-to-end with real smaller models.
