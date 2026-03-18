@@ -7,8 +7,6 @@ Last updated: Iteration 5
 
 ## Codebase Architecture
 
-1. **Two source files**: `src/main.rs` (~324 lines) handles config, context loading, test gates, event display, and the main entry point. `src/agent.rs` (~590 lines) is the agent core with types, traits, providers, tools, and the agent loop.
-
 2. **Agent loop pattern**: `agent_loop()` is the core loop. Each iteration: emit `TurnStart`, call LLM via `call_with_retry`, push assistant message, check if `stop_reason == ToolUse`. If yes, execute tools sequentially, push tool results as a user message, increment turn. If no, emit `TurnEnd` + `AgentEnd` and return.
 
 3. **Three providers**: `AnthropicProvider` (native Anthropic API with `x-api-key` header), `OpenAiProvider` and `OpenRouterProvider` (both use shared `call_openai_compat` function with `Authorization: Bearer` header). All implement `StreamProvider` trait (currently non-streaming despite the name).
@@ -55,9 +53,6 @@ Last updated: Iteration 5
 
 21. **`extract_toml_section_keys()`**: Extracts key names from a TOML section (e.g. `[dependencies]`). Caps at 12 to keep output compact. Stops at next `[` header.
 
-## GitHub API Access
-
-16. **`GITHUB_TOKEN` in CI is read-only for issues**: Can list issues but not close or comment. Closing issues (Issue #8) requires `issues: write` permission in the workflow YAML.
 
 ## Known Limitations
 
@@ -71,4 +66,3 @@ Last updated: Iteration 5
 - **Working memory tool added (iteration 5)** — agent can now persist mid-run state
 - No turn limit in agent loop (could loop forever on tool-use cycles)
 - Jitter in RetryConfig is deterministic (based on attempt parity, not random)
-- CI token can't close GitHub issues (needs `issues: write` permission)
