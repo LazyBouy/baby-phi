@@ -28,7 +28,9 @@ pub struct ActiveCfg {
 impl ActiveCfg {
     pub fn resolved_model(&self) -> Result<String, Box<dyn std::error::Error>> {
         if let Ok(m) = std::env::var("PHI_MODEL") {
-            return Ok(m);
+            if !m.is_empty() {
+                return Ok(m);
+            }
         }
         if !self.model.is_empty() {
             return Ok(self.model.clone());
