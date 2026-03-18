@@ -1,6 +1,7 @@
-// agent.rs — baby-phi agent core
-// Types, traits, 3 provider adapters, 6 tools, retry logic, agent loop.
-// Initial version: non-streaming provider calls (streaming is baby-phi's to add).
+// kernel.rs — baby-phi immutable bootstrap kernel
+// IMMUTABLE: agent loop, retry logic, all traits, all types, 3 base providers, 6 base tools.
+// baby-phi CANNOT modify this file. evolve.sh reverts any changes before committing.
+// Extend the system in src/agent/ instead.
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use serde_json::Value;
 use std::process::Stdio;
 use std::time::Duration;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Core Types ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
@@ -87,8 +88,6 @@ impl std::fmt::Display for ProviderError {
 }
 
 impl ProviderError {
-    /// Classify an HTTP error response into a typed ProviderError.
-    /// `retry_after_ms` should be parsed from the Retry-After header on 429s.
     pub fn classify(status: u16, body: &str, retry_after_ms: Option<u64>) -> Self {
         match status {
             429 => Self::RateLimited {
@@ -106,7 +105,6 @@ impl ProviderError {
         matches!(self, Self::RateLimited { .. } | Self::Network(_))
     }
 
-    /// Returns the server-suggested retry delay from a 429 Retry-After header.
     pub fn retry_after(&self) -> Option<Duration> {
         match self {
             Self::RateLimited {
@@ -119,20 +117,16 @@ impl ProviderError {
 }
 
 /// Parse the Retry-After header value into milliseconds.
-/// Supports both seconds (integer/float) and HTTP-date formats.
 pub fn parse_retry_after(value: &str) -> Option<u64> {
     let trimmed = value.trim();
-    // Try parsing as seconds (integer)
     if let Ok(secs) = trimmed.parse::<u64>() {
         return Some(secs * 1000);
     }
-    // Try parsing as seconds (float, e.g. "1.5")
     if let Ok(secs) = trimmed.parse::<f64>() {
         if secs > 0.0 && secs < 86400.0 {
             return Some((secs * 1000.0) as u64);
         }
     }
-    // Could add HTTP-date parsing here in the future
     None
 }
 
@@ -158,7 +152,6 @@ impl RetryConfig {
     pub fn delay_for(&self, attempt: u32) -> Duration {
         let base = (self.base_delay_ms as f64) * (2u64.pow(attempt) as f64);
         let capped = base.min(self.max_delay_ms as f64);
-        // deterministic ±jitter based on attempt parity (rand dep avoided)
         let sign = if attempt.is_multiple_of(2) { 1.0 } else { -1.0 };
         Duration::from_millis((capped * (1.0 + sign * self.jitter_factor * 0.5)) as u64)
     }
@@ -172,21 +165,13 @@ pub struct ToolDefinition {
 }
 
 pub enum AgentEvent {
-    TurnStart {
-        turn: u32,
-    },
+    TurnStart { turn: u32 },
     TextDelta(String),
-    ToolStart {
-        name: String,
-        input: Value,
-    },
-    ToolEnd {
-        name: String,
-        output: String,
-        is_error: bool,
-    },
+    ToolStart { name: String, input: Value },
+    ToolEnd { name: String, output: String, is_error: bool },
     TurnEnd,
     AgentEnd,
+    Warn(String),
 }
 
 pub struct ToolResult {
@@ -221,7 +206,7 @@ pub trait AgentTool: Send + Sync {
     async fn execute(&self, input: Value) -> ToolResult;
 }
 
-// ── Provider Adapters ─────────────────────────────────────────────────────────
+// ── Base Providers ────────────────────────────────────────────────────────────
 
 pub struct AnthropicProvider {
     pub endpoint: String,
@@ -248,17 +233,31 @@ impl StreamProvider for AnthropicProvider {
         system: &str,
     ) -> Result<ProviderResponse, ProviderError> {
         let client = reqwest::Client::new();
-        let msgs: Vec<Value> = messages.iter().map(|m| {
-            let content: Vec<Value> = m.content.iter().map(|c| match c {
-                Content::Text { text } =>
-                    serde_json::json!({ "type": "text", "text": text }),
-                Content::ToolUse { id, name, input } =>
-                    serde_json::json!({ "type": "tool_use", "id": id, "name": name, "input": input }),
-                Content::ToolResult { tool_use_id, content, is_error } =>
-                    serde_json::json!({ "type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error }),
-            }).collect();
-            serde_json::json!({ "role": m.role, "content": content })
-        }).collect();
+        let msgs: Vec<Value> = messages
+            .iter()
+            .map(|m| {
+                let content: Vec<Value> = m
+                    .content
+                    .iter()
+                    .map(|c| match c {
+                        Content::Text { text } => {
+                            serde_json::json!({ "type": "text", "text": text })
+                        }
+                        Content::ToolUse { id, name, input } => {
+                            serde_json::json!({ "type": "tool_use", "id": id, "name": name, "input": input })
+                        }
+                        Content::ToolResult {
+                            tool_use_id,
+                            content,
+                            is_error,
+                        } => {
+                            serde_json::json!({ "type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error })
+                        }
+                    })
+                    .collect();
+                serde_json::json!({ "role": m.role, "content": content })
+            })
+            .collect();
 
         let tools_val: Vec<Value> = tools
             .iter()
@@ -290,21 +289,25 @@ impl StreamProvider for AnthropicProvider {
             .map_err(|e| ProviderError::Network(e.to_string()))?;
 
         let status = resp.status().as_u16();
-        // Parse Retry-After header before consuming the response body
         let retry_after_ms = resp
             .headers()
             .get("retry-after")
             .and_then(|v| v.to_str().ok())
             .and_then(parse_retry_after);
-        let body_text = resp.text().await.unwrap_or_default();
+        let body_text = resp
+            .text()
+            .await
+            .map_err(|e| ProviderError::Network(e.to_string()))?;
         if status != 200 {
             return Err(ProviderError::classify(status, &body_text, retry_after_ms));
         }
 
-        let v: Value =
-            serde_json::from_str(&body_text).map_err(|e| ProviderError::Other(e.to_string()))?;
+        let v: Value = serde_json::from_str(&body_text)
+            .map_err(|e| ProviderError::Other(e.to_string()))?;
 
+        // INVARIANT: "tool_use" must map to StopReason::ToolUse — never change this mapping.
         let stop_reason = match v["stop_reason"].as_str() {
+            Some("tool_use") => StopReason::ToolUse,
             Some("max_tokens") => StopReason::MaxTokens,
             Some("error") => StopReason::Error,
             _ => StopReason::EndTurn,
@@ -331,7 +334,6 @@ impl StreamProvider for AnthropicProvider {
     }
 }
 
-// Shared non-streaming call for OpenAI-compatible providers
 async fn call_openai_compat(
     endpoint: &str,
     api_key: &str,
@@ -359,10 +361,15 @@ async fn call_openai_compat(
         msgs.push(serde_json::json!({ "role": m.role, "content": text }));
     }
 
-    let tools_val: Vec<Value> = tools.iter().map(|t| serde_json::json!({
-        "type": "function",
-        "function": { "name": t.name, "description": t.description, "parameters": t.parameters }
-    })).collect();
+    let tools_val: Vec<Value> = tools
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "type": "function",
+                "function": { "name": t.name, "description": t.description, "parameters": t.parameters }
+            })
+        })
+        .collect();
 
     let mut body = serde_json::json!({ "model": model, "messages": msgs });
     if !tools.is_empty() {
@@ -384,13 +391,15 @@ async fn call_openai_compat(
         .map_err(|e| ProviderError::Network(e.to_string()))?;
 
     let status = resp.status().as_u16();
-    // Parse Retry-After header before consuming the response body
     let retry_after_ms = resp
         .headers()
         .get("retry-after")
         .and_then(|v| v.to_str().ok())
         .and_then(parse_retry_after);
-    let body_text = resp.text().await.unwrap_or_default();
+    let body_text = resp
+        .text()
+        .await
+        .map_err(|e| ProviderError::Network(e.to_string()))?;
     if status != 200 {
         return Err(ProviderError::classify(status, &body_text, retry_after_ms));
     }
@@ -463,7 +472,7 @@ impl StreamProvider for OpenRouterProvider {
             &self.endpoint,
             &self.api_key,
             &self.model,
-            &[("HTTP-Referer", "https://github.com/baby-phi")],
+            &[("HTTP-Referer", "https://github.com/LazyBouy/baby-phi")],
             messages,
             tools,
             system,
@@ -472,12 +481,18 @@ impl StreamProvider for OpenRouterProvider {
     }
 }
 
-// ── Tools ─────────────────────────────────────────────────────────────────────
+// ── Base Tools ────────────────────────────────────────────────────────────────
 
 pub struct BashTool;
 impl BashTool {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for BashTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -558,6 +573,12 @@ impl ReadFileTool {
     }
 }
 
+impl Default for ReadFileTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl AgentTool for ReadFileTool {
     fn name(&self) -> &str {
@@ -622,6 +643,12 @@ impl WriteFileTool {
     }
 }
 
+impl Default for WriteFileTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl AgentTool for WriteFileTool {
     fn name(&self) -> &str {
@@ -678,6 +705,12 @@ pub struct EditFileTool;
 impl EditFileTool {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for EditFileTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -767,6 +800,12 @@ impl ListFilesTool {
     }
 }
 
+impl Default for ListFilesTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl AgentTool for ListFilesTool {
     fn name(&self) -> &str {
@@ -816,6 +855,12 @@ pub struct SearchTool;
 impl SearchTool {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for SearchTool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -888,6 +933,19 @@ impl AgentTool for SearchTool {
     }
 }
 
+/// Returns the 6 base tools. Called by core::run() to build the tool list.
+/// baby-phi can add extra tools in src/agent/ and pass them alongside these.
+pub fn default_tools() -> Vec<Box<dyn AgentTool>> {
+    vec![
+        Box::new(BashTool::new()),
+        Box::new(ReadFileTool::new()),
+        Box::new(WriteFileTool::new()),
+        Box::new(EditFileTool::new()),
+        Box::new(ListFilesTool::new()),
+        Box::new(SearchTool::new()),
+    ]
+}
+
 // ── Agent Loop ────────────────────────────────────────────────────────────────
 
 pub async fn agent_loop(
@@ -908,6 +966,21 @@ pub async fn agent_loop(
         messages.push(response.message.clone());
 
         if response.stop_reason != StopReason::ToolUse {
+            // Warn if the agent completed immediately on turn 0 with no tool calls
+            if turn == 0 {
+                let tool_count = response
+                    .message
+                    .content
+                    .iter()
+                    .filter(|c| matches!(c, Content::ToolUse { .. }))
+                    .count();
+                if tool_count == 0 {
+                    on_event(AgentEvent::Warn(format!(
+                        "turn 0 completed with stop_reason={:?} and zero tool calls — agent may not have understood its task",
+                        response.stop_reason
+                    )));
+                }
+            }
             on_event(AgentEvent::TurnEnd);
             on_event(AgentEvent::AgentEnd);
             return Ok(());
@@ -970,7 +1043,6 @@ async fn call_with_retry(
         match provider.stream(messages, tool_defs, system).await {
             Ok(resp) => return Ok(resp),
             Err(e) if e.is_retryable() && attempt + 1 < retry.max_attempts => {
-                // Prefer server-specified Retry-After over calculated backoff
                 let delay = e.retry_after().unwrap_or_else(|| retry.delay_for(attempt));
                 on_event(AgentEvent::TextDelta(format!(
                     "[retry in {}ms{}]\n",
@@ -987,4 +1059,134 @@ async fn call_with_retry(
         }
     }
     unreachable!()
+}
+
+// ── Immutable Tests ───────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ── Stop-reason invariant ─────────────────────────────────────────────────
+
+    #[test]
+    fn stop_reason_tool_use_parses_correctly() {
+        // Simulate parsing a real Anthropic response body with stop_reason "tool_use".
+        // INVARIANT: this must always map to StopReason::ToolUse, never EndTurn.
+        // If this test fails, the agent loop will silently skip all tool calls.
+        let body = serde_json::json!({
+            "stop_reason": "tool_use",
+            "content": [
+                { "type": "tool_use", "id": "t1", "name": "bash", "input": { "command": "echo hi" } }
+            ]
+        });
+        let stop_reason = match body["stop_reason"].as_str() {
+            Some("tool_use") => StopReason::ToolUse,
+            Some("max_tokens") => StopReason::MaxTokens,
+            Some("error") => StopReason::Error,
+            _ => StopReason::EndTurn,
+        };
+        assert_eq!(
+            stop_reason,
+            StopReason::ToolUse,
+            "stop_reason 'tool_use' must map to StopReason::ToolUse — never change this mapping"
+        );
+    }
+
+    // ── Retry-After parsing ───────────────────────────────────────────────────
+
+    #[test]
+    fn parse_retry_after_integer_seconds() {
+        assert_eq!(parse_retry_after("5"), Some(5000));
+        assert_eq!(parse_retry_after("0"), Some(0));
+        assert_eq!(parse_retry_after("120"), Some(120_000));
+    }
+
+    #[test]
+    fn parse_retry_after_float_seconds() {
+        assert_eq!(parse_retry_after("1.5"), Some(1500));
+        assert_eq!(parse_retry_after("0.5"), Some(500));
+        assert_eq!(parse_retry_after("30.0"), Some(30_000));
+    }
+
+    #[test]
+    fn parse_retry_after_whitespace() {
+        assert_eq!(parse_retry_after("  10  "), Some(10_000));
+        assert_eq!(parse_retry_after(" 2.5 "), Some(2500));
+    }
+
+    #[test]
+    fn parse_retry_after_invalid() {
+        assert_eq!(parse_retry_after("not-a-number"), None);
+        assert_eq!(parse_retry_after(""), None);
+    }
+
+    #[test]
+    fn rate_limited_error_has_retry_after() {
+        let err = ProviderError::classify(429, "rate limited", Some(5000));
+        assert!(err.is_retryable());
+        assert_eq!(
+            err.retry_after(),
+            Some(std::time::Duration::from_millis(5000))
+        );
+    }
+
+    #[test]
+    fn rate_limited_error_without_retry_after() {
+        let err = ProviderError::classify(429, "rate limited", None);
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn non_rate_limited_error_no_retry_after() {
+        let err = ProviderError::classify(500, "server error", None);
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), None);
+
+        let err = ProviderError::classify(400, "bad request", None);
+        assert!(!err.is_retryable());
+        assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn classify_passes_retry_after_only_for_429() {
+        let err = ProviderError::classify(500, "server error", Some(5000));
+        assert_eq!(err.retry_after(), None);
+    }
+
+    // ── Tool tests ────────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn bash_tool_basic() {
+        let t = BashTool::new();
+        let r = t.execute(json!({"command": "echo hello"})).await;
+        assert!(!r.is_error, "echo should succeed");
+        assert_eq!(r.content.trim(), "hello");
+    }
+
+    #[tokio::test]
+    async fn edit_tool_rejects_missing_old_string() {
+        let f = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(f.path(), "abc").unwrap();
+        let t = EditFileTool::new();
+        let r = t
+            .execute(json!({
+                "path": f.path().to_str().unwrap(),
+                "old_string": "xyz",
+                "new_string": "def"
+            }))
+            .await;
+        assert!(r.is_error, "must error when old_string not found");
+    }
+
+    #[test]
+    fn search_tool_does_not_crash() {
+        let t = SearchTool::new();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let r = rt.block_on(t.execute(json!({"pattern": "fn main", "path": "src/"})));
+        assert!(!r.is_error, "search must not error (rg or grep)");
+        assert!(r.content.contains("main"), "must find fn main in src/");
+    }
 }

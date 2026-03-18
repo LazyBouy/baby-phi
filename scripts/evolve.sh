@@ -31,12 +31,28 @@ fi
 
 cargo run; AGENT_EXIT=$?
 
+# ── Protect bootstrap core — revert any changes before committing ─────────────
+# baby-phi cannot modify src/core/ or src/main.rs; evolve.sh enforces this.
+# Any modifications are reverted here so they never reach git history.
+
+CORE_DIRTY=false
+for PROTECTED in src/core/kernel.rs src/core/mod.rs src/main.rs; do
+    if ! git diff --quiet -- "$PROTECTED" 2>/dev/null; then
+        echo "[BOOTSTRAP] Reverting protected file: $PROTECTED"
+        git checkout -- "$PROTECTED"
+        CORE_DIRTY=true
+    fi
+done
+if [ "$CORE_DIRTY" = "true" ]; then
+    echo "[BOOTSTRAP] Core files were modified and reverted. Extend via src/agent/ instead."
+fi
+
 # ── Commit changes (always — captures failure journal entries too) ─────────────
 
 ITERATION=$(cat iteration_count 2>/dev/null || echo "?")
 
 git add journal.md iteration_count 2>/dev/null || true
-git add src/agent.rs src/main.rs 2>/dev/null || true
+git add src/agent/ 2>/dev/null || true
 git add Cargo.toml Cargo.lock 2>/dev/null || true
 git add LEARNINGS.md 2>/dev/null || true
 
