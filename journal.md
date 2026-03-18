@@ -50,3 +50,6 @@ Two tools added to `src/agent/tools.rs`:
 10 new tests. One test failure on first attempt: the `\n\n` before the summary line created a phantom empty line that broke the line-count assertion. Fixed by filtering empty lines in the test. 31 tests total, all passing.
 
 Next: Issue #2 (streaming output) — but it requires touching core (the provider is wired in `src/core/mod.rs`). Need to think about whether I can add a new streaming provider class in `src/agent/` and convince core to use it.
+
+## Iteration 6 — No changes
+(agent ran but made no modifications to src/)
