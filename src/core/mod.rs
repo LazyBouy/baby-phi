@@ -53,11 +53,14 @@ fn last_n_lines(text: &str, n: usize) -> String {
     lines[start..].join("\n")
 }
 
-pub fn load_context(cfg: &Config) -> (String, String, u64) {
+pub fn load_context(cfg: &Config) -> (String, String, u64, bool) {
     let identity = read_file_opt("identity.md");
     let journal = read_file_opt("journal.md");
     let journal_excerpt = last_n_lines(&journal, cfg.journal_lines);
     let external = read_file_opt("Input.md");
+
+    // Non-trivial external input: not empty and not just the placeholder text
+    let has_external_input = !external.trim().is_empty() && !external.trim().contains("(empty)");
 
     // Clear Input.md after reading
     let _ = std::fs::write("Input.md", "# External Input\n\n(empty)\n");
@@ -69,7 +72,7 @@ pub fn load_context(cfg: &Config) -> (String, String, u64) {
 
     let user_msg = format!("## Recent Journal\n{journal_excerpt}\n\n## External Input\n{external}");
 
-    (identity, user_msg, next)
+    (identity, user_msg, next, has_external_input)
 }
 
 // ── Test Gate ─────────────────────────────────────────────────────────────────
@@ -139,7 +142,7 @@ pub async fn run() {
         std::process::exit(1);
     }
 
-    let (base_system, user_msg, iteration) = load_context(&cfg);
+    let (base_system, user_msg, iteration, has_external_input) = load_context(&cfg);
     println!("baby-phi — iteration {iteration}");
     println!(
         "provider: {} / model: {}",
@@ -190,7 +193,7 @@ pub async fn run() {
     let mut messages = vec![Message::user(user_msg)];
     let retry = RetryConfig::default();
 
-    if let Err(e) = agent_loop(
+    let turns_used = match agent_loop(
         &mut messages,
         provider.as_ref(),
         &tools,
@@ -201,23 +204,54 @@ pub async fn run() {
     )
     .await
     {
-        let entry = format!("## Iteration {iteration} — FAILED\nProvider error: {e}");
-        append_journal(&entry);
-        eprintln!("agent error: {e}");
-        std::process::exit(1);
-    }
+        Ok(turns) => turns,
+        Err(e) => {
+            let entry = format!("## Iteration {iteration} — FAILED\nProvider error: {e}");
+            append_journal(&entry);
+            eprintln!("agent error: {e}");
+            std::process::exit(1);
+        }
+    };
 
     // No-changes guard: journal if agent ran but modified nothing in src/
+    // src_changed  — git status --porcelain src/    (only src/ directory)
+    // non_src_changed — git status --porcelain      (all files; since we're in the !src_changed
+    //                   branch, any hit here is a non-src file: journal.md, LEARNINGS.md, etc.)
     let src_changed = Command::new("git")
         .args(["status", "--porcelain", "src/"])
         .output()
         .map(|o| !o.stdout.is_empty())
         .unwrap_or(false);
     if !src_changed {
+        let non_src_changed = Command::new("git")
+            .args(["status", "--porcelain"])
+            .output()
+            .map(|o| !o.stdout.is_empty())
+            .unwrap_or(false);
+        let reason = if turns_used == 0 {
+            "turn 0: agent responded with no tool calls — task may have been unclear or there was nothing to do".to_string()
+        } else if turns_used >= cfg.max_turns {
+            format!(
+                "max_turns ({}) reached — agent was cut off mid-task",
+                cfg.max_turns
+            )
+        } else if !has_external_input {
+            format!(
+                "agent completed {turns_used} turns but no external input was provided — consider opening a GitHub issue"
+            )
+        } else if non_src_changed {
+            format!(
+                "agent completed {turns_used} turns and modified non-src/ files (LEARNINGS.md, journal, etc.) but not src/"
+            )
+        } else {
+            format!(
+                "agent completed {turns_used} turns with input but chose not to modify src/ — may need a clearer task"
+            )
+        };
         append_journal(&format!(
-            "## Iteration {iteration} — No changes\n(agent ran but made no modifications to src/)"
+            "## Iteration {iteration} — No changes\n(agent ran but made no modifications to src/) — reason: {reason}"
         ));
-        eprintln!("[WARN] Iteration {iteration}: agent completed with no source changes.");
+        eprintln!("[WARN] Iteration {iteration}: agent completed with no source changes. reason: {reason}");
     }
 
     // Post-run test gate
@@ -330,6 +364,8 @@ pub async fn run_interactive() {
             &mut on_event,
         )
         .await
+        // discard turns_used — no journaling in interactive mode
+        .map(|_| ())
         {
             eprintln!("error: {e}");
         }

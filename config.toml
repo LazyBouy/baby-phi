@@ -1,5 +1,5 @@
 journal_lines = 200
-max_turns = 25
+max_turns = 50
 
 [active]
 provider = "anthropic"

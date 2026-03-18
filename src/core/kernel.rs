@@ -965,7 +965,7 @@ pub async fn agent_loop(
     retry: &RetryConfig,
     max_turns: u32,
     on_event: &mut dyn FnMut(AgentEvent),
-) -> Result<(), ProviderError> {
+) -> Result<u32, ProviderError> {
     let tool_defs: Vec<ToolDefinition> = tools.iter().map(|t| t.definition()).collect();
     let mut turn: u32 = 0;
 
@@ -993,7 +993,7 @@ pub async fn agent_loop(
             }
             on_event(AgentEvent::TurnEnd);
             on_event(AgentEvent::AgentEnd);
-            return Ok(());
+            return Ok(turn);
         }
 
         let tool_uses: Vec<(String, String, Value)> = response
@@ -1050,7 +1050,7 @@ pub async fn agent_loop(
             )));
             on_event(AgentEvent::TurnEnd);
             on_event(AgentEvent::AgentEnd);
-            return Ok(());
+            return Ok(turn);
         }
     }
 }
