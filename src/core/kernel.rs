@@ -1002,7 +1002,8 @@ pub async fn agent_loop(
                     })
                     .collect::<Vec<_>>()
                     .join(" ");
-                t[..t.len().min(100)].to_string()
+                let end = t.floor_char_boundary(100);
+                t[..end].to_string()
             })
             .unwrap_or_default();
         on_event(AgentEvent::Debug(format!(
@@ -1027,7 +1028,7 @@ pub async fn agent_loop(
             .collect::<Vec<_>>()
             .join(" ");
         let resp_summary = if !resp_text.is_empty() {
-            format!("text: {:?}", &resp_text[..resp_text.len().min(100)])
+            format!("text: {:?}", &resp_text[..resp_text.floor_char_boundary(100)])
         } else {
             let tool_names: Vec<&str> = response
                 .message
