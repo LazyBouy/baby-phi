@@ -21,7 +21,20 @@ pub struct Config {
 pub struct ActiveCfg {
     pub provider: String,
     pub endpoint: String,
+    #[serde(default)]
     pub model: String,
+}
+
+impl ActiveCfg {
+    pub fn resolved_model(&self) -> Result<String, Box<dyn std::error::Error>> {
+        if let Ok(m) = std::env::var("PHI_MODEL") {
+            return Ok(m);
+        }
+        if !self.model.is_empty() {
+            return Ok(self.model.clone());
+        }
+        Err("model not set: add 'model' to config.toml [active] or set PHI_MODEL env var".into())
+    }
 }
 
 impl Config {
@@ -143,12 +156,13 @@ pub async fn run() {
         std::process::exit(1);
     }
 
+    let model = cfg.active.resolved_model().unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1)
+    });
     let (base_system, user_msg, iteration, has_external_input) = load_context(&cfg);
     println!("baby-phi — iteration {iteration}");
-    println!(
-        "provider: {} / model: {}",
-        cfg.active.provider, cfg.active.model
-    );
+    println!("provider: {} / model: {}", cfg.active.provider, model);
 
     // System prompt: identity + any dynamic content from agent
     let extra = crate::agent::extra_context();
@@ -163,17 +177,17 @@ pub async fn run() {
         "anthropic" => Box::new(AnthropicProvider {
             endpoint: cfg.active.endpoint.clone(),
             api_key: api_key.clone(),
-            model: cfg.active.model.clone(),
+            model: model.clone(),
         }),
         "openai" => Box::new(OpenAiProvider {
             endpoint: cfg.active.endpoint.clone(),
             api_key: api_key.clone(),
-            model: cfg.active.model.clone(),
+            model: model.clone(),
         }),
         "openrouter" => Box::new(OpenRouterProvider {
             endpoint: cfg.active.endpoint.clone(),
             api_key: api_key.clone(),
-            model: cfg.active.model.clone(),
+            model: model.clone(),
         }),
         other => {
             let extras = crate::agent::extra_providers();
@@ -293,6 +307,11 @@ pub async fn run_interactive() {
         std::process::exit(1)
     });
 
+    let model = cfg.active.resolved_model().unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1)
+    });
+
     // System prompt: identity + any dynamic content from agent
     let base_system = read_file_opt("identity.md");
     let extra = crate::agent::extra_context();
@@ -307,17 +326,17 @@ pub async fn run_interactive() {
         "anthropic" => Box::new(AnthropicProvider {
             endpoint: cfg.active.endpoint.clone(),
             api_key: api_key.clone(),
-            model: cfg.active.model.clone(),
+            model: model.clone(),
         }),
         "openai" => Box::new(OpenAiProvider {
             endpoint: cfg.active.endpoint.clone(),
             api_key: api_key.clone(),
-            model: cfg.active.model.clone(),
+            model: model.clone(),
         }),
         "openrouter" => Box::new(OpenRouterProvider {
             endpoint: cfg.active.endpoint.clone(),
             api_key: api_key.clone(),
-            model: cfg.active.model.clone(),
+            model: model.clone(),
         }),
         other => {
             let extras = crate::agent::extra_providers();
@@ -339,10 +358,7 @@ pub async fn run_interactive() {
     let mut messages: Vec<Message> = vec![];
 
     println!("baby-phi interactive (blank line to send, Ctrl+D to exit)");
-    println!(
-        "provider: {} / model: {}",
-        cfg.active.provider, cfg.active.model
-    );
+    println!("provider: {} / model: {}", cfg.active.provider, model);
 
     let stdin = io::stdin();
     loop {
@@ -410,6 +426,9 @@ mod tests {
         let c = Config::load().expect("config.toml must parse");
         assert!(!c.active.provider.is_empty(), "provider must not be empty");
         assert!(!c.active.endpoint.is_empty(), "endpoint must not be empty");
-        assert!(!c.active.model.is_empty(), "model must not be empty");
+        assert!(
+            c.active.resolved_model().is_ok(),
+            "model must be set via config.toml or PHI_MODEL env var"
+        );
     }
 }
