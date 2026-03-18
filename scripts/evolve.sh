@@ -48,13 +48,13 @@ if [ "$CORE_DIRTY" = "true" ]; then
 fi
 
 # ── Commit changes (always — captures failure journal entries too) ─────────────
+# Core files are already reverted above, so git add . is safe here.
+# .gitignore excludes target/, .env, and other sensitive paths.
+# Using git add . means any new folder baby-phi creates is automatically staged.
 
 ITERATION=$(cat iteration_count 2>/dev/null || echo "?")
 
-git add journal.md iteration_count 2>/dev/null || true
-git add src/agent/ 2>/dev/null || true
-git add Cargo.toml Cargo.lock 2>/dev/null || true
-git add LEARNINGS.md 2>/dev/null || true
+git add .
 
 git diff --cached --quiet || \
     git commit -m "iteration ${ITERATION}: self-improvement"

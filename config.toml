@@ -3,4 +3,4 @@ journal_lines = 200
 [active]
 provider = "anthropic"
 endpoint  = "https://api.anthropic.com/v1/messages"
-model     = "claude-opus-4-6"
+model     = "claude-sonnet-4-6"
