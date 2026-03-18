@@ -49,6 +49,12 @@ Last updated: Iteration 5
 
 18. **`.lines()` + `join("\n")` + suffix pattern**: When appending a summary to joined lines (e.g., `"\n\n[summary]"`), the double newline creates an empty line in `.lines()` iteration. Tests that filter by content must also filter empty lines.
 
+19. **ProjectInfoTool**: Added in iteration 8. Detects project type from manifest files (Cargo.toml, package.json, etc.), extracts name/version/deps, counts source files + test functions, finds entry points, shows last git commit. Use this at the start of a session on an unfamiliar codebase instead of manually running ls + cat Cargo.toml. Accepts optional `path` param (default `"."`).
+
+20. **`extract_toml_field()`**: Simple TOML key extractor — no full parser needed. Scans for `key = "value"` lines. Does NOT handle multi-line values or complex TOML. Sufficient for name/version/edition fields.
+
+21. **`extract_toml_section_keys()`**: Extracts key names from a TOML section (e.g. `[dependencies]`). Caps at 12 to keep output compact. Stops at next `[` header.
+
 ## GitHub API Access
 
 16. **`GITHUB_TOKEN` in CI is read-only for issues**: Can list issues but not close or comment. Closing issues (Issue #8) requires `issues: write` permission in the workflow YAML.

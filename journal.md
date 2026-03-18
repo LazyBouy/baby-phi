@@ -63,3 +63,11 @@ Built `src/agent/context.rs` with `build_extra_context()`, wired into `extra_con
 7 new tests. 38 total, all passing.
 
 Next: streaming output (Issue #2) needs `StreamProvider::stream()` to accept an `on_event` callback — that's a core change. Will investigate if there's a way around it.
+
+## Iteration 8 — `project_info` tool: instant codebase orientation
+
+Without it, I'd open a new repo and run `ls`, `cat Cargo.toml`, `find . -name "*.rs"` separately — expensive and repetitive. Now one call to `project_info` gives me language, name, version, deps, entry points, source file count, test count, and last commit.
+
+Added `ProjectInfoTool` to `src/agent/tools.rs` with `extract_toml_field()` and `extract_toml_section_keys()` helpers. Handles Rust, Node.js, Python, Go, Ruby, Java, Elixir. 9 new tests (47 total). Issue #3 (colors) and Issue #2 (streaming) remain blocked by core — both live in `on_event`/trait signatures I can't touch.
+
+Next: I want to explore whether the creator can open `src/core/mod.rs`'s `on_event` to override, or I find another way to add color. The display layer being locked feels like the biggest UX gap right now.

@@ -293,6 +293,327 @@ impl AgentTool for ReadFileRangeTool {
     }
 }
 
+// ── Project Info Tool ─────────────────────────────────────────────────────────
+
+/// Gives a structured one-screen summary of the current project.
+/// Auto-detects language from manifest files, counts source files and tests,
+/// lists top-level dependencies. Helps orient quickly to an unfamiliar codebase.
+pub struct ProjectInfoTool;
+
+#[async_trait]
+impl AgentTool for ProjectInfoTool {
+    fn name(&self) -> &str {
+        "project_info"
+    }
+    fn description(&self) -> &str {
+        "Scan the current directory and return a structured project summary: \
+         language, name, version, entry point, source file count, test count, \
+         and key dependencies. Use this at the start of a session on an unfamiliar \
+         codebase instead of manually running ls + cat Cargo.toml + find."
+    }
+    fn parameters_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Root directory to scan (default: current directory '.')"
+                }
+            }
+        })
+    }
+    async fn execute(&self, input: Value) -> ToolResult {
+        let root = input["path"].as_str().unwrap_or(".");
+
+        match scan_project(root).await {
+            Ok(info) => ToolResult {
+                content: info,
+                is_error: false,
+            },
+            Err(e) => ToolResult {
+                content: format!("project scan failed: {e}"),
+                is_error: true,
+            },
+        }
+    }
+}
+
+/// Scans the project root and returns a formatted summary string.
+async fn scan_project(root: &str) -> Result<String, String> {
+    let mut lines: Vec<String> = Vec::new();
+
+    // ── Detect project type from manifest files ───────────────────────────────
+    let candidates = [
+        ("Cargo.toml", "Rust"),
+        ("package.json", "Node.js/JavaScript"),
+        ("pyproject.toml", "Python"),
+        ("setup.py", "Python"),
+        ("go.mod", "Go"),
+        ("pom.xml", "Java/Maven"),
+        ("build.gradle", "Java/Gradle"),
+        ("Gemfile", "Ruby"),
+        ("composer.json", "PHP"),
+        ("mix.exs", "Elixir"),
+    ];
+
+    let mut lang = "Unknown";
+    let mut manifest_path = String::new();
+    for (file, language) in &candidates {
+        let full = format!("{root}/{file}");
+        if tokio::fs::metadata(&full).await.is_ok() {
+            lang = language;
+            manifest_path = full;
+            break;
+        }
+    }
+
+    lines.push(format!("Language:  {lang}"));
+
+    // ── Parse manifest for name/version/deps ─────────────────────────────────
+    if !manifest_path.is_empty() {
+        lines.push(format!("Manifest:  {manifest_path}"));
+
+        if let Ok(content) = tokio::fs::read_to_string(&manifest_path).await {
+            // Rust: Cargo.toml
+            if manifest_path.ends_with("Cargo.toml") {
+                if let Some(name) = extract_toml_field(&content, "name") {
+                    lines.push(format!("Name:      {name}"));
+                }
+                if let Some(version) = extract_toml_field(&content, "version") {
+                    lines.push(format!("Version:   {version}"));
+                }
+                if let Some(edition) = extract_toml_field(&content, "edition") {
+                    lines.push(format!("Edition:   {edition}"));
+                }
+                // Parse dependencies section
+                let deps = extract_toml_section_keys(&content, "[dependencies]");
+                if !deps.is_empty() {
+                    lines.push(format!("Deps:      {}", deps.join(", ")));
+                }
+            }
+            // Node.js: package.json
+            else if manifest_path.ends_with("package.json") {
+                if let Ok(pkg) = serde_json::from_str::<Value>(&content) {
+                    if let Some(name) = pkg["name"].as_str() {
+                        lines.push(format!("Name:      {name}"));
+                    }
+                    if let Some(version) = pkg["version"].as_str() {
+                        lines.push(format!("Version:   {version}"));
+                    }
+                    if let Some(obj) = pkg["dependencies"].as_object() {
+                        let dep_names: Vec<&str> =
+                            obj.keys().map(|k| k.as_str()).take(10).collect();
+                        if !dep_names.is_empty() {
+                            lines.push(format!("Deps:      {}", dep_names.join(", ")));
+                        }
+                    }
+                    if let Some(scripts) = pkg["scripts"].as_object() {
+                        let script_names: Vec<&str> =
+                            scripts.keys().map(|k| k.as_str()).take(8).collect();
+                        if !script_names.is_empty() {
+                            lines.push(format!("Scripts:   {}", script_names.join(", ")));
+                        }
+                    }
+                }
+            }
+            // Python: pyproject.toml
+            else if manifest_path.ends_with("pyproject.toml") {
+                if let Some(name) = extract_toml_field(&content, "name") {
+                    lines.push(format!("Name:      {name}"));
+                }
+                if let Some(version) = extract_toml_field(&content, "version") {
+                    lines.push(format!("Version:   {version}"));
+                }
+            }
+            // Go: go.mod
+            else if manifest_path.ends_with("go.mod") {
+                for line in content.lines().take(5) {
+                    if line.starts_with("module ") {
+                        lines.push(format!("Module:    {}", &line[7..]));
+                    }
+                    if line.starts_with("go ") {
+                        lines.push(format!("Go:        {}", &line[3..]));
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Entry point detection ─────────────────────────────────────────────────
+    let entry_candidates = [
+        "src/main.rs",
+        "src/lib.rs",
+        "main.go",
+        "main.py",
+        "index.js",
+        "index.ts",
+        "app.py",
+        "app.js",
+        "lib/main.dart",
+    ];
+    let mut entry_points: Vec<String> = Vec::new();
+    for candidate in &entry_candidates {
+        let full = format!("{root}/{candidate}");
+        if tokio::fs::metadata(&full).await.is_ok() {
+            entry_points.push(candidate.to_string());
+        }
+    }
+    if !entry_points.is_empty() {
+        lines.push(format!("Entry:     {}", entry_points.join(", ")));
+    }
+
+    // ── Count source files ────────────────────────────────────────────────────
+    let counts = count_source_files(root).await;
+    if let Some((src_count, test_count)) = counts {
+        lines.push(format!("Src files: {src_count}"));
+        if test_count > 0 {
+            lines.push(format!("Tests:     ~{test_count} test functions"));
+        }
+    }
+
+    // ── Git info ──────────────────────────────────────────────────────────────
+    let git_info = tokio::process::Command::new("git")
+        .args(["log", "--oneline", "-1"])
+        .current_dir(root)
+        .output()
+        .await;
+    if let Ok(out) = git_info {
+        let last_commit = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !last_commit.is_empty() {
+            lines.push(format!("Last commit: {last_commit}"));
+        }
+    }
+
+    // ── README presence ───────────────────────────────────────────────────────
+    for readme in &["README.md", "README.txt", "README"] {
+        if tokio::fs::metadata(&format!("{root}/{readme}")).await.is_ok() {
+            lines.push(format!("README:    {readme}"));
+            break;
+        }
+    }
+
+    if lines.is_empty() {
+        return Err(format!("no project files found in '{root}'"));
+    }
+
+    Ok(lines.join("\n"))
+}
+
+/// Simple TOML key=value extractor (no full parser needed — just reads `key = "value"` lines).
+fn extract_toml_field(content: &str, key: &str) -> Option<String> {
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with(key) {
+            if let Some(rest) = trimmed.strip_prefix(key) {
+                let rest = rest.trim();
+                if rest.starts_with('=') {
+                    let val = rest[1..].trim().trim_matches('"').to_string();
+                    if !val.is_empty() {
+                        return Some(val);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extracts the keys from a TOML section (e.g. `[dependencies]`).
+/// Returns keys up to 12 items to keep output compact.
+fn extract_toml_section_keys(content: &str, section_header: &str) -> Vec<String> {
+    let mut in_section = false;
+    let mut keys = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == section_header {
+            in_section = true;
+            continue;
+        }
+        if in_section {
+            // A new section starts
+            if trimmed.starts_with('[') {
+                break;
+            }
+            // Skip empty lines and comments
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            // Extract key from `key = ...` or `key.feature = ...`
+            if let Some(key) = trimmed.split('=').next() {
+                let k = key.trim().to_string();
+                if !k.is_empty() && keys.len() < 12 {
+                    keys.push(k);
+                }
+            }
+        }
+    }
+
+    keys
+}
+
+/// Count source files by extension and grep for test functions.
+async fn count_source_files(root: &str) -> Option<(usize, usize)> {
+    // Use find to count files with source extensions
+    let extensions = ["rs", "go", "py", "js", "ts", "java", "rb", "ex", "exs"];
+
+    let mut count_args = vec![
+        root.to_string(),
+        "-type".to_string(),
+        "f".to_string(),
+        "(".to_string(),
+    ];
+    for (i, ext) in extensions.iter().enumerate() {
+        if i > 0 {
+            count_args.push("-o".to_string());
+        }
+        count_args.push("-name".to_string());
+        count_args.push(format!("*.{ext}"));
+    }
+    count_args.push(")".to_string());
+    // Exclude common non-source dirs
+    let full_args: Vec<&str> = count_args.iter().map(|s| s.as_str()).collect();
+
+    let find_out = tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::process::Command::new("find")
+            .args(&full_args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output(),
+    )
+    .await;
+
+    let src_count = match find_out {
+        Ok(Ok(out)) => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.contains("/target/") && !l.contains("/node_modules/"))
+            .count(),
+        _ => return None,
+    };
+
+    // Count test functions via grep
+    let grep_out = tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::process::Command::new("grep")
+            .args(["-r", "--include=*.rs", "#[test]", root])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output(),
+    )
+    .await;
+
+    let test_count = match grep_out {
+        Ok(Ok(out)) => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.contains("/target/"))
+            .count(),
+        _ => 0,
+    };
+
+    Some((src_count, test_count))
+}
+
 // ── Shared Helper ─────────────────────────────────────────────────────────────
 
 async fn run_git_command(args: &[&str]) -> ToolResult {
@@ -603,6 +924,7 @@ mod tests {
             Box::new(GitLogTool),
             Box::new(WorkingMemoryTool),
             Box::new(ReadFileRangeTool),
+            Box::new(ProjectInfoTool),
         ];
         for tool in &tools {
             let def = tool.definition();
@@ -613,5 +935,135 @@ mod tests {
             );
             assert!(def.parameters.is_object(), "parameters must be an object");
         }
+    }
+
+    // ── ProjectInfoTool tests ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn project_info_detects_rust_project() {
+        // This repo is a Rust project — Cargo.toml is present
+        let tool = ProjectInfoTool;
+        let result = tool.execute(json!({})).await;
+        assert!(
+            !result.is_error,
+            "project_info should succeed: {}",
+            result.content
+        );
+        assert!(
+            result.content.contains("Rust"),
+            "should detect Rust language: {}",
+            result.content
+        );
+        assert!(
+            result.content.contains("baby-phi"),
+            "should find project name: {}",
+            result.content
+        );
+    }
+
+    #[tokio::test]
+    async fn project_info_reports_dependencies() {
+        let tool = ProjectInfoTool;
+        let result = tool.execute(json!({})).await;
+        assert!(!result.is_error);
+        // Cargo.toml has tokio, reqwest, serde, serde_json, toml, async-trait
+        assert!(
+            result.content.contains("tokio"),
+            "should list tokio dependency: {}",
+            result.content
+        );
+    }
+
+    #[tokio::test]
+    async fn project_info_reports_entry_point() {
+        let tool = ProjectInfoTool;
+        let result = tool.execute(json!({})).await;
+        assert!(!result.is_error);
+        // src/main.rs exists
+        assert!(
+            result.content.contains("main.rs"),
+            "should find src/main.rs: {}",
+            result.content
+        );
+    }
+
+    #[tokio::test]
+    async fn project_info_counts_source_files() {
+        let tool = ProjectInfoTool;
+        let result = tool.execute(json!({})).await;
+        assert!(!result.is_error);
+        assert!(
+            result.content.contains("Src files:"),
+            "should report source file count: {}",
+            result.content
+        );
+    }
+
+    #[tokio::test]
+    async fn project_info_with_explicit_path() {
+        let tool = ProjectInfoTool;
+        let result = tool.execute(json!({"path": "."})).await;
+        assert!(!result.is_error, "explicit '.' path should work");
+    }
+
+    #[tokio::test]
+    async fn project_info_on_nonexistent_path() {
+        let tool = ProjectInfoTool;
+        let result = tool
+            .execute(json!({"path": "/tmp/definitely_not_a_project_12345"}))
+            .await;
+        // Should error gracefully — no project files found
+        assert!(
+            result.is_error || result.content.contains("Unknown"),
+            "nonexistent path should report unknown or error: {}",
+            result.content
+        );
+    }
+
+    #[test]
+    fn extract_toml_field_finds_name() {
+        let content = r#"[package]
+name = "my-project"
+version = "1.2.3"
+"#;
+        assert_eq!(extract_toml_field(content, "name"), Some("my-project".into()));
+        assert_eq!(extract_toml_field(content, "version"), Some("1.2.3".into()));
+        assert_eq!(extract_toml_field(content, "missing"), None);
+    }
+
+    #[test]
+    fn extract_toml_section_keys_finds_deps() {
+        let content = r#"[package]
+name = "test"
+
+[dependencies]
+tokio = "1"
+serde = { version = "1", features = ["derive"] }
+reqwest = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+"#;
+        let keys = extract_toml_section_keys(content, "[dependencies]");
+        assert!(keys.contains(&"tokio".to_string()));
+        assert!(keys.contains(&"serde".to_string()));
+        assert!(keys.contains(&"reqwest".to_string()));
+        // Should NOT include dev-dependencies
+        assert!(!keys.contains(&"tempfile".to_string()));
+    }
+
+    #[test]
+    fn extract_toml_section_keys_caps_at_12() {
+        // Generate a section with 20 keys
+        let mut content = String::from("[dependencies]\n");
+        for i in 0..20 {
+            content.push_str(&format!("dep{i} = \"1\"\n"));
+        }
+        let keys = extract_toml_section_keys(&content, "[dependencies]");
+        assert!(
+            keys.len() <= 12,
+            "should cap at 12 deps, got {}",
+            keys.len()
+        );
     }
 }
