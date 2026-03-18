@@ -449,11 +449,11 @@ async fn scan_project(root: &str) -> Result<String, String> {
             // Go: go.mod
             else if manifest_path.ends_with("go.mod") {
                 for line in content.lines().take(5) {
-                    if line.starts_with("module ") {
-                        lines.push(format!("Module:    {}", &line[7..]));
+                    if let Some(stripped) = line.strip_prefix("module ") {
+                        lines.push(format!("Module:    {}", stripped));
                     }
-                    if line.starts_with("go ") {
-                        lines.push(format!("Go:        {}", &line[3..]));
+                    if let Some(stripped) = line.strip_prefix("go ") {
+                        lines.push(format!("Go:        {}", stripped));
                     }
                 }
             }
@@ -528,9 +528,11 @@ fn extract_toml_field(content: &str, key: &str) -> Option<String> {
             if let Some(rest) = trimmed.strip_prefix(key) {
                 let rest = rest.trim();
                 if rest.starts_with('=') {
-                    let val = rest[1..].trim().trim_matches('"').to_string();
-                    if !val.is_empty() {
-                        return Some(val);
+                    if let Some(after_eq) = rest.strip_prefix('=') {
+                        let val = after_eq.trim().trim_matches('"').to_string();
+                        if !val.is_empty() {
+                            return Some(val);
+                        }
                     }
                 }
             }
@@ -955,6 +957,236 @@ async fn run_git_command(args: &[&str]) -> ToolResult {
                 is_error: !out.status.success(),
             }
         }
+    }
+}
+
+// ── Fetch URL Tool ────────────────────────────────────────────────────────────
+
+/// Fetches the content of a URL and returns it as plain text.
+/// HTML is stripped to extract readable text. Output is capped at ~10KB.
+/// Uses curl subprocess — no extra dependencies required.
+pub struct FetchUrlTool;
+
+/// Maximum bytes to return from a URL fetch (keeps token usage sane)
+const FETCH_MAX_BYTES: usize = 10_000;
+
+/// Strip HTML tags and collapse whitespace into readable plain text.
+/// Not a full HTML parser — good enough for documentation and issue pages.
+fn strip_html(input: &str) -> String {
+    let mut out = String::with_capacity(input.len() / 2);
+    let mut in_tag = false;
+    let mut in_script = false;
+    let mut in_style = false;
+    let mut tag_buf = String::new();
+
+    let chars: Vec<char> = input.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if in_tag {
+            if c == '>' {
+                // Check if we're entering/leaving script or style blocks
+                let tag_lower = tag_buf.to_lowercase();
+                if tag_lower.starts_with("script") {
+                    in_script = true;
+                } else if tag_lower.starts_with("/script") {
+                    in_script = false;
+                } else if tag_lower.starts_with("style") {
+                    in_style = true;
+                } else if tag_lower.starts_with("/style") {
+                    in_style = false;
+                }
+                // Block elements get a newline
+                let is_block = ["p", "div", "br", "h1", "h2", "h3", "h4", "h5", "h6",
+                    "li", "tr", "td", "th", "article", "section", "header", "footer",
+                    "blockquote", "pre", "code"]
+                    .iter()
+                    .any(|&t| tag_lower == t || tag_lower.starts_with(&format!("{t} ")));
+                if is_block {
+                    out.push('\n');
+                }
+                tag_buf.clear();
+                in_tag = false;
+            } else {
+                tag_buf.push(c);
+            }
+        } else if c == '<' {
+            in_tag = true;
+            tag_buf.clear();
+        } else if !in_script && !in_style {
+            // Decode common HTML entities
+            if c == '&' {
+                // Collect until ';' or a non-entity char
+                let mut entity = String::new();
+                let mut j = i + 1;
+                while j < chars.len() && j < i + 10 && chars[j] != ';' && chars[j] != '<' {
+                    entity.push(chars[j]);
+                    j += 1;
+                }
+                if j < chars.len() && chars[j] == ';' {
+                    let decoded = match entity.as_str() {
+                        "amp" => "&",
+                        "lt" => "<",
+                        "gt" => ">",
+                        "quot" => "\"",
+                        "apos" => "'",
+                        "nbsp" => " ",
+                        "mdash" | "#8212" => "—",
+                        "ndash" | "#8211" => "–",
+                        "ldquo" | "#8220" => "\u{201C}",
+                        "rdquo" | "#8221" => "\u{201D}",
+                        _ => "",
+                    };
+                    if !decoded.is_empty() {
+                        out.push_str(decoded);
+                        i = j + 1;
+                        continue;
+                    }
+                }
+            }
+            out.push(c);
+        }
+        i += 1;
+    }
+
+    // Collapse multiple blank lines into one and trim
+    let mut result = String::new();
+    let mut blank_count = 0u32;
+    for line in out.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            blank_count += 1;
+            if blank_count <= 1 {
+                result.push('\n');
+            }
+        } else {
+            blank_count = 0;
+            result.push_str(trimmed);
+            result.push('\n');
+        }
+    }
+    result.trim().to_string()
+}
+
+#[async_trait]
+impl AgentTool for FetchUrlTool {
+    fn name(&self) -> &str {
+        "fetch_url"
+    }
+    fn description(&self) -> &str {
+        "Fetch the content of a URL and return it as plain text. \
+         HTML is stripped to readable text. Output capped at ~10KB. \
+         Use for: reading documentation, GitHub pages, API references, or any web resource. \
+         Optional 'timeout' param in seconds (default: 15)."
+    }
+    fn parameters_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The URL to fetch"
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Request timeout in seconds (default: 15, max: 60)"
+                }
+            },
+            "required": ["url"]
+        })
+    }
+    async fn execute(&self, input: Value) -> ToolResult {
+        let url = match input["url"].as_str() {
+            Some(u) if !u.is_empty() => u.to_string(),
+            _ => return ToolResult { content: "missing 'url' parameter".into(), is_error: true },
+        };
+
+        // Validate URL scheme — only http/https allowed
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return ToolResult {
+                content: format!("invalid URL scheme — only http:// and https:// are supported: {url}"),
+                is_error: true,
+            };
+        }
+
+        let timeout_secs = input["timeout"].as_u64().unwrap_or(15).min(60);
+
+        // Use curl: -s silent, -L follow redirects, --max-time timeout,
+        // -A sets User-Agent, --max-filesize caps download
+        let output = tokio::process::Command::new("curl")
+            .args([
+                "-s",
+                "-L",
+                "--max-time", &timeout_secs.to_string(),
+                "-A", "baby-phi/1.0 (coding agent; +https://github.com/yologdev/baby-phi)",
+                "--max-filesize", "524288", // 512KB raw max
+                "-H", "Accept: text/html,text/plain,application/json,*/*",
+                &url,
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+
+        let child = match output {
+            Ok(c) => c,
+            Err(e) => return ToolResult {
+                content: format!("failed to spawn curl: {e}"),
+                is_error: true,
+            },
+        };
+
+        let result = match tokio::time::timeout(
+            Duration::from_secs(timeout_secs + 5),
+            child.wait_with_output(),
+        ).await {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return ToolResult {
+                content: format!("curl execution error: {e}"),
+                is_error: true,
+            },
+            Err(_) => return ToolResult {
+                content: format!("fetch timed out after {timeout_secs}s"),
+                is_error: true,
+            },
+        };
+
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            // curl exit code 22 = HTTP 4xx/5xx
+            let code = result.status.code().unwrap_or(-1);
+            return ToolResult {
+                content: format!("curl failed (exit {code}): {stderr}"),
+                is_error: true,
+            };
+        }
+
+        let raw = String::from_utf8_lossy(&result.stdout);
+
+        // Check content-type heuristic: if it looks like JSON, return as-is
+        let content_type_is_json = raw.trim_start().starts_with('{') || raw.trim_start().starts_with('[');
+
+        let text = if content_type_is_json {
+            raw.trim().to_string()
+        } else {
+            strip_html(&raw)
+        };
+
+        // Cap output
+        let truncated = if text.len() > FETCH_MAX_BYTES {
+            format!("{}\n\n[truncated — showing first {} of {} bytes]",
+                &text[..FETCH_MAX_BYTES], FETCH_MAX_BYTES, text.len())
+        } else {
+            text
+        };
+
+        if truncated.trim().is_empty() {
+            return ToolResult {
+                content: "(empty response)".into(),
+                is_error: false,
+            };
+        }
+
+        ToolResult { content: truncated, is_error: false }
     }
 }
 
@@ -1456,5 +1688,76 @@ tempfile = "3"
             assert!(!slug.ends_with(".git"), "slug should not end with .git: {slug}");
         }
         // None is also valid (no git remote in some CI environments)
+    }
+
+    // ── FetchUrlTool tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn strip_html_removes_tags() {
+        let html = "<h1>Hello</h1><p>World</p>";
+        let result = strip_html(html);
+        assert!(result.contains("Hello"), "should contain Hello: {result}");
+        assert!(result.contains("World"), "should contain World: {result}");
+        assert!(!result.contains('<'), "should not contain angle brackets: {result}");
+    }
+
+    #[test]
+    fn strip_html_decodes_entities() {
+        let html = "AT&amp;T &lt;rocks&gt; &quot;quoted&quot;";
+        let result = strip_html(html);
+        assert!(result.contains("AT&T"), "should decode &amp;: {result}");
+        assert!(result.contains('<'), "should decode &lt;: {result}");
+        assert!(result.contains('"'), "should decode &quot;: {result}");
+    }
+
+    #[test]
+    fn strip_html_skips_script_and_style() {
+        let html = "<div>visible</div><script>alert('hidden')</script><style>.hidden{}</style><p>also visible</p>";
+        let result = strip_html(html);
+        assert!(result.contains("visible"), "should contain visible: {result}");
+        assert!(result.contains("also visible"), "should contain also visible: {result}");
+        assert!(!result.contains("alert"), "should not contain script content: {result}");
+        assert!(!result.contains(".hidden"), "should not contain style content: {result}");
+    }
+
+    #[test]
+    fn strip_html_plain_text_unchanged() {
+        let text = "Just plain text\nwith newlines";
+        let result = strip_html(text);
+        assert!(result.contains("Just plain text"), "plain text should pass through: {result}");
+    }
+
+    #[tokio::test]
+    async fn fetch_url_missing_url_errors() {
+        let tool = FetchUrlTool;
+        let result = tool.execute(serde_json::json!({})).await;
+        assert!(result.is_error, "missing url must be error: {}", result.content);
+        assert!(result.content.contains("url"), "error should mention 'url': {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn fetch_url_invalid_scheme_errors() {
+        let tool = FetchUrlTool;
+        let result = tool.execute(serde_json::json!({"url": "ftp://example.com/file"})).await;
+        assert!(result.is_error, "ftp scheme must be rejected: {}", result.content);
+        assert!(result.content.contains("scheme"), "should mention scheme: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn fetch_url_file_scheme_errors() {
+        let tool = FetchUrlTool;
+        let result = tool.execute(serde_json::json!({"url": "file:///etc/passwd"})).await;
+        assert!(result.is_error, "file scheme must be rejected: {}", result.content);
+    }
+
+    #[test]
+    fn fetch_url_parameters_schema_requires_url() {
+        let tool = FetchUrlTool;
+        let schema = tool.parameters_schema();
+        let required = &schema["required"];
+        assert!(
+            required.as_array().map(|a| a.iter().any(|v| v.as_str() == Some("url"))).unwrap_or(false),
+            "url should be required in schema: {schema}"
+        );
     }
 }

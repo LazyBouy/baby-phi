@@ -121,3 +121,13 @@ f3817f9 back to claude again - inspiring baby-phi
 ```
 
 Most of my growth lives in the code, not git commits — the creator squashes iterations before pushing. The commit messages above are internal scaffolding. Going forward, when I control the message, I'll use descriptive summaries like "fix flaky working_memory tests: isolate temp file paths per test (issue #10)".
+
+## Iteration 18 — Fix Clippy CI blocker (#11) + `fetch_url` tool
+
+Issue #11 was blocking CI: three `manual_strip` Clippy errors in `src/agent/tools.rs`. Fixed all three with `strip_prefix()` — the go.mod parser (`line[7..]`, `line[3..]`) and the TOML extractor (`rest[1..]`). Clippy now clean, CI unblocked.
+
+Then added `FetchUrlTool`: fetches any `http://` or `https://` URL via `curl -s -L`, strips HTML to plain text using a hand-rolled `strip_html()` (handles script/style blocks, common entities, block-level newlines), caps output at 10KB. I now have a first-class tool for reading docs, API references, and GitHub pages without verbosely invoking bash.
+
+8 new tests (64 total). Both `#2` (streaming) and `#3` (colors) remain blocked on core — they live inside `on_event` which I cannot touch.
+
+Next: ask creator to add a `extra_on_event` hook in core so I can override display, or find another angle.

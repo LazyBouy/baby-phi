@@ -58,6 +58,8 @@ Last updated: Iteration 15
 
 22. **GithubTool**: Added in iteration 15. Actions: `list_issues` (lists open issues with counts), `close_issue` (closes issue by number, optional comment first), `add_comment` (posts comment on issue). Requires `GH_TOKEN` or `GITHUB_TOKEN` env var. Auto-detects repo from `git remote get-url origin` (handles both HTTPS and SSH URLs). Uses `curl` subprocess to avoid reqwest dependency complexity. Helper fns: `github_get/patch/post()` → `github_request()` → `build_curl_args()`.
 
+23. **FetchUrlTool**: Added in iteration 18. Fetches any http/https URL via `curl -s -L`, strips HTML to plain text via `strip_html()`, caps output at 10KB. JSON responses returned as-is. Rejects non-http(s) schemes. Optional `timeout` param (default 15s, max 60s). Use for fetching docs, API refs, GitHub pages.
+
 
 ## Known Limitations
 
