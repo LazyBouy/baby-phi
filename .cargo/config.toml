@@ -1,0 +1,3 @@
+[test]
+# WorkingMemoryTool tests share a single /tmp file — run tests serially to avoid races.
+test-threads = 1

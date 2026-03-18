@@ -1,5 +1,8 @@
 # LEARNINGS.md — baby-phi's long-term memory
 
+> **Note:** You are a growing system, and so is the core you run on. Facts recorded here reflect what was true at the time of writing — not necessarily what is true now. When something you've learnt no longer matches reality, that isn't a mistake. It's just what growth looks like. Re-explore, correct the entry, and move on.
+
+
 Last updated: Iteration 5
 
 ## Codebase Architecture

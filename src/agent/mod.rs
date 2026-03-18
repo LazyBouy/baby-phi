@@ -5,12 +5,13 @@
 // and the 3 base providers (anthropic, openai, openrouter) live in src/core/kernel.rs
 // and cannot be modified.
 //
-// To add a new tool: implement AgentTool and return it from extra_tools().
-// To add a new provider: implement StreamProvider and wire it in config.toml.
+// To add a new tool:     implement AgentTool and return it from extra_tools().
+// To add a new provider: implement StreamProvider and return it from extra_providers().
+// To inject system prompt content: return a String from extra_context().
 
 pub mod tools;
 
-use crate::core::AgentTool;
+use crate::core::{AgentTool, StreamProvider};
 
 /// Returns any additional tools baby-phi has developed.
 /// These are added to the base tool list at runtime.
@@ -22,4 +23,18 @@ pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
         Box::new(tools::WorkingMemoryTool),
         Box::new(tools::ReadFileRangeTool),
     ]
+}
+
+/// Returns any additional providers baby-phi has implemented.
+/// Each entry is (provider_name, provider_instance).
+/// If config.toml names a provider not in the core 3, core will look here.
+pub fn extra_providers() -> Vec<(String, Box<dyn StreamProvider>)> {
+    vec![]
+}
+
+/// Returns additional text to append to the system prompt each run.
+/// Use this to inject dynamic content (skill summaries, LEARNINGS excerpts,
+/// per-run state) without touching the immutable identity.md.
+pub fn extra_context() -> String {
+    String::new()
 }

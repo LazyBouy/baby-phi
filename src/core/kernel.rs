@@ -963,6 +963,7 @@ pub async fn agent_loop(
     tools: &[Box<dyn AgentTool>],
     system: &str,
     retry: &RetryConfig,
+    max_turns: u32,
     on_event: &mut dyn FnMut(AgentEvent),
 ) -> Result<(), ProviderError> {
     let tool_defs: Vec<ToolDefinition> = tools.iter().map(|t| t.definition()).collect();
@@ -1028,7 +1029,13 @@ pub async fn agent_loop(
             });
             result_contents.push(Content::ToolResult {
                 tool_use_id: id.clone(),
-                content: result.content,
+                // Anthropic rejects tool_result with is_error=true and empty content.
+                // Guard here so no tool can trigger that API error.
+                content: if result.is_error && result.content.is_empty() {
+                    "(error: no output)".to_string()
+                } else {
+                    result.content
+                },
                 is_error: result.is_error,
             });
         }
@@ -1037,6 +1044,14 @@ pub async fn agent_loop(
             content: result_contents,
         });
         turn += 1;
+        if turn >= max_turns {
+            on_event(AgentEvent::Warn(format!(
+                "max_turns ({max_turns}) reached — stopping to avoid runaway loop"
+            )));
+            on_event(AgentEvent::TurnEnd);
+            on_event(AgentEvent::AgentEnd);
+            return Ok(());
+        }
     }
 }
 

@@ -249,7 +249,7 @@ impl AgentTool for ReadFileRangeTool {
                 return ToolResult {
                     content: format!("file too large to read ({} bytes)", m.len()),
                     is_error: true,
-                }
+                };
             }
             _ => {}
         }
@@ -575,9 +575,7 @@ mod tests {
     #[tokio::test]
     async fn read_file_range_missing_file() {
         let tool = ReadFileRangeTool;
-        let result = tool
-            .execute(json!({"path": "/nonexistent/file.txt"}))
-            .await;
+        let result = tool.execute(json!({"path": "/nonexistent/file.txt"})).await;
         assert!(result.is_error, "missing file should error");
     }
 

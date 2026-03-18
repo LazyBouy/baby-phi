@@ -13,6 +13,7 @@ use std::{io::Write, process::Command};
 #[derive(Deserialize)]
 pub struct Config {
     pub journal_lines: usize,
+    pub max_turns: u32,
     pub active: ActiveCfg,
 }
 
@@ -138,14 +139,22 @@ pub async fn run() {
         std::process::exit(1);
     }
 
-    let (system, user_msg, iteration) = load_context(&cfg);
+    let (base_system, user_msg, iteration) = load_context(&cfg);
     println!("baby-phi — iteration {iteration}");
     println!(
         "provider: {} / model: {}",
         cfg.active.provider, cfg.active.model
     );
 
-    // Build provider
+    // System prompt: identity + any dynamic content from agent
+    let extra = crate::agent::extra_context();
+    let system = if extra.is_empty() {
+        base_system
+    } else {
+        format!("{base_system}\n\n{extra}")
+    };
+
+    // Build provider: check core 3 first, then agent's extra_providers()
     let provider: Box<dyn StreamProvider> = match cfg.active.provider.as_str() {
         "anthropic" => Box::new(AnthropicProvider {
             endpoint: cfg.active.endpoint.clone(),
@@ -163,8 +172,14 @@ pub async fn run() {
             model: cfg.active.model.clone(),
         }),
         other => {
-            eprintln!("unknown provider '{other}'");
-            std::process::exit(1);
+            let extras = crate::agent::extra_providers();
+            match extras.into_iter().find(|(name, _)| name == other) {
+                Some((_, p)) => p,
+                None => {
+                    eprintln!("unknown provider '{other}'");
+                    std::process::exit(1);
+                }
+            }
         }
     };
 
@@ -181,6 +196,7 @@ pub async fn run() {
         &tools,
         &system,
         &retry,
+        cfg.max_turns,
         &mut on_event,
     )
     .await
@@ -213,6 +229,111 @@ pub async fn run() {
     }
 
     println!("\niteration {iteration} complete.");
+}
+
+// ── Interactive Mode ──────────────────────────────────────────────────────────
+
+pub async fn run_interactive() {
+    use std::io::{self, BufRead, Write as _};
+
+    let cfg = Config::load().unwrap_or_else(|e| {
+        eprintln!("config error: {e}");
+        std::process::exit(1)
+    });
+    let api_key = cfg.api_key().unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1)
+    });
+
+    // System prompt: identity + any dynamic content from agent
+    let base_system = read_file_opt("identity.md");
+    let extra = crate::agent::extra_context();
+    let system = if extra.is_empty() {
+        base_system
+    } else {
+        format!("{base_system}\n\n{extra}")
+    };
+
+    // Build provider: same logic as run()
+    let provider: Box<dyn StreamProvider> = match cfg.active.provider.as_str() {
+        "anthropic" => Box::new(AnthropicProvider {
+            endpoint: cfg.active.endpoint.clone(),
+            api_key: api_key.clone(),
+            model: cfg.active.model.clone(),
+        }),
+        "openai" => Box::new(OpenAiProvider {
+            endpoint: cfg.active.endpoint.clone(),
+            api_key: api_key.clone(),
+            model: cfg.active.model.clone(),
+        }),
+        "openrouter" => Box::new(OpenRouterProvider {
+            endpoint: cfg.active.endpoint.clone(),
+            api_key: api_key.clone(),
+            model: cfg.active.model.clone(),
+        }),
+        other => {
+            let extras = crate::agent::extra_providers();
+            match extras.into_iter().find(|(name, _)| name == other) {
+                Some((_, p)) => p,
+                None => {
+                    eprintln!("unknown provider '{other}'");
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
+
+    let mut tools = default_tools();
+    tools.extend(crate::agent::extra_tools());
+    let retry = RetryConfig::default();
+
+    // Conversation history persists for the entire session
+    let mut messages: Vec<Message> = vec![];
+
+    println!("baby-phi interactive (blank line to send, Ctrl+D to exit)");
+    println!(
+        "provider: {} / model: {}",
+        cfg.active.provider, cfg.active.model
+    );
+
+    let stdin = io::stdin();
+    loop {
+        print!("\nphi> ");
+        let _ = io::stdout().flush();
+
+        // Collect multi-line input; blank line submits
+        let mut input = String::new();
+        for line in stdin.lock().lines() {
+            match line {
+                Ok(l) if l.is_empty() => break,
+                Ok(l) => {
+                    input.push_str(&l);
+                    input.push('\n');
+                }
+                Err(_) => return, // EOF / Ctrl+D
+            }
+        }
+        let trimmed = input.trim().to_string();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        messages.push(Message::user(trimmed));
+
+        if let Err(e) = agent_loop(
+            &mut messages,
+            provider.as_ref(),
+            &tools,
+            &system,
+            &retry,
+            cfg.max_turns,
+            &mut on_event,
+        )
+        .await
+        {
+            eprintln!("error: {e}");
+        }
+    }
 }
 
 // ── Immutable Tests ───────────────────────────────────────────────────────────
