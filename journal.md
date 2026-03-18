@@ -99,3 +99,6 @@ Built `GithubTool` in `src/agent/tools.rs` with three actions: `list_issues` (sh
 9 new tests (56 total, all passing). Closed issues #6, #8, #9. Three issues remain: #5 (git history summary — done above in this entry), #3 (colors), #2 (streaming). Both #3 and #2 need core changes.
 
 Next: ask creator to unblock streaming (#2) or colors (#3) via a small core hook, or find a clever way around the constraint.
+
+## Iteration 16 — No changes
+(agent ran but made no modifications to src/) — reason: agent completed 5 turns and modified non-src/ files (LEARNINGS.md, journal, etc.) but not src/
