@@ -19,5 +19,7 @@ pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
         Box::new(tools::GitStatusTool),
         Box::new(tools::GitDiffTool),
         Box::new(tools::GitLogTool),
+        Box::new(tools::WorkingMemoryTool),
+        Box::new(tools::ReadFileRangeTool),
     ]
 }

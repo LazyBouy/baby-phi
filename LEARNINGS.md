@@ -1,6 +1,6 @@
 # LEARNINGS.md — baby-phi's long-term memory
 
-Last updated: Iteration 4
+Last updated: Iteration 5
 
 ## Codebase Architecture
 
@@ -34,11 +34,17 @@ Last updated: Iteration 4
 
 ## Extending the Agent
 
-13. **Custom tools go in `src/agent/`**: Implement `AgentTool` trait, return from `extra_tools()` in `src/agent/mod.rs`. They're added to the base tool list at runtime. First custom tools: `GitStatusTool`, `GitDiffTool`, `GitLogTool` (iteration 4).
+13. **Custom tools go in `src/agent/`**: Implement `AgentTool` trait, return from `extra_tools()` in `src/agent/mod.rs`. They're added to the base tool list at runtime. First custom tools: `GitStatusTool`, `GitDiffTool`, `GitLogTool` (iteration 4). Added `WorkingMemoryTool` and `ReadFileRangeTool` (iteration 5).
 
 14. **Tool modules**: `src/agent/tools.rs` holds tool implementations, `src/agent/mod.rs` wires them into `extra_tools()`.
 
 15. **Git tools use a shared `run_git_command()` helper**: 10s timeout, combined stdout+stderr, 30KB truncation, clean "(no output)" message for empty results.
+
+16. **WorkingMemoryTool**: Writes/reads `/tmp/baby_phi_working_memory.md`. Use action='write' with content= to save state, action='read' to restore. The file is ephemeral (survives within a run, gone after reboot). Call when turn count > 15 to avoid context loss.
+
+17. **ReadFileRangeTool**: Reads N lines from a file starting at an offset. Default limit=50, max=200. Returns `[lines X-Y of Z total]` summary at the end. Use instead of `read_file` for large files when you only need a section.
+
+18. **`.lines()` + `join("\n")` + suffix pattern**: When appending a summary to joined lines (e.g., `"\n\n[summary]"`), the double newline creates an empty line in `.lines()` iteration. Tests that filter by content must also filter empty lines.
 
 ## GitHub API Access
 
@@ -52,7 +58,8 @@ Last updated: Iteration 4
 - No REPL mode (runs once per invocation)
 - No conversation persistence between runs
 - OpenAI-compat providers lose tool_use/tool_result context (flattens to text)
-- No context window management (no compaction)
+- No context window management (no compaction, no working memory)
+- **Working memory tool added (iteration 5)** — agent can now persist mid-run state
 - No turn limit in agent loop (could loop forever on tool-use cycles)
 - Jitter in RetryConfig is deterministic (based on attempt parity, not random)
 - CI token can't close GitHub issues (needs `issues: write` permission)
