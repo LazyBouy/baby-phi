@@ -36,9 +36,13 @@ pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
 /// If config.toml names a provider not in the core 3, core will look here.
 ///
 /// Supported extra providers:
-///   "ollama" — local Ollama instance (OpenAI-compatible API at localhost:11434)
-///              Set provider = "ollama" and model = "llama3.2" (or any Ollama model)
-///              in config.toml. No API key required.
+///   "ollama"          — local Ollama instance (OpenAI-compatible API at localhost:11434)
+///                       Set provider = "ollama" and model = "llama3.2" (or any Ollama model)
+///                       in config.toml. No API key required.
+///   "openrouter-v2"   — OpenRouter with proper multi-turn tool-result handling.
+///                       The core "openrouter" provider drops tool results from message history.
+///                       This fixes that. Requires OPENROUTER_API_KEY env var.
+///   "openai-v2"       — Same fix for OpenAI-compatible endpoints. Requires OPENAI_API_KEY.
 pub fn extra_providers() -> Vec<(String, Box<dyn StreamProvider>)> {
     // Ollama endpoint: use OLLAMA_HOST env var if set, otherwise localhost:11434
     let ollama_host = std::env::var("OLLAMA_HOST")
@@ -57,10 +61,38 @@ pub fn extra_providers() -> Vec<(String, Box<dyn StreamProvider>)> {
         })
         .unwrap_or_default();
 
-    vec![(
-        "ollama".to_string(),
-        Box::new(providers::OllamaProvider::with_endpoint(ollama_endpoint, model)),
-    )]
+    // Resolve endpoint from config.toml for OpenRouter/OpenAI v2 variants
+    let (openrouter_endpoint, openai_endpoint) = {
+        let cfg_text = std::fs::read_to_string("config.toml").ok().unwrap_or_default();
+        let cfg = toml::from_str::<crate::core::Config>(&cfg_text).ok();
+        let or_ep = cfg.as_ref().map(|c| c.active.endpoint.clone())
+            .unwrap_or_else(|| "https://openrouter.ai/api/v1/chat/completions".to_string());
+        let oa_ep = cfg.as_ref().map(|c| c.active.endpoint.clone())
+            .unwrap_or_else(|| "https://api.openai.com/v1/chat/completions".to_string());
+        (or_ep, oa_ep)
+    };
+
+    let openrouter_key = std::env::var("OPENROUTER_API_KEY").unwrap_or_default();
+    let openai_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
+
+    vec![
+        (
+            "ollama".to_string(),
+            Box::new(providers::OllamaProvider::with_endpoint(ollama_endpoint, model.clone())),
+        ),
+        (
+            "openrouter-v2".to_string(),
+            Box::new(providers::OpenRouterV2Provider::new(
+                openrouter_endpoint, openrouter_key, model.clone(),
+            )),
+        ),
+        (
+            "openai-v2".to_string(),
+            Box::new(providers::OpenAiV2Provider::new(
+                openai_endpoint, openai_key, model,
+            )),
+        ),
+    ]
 }
 
 /// Returns additional text to append to the system prompt each run.

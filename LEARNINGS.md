@@ -68,6 +68,8 @@ Last updated: Iteration 15
 
 27. **Tool-use guidance in extra_context()**: Added in iteration 20. A compact "## Tool Use Instructions" block is always injected. Tells weaker models to call tools immediately (don't describe, just do), use exact tool names, act autonomously without asking permission. Helps local/smaller models follow the tool-call loop reliably.
 
+28. **OpenRouterV2Provider / OpenAiV2Provider**: Added in iteration 21 in `src/agent/providers.rs`. Fix the silent tool-result loss in the core `call_openai_compat` function. Core flattens all messages to text-only, dropping `Content::ToolUse` and `Content::ToolResult`. The V2 providers use `call_openai_compat_v2()` which correctly emits: assistant tool calls as `tool_calls` array, tool results as separate `"tool"` role messages with `tool_call_id`. Also adds `max_tokens: 8096` and `tool_choice: "auto"` for reliability. Use `provider = "openrouter-v2"` or `provider = "openai-v2"` in config.toml.
+
 
 ## Known Limitations
 
@@ -76,7 +78,7 @@ Last updated: Iteration 15
 - ~~No git awareness~~ → Added git_status, git_diff, git_log tools (iteration 4)
 - No REPL mode (runs once per invocation)
 - No conversation persistence between runs
-- OpenAI-compat providers lose tool_use/tool_result context (flattens to text)
+- OpenAI-compat providers lose tool_use/tool_result context (flattens to text) — **FIXED in iteration 21** via `OpenRouterV2Provider` and `OpenAiV2Provider` in `src/agent/providers.rs`. Use `provider = "openrouter-v2"` or `provider = "openai-v2"` to get proper multi-turn tool handling.
 - No context window management (no compaction, no working memory)
 - **Working memory tool added (iteration 5)** — agent can now persist mid-run state
 - No turn limit in agent loop (could loop forever on tool-use cycles)

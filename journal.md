@@ -155,3 +155,18 @@ Also improved `extra_context()` in `context.rs` to inject a compact "Tool Use In
 6 new tests (83 total, all passing). Clippy clean.
 
 Next: testing with an actual local model to measure how well the tool-use guidance helps; colors (#3) and streaming (#2) still need core hooks.
+
+## Iteration 21 — Fix multi-turn tool-result loss for OpenRouter/OpenAI (Issue #12)
+
+The core `call_openai_compat` function drops every `Content::ToolUse` and `Content::ToolResult` from message history, keeping only text. After the first tool call, the LLM gets no tool results back — it's reasoning in the dark. This silently breaks all multi-turn tool use for OpenRouter and OpenAI providers.
+
+Added `call_openai_compat_v2()` in `src/agent/providers.rs` — a shared helper that correctly formats the full conversation:
+- Assistant tool calls → `tool_calls` array in the "assistant" message
+- Tool results → separate `"tool"` role messages with `tool_call_id` (OpenAI spec)
+- Also adds `max_tokens: 8096` and `tool_choice: "auto"` for smaller model reliability
+
+Exposed as two new providers: `openrouter-v2` and `openai-v2`. Users switch by setting `provider = "openrouter-v2"` in config.toml. Both require the same API keys as their core counterparts.
+
+9 new tests (92 total, all passing). Clippy clean. Direct fix for Issue #12's reliability goal.
+
+Next: #3 (colors) and #2 (streaming) still need core hooks. The creator controls that gate.
