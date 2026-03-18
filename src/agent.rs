@@ -64,7 +64,10 @@ pub struct ProviderResponse {
 
 #[derive(Debug)]
 pub enum ProviderError {
-    RateLimited(String),
+    RateLimited {
+        body: String,
+        retry_after_ms: Option<u64>,
+    },
     Network(String),
     ContextTooLong,
     InvalidRequest(String),
@@ -74,7 +77,7 @@ pub enum ProviderError {
 impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::RateLimited(s) => write!(f, "rate limited: {s}"),
+            Self::RateLimited { body, .. } => write!(f, "rate limited: {body}"),
             Self::Network(s) => write!(f, "network: {s}"),
             Self::ContextTooLong => write!(f, "context too long"),
             Self::InvalidRequest(s) => write!(f, "invalid request: {s}"),
@@ -84,18 +87,53 @@ impl std::fmt::Display for ProviderError {
 }
 
 impl ProviderError {
-    pub fn classify(status: u16, body: &str) -> Self {
+    /// Classify an HTTP error response into a typed ProviderError.
+    /// `retry_after_ms` should be parsed from the Retry-After header on 429s.
+    pub fn classify(status: u16, body: &str, retry_after_ms: Option<u64>) -> Self {
         match status {
-            429 => Self::RateLimited(body.to_string()),
+            429 => Self::RateLimited {
+                body: body.to_string(),
+                retry_after_ms,
+            },
             400 if body.to_lowercase().contains("context") => Self::ContextTooLong,
             400 => Self::InvalidRequest(body.to_string()),
             500..=599 => Self::Network(body.to_string()),
             _ => Self::Other(format!("HTTP {status}: {body}")),
         }
     }
+
     pub fn is_retryable(&self) -> bool {
-        matches!(self, Self::RateLimited(_) | Self::Network(_))
+        matches!(self, Self::RateLimited { .. } | Self::Network(_))
     }
+
+    /// Returns the server-suggested retry delay from a 429 Retry-After header.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::RateLimited {
+                retry_after_ms: Some(ms),
+                ..
+            } => Some(Duration::from_millis(*ms)),
+            _ => None,
+        }
+    }
+}
+
+/// Parse the Retry-After header value into milliseconds.
+/// Supports both seconds (integer/float) and HTTP-date formats.
+pub fn parse_retry_after(value: &str) -> Option<u64> {
+    let trimmed = value.trim();
+    // Try parsing as seconds (integer)
+    if let Ok(secs) = trimmed.parse::<u64>() {
+        return Some(secs * 1000);
+    }
+    // Try parsing as seconds (float, e.g. "1.5")
+    if let Ok(secs) = trimmed.parse::<f64>() {
+        if secs > 0.0 && secs < 86400.0 {
+            return Some((secs * 1000.0) as u64);
+        }
+    }
+    // Could add HTTP-date parsing here in the future
+    None
 }
 
 pub struct RetryConfig {
@@ -252,16 +290,21 @@ impl StreamProvider for AnthropicProvider {
             .map_err(|e| ProviderError::Network(e.to_string()))?;
 
         let status = resp.status().as_u16();
+        // Parse Retry-After header before consuming the response body
+        let retry_after_ms = resp
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_retry_after);
         let body_text = resp.text().await.unwrap_or_default();
         if status != 200 {
-            return Err(ProviderError::classify(status, &body_text));
+            return Err(ProviderError::classify(status, &body_text, retry_after_ms));
         }
 
         let v: Value =
             serde_json::from_str(&body_text).map_err(|e| ProviderError::Other(e.to_string()))?;
 
         let stop_reason = match v["stop_reason"].as_str() {
-            Some("tool_use") => StopReason::ToolUse,
             Some("max_tokens") => StopReason::MaxTokens,
             Some("error") => StopReason::Error,
             _ => StopReason::EndTurn,
@@ -341,9 +384,15 @@ async fn call_openai_compat(
         .map_err(|e| ProviderError::Network(e.to_string()))?;
 
     let status = resp.status().as_u16();
+    // Parse Retry-After header before consuming the response body
+    let retry_after_ms = resp
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_retry_after);
     let body_text = resp.text().await.unwrap_or_default();
     if status != 200 {
-        return Err(ProviderError::classify(status, &body_text));
+        return Err(ProviderError::classify(status, &body_text, retry_after_ms));
     }
 
     let v: Value =
@@ -921,10 +970,16 @@ async fn call_with_retry(
         match provider.stream(messages, tool_defs, system).await {
             Ok(resp) => return Ok(resp),
             Err(e) if e.is_retryable() && attempt + 1 < retry.max_attempts => {
-                let delay = retry.delay_for(attempt);
+                // Prefer server-specified Retry-After over calculated backoff
+                let delay = e.retry_after().unwrap_or_else(|| retry.delay_for(attempt));
                 on_event(AgentEvent::TextDelta(format!(
-                    "[retry in {}ms]\n",
-                    delay.as_millis()
+                    "[retry in {}ms{}]\n",
+                    delay.as_millis(),
+                    if e.retry_after().is_some() {
+                        " (server requested)"
+                    } else {
+                        ""
+                    },
                 )));
                 tokio::time::sleep(delay).await;
             }

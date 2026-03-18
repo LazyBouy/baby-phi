@@ -211,7 +211,7 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::{AgentTool, BashTool, EditFileTool, SearchTool};
+    use crate::agent::{AgentTool, BashTool, EditFileTool, ProviderError, SearchTool};
     use serde_json::json;
 
     #[test]
@@ -245,13 +245,80 @@ mod tests {
         assert!(r.is_error, "must error when old_string not found");
     }
 
-    #[tokio::test]
-    async fn search_tool_does_not_crash() {
+    #[test]
+    fn search_tool_does_not_crash() {
         let t = SearchTool::new();
-        let r = t
-            .execute(json!({"pattern": "fn main", "path": "src/"}))
-            .await;
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let r = rt.block_on(t.execute(json!({"pattern": "fn main", "path": "src/"})));
         assert!(!r.is_error, "search must not error (rg or grep)");
         assert!(r.content.contains("main"), "must find fn main in src/");
+    }
+
+    // ── Retry-After parsing tests ─────────────────────────────────────────────
+
+    #[test]
+    fn parse_retry_after_integer_seconds() {
+        use crate::agent::parse_retry_after;
+        assert_eq!(parse_retry_after("5"), Some(5000));
+        assert_eq!(parse_retry_after("0"), Some(0));
+        assert_eq!(parse_retry_after("120"), Some(120_000));
+    }
+
+    #[test]
+    fn parse_retry_after_float_seconds() {
+        use crate::agent::parse_retry_after;
+        assert_eq!(parse_retry_after("1.5"), Some(1500));
+        assert_eq!(parse_retry_after("0.5"), Some(500));
+        assert_eq!(parse_retry_after("30.0"), Some(30_000));
+    }
+
+    #[test]
+    fn parse_retry_after_whitespace() {
+        use crate::agent::parse_retry_after;
+        assert_eq!(parse_retry_after("  10  "), Some(10_000));
+        assert_eq!(parse_retry_after(" 2.5 "), Some(2500));
+    }
+
+    #[test]
+    fn parse_retry_after_invalid() {
+        use crate::agent::parse_retry_after;
+        assert_eq!(parse_retry_after("not-a-number"), None);
+        assert_eq!(parse_retry_after(""), None);
+    }
+
+    #[test]
+    fn rate_limited_error_has_retry_after() {
+        let err = ProviderError::classify(429, "rate limited", Some(5000));
+        assert!(err.is_retryable());
+        assert_eq!(
+            err.retry_after(),
+            Some(std::time::Duration::from_millis(5000))
+        );
+    }
+
+    #[test]
+    fn rate_limited_error_without_retry_after() {
+        let err = ProviderError::classify(429, "rate limited", None);
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn non_rate_limited_error_no_retry_after() {
+        let err = ProviderError::classify(500, "server error", None);
+        assert!(err.is_retryable()); // Network errors are retryable
+        assert_eq!(err.retry_after(), None);
+
+        let err = ProviderError::classify(400, "bad request", None);
+        assert!(!err.is_retryable());
+        assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn classify_passes_retry_after_only_for_429() {
+        // Even if we accidentally pass retry_after_ms for a non-429 status,
+        // only 429 produces RateLimited variant
+        let err = ProviderError::classify(500, "server error", Some(5000));
+        assert_eq!(err.retry_after(), None); // Network variant has no retry_after
     }
 }
