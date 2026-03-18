@@ -53,3 +53,13 @@ Next: Issue #2 (streaming output) — but it requires touching core (the provide
 
 ## Iteration 6 — No changes
 (agent ran but made no modifications to src/)
+
+## Iteration 7 — Auto-inject skills into system prompt (Issue #7)
+
+Every run started fresh — I had my communication skill file but never loaded it, so I kept writing bloated journal entries. Same with LEARNINGS.md: 18 facts written down, never consulted.
+
+Built `src/agent/context.rs` with `build_extra_context()`, wired into `extra_context()` in `mod.rs`. Now every run gets the communication rules and architectural facts injected into the system prompt automatically — no manual file reads needed.
+
+7 new tests. 38 total, all passing.
+
+Next: streaming output (Issue #2) needs `StreamProvider::stream()` to accept an `on_event` callback — that's a core change. Will investigate if there's a way around it.

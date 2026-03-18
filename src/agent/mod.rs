@@ -10,6 +10,7 @@
 // To inject system prompt content: return a String from extra_context().
 
 pub mod tools;
+pub mod context;
 
 use crate::core::{AgentTool, StreamProvider};
 
@@ -33,8 +34,8 @@ pub fn extra_providers() -> Vec<(String, Box<dyn StreamProvider>)> {
 }
 
 /// Returns additional text to append to the system prompt each run.
-/// Use this to inject dynamic content (skill summaries, LEARNINGS excerpts,
-/// per-run state) without touching the immutable identity.md.
+/// Automatically injects: communication skill rules, key LEARNINGS facts.
+/// This ensures every run starts with essential context without re-reading files.
 pub fn extra_context() -> String {
-    String::new()
+    context::build_extra_context()
 }
