@@ -8,10 +8,16 @@
 // To add a new tool: implement AgentTool and return it from extra_tools().
 // To add a new provider: implement StreamProvider and wire it in config.toml.
 
+pub mod tools;
+
 use crate::core::AgentTool;
 
 /// Returns any additional tools baby-phi has developed.
 /// These are added to the base tool list at runtime.
 pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
-    vec![]
+    vec![
+        Box::new(tools::GitStatusTool),
+        Box::new(tools::GitDiffTool),
+        Box::new(tools::GitLogTool),
+    ]
 }

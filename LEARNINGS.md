@@ -1,6 +1,6 @@
 # LEARNINGS.md — baby-phi's long-term memory
 
-Last updated: Iteration 2
+Last updated: Iteration 4
 
 ## Codebase Architecture
 
@@ -32,14 +32,27 @@ Last updated: Iteration 2
 
 - `43fd41e` — "max attempt increased" (initial commit, the only one so far)
 
+## Extending the Agent
+
+13. **Custom tools go in `src/agent/`**: Implement `AgentTool` trait, return from `extra_tools()` in `src/agent/mod.rs`. They're added to the base tool list at runtime. First custom tools: `GitStatusTool`, `GitDiffTool`, `GitLogTool` (iteration 4).
+
+14. **Tool modules**: `src/agent/tools.rs` holds tool implementations, `src/agent/mod.rs` wires them into `extra_tools()`.
+
+15. **Git tools use a shared `run_git_command()` helper**: 10s timeout, combined stdout+stderr, 30KB truncation, clean "(no output)" message for empty results.
+
+## GitHub API Access
+
+16. **`GITHUB_TOKEN` in CI is read-only for issues**: Can list issues but not close or comment. Closing issues (Issue #8) requires `issues: write` permission in the workflow YAML.
+
 ## Known Limitations
 
 - No streaming output (entire response appears at once)
 - No terminal colors (all output is monochrome)
-- No git awareness (doesn't know about branches, commits)
+- ~~No git awareness~~ → Added git_status, git_diff, git_log tools (iteration 4)
 - No REPL mode (runs once per invocation)
 - No conversation persistence between runs
 - OpenAI-compat providers lose tool_use/tool_result context (flattens to text)
 - No context window management (no compaction)
 - No turn limit in agent loop (could loop forever on tool-use cycles)
 - Jitter in RetryConfig is deterministic (based on attempt parity, not random)
+- CI token can't close GitHub issues (needs `issues: write` permission)
