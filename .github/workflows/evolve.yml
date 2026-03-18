@@ -32,6 +32,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PHI_DEBUG: ${{ secrets.PHI_DEBUG }}
+          PHI_MODEL: ${{ secrets.PHI_MODEL }}
         run: bash scripts/evolve.sh
 
       - name: Verify bootstrap core unchanged
