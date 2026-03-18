@@ -165,10 +165,19 @@ pub struct ToolDefinition {
 }
 
 pub enum AgentEvent {
-    TurnStart { turn: u32 },
+    TurnStart {
+        turn: u32,
+    },
     TextDelta(String),
-    ToolStart { name: String, input: Value },
-    ToolEnd { name: String, output: String, is_error: bool },
+    ToolStart {
+        name: String,
+        input: Value,
+    },
+    ToolEnd {
+        name: String,
+        output: String,
+        is_error: bool,
+    },
     TurnEnd,
     AgentEnd,
     Warn(String),
@@ -302,8 +311,8 @@ impl StreamProvider for AnthropicProvider {
             return Err(ProviderError::classify(status, &body_text, retry_after_ms));
         }
 
-        let v: Value = serde_json::from_str(&body_text)
-            .map_err(|e| ProviderError::Other(e.to_string()))?;
+        let v: Value =
+            serde_json::from_str(&body_text).map_err(|e| ProviderError::Other(e.to_string()))?;
 
         // INVARIANT: "tool_use" must map to StopReason::ToolUse — never change this mapping.
         let stop_reason = match v["stop_reason"].as_str() {

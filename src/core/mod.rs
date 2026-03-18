@@ -66,8 +66,7 @@ pub fn load_context(cfg: &Config) -> (String, String, u64) {
     let next = count + 1;
     let _ = std::fs::write("iteration_count", next.to_string());
 
-    let user_msg =
-        format!("## Recent Journal\n{journal_excerpt}\n\n## External Input\n{external}");
+    let user_msg = format!("## Recent Journal\n{journal_excerpt}\n\n## External Input\n{external}");
 
     (identity, user_msg, next)
 }
