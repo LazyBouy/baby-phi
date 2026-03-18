@@ -7,5 +7,5 @@ max_turns = 50
 # model  = "claude-sonnet-4-6"
 
 provider = "openrouter"
-endpoint = "https://openrouter.ai/api/v1"
+endpoint = "https://openrouter.ai/api/v1/chat/completions"
 model = "minimax/minimax-m2.5"

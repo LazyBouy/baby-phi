@@ -310,6 +310,12 @@ impl StreamProvider for AnthropicProvider {
         if status != 200 {
             return Err(ProviderError::classify(status, &body_text, retry_after_ms));
         }
+        if body_text.trim_start().starts_with('<') {
+            let preview = &body_text[..body_text.len().min(200)];
+            return Err(ProviderError::Other(format!(
+                "provider returned HTML instead of JSON — endpoint may be misconfigured (got: {preview})"
+            )));
+        }
 
         let v: Value = serde_json::from_str(&body_text).map_err(|e| {
             let preview = &body_text[..body_text.len().min(500)];
@@ -413,6 +419,12 @@ async fn call_openai_compat(
         .map_err(|e| ProviderError::Network(e.to_string()))?;
     if status != 200 {
         return Err(ProviderError::classify(status, &body_text, retry_after_ms));
+    }
+    if body_text.trim_start().starts_with('<') {
+        let preview = &body_text[..body_text.len().min(200)];
+        return Err(ProviderError::Other(format!(
+            "provider returned HTML instead of JSON — endpoint may be misconfigured (got: {preview})"
+        )));
     }
 
     let v: Value = serde_json::from_str(&body_text).map_err(|e| {
