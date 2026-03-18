@@ -311,8 +311,10 @@ impl StreamProvider for AnthropicProvider {
             return Err(ProviderError::classify(status, &body_text, retry_after_ms));
         }
 
-        let v: Value =
-            serde_json::from_str(&body_text).map_err(|e| ProviderError::Other(e.to_string()))?;
+        let v: Value = serde_json::from_str(&body_text).map_err(|e| {
+            let preview = &body_text[..body_text.len().min(500)];
+            ProviderError::Other(format!("{e}\nraw response ({status}): {preview}"))
+        })?;
 
         // INVARIANT: "tool_use" must map to StopReason::ToolUse — never change this mapping.
         let stop_reason = match v["stop_reason"].as_str() {
@@ -413,8 +415,10 @@ async fn call_openai_compat(
         return Err(ProviderError::classify(status, &body_text, retry_after_ms));
     }
 
-    let v: Value =
-        serde_json::from_str(&body_text).map_err(|e| ProviderError::Other(e.to_string()))?;
+    let v: Value = serde_json::from_str(&body_text).map_err(|e| {
+        let preview = &body_text[..body_text.len().min(500)];
+        ProviderError::Other(format!("{e}\nraw response ({status}): {preview}"))
+    })?;
 
     let choice = &v["choices"][0];
     let stop_reason = match choice["finish_reason"].as_str() {
