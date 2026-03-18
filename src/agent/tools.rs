@@ -94,10 +94,7 @@ impl AgentTool for GitLogTool {
         })
     }
     async fn execute(&self, input: Value) -> ToolResult {
-        let count = input["count"]
-            .as_u64()
-            .unwrap_or(10)
-            .min(50);
+        let count = input["count"].as_u64().unwrap_or(10).min(50);
         let count_str = format!("-{}", count);
         run_git_command(&["log", "--oneline", "--no-decorate", &count_str]).await
     }
@@ -160,35 +157,55 @@ mod tests {
         let tool = GitStatusTool;
         let result = tool.execute(json!({})).await;
         // We're in a git repo (baby-phi itself), so this should succeed
-        assert!(!result.is_error, "git status should succeed in repo: {}", result.content);
+        assert!(
+            !result.is_error,
+            "git status should succeed in repo: {}",
+            result.content
+        );
     }
 
     #[tokio::test]
     async fn git_diff_runs_without_error() {
         let tool = GitDiffTool;
         let result = tool.execute(json!({})).await;
-        assert!(!result.is_error, "git diff should succeed in repo: {}", result.content);
+        assert!(
+            !result.is_error,
+            "git diff should succeed in repo: {}",
+            result.content
+        );
     }
 
     #[tokio::test]
     async fn git_diff_staged_runs_without_error() {
         let tool = GitDiffTool;
         let result = tool.execute(json!({"staged": true})).await;
-        assert!(!result.is_error, "git diff --cached should succeed: {}", result.content);
+        assert!(
+            !result.is_error,
+            "git diff --cached should succeed: {}",
+            result.content
+        );
     }
 
     #[tokio::test]
     async fn git_diff_with_path_runs() {
         let tool = GitDiffTool;
         let result = tool.execute(json!({"path": "src/"})).await;
-        assert!(!result.is_error, "git diff with path should succeed: {}", result.content);
+        assert!(
+            !result.is_error,
+            "git diff with path should succeed: {}",
+            result.content
+        );
     }
 
     #[tokio::test]
     async fn git_log_runs_without_error() {
         let tool = GitLogTool;
         let result = tool.execute(json!({})).await;
-        assert!(!result.is_error, "git log should succeed in repo: {}", result.content);
+        assert!(
+            !result.is_error,
+            "git log should succeed in repo: {}",
+            result.content
+        );
         // Should contain at least one commit hash
         assert!(result.content.len() > 5, "git log should have content");
     }
@@ -200,7 +217,11 @@ mod tests {
         assert!(!result.is_error);
         // With count=1, should have at most 1 commit line (plus maybe empty trailing)
         let lines: Vec<&str> = result.content.lines().filter(|l| !l.is_empty()).collect();
-        assert!(lines.len() <= 2, "count=1 should return at most 1 commit, got: {:?}", lines);
+        assert!(
+            lines.len() <= 2,
+            "count=1 should return at most 1 commit, got: {:?}",
+            lines
+        );
     }
 
     #[tokio::test]
@@ -222,7 +243,10 @@ mod tests {
         for tool in &tools {
             let def = tool.definition();
             assert!(!def.name.is_empty(), "tool name must not be empty");
-            assert!(!def.description.is_empty(), "tool description must not be empty");
+            assert!(
+                !def.description.is_empty(),
+                "tool description must not be empty"
+            );
             assert!(def.parameters.is_object(), "parameters must be an object");
         }
     }
