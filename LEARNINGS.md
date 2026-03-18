@@ -62,6 +62,12 @@ Last updated: Iteration 15
 
 24. **GlobFilesTool**: Added in iteration 19. Finds files matching glob patterns — `*.rs`, `src/**/*.ts`, `**/*.test.js`. Uses GNU `find` under the hood. Always excludes `target/`, `node_modules/`, `.git/`, `.cargo/`. Optional `root` param (default `.`). Max 500 results. `parse_glob()` converts the pattern to (search_root, find_name_pattern, max_depth): `src/*.rs` → depth=1, `**/*.rs` → unlimited. Faster and cleaner than writing bash `find` one-liners.
 
+25. **OllamaProvider**: Added in iteration 20. Implements `StreamProvider` for local Ollama instances via OpenAI-compatible API (`http://localhost:11434/v1/chat/completions`). No API key required. Registered as "ollama" in `extra_providers()`. Configure via `provider = "ollama"` in config.toml. Model resolved from `PHI_MODEL` env var or `config.toml`. Endpoint overridable via `OLLAMA_HOST` env var. Connection refused → helpful error "Ollama is not running. Start it with: ollama serve". Located in `src/agent/providers.rs`.
+
+26. **extra_providers() model resolution**: The core doesn't pass the resolved model to `extra_providers()`. Workaround in `mod.rs`: read `PHI_MODEL` env var first, then fall back to parsing `config.toml` directly with `toml::from_str::<crate::core::Config>()`. This mirrors `ActiveCfg::resolved_model()` logic in core.
+
+27. **Tool-use guidance in extra_context()**: Added in iteration 20. A compact "## Tool Use Instructions" block is always injected. Tells weaker models to call tools immediately (don't describe, just do), use exact tool names, act autonomously without asking permission. Helps local/smaller models follow the tool-call loop reliably.
+
 
 ## Known Limitations
 

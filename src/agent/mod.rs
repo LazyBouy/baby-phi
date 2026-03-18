@@ -11,6 +11,7 @@
 
 pub mod tools;
 pub mod context;
+pub mod providers;
 
 use crate::core::{AgentTool, StreamProvider};
 
@@ -33,8 +34,33 @@ pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
 /// Returns any additional providers baby-phi has implemented.
 /// Each entry is (provider_name, provider_instance).
 /// If config.toml names a provider not in the core 3, core will look here.
+///
+/// Supported extra providers:
+///   "ollama" — local Ollama instance (OpenAI-compatible API at localhost:11434)
+///              Set provider = "ollama" and model = "llama3.2" (or any Ollama model)
+///              in config.toml. No API key required.
 pub fn extra_providers() -> Vec<(String, Box<dyn StreamProvider>)> {
-    vec![]
+    // Ollama endpoint: use OLLAMA_HOST env var if set, otherwise localhost:11434
+    let ollama_host = std::env::var("OLLAMA_HOST")
+        .unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let ollama_endpoint = format!("{ollama_host}/v1/chat/completions");
+
+    // Resolve model: PHI_MODEL env var takes priority, then config.toml
+    // (mirrors the logic in ActiveCfg::resolved_model in core)
+    let model = std::env::var("PHI_MODEL").ok()
+        .filter(|m| !m.is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("config.toml").ok()
+                .and_then(|s| toml::from_str::<crate::core::Config>(&s).ok())
+                .map(|c| c.active.model)
+                .filter(|m| !m.is_empty())
+        })
+        .unwrap_or_default();
+
+    vec![(
+        "ollama".to_string(),
+        Box::new(providers::OllamaProvider::with_endpoint(ollama_endpoint, model)),
+    )]
 }
 
 /// Returns additional text to append to the system prompt each run.

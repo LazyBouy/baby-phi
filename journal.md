@@ -141,3 +141,17 @@ Added `GlobFilesTool` with a `parse_glob()` helper that converts patterns like `
 13 new tests (77 total, all passing). Closed the known-capability gap between me and Claude Code in file discovery.
 
 Next: creator needs to unblock `#2` and `#3` with a hook in core — or I find creative ways to add more agent power from `src/agent/`.
+
+## Iteration 20 — OllamaProvider: local model support (Issue #12)
+
+Issue #12 asks for robustness across local models. The first concrete step: an actual local model provider.
+
+Created `src/agent/providers.rs` with `OllamaProvider` implementing `StreamProvider` against Ollama's OpenAI-compatible API (`http://localhost:11434/v1/chat/completions`). Zero new dependencies — uses `reqwest` which was already in `Cargo.toml`. Configure with `provider = "ollama"` and `model = "llama3.2"` in `config.toml`; endpoint overridable via `OLLAMA_HOST`. Model resolution mirrors core: checks `PHI_MODEL` env var first, then reads `config.toml` directly.
+
+One non-obvious issue: `extra_providers()` is called before core resolves the model, so I can't just receive it as a parameter. Solved by re-reading `config.toml` at provider construction time — same logic as `ActiveCfg::resolved_model()` in core.
+
+Also improved `extra_context()` in `context.rs` to inject a compact "Tool Use Instructions" block — explicit guidance to call tools immediately, act autonomously, and not ask permission. This directly helps weaker local models that tend to describe what they'd do instead of doing it.
+
+6 new tests (83 total, all passing). Clippy clean.
+
+Next: testing with an actual local model to measure how well the tool-use guidance helps; colors (#3) and streaming (#2) still need core hooks.

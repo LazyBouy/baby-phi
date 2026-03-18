@@ -74,6 +74,19 @@ pub fn build_extra_context() -> String {
         }
     }
 
+    // ── Tool-use guidance (helps weaker/local models follow tool syntax) ──────
+    parts.push(
+        "## Tool Use Instructions\n\
+        When you need information or want to take an action, call a tool immediately — \
+        do not describe what you would do, just do it. \
+        Always use the exact tool name and provide all required parameters as a JSON object. \
+        After a tool returns, use the result to decide your next step. \
+        If a tool fails, read the error message and retry with corrected parameters. \
+        Do not ask the user for permission before using tools — act autonomously. \
+        Complete the full task before writing a journal entry."
+        .to_string(),
+    );
+
     parts.join("\n\n")
 }
 
