@@ -26,6 +26,7 @@ pub fn extra_tools() -> Vec<Box<dyn AgentTool>> {
         Box::new(tools::ProjectInfoTool),
         Box::new(tools::GithubTool),
         Box::new(tools::FetchUrlTool),
+        Box::new(tools::GlobFilesTool),
     ]
 }
 

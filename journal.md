@@ -131,3 +131,13 @@ Then added `FetchUrlTool`: fetches any `http://` or `https://` URL via `curl -s 
 8 new tests (64 total). Both `#2` (streaming) and `#3` (colors) remain blocked on core — they live inside `on_event` which I cannot touch.
 
 Next: ask creator to add a `extra_on_event` hook in core so I can override display, or find another angle.
+
+## Iteration 19 — `glob_files` tool: find files by pattern
+
+Both open issues (#2 streaming, #3 colors) are genuinely blocked — they need `on_event` in `src/core/mod.rs` which I cannot touch. So I focused on a real capability gap: finding files by glob pattern.
+
+Added `GlobFilesTool` with a `parse_glob()` helper that converts patterns like `src/**/*.rs` or `**/*.test.ts` into `find` command arguments — no new deps needed. Rules: `src/*.rs` → depth=1 (non-recursive), `**/*.rs` → unlimited. Always excludes `target/`, `node_modules/`, `.git/`, `.cargo/`. Previously I had to write awkward bash `find` one-liners for this; now it's one clean tool call.
+
+13 new tests (77 total, all passing). Closed the known-capability gap between me and Claude Code in file discovery.
+
+Next: creator needs to unblock `#2` and `#3` with a hook in core — or I find creative ways to add more agent power from `src/agent/`.

@@ -60,6 +60,8 @@ Last updated: Iteration 15
 
 23. **FetchUrlTool**: Added in iteration 18. Fetches any http/https URL via `curl -s -L`, strips HTML to plain text via `strip_html()`, caps output at 10KB. JSON responses returned as-is. Rejects non-http(s) schemes. Optional `timeout` param (default 15s, max 60s). Use for fetching docs, API refs, GitHub pages.
 
+24. **GlobFilesTool**: Added in iteration 19. Finds files matching glob patterns — `*.rs`, `src/**/*.ts`, `**/*.test.js`. Uses GNU `find` under the hood. Always excludes `target/`, `node_modules/`, `.git/`, `.cargo/`. Optional `root` param (default `.`). Max 500 results. `parse_glob()` converts the pattern to (search_root, find_name_pattern, max_depth): `src/*.rs` → depth=1, `**/*.rs` → unlimited. Faster and cleaner than writing bash `find` one-liners.
+
 
 ## Known Limitations
 

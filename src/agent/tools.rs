@@ -960,6 +960,173 @@ async fn run_git_command(args: &[&str]) -> ToolResult {
     }
 }
 
+// ── Glob Files Tool ───────────────────────────────────────────────────────────
+
+/// Find files matching a glob pattern, like `**/*.rs` or `src/*.test.ts`.
+/// Always excludes target/, node_modules/, and .git/ directories.
+/// Returns sorted file paths, capped at 500 entries.
+pub struct GlobFilesTool;
+
+/// Parse a glob pattern into (search_root, find_name_pattern, max_depth).
+/// Handles:
+///   `*.rs`          → root=".", name="*.rs",      depth=unlimited
+///   `src/*.rs`      → root="src", name="*.rs",    depth=1
+///   `**/*.rs`       → root=".", name="*.rs",       depth=unlimited
+///   `src/**/*.rs`   → root="src", name="*.rs",     depth=unlimited
+///   `*.{rs,toml}`   → NOT supported (bash handles it; use two calls or bash)
+fn parse_glob(pattern: &str, root: &str) -> (String, String, Option<u32>) {
+    let parts: Vec<&str> = pattern.splitn(2, "**").collect();
+    if parts.len() == 2 {
+        // Has ** — extract root prefix and filename suffix
+        let prefix = parts[0].trim_end_matches('/');
+        let suffix = parts[1].trim_start_matches('/');
+        let search_root = if prefix.is_empty() {
+            root.to_string()
+        } else if root == "." {
+            prefix.to_string()
+        } else {
+            format!("{root}/{prefix}")
+        };
+        // suffix is the filename pattern (e.g., "*.rs" or "*.test.ts")
+        let name_pattern = if suffix.is_empty() { "*".to_string() } else { suffix.to_string() };
+        (search_root, name_pattern, None) // unlimited depth
+    } else {
+        // No ** — split into directory prefix and filename
+        let path = std::path::Path::new(pattern);
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("*")
+            .to_string();
+        let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("");
+        let search_root = if parent.is_empty() {
+            root.to_string()
+        } else if root == "." {
+            parent.to_string()
+        } else {
+            format!("{root}/{parent}")
+        };
+        // If there was a directory prefix but no **, limit depth to 1
+        let max_depth = if parent.is_empty() { None } else { Some(1) };
+        (search_root, file_name, max_depth)
+    }
+}
+
+#[async_trait]
+impl AgentTool for GlobFilesTool {
+    fn name(&self) -> &str {
+        "glob_files"
+    }
+    fn description(&self) -> &str {
+        "Find files matching a glob pattern. Supports * (any chars in filename) and ** (any path). \
+         Examples: '*.rs' (all Rust files), 'src/**/*.ts' (all TypeScript under src/), \
+         '**/*.test.js' (all test files). Always excludes target/, node_modules/, .git/. \
+         Optional 'root' param sets search root (default: '.'). Max 500 results."
+    }
+    fn parameters_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern, e.g. '*.rs', 'src/**/*.ts', '**/*.test.js'"
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Root directory to search (default: '.')"
+                }
+            },
+            "required": ["pattern"]
+        })
+    }
+    async fn execute(&self, input: Value) -> ToolResult {
+        let pattern = match input["pattern"].as_str() {
+            Some(p) if !p.is_empty() => p.to_string(),
+            _ => return ToolResult { content: "missing 'pattern' parameter".into(), is_error: true },
+        };
+        let root = input["root"].as_str().unwrap_or(".");
+
+        let (search_root, name_pat, max_depth) = parse_glob(&pattern, root);
+
+        // Build find command args
+        let mut args: Vec<String> = vec![
+            search_root.clone(),
+            "-type".to_string(),
+            "f".to_string(),
+        ];
+
+        // Add max depth if specified
+        if let Some(depth) = max_depth {
+            args.push("-maxdepth".to_string());
+            args.push(depth.to_string());
+        }
+
+        // Add name filter
+        args.push("-name".to_string());
+        args.push(name_pat.clone());
+
+        // Exclude common non-source dirs
+        for excluded in &["*/target/*", "*/.git/*", "*/node_modules/*", "*/.cargo/*"] {
+            args.push("!".to_string());
+            args.push("-path".to_string());
+            args.push(excluded.to_string());
+        }
+
+        let out = tokio::time::timeout(
+            Duration::from_secs(10),
+            tokio::process::Command::new("find")
+                .args(&args)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output(),
+        )
+        .await;
+
+        match out {
+            Err(_) => ToolResult {
+                content: "glob_files timed out (10s)".into(),
+                is_error: true,
+            },
+            Ok(Err(e)) => ToolResult {
+                content: format!("find exec error: {e}"),
+                is_error: true,
+            },
+            Ok(Ok(result)) => {
+                // find returns exit code 1 if root doesn't exist
+                let stderr = String::from_utf8_lossy(&result.stderr);
+                if !result.status.success() && result.stdout.is_empty() {
+                    return ToolResult {
+                        content: format!("find error: {stderr}"),
+                        is_error: true,
+                    };
+                }
+
+                let raw = String::from_utf8_lossy(&result.stdout);
+                let mut files: Vec<&str> = raw.lines().filter(|l| !l.is_empty()).collect();
+                files.sort_unstable();
+
+                let truncated = files.len() > 500;
+                files.truncate(500);
+
+                if files.is_empty() {
+                    return ToolResult {
+                        content: format!("no files found matching '{pattern}' in '{search_root}'"),
+                        is_error: false,
+                    };
+                }
+
+                let mut content = files.join("\n");
+                if truncated {
+                    content.push_str("\n[truncated at 500 results]");
+                }
+                content.push_str(&format!("\n\n[{} file(s) found]", files.len()));
+
+                ToolResult { content, is_error: false }
+            }
+        }
+    }
+}
+
 // ── Fetch URL Tool ────────────────────────────────────────────────────────────
 
 /// Fetches the content of a URL and returns it as plain text.
@@ -1759,5 +1926,123 @@ tempfile = "3"
             required.as_array().map(|a| a.iter().any(|v| v.as_str() == Some("url"))).unwrap_or(false),
             "url should be required in schema: {schema}"
         );
+    }
+
+    // ── GlobFilesTool tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn glob_tool_definition_is_valid() {
+        let tool = GlobFilesTool;
+        let def = tool.definition();
+        assert_eq!(def.name, "glob_files");
+        assert!(!def.description.is_empty());
+        assert!(def.parameters.is_object());
+    }
+
+    #[test]
+    fn glob_tool_parameters_requires_pattern() {
+        let tool = GlobFilesTool;
+        let schema = tool.parameters_schema();
+        let required = &schema["required"];
+        assert!(
+            required.as_array()
+                .map(|a| a.iter().any(|v| v.as_str() == Some("pattern")))
+                .unwrap_or(false),
+            "pattern should be required: {schema}"
+        );
+    }
+
+    #[tokio::test]
+    async fn glob_tool_missing_pattern_errors() {
+        let tool = GlobFilesTool;
+        let result = tool.execute(json!({})).await;
+        assert!(result.is_error, "missing pattern must error: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn glob_tool_finds_rust_files() {
+        let tool = GlobFilesTool;
+        let result = tool.execute(json!({"pattern": "*.rs", "root": "src"})).await;
+        assert!(!result.is_error, "should find .rs files: {}", result.content);
+        assert!(result.content.contains(".rs"), "should list .rs files: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn glob_tool_finds_files_with_double_star() {
+        let tool = GlobFilesTool;
+        let result = tool.execute(json!({"pattern": "**/*.rs"})).await;
+        assert!(!result.is_error, "** glob should work: {}", result.content);
+        assert!(result.content.contains(".rs"), "should list .rs files: {}", result.content);
+        // Should find files in subdirs
+        assert!(result.content.contains("src/"), "should find files in src/: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn glob_tool_finds_toml_files() {
+        let tool = GlobFilesTool;
+        let result = tool.execute(json!({"pattern": "*.toml"})).await;
+        assert!(!result.is_error, "*.toml should work: {}", result.content);
+        assert!(result.content.contains("Cargo.toml"), "should find Cargo.toml: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn glob_tool_no_match_returns_message() {
+        let tool = GlobFilesTool;
+        let result = tool.execute(json!({"pattern": "*.nonexistentextension12345"})).await;
+        assert!(!result.is_error, "no match should not be an error: {}", result.content);
+        assert!(result.content.contains("no files found"), "should report no match: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn glob_tool_excludes_target_dir() {
+        let tool = GlobFilesTool;
+        let result = tool.execute(json!({"pattern": "**/*.rs"})).await;
+        assert!(!result.is_error);
+        // target/ should be excluded
+        for line in result.content.lines() {
+            if line.starts_with("./target/") || line.starts_with("target/") {
+                panic!("target/ should be excluded but found: {line}");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_glob_simple_extension() {
+        let (root, name, depth) = parse_glob("*.rs", ".");
+        assert_eq!(root, ".");
+        assert_eq!(name, "*.rs");
+        assert!(depth.is_none(), "simple *.rs should be unlimited depth");
+    }
+
+    #[test]
+    fn parse_glob_double_star() {
+        let (root, name, depth) = parse_glob("**/*.rs", ".");
+        assert_eq!(root, ".");
+        assert_eq!(name, "*.rs");
+        assert!(depth.is_none(), "** should be unlimited depth");
+    }
+
+    #[test]
+    fn parse_glob_dir_prefix_no_star() {
+        let (root, name, depth) = parse_glob("src/*.rs", ".");
+        assert_eq!(root, "src");
+        assert_eq!(name, "*.rs");
+        assert_eq!(depth, Some(1), "dir/file should limit to depth 1");
+    }
+
+    #[test]
+    fn parse_glob_dir_double_star() {
+        let (root, name, depth) = parse_glob("src/**/*.rs", ".");
+        assert_eq!(root, "src");
+        assert_eq!(name, "*.rs");
+        assert!(depth.is_none(), "dir/** should be unlimited depth");
+    }
+
+    #[test]
+    fn parse_glob_with_custom_root() {
+        let (root, name, depth) = parse_glob("*.toml", "/workspace");
+        assert_eq!(root, "/workspace");
+        assert_eq!(name, "*.toml");
+        assert!(depth.is_none());
     }
 }
