@@ -991,19 +991,18 @@ pub async fn agent_loop(
         let last_preview = messages
             .last()
             .map(|m| {
+                // Extract readable text from any content type (Text or ToolResult)
                 let t: String = m
                     .content
                     .iter()
-                    .filter_map(|c| {
-                        if let Content::Text { text } = c {
-                            Some(text.as_str())
-                        } else {
-                            None
-                        }
+                    .filter_map(|c| match c {
+                        Content::Text { text } => Some(text.as_str()),
+                        Content::ToolResult { content, .. } => Some(content.as_str()),
+                        _ => None,
                     })
                     .collect::<Vec<_>>()
                     .join(" ");
-                t[..t.len().min(120)].to_string()
+                t[..t.len().min(100)].to_string()
             })
             .unwrap_or_default();
         on_event(AgentEvent::Debug(format!(
@@ -1013,6 +1012,7 @@ pub async fn agent_loop(
         )));
         let response =
             call_with_retry(messages, provider, &tool_defs, system, retry, on_event).await?;
+        // When LLM responds with only tool calls there is no text block — show tool names instead
         let resp_text: String = response
             .message
             .content
@@ -1026,10 +1026,26 @@ pub async fn agent_loop(
             })
             .collect::<Vec<_>>()
             .join(" ");
+        let resp_summary = if !resp_text.is_empty() {
+            format!("text: {:?}", &resp_text[..resp_text.len().min(100)])
+        } else {
+            let tool_names: Vec<&str> = response
+                .message
+                .content
+                .iter()
+                .filter_map(|c| {
+                    if let Content::ToolUse { name, .. } = c {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            format!("tools: [{}]", tool_names.join(", "))
+        };
         on_event(AgentEvent::Debug(format!(
-            "turn {turn} ← LLM | stop: {:?} | text: {:?}",
+            "turn {turn} ← LLM | stop: {:?} | {resp_summary}",
             response.stop_reason,
-            &resp_text[..resp_text.len().min(200)]
         )));
         messages.push(response.message.clone());
 
