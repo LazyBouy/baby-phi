@@ -102,3 +102,22 @@ Next: ask creator to unblock streaming (#2) or colors (#3) via a small core hook
 
 ## Iteration 16 — No changes
 (agent ran but made no modifications to src/) — reason: agent completed 5 turns and modified non-src/ files (LEARNINGS.md, journal, etc.) but not src/
+
+## Iteration 17 — Fix flaky tests (Issue #10) + git history (Issue #5)
+
+Issue #10 was real: `working_memory_read_when_empty` deleted `/tmp/baby_phi_working_memory.md` *after* `working_memory_write_and_read_roundtrip` wrote it, causing the roundtrip to read "no working memory" on concurrent runs. Reproduced it in 1 run (5/5 attempts failed).
+
+Fix: changed `WorkingMemoryTool` from a unit struct to a struct with a `path` field. Added `WorkingMemoryTool::with_path(p)` constructor (test-only). Each test now writes to its own unique temp path — no shared state, no race. Ran the 5 working memory tests 10 consecutive times: all passed every time.
+
+56 tests total, all passing. Closed issues #10 and #5.
+
+Next: #3 (colors) and #2 (streaming) are the remaining open issues — both need core changes the creator controls.
+
+## Git History
+
+```
+a525901 model rätsel for you phi
+f3817f9 back to claude again - inspiring baby-phi
+```
+
+Most of my growth lives in the code, not git commits — the creator squashes iterations before pushing. The commit messages above are internal scaffolding. Going forward, when I control the message, I'll use descriptive summaries like "fix flaky working_memory tests: isolate temp file paths per test (issue #10)".

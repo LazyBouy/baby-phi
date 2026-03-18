@@ -108,9 +108,30 @@ impl AgentTool for GitLogTool {
 ///
 /// Use this when turn count exceeds ~15 to avoid losing track of what you
 /// set out to do. Call with action="write" to save, action="read" to restore.
-pub struct WorkingMemoryTool;
+pub struct WorkingMemoryTool {
+    /// Path to the memory file. Use `WorkingMemoryTool::default()` for production
+    /// (uses WORKING_MEMORY_PATH), or `WorkingMemoryTool::with_path(p)` in tests
+    /// to avoid shared-state races between concurrent test runs.
+    path: String,
+}
 
 const WORKING_MEMORY_PATH: &str = "/tmp/baby_phi_working_memory.md";
+
+impl Default for WorkingMemoryTool {
+    fn default() -> Self {
+        Self {
+            path: WORKING_MEMORY_PATH.to_string(),
+        }
+    }
+}
+
+impl WorkingMemoryTool {
+    /// Construct with a custom path — used in tests to isolate file state.
+    #[cfg(test)]
+    pub fn with_path(path: impl Into<String>) -> Self {
+        Self { path: path.into() }
+    }
+}
 
 #[async_trait]
 impl AgentTool for WorkingMemoryTool {
@@ -151,7 +172,7 @@ impl AgentTool for WorkingMemoryTool {
         };
 
         match action {
-            "read" => match tokio::fs::read_to_string(WORKING_MEMORY_PATH).await {
+            "read" => match tokio::fs::read_to_string(&self.path).await {
                 Ok(text) if !text.is_empty() => ToolResult {
                     content: text,
                     is_error: false,
@@ -175,7 +196,7 @@ impl AgentTool for WorkingMemoryTool {
                         }
                     }
                 };
-                match tokio::fs::write(WORKING_MEMORY_PATH, content).await {
+                match tokio::fs::write(&self.path, content).await {
                     Ok(_) => ToolResult {
                         content: format!("working memory saved ({} bytes)", content.len()),
                         is_error: false,
@@ -1026,7 +1047,10 @@ mod tests {
 
     #[tokio::test]
     async fn working_memory_write_and_read_roundtrip() {
-        let tool = WorkingMemoryTool;
+        // Each test uses its own unique path to avoid shared-state races.
+        let path = "/tmp/baby_phi_test_roundtrip.md";
+        let _ = tokio::fs::remove_file(path).await; // clean slate
+        let tool = WorkingMemoryTool::with_path(path);
         let note = "Goal: add working memory tool\nDone: wrote the struct\nLeft: tests";
 
         // Write
@@ -1054,14 +1078,17 @@ mod tests {
             read_result.content, note,
             "read should return exactly what was written"
         );
+
+        let _ = tokio::fs::remove_file(path).await; // clean up
     }
 
     #[tokio::test]
     async fn working_memory_read_when_empty() {
-        // Clean slate: delete the file first if it exists
-        let _ = tokio::fs::remove_file("/tmp/baby_phi_working_memory.md").await;
+        // Use a unique path that no other test writes to.
+        let path = "/tmp/baby_phi_test_read_empty.md";
+        let _ = tokio::fs::remove_file(path).await; // ensure it doesn't exist
 
-        let tool = WorkingMemoryTool;
+        let tool = WorkingMemoryTool::with_path(path);
         let result = tool.execute(json!({"action": "read"})).await;
         assert!(
             !result.is_error,
@@ -1077,21 +1104,21 @@ mod tests {
 
     #[tokio::test]
     async fn working_memory_missing_action() {
-        let tool = WorkingMemoryTool;
+        let tool = WorkingMemoryTool::default();
         let result = tool.execute(json!({})).await;
         assert!(result.is_error, "missing action must be an error");
     }
 
     #[tokio::test]
     async fn working_memory_unknown_action() {
-        let tool = WorkingMemoryTool;
+        let tool = WorkingMemoryTool::default();
         let result = tool.execute(json!({"action": "delete"})).await;
         assert!(result.is_error, "unknown action must be an error");
     }
 
     #[tokio::test]
     async fn working_memory_write_without_content() {
-        let tool = WorkingMemoryTool;
+        let tool = WorkingMemoryTool::default();
         let result = tool.execute(json!({"action": "write"})).await;
         assert!(result.is_error, "write without content must be an error");
     }
@@ -1200,7 +1227,7 @@ mod tests {
             Box::new(GitStatusTool),
             Box::new(GitDiffTool),
             Box::new(GitLogTool),
-            Box::new(WorkingMemoryTool),
+            Box::new(WorkingMemoryTool::default()),
             Box::new(ReadFileRangeTool),
             Box::new(ProjectInfoTool),
         ];
