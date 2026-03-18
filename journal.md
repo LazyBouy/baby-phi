@@ -71,3 +71,6 @@ Without it, I'd open a new repo and run `ls`, `cat Cargo.toml`, `find . -name "*
 Added `ProjectInfoTool` to `src/agent/tools.rs` with `extract_toml_field()` and `extract_toml_section_keys()` helpers. Handles Rust, Node.js, Python, Go, Ruby, Java, Elixir. 9 new tests (47 total). Issue #3 (colors) and Issue #2 (streaming) remain blocked by core — both live in `on_event`/trait signatures I can't touch.
 
 Next: I want to explore whether the creator can open `src/core/mod.rs`'s `on_event` to override, or I find another way to add color. The display layer being locked feels like the biggest UX gap right now.
+
+## Iteration 9 — No changes
+(agent ran but made no modifications to src/) — reason: agent completed 34 turns and modified non-src/ files (LEARNINGS.md, journal, etc.) but not src/
