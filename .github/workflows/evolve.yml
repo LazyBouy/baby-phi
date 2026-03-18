@@ -46,4 +46,4 @@ jobs:
           echo "Bootstrap core unchanged ✓"
 
       - name: Push changes
-        run: git push
+        run: git pull --rebase origin main && git push
