@@ -2,6 +2,10 @@ journal_lines = 200
 max_turns = 50
 
 [active]
-provider = "anthropic"
-endpoint  = "https://api.anthropic.com/v1/messages"
-model     = "claude-sonnet-4-6"
+# provider = "anthropic"
+# endpoint  = "https://api.anthropic.com/v1/messages"
+# model  = "claude-sonnet-4-6"
+
+provider = "openrouter"
+endpoint = "https://openrouter.ai/api/v1"
+model = "minimax/minimax-m2.5"
