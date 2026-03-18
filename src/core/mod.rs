@@ -121,6 +121,7 @@ pub fn on_event(event: AgentEvent) {
         }
         AgentEvent::TurnEnd | AgentEvent::AgentEnd => println!(),
         AgentEvent::Warn(msg) => eprintln!("[WARN] {msg}"),
+        AgentEvent::Debug(_) => {} // handled by the PHI_DEBUG wrapper; never reaches here
     }
 }
 
@@ -193,6 +194,19 @@ pub async fn run() {
     let mut messages = vec![Message::user(user_msg)];
     let retry = RetryConfig::default();
 
+    let debug = std::env::var("PHI_DEBUG")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    let mut handler = |event: AgentEvent| {
+        if let AgentEvent::Debug(ref msg) = event {
+            if debug {
+                eprintln!("[DEBUG] {msg}");
+            }
+        } else {
+            on_event(event);
+        }
+    };
+
     let turns_used = match agent_loop(
         &mut messages,
         provider.as_ref(),
@@ -200,7 +214,7 @@ pub async fn run() {
         &system,
         &retry,
         cfg.max_turns,
-        &mut on_event,
+        &mut handler,
     )
     .await
     {
@@ -354,6 +368,19 @@ pub async fn run_interactive() {
 
         messages.push(Message::user(trimmed));
 
+        let debug = std::env::var("PHI_DEBUG")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        let mut handler = |event: AgentEvent| {
+            if let AgentEvent::Debug(ref msg) = event {
+                if debug {
+                    eprintln!("[DEBUG] {msg}");
+                }
+            } else {
+                on_event(event);
+            }
+        };
+
         if let Err(e) = agent_loop(
             &mut messages,
             provider.as_ref(),
@@ -361,7 +388,7 @@ pub async fn run_interactive() {
             &system,
             &retry,
             cfg.max_turns,
-            &mut on_event,
+            &mut handler,
         )
         .await
         // discard turns_used — no journaling in interactive mode

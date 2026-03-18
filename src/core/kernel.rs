@@ -181,6 +181,7 @@ pub enum AgentEvent {
     TurnEnd,
     AgentEnd,
     Warn(String),
+    Debug(String),
 }
 
 pub struct ToolResult {
@@ -987,8 +988,49 @@ pub async fn agent_loop(
 
     loop {
         on_event(AgentEvent::TurnStart { turn });
+        let last_preview = messages
+            .last()
+            .map(|m| {
+                let t: String = m
+                    .content
+                    .iter()
+                    .filter_map(|c| {
+                        if let Content::Text { text } = c {
+                            Some(text.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                t[..t.len().min(120)].to_string()
+            })
+            .unwrap_or_default();
+        on_event(AgentEvent::Debug(format!(
+            "turn {turn} → LLM | system: {} chars | msgs: {} | last: {last_preview:?}",
+            system.len(),
+            messages.len()
+        )));
         let response =
             call_with_retry(messages, provider, &tool_defs, system, retry, on_event).await?;
+        let resp_text: String = response
+            .message
+            .content
+            .iter()
+            .filter_map(|c| {
+                if let Content::Text { text } = c {
+                    Some(text.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        on_event(AgentEvent::Debug(format!(
+            "turn {turn} ← LLM | stop: {:?} | text: {:?}",
+            response.stop_reason,
+            &resp_text[..resp_text.len().min(200)]
+        )));
         messages.push(response.message.clone());
 
         if response.stop_reason != StopReason::ToolUse {
