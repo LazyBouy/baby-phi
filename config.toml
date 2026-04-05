@@ -1,6 +1,47 @@
-journal_lines = 200
+# ── Agent ────────────────────────────────────────────────────────────────
+[agent]
+workspace = "workspace"
 
-[active]
-provider = "anthropic"
-endpoint  = "https://api.anthropic.com/v1/messages"
-model     = "claude-opus-4-6"
+[[agent.instances]]
+name = "email-writer"
+agent_profile = "{{agent_profile.marketing_writer}}"
+
+# ── Agent Profile ────────────────────────────────────────────────────────
+[agent.profile]
+name = "base"
+
+[[agent.profile.instances]]
+id = "{{marketing_writer}}"
+name = "marketing-writer"
+description = "AI marketing copywriter for NexusAI"
+system_prompt = "file:system_prompt.md"
+temperature = 0.7
+max_tokens = 2048
+
+# ── Provider (OpenRouter) ────────────────────────────────────────────────
+[provider]
+model = "minimax/minimax-m2.7"
+api_key = "${OPENROUTER_API_KEY}"
+api = "openai_completions"
+provider = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+
+[provider.compat]
+supports_streaming = true
+supports_system_message = true
+max_tokens_field = "max_tokens"
+
+# ── Tools ────────────────────────────────────────────────────────────────
+[tools]
+enabled = ["write_file"]
+
+# ── Execution ────────────────────────────────────────────────────────────
+[execution]
+max_turns = 5
+max_duration_secs = 120
+
+[execution.retry]
+max_retries = 3
+initial_delay_ms = 5000
+backoff_multiplier = 2.0
+max_delay_ms = 30000
