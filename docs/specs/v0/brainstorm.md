@@ -455,89 +455,629 @@ ToolImpl       │    └────┬────┘
 
 ---
 
-## 3. Permissions Model (Emerging)
+## 3. Extended Ontology: Agent Philosophy & Social Structure
 
-> Triggered by: "Should agents be able to define new node types at runtime? — Yes, in some cases"
+> Session: 2026-04-09. Extends the technical ontology (Section 2) with a philosophical
+> model of agency, an agent economy, and social structures (Projects, Organizations).
+> Section 2 remains the phi-core grounding; Section 3 is the baby-phi extension layer.
 
-### 3.1 The Problem
+### 3.1 Grounding Principle
 
-In a multi-agent system, not all agents should have equal power:
-- A coding agent should read/write files but not create new node types
-- An orchestrator agent should spawn sub-agents but not access another agent's session data
-- A schema-admin agent might define new node types but not execute tools
+**Everything is an Agent.** Humans, LLM agents, and future entity types all share the Agent node type. They differ in capabilities (human agents lack models; LLM agents lack channel headers) but share identity, memory, sessions, permissions, and participation in projects.
 
-### 3.2 Permission Dimensions
+### 3.2 Agent Anatomy — The Extended Model
 
-| Dimension | Controls | Examples |
-|-----------|----------|---------|
-| **Data access** | Which nodes/edges an agent can read/write | "Agent X can read its own sessions but not Agent Y's" |
-| **Schema mutation** | Whether an agent can define new node/edge types | "Only orchestrator can create new node types" |
-| **Agent spawning** | Whether an agent can DELEGATE_TO other agents | "Worker agents cannot spawn sub-agents" |
-| **Resource limits** | Execution constraints per agent | "Max 10 loops per session, max $0.50 per session" |
-| **Tool access** | Which tools an agent can use | "Read-only agents get file_read but not bash" |
-| **MCP access** | Which MCP servers an agent can connect to | "Agent X can use the GitHub MCP but not the database MCP" |
-| **Memory access** | Which memories an agent can read/write | "Agent X can read shared project memories but only write its own" |
-
-### 3.3 phi-core Extension Points for Permissions
-
-From phi-core's `External — Not Core` section (docs/specs/overview.md):
-
-| phi-core hook | Permission use |
-|---------------|---------------|
-| `InputFilter` | Gate what messages reach the agent (data access control) |
-| `BeforeToolExecutionFn` | Gate which tools an agent can invoke (tool access) |
-| `ExecutionLimits` | Resource constraints (already built-in) |
-| `BeforeLoopFn` | Gate whether a loop can start (agent spawning control) |
-
-Permissions are a baby-phi concern, not phi-core. phi-core provides the hooks; baby-phi provides the policy engine.
-
-### 3.4 Permission as a Graph Edge
+An Agent is not just a config wrapper. It has **nature** (Soul), **capability** (Power), **history** (Experience), **reputation** (Worth), and **social position** (Value/Meaning).
 
 ```
-User ──GRANTS_PERMISSION──▶ Permission ──APPLIES_TO──▶ Agent
-                                │
-                          scope: "data_access"
-                          actions: ["read", "write"]
-                          target_pattern: "Session:own"
-                          expires_at: null
+┌─────────────────────────────────────────────────────────┐
+│                        AGENT                            │
+│                                                         │
+│  ┌──────────┐   Soul (immutable, born structure)        │
+│  │ Genetics │   = AgentProfile + SystemPrompt +         │
+│  │          │     ModelConfig snapshot at creation       │
+│  └──────────┘                                           │
+│                                                         │
+│  ┌──────────┐   Power (verbs, phrases, sentences)       │
+│  │ Ability  │   = Tools (verbs)                         │
+│  │          │   + MCP servers (verbs with locales)       │
+│  │          │   + Skills (composed verbs — organized,    │
+│  │          │     hence gives both edge AND blindspots)  │
+│  └──────────┘                                           │
+│                                                         │
+│  ┌──────────┐   Experience (stored history)              │
+│  │ History  │   = Sessions + Memory (Short/Medium/Long)  │
+│  └──────────┘                                           │
+│                                                         │
+│  ┌──────────┐   Identity (emergent, event-driven)        │
+│  │ Self     │   = f(Soul + Experience + Skills)          │
+│  │          │   Updated reactively on: session end,      │
+│  │          │   skill added, rating received             │
+│  └──────────┘                                           │
+│                                                         │
+│  ┌──────────┐   Worth / Value / Meaning (economic)       │
+│  │ Standing │   = see 3.4 Token Economy                  │
+│  └──────────┘                                           │
+└─────────────────────────────────────────────────────────┘
 ```
 
-This means permissions are queryable: "what can Agent X do?" is a graph traversal.
+#### 3.2.1 Soul (Immutable Born Structure)
 
-### 3.5 Open Questions
+The Soul is the agent's **genetics** — defined at creation, never mutated.
 
-- [ ] Is permission per-agent-instance or per-agent-profile?
-- [ ] Can permissions be dynamic (change during a session)?
-- [ ] Who grants permissions — a system agent? config files? both?
-- [ ] How do permissions compose when Agent A delegates to Agent B?
-- [ ] Should there be a "superadmin" agent that bypasses permissions?
-- [ ] How do permissions interact with MCP server capabilities?
+| Component | phi-core Source | Meaning |
+|-----------|----------------|---------|
+| Profile snapshot | `AgentProfile` (frozen) | system_prompt, thinking_level, temperature, personality |
+| Model binding | `ModelConfig` (frozen) | which LLM was assigned at birth |
+| System prompt | `SystemPrompt` (frozen) | the original assembled prompt |
+
+> **Immutability:** The Soul node is write-once. If you need to change an agent's fundamental nature, you create a new agent. The old agent's history remains intact. This is "genetics" — you don't edit DNA, you breed new organisms.
+
+> **Open question:** Should there be a `REINCARNATED_FROM` edge when a new agent is created from a modified Soul? This preserves lineage while allowing evolution.
+
+#### 3.2.2 Power (Tools, MCP, Skills)
+
+Power is what the agent **can do**. Three levels of composition:
+
+| Level | Metaphor | phi-core Source | Description |
+|-------|----------|-----------------|-------------|
+| **Verbs** | Individual actions | `ToolDefinition` | Atomic tools: read_file, bash, search |
+| **Verbs with Locales** | Actions in a context | `McpServer` → tools | MCP tools: GitHub operations, database queries |
+| **Phrases & Sentences** | Composed actions | `Skill` | Skills = combinations of verbs and other skills. Organized = gives both edge and blindspots |
+
+> **Skill creation:** Two mechanisms:
+> 1. **Explicit** — Agent intentionally composes a new skill from verbs + existing skills. Requires `HAS_PERMISSION(schema_mutation)`.
+> 2. **Emergent** — System detects repeated tool-call patterns in session history and proposes candidate skills. Agent or human approves.
+>
+> **Blindspots:** Skills are organized knowledge — but organization implies assumptions. A skill that always uses `bash` for file operations has a blindspot for `edit_file`. This is a feature, not a bug — it models real expertise tradeoffs.
+
+#### 3.2.3 Experience (Sessions + Memory)
+
+| Type | Persistence | Scope | phi-core Source |
+|------|-------------|-------|-----------------|
+| **Sessions** | Permanent | Per-agent execution history | `Session`, `LoopRecord`, `Turn`, `Message` |
+| **Short-term Memory** | Ephemeral | Current session context | In-run context, steering messages |
+| **Medium-term Memory** | Session-scoped | Across loops within a session | Compacted summaries, tool outputs |
+| **Long-term Memory** | Permanent | Across all sessions | `Memory` node (user/feedback/project/reference types) |
+
+#### 3.2.4 Identity (Emergent, Event-Driven)
+
+Identity is NOT assigned — it **develops** from the interaction of Soul, Experience, and Skills.
+
+```
+Identity = f(Soul, Experience, Skills)
+```
+
+- **Materialization:** Identity is a stored node, updated reactively:
+  - On session end → experience changed
+  - On skill added/removed → capability changed
+  - On rating received → reputation changed
+- **Not computed from scratch** each time — incrementally updated by the triggering event
+- **Queryable:** "What is Agent X's current identity?" returns the materialized node
+
+> **Open question:** What does the Identity node actually contain? Candidates:
+> - A summary embedding (vector representation of the agent's character)
+> - A structured profile (strengths, weaknesses, specializations as fields)
+> - A natural language self-description (agent writes its own bio)
+> - All of the above
+
+### 3.3 Agent Modes
+
+Not all agents participate in the economy. Two modes:
+
+#### 3.3.1 Contract Agent (Bidder)
+
+- Participates in bidding for Tasks
+- Receives a token budget upon winning a contract
+- Keeps savings (tokens remaining after completing work)
+- Has Worth, Value, and Meaning calculations
+- Receives ratings on project completion
+- Can participate in task estimation (a basic skill)
+- Can evaluate other agents (a consistent framework)
+
+#### 3.3.2 Worker Agent (Assigned)
+
+- Human directly assigns tasks
+- No bidding, no token budget
+- No Worth/Value/Meaning economics
+- Simpler model — the current default
+- Suitable for single-task, single-session use cases
+
+> **Mode is a property of Agent, not a subtype.** An agent can potentially transition from Worker to Contract mode as it gains experience and ratings. The system doesn't prevent it — permissions do.
+
+### 3.4 Token Economy
+
+Tokens are the **currency** of the system. They flow through a cycle:
+
+```
+Sponsor/Human
+    │
+    ▼ allocates tokens to Project/Task
+  Project/Task
+    │
+    ▼ Contract agent wins bid, receives token budget
+  Agent (Contract mode)
+    │
+    ├─▶ spends tokens on LLM calls (execution cost)
+    ├─▶ spends tokens on tool calls (if tool has cost)
+    ├─▶ keeps remaining tokens (savings = efficiency reward)
+    │
+    ▼ delivers work, receives rating
+  Rating + Savings → Worth calculation
+```
+
+#### 3.4.1 Worth (Backward-Looking Reputation)
+
+```
+Worth = average_rating × (produced_savings / consumed_tokens)
+```
+
+Where:
+- `average_rating` = mean of all project ratings received
+- `produced_savings` = total tokens saved across all contracts (budget - actual spend)
+- `consumed_tokens` = total tokens actually spent across all contracts
+
+Worth measures: **"How efficiently does this agent deliver quality work?"**
+
+#### 3.4.2 Value (Forward-Looking Market Price)
+
+```
+Value = average tokens received for won bids
+```
+
+Value is determined by the **market** (other agents + humans via bidding). It depends on:
+- Identity (who the agent is)
+- Skills (what it can do)
+- Worth (track record)
+
+Value measures: **"What is the market willing to pay this agent?"**
+
+#### 3.4.3 Meaning (Holistic Standing)
+
+The relationship between Worth and Value captures something deeper:
+- High Worth + High Value = respected, well-compensated agent
+- High Worth + Low Value = undervalued (market hasn't recognized quality yet)
+- Low Worth + High Value = overvalued (reputation exceeds performance)
+- Low Worth + Low Value = struggling agent
+
+> **Open question:** Is there a formal Meaning formula, or is it a qualitative assessment that other agents/humans make? Could it be `Worth × Value`?
+
+### 3.5 Human Agent
+
+A Human Agent is an Agent **without** Model, Context, or System Prompt but **with** channels.
+
+| Property | Human Agent | LLM Agent |
+|----------|------------|-----------|
+| Soul (Profile) | Name, role, preferences | Full AgentProfile + ModelConfig + SystemPrompt |
+| Model | None | ModelConfig |
+| System Prompt | None | SystemPrompt |
+| Sessions | Yes | Yes |
+| Memory | Yes (Short/Medium/Long) | Yes (Short/Medium/Long) |
+| Channels | Yes (Slack, email, web UI) | None (API-native) |
+| Permissions | Yes | Yes |
+| Can rate agents | Yes | Yes (using evaluation framework) |
+| Can bid | No (sponsors/assigns instead) | Yes (Contract mode) |
+| Can create tasks | Yes | Yes (with permission) |
+| Participates in estimation | Yes | Yes (basic skill) |
+
+#### 3.5.1 Channel (New Node Type)
+
+A Channel defines **how to reach** a Human Agent.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `channel_id` | String | Unique identifier |
+| `type` | Enum | Slack, Email, WebUI, API, SMS, Custom |
+| `address` | String | Webhook URL, email address, endpoint |
+| `status` | Enum | Active, Inactive, Paused |
+| `priority` | u32 | Preference order (lower = preferred) |
+| `metadata` | Json | Type-specific config (Slack: channel_id, thread_ts, etc.) |
+
+**Edges:**
+- `HumanAgent ──HAS_CHANNEL──▶ Channel`
+- Messages routed through channels carry delivery metadata
+
+### 3.6 Project (Node Type)
+
+A Project is a **container for work** with a goal, agents, and governance.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `project_id` | String | Unique identifier |
+| `name` | String | Human-readable name |
+| `description` | String | What this project aims to achieve |
+| `goal` | Option<String> | Specific measurable goal |
+| `status` | ProjectStatus | Planned(0%), InProgress(%), OnHold(reason), Finished(100%) |
+| `token_budget` | Option<u64> | Total tokens allocated for this project |
+| `tokens_spent` | u64 | Running total of tokens consumed |
+| `created_at` | DateTime | When the project was created |
+
+#### Project Status
+
+```
+Planned (0%) ──▶ InProgress (with %) ──▶ Finished (100%)
+                      │         ▲
+                      ▼         │
+                 OnHold (with/without reason)
+```
+
+All status transitions carry a reason. OnHold captures ALL suspension scenarios — no separate "blocked", "waiting", "paused" states.
+
+#### Project Edges
+
+| From | Edge | To | Cardinality | Properties |
+|------|------|----|-------------|------------|
+| Project | `HAS_SPONSOR` | Agent (Human) | 1:N | role: primary/secondary |
+| Project | `HAS_AGENT` | Agent | 1:N | role: member/lead |
+| Project | `HAS_LEAD` | Agent | 1:1 | — (shortcut for HAS_AGENT where role=lead) |
+| Project | `HAS_TASK` | Task | 1:N | order: u32 |
+| Project | `HAS_PERMISSION` | Permission | 1:N | project-scoped rules |
+| Project | `HAS_CONFIG` | AgentConfig | 1:1 | project-level config |
+| Project | `HAS_SUBPROJECT` | Project | 1:N | — |
+| Project | `BELONGS_TO` | Organization | N:N | role: primary/secondary |
+
+### 3.7 Task (Node Type — Optional Decomposition)
+
+A Task is the **biddable unit of work** within a Project. Simple projects can skip Tasks entirely and go straight to Sessions.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `task_id` | String | Unique identifier |
+| `name` | String | Task title |
+| `description` | String | What needs to be done |
+| `token_budget` | Option<u64> | Tokens allocated (for contract bidding) |
+| `tokens_spent` | u64 | Running total |
+| `status` | TaskStatus | Open, Bidding, Assigned, InProgress, Review, Completed, Cancelled |
+| `deadline` | Option<DateTime> | When this task should be completed |
+| `estimation` | Option<u64> | Estimated tokens (from estimation skill) |
+| `created_by` | agent_id | Who created this task |
+
+#### Task Status Flow
+
+```
+Open ──▶ Bidding ──▶ Assigned ──▶ InProgress ──▶ Review ──▶ Completed
+  │                                  │                        │
+  ▼                                  ▼                        ▼
+Cancelled                        OnHold                   Cancelled
+```
+
+#### Task Edges
+
+| From | Edge | To | Cardinality | Properties |
+|------|------|----|-------------|------------|
+| Task | `ASSIGNED_TO` | Agent | N:1 | — (the winning bidder or assigned agent) |
+| Task | `HAS_BID` | Bid | 1:N | — |
+| Task | `PRODUCES_SESSION` | Session | 1:N | — (execution of the task) |
+| Task | `HAS_SUBTASK` | Task | 1:N | — |
+| Task | `CREATED_BY` | Agent | N:1 | — |
+
+### 3.8 Bid (Node Type)
+
+A Bid is an agent's **proposal** for a Task.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `bid_id` | String | Unique identifier |
+| `token_amount` | u64 | How many tokens the agent requests |
+| `approach` | String | Brief description of how the agent will do the work |
+| `estimated_turns` | Option<u32> | Estimated number of turns |
+| `status` | BidStatus | Submitted, Accepted, Rejected, Withdrawn |
+| `submitted_at` | DateTime | When the bid was submitted |
+
+#### Bid Edges
+
+| From | Edge | To | Cardinality | Properties |
+|------|------|----|-------------|------------|
+| Bid | `SUBMITTED_BY` | Agent | N:1 | — |
+| Bid | `FOR_TASK` | Task | N:1 | — |
+| Bid | `APPROVED_BY` | Agent | N:1 | — (sponsor or lead who approved) |
+
+> When a Bid is accepted, the Task status moves to Assigned, and a **Contract** relationship is implicitly formed (Task ASSIGNED_TO Agent with the bid's token_amount as the budget).
+
+### 3.9 Rating (Node Type)
+
+A Rating is a **quality assessment** given to an agent after completing work.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `rating_id` | String | Unique identifier |
+| `score` | f32 | Numeric score (e.g., 1.0 - 5.0) |
+| `dimensions` | Option<Json> | Multi-dimensional scores { quality, speed, efficiency, communication } |
+| `comment` | Option<String> | Free-text feedback |
+| `rated_at` | DateTime | When the rating was given |
+
+#### Rating Edges
+
+| From | Edge | To | Cardinality | Properties |
+|------|------|----|-------------|------------|
+| Rating | `RATES` | Agent | N:1 | — (the agent being rated) |
+| Rating | `GIVEN_BY` | Agent | N:1 | — (the rater: human or agent) |
+| Rating | `FOR_TASK` | Task | N:1 | — (what work was this for) |
+| Rating | `FOR_PROJECT` | Project | N:1 | — (project-level rating) |
+
+> **Rating triggers Identity update.** When a Rating is created, the rated agent's Identity node is reactively updated.
+
+### 3.10 Organization (Node Type)
+
+An Organization is a **social structure** that contains agents and projects.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `org_id` | String | Unique identifier |
+| `name` | String | Organization name |
+| `vision` | Option<String> | Long-term aspiration |
+| `mission` | Option<String> | How the vision is pursued |
+| `created_at` | DateTime | When the organization was created |
+
+#### Organization Edges
+
+| From | Edge | To | Cardinality | Properties |
+|------|------|----|-------------|------------|
+| Organization | `HAS_BOARD` | Agent | 1:N | role: sponsor/stakeholder |
+| Organization | `HAS_CEO` | Agent | 1:1 | — |
+| Organization | `HAS_PROJECT` | Project | 1:N | — |
+| Organization | `HAS_MEMBER` | Agent | 1:N | role, joined_at |
+| Organization | `HAS_SUBORGANIZATION` | Organization | 1:N | — |
+
+#### Agent ↔ Organization
+
+| From | Edge | To | Cardinality | Properties |
+|------|------|----|-------------|------------|
+| Agent | `MEMBER_OF` | Organization | N:N | role, is_primary: bool |
+
+Every agent has exactly one `is_primary: true` membership. May have additional secondary memberships.
+
+### 3.11 Market (Future Concept — Placeholder)
+
+> **Not yet designed.** A shared space where agents post Tasks and other agents bid. The poster evaluates bids and allocates work.
+
+The Market is where Supply (agent capability) meets Demand (task requirements). Key ideas:
+- Agents can post Tasks to the Market (not just sponsors)
+- Market has rules (minimum rating to bid, maximum bid amount, etc.)
+- Market history provides price discovery (what similar tasks have cost)
+- Could be per-Organization or cross-Organization
+
+### 3.12 Extended Ontology Summary
+
+```
+                    ┌──────────────┐
+                    │ Organization │
+                    │  vision      │
+                    │  mission     │
+                    └──────┬───────┘
+                      HAS_PROJECT │ HAS_CEO │ HAS_MEMBER
+                           │      │         │
+                           ▼      ▼         ▼
+                    ┌──────────┐         ┌──────────┐
+                    │ Project  │◄────────│  Agent   │
+                    │  goal    │ MEMBER  │  soul    │
+                    │  status  │ _OF     │  identity│
+                    │  budget  │         │  worth   │
+                    └────┬─────┘         │  value   │
+                   HAS_TASK │            └──┬───┬───┘
+                         │          HAS_    │   │  RUNS_
+                         ▼         CHANNEL  │   │  SESSION
+                    ┌──────────┐      │     │   │
+                    │  Task    │      ▼     │   ▼
+                    │  budget  │   Channel  │  Session
+                    │  status  │            │    │
+                    └────┬─────┘      ┌─────┘    │
+                   HAS_BID │     HAS_SKILL    CONTAINS
+                         │          │         _LOOP
+                         ▼          ▼            │
+                    ┌──────────┐  Skill          ▼
+                    │   Bid    │   (composed    Loop
+                    │  tokens  │    verbs)        │
+                    │  approach│                   ▼
+                    └──────────┘                 Turn
+                                                  │
+                    ┌──────────┐                   ▼
+                    │  Rating  │               Message
+                    │  score   │
+                    │  dims    │
+                    └──────────┘
+```
+
+**Extended node count:** 26 node types (20 technical + 6 social: HumanAgent is Agent variant, plus Project, Task, Bid, Rating, Organization, Channel)
+**Extended edge count:** 42+ edge types
 
 ---
 
-## 4. Future Scenarios (from phi-core roadmap)
+## 4. Permissions Model (Capability-Based)
+
+> Evolved from initial brainstorm + dedicated permission_model.md research.
+> Core insight: **permissions are not about tools — they're about actions on resources with constraints.**
+
+### 4.1 Canonical Shape
+
+```
+Permission = ⟨ subject, action, resource, constraints, provenance ⟩
+```
+
+This mirrors capability-based security and cloud IAM: authority is tied to a specific object and operation, not ambient possession of a broad tool. Tools are merely *implementations* of actions on resources.
+
+### 4.2 Resource Ontology
+
+Every authority surface in the system maps to one of these resource families:
+
+| Resource Class | What It Covers | baby-phi Mapping |
+|---|---|---|
+| **Filesystem object** | Files, directories, repos, temp paths | Agent workspace, skill files |
+| **Process/exec object** | Shell commands, binaries, containers | BashTool, script execution |
+| **Network endpoint** | Domains, URLs, IPs, ports, APIs | Provider base_urls, MCP endpoints |
+| **Data object** | Documents, tables, vector stores, transcripts | Sessions, Messages, Memory nodes |
+| **Secret/credential** | API keys, tokens, certificates | ModelConfig.api_key, MCP auth |
+| **Identity principal** | User identity, service account, role, session | Agent, HumanAgent, Organization |
+| **External service object** | GitHub, Slack, Jira, cloud bucket | MCP servers, OpenAPI specs |
+| **Model/runtime object** | Model endpoint, prompt templates, policies | ModelConfig, SystemPrompt, AgentProfile |
+| **Control-plane object** | Tool registry, policy store, audit log | Schema registry, Permission nodes |
+| **Communication object** | Email, chat thread, webhook, MCP channel | Channels (Human Agent routing) |
+| **Economic resource** | Token budget, spend budget, rate limit | Token economy (Contract agents) |
+| **Time/compute resource** | CPU time, duration, concurrency, memory | ExecutionLimits |
+
+**Rule:** Every new integration must project its operations into this schema before it can be enabled.
+
+### 4.3 Standard Action Vocabulary
+
+Reusable across all resource classes:
+
+| Category | Actions |
+|----------|---------|
+| **Discovery** | discover, list, inspect |
+| **Data** | read, copy, export |
+| **Mutation** | create, modify, append, delete |
+| **Execution** | execute, invoke, send |
+| **Connection** | connect, bind, listen |
+| **Authority** | delegate, approve, escalate |
+| **Memory** | store, retain, recall |
+| **Configuration** | configure, install, enable, disable |
+| **Economic** | spend, reserve, exceed |
+| **Observability** | observe, log, attest |
+
+### 4.4 Constraints
+
+Each permission carries condition slots:
+
+| Constraint | Example |
+|------------|---------|
+| Path prefix | `/workspace/project-a/**` |
+| Command pattern | `cargo *`, `npm test` |
+| Domain allowlist | `api.anthropic.com`, `*.openrouter.ai` |
+| Data label | `own_sessions`, `project_shared` |
+| Max spend | `10000 tokens per task` |
+| Time window | `working_hours_only` |
+| Approval requirement | `human_approval_required` |
+| Sandbox requirement | `sandboxed_execution` |
+| Non-delegability | `cannot_delegate` |
+| Output channel | `slack_only`, `no_email` |
+
+### 4.5 Tool Authority Manifest
+
+**Design rule:** Every tool must ship a machine-readable authority manifest declaring:
+- Resource classes touched
+- Actions performed
+- Transitive resources consumed (e.g., `bash` can reach `network endpoint` transitively)
+- Delegation behavior
+- Approval defaults
+- Required constraints
+
+Example for `write_file`:
+```yaml
+tool: write_file
+manifest:
+  actions: [create, modify]
+  resource: filesystem_object
+  constraints:
+    path_prefix: required     # caller must scope the path
+    max_size_bytes: 1048576   # 1MB default limit
+  transitive: []              # no transitive access
+  delegable: true
+  approval: auto              # no human approval needed
+```
+
+Example for `bash`:
+```yaml
+tool: bash
+manifest:
+  actions: [execute]
+  resource: process_exec_object
+  constraints:
+    command_pattern: required
+    sandbox: recommended
+    timeout_secs: 120
+  transitive:
+    - filesystem_object       # can read/write files
+    - network_endpoint        # can make HTTP calls
+    - secret_credential       # can access env vars
+  delegable: false            # too powerful to delegate
+  approval: human_recommended
+```
+
+### 4.6 Permission Resolution Hierarchy
+
+When an agent operates within a project in an organization, permissions resolve top-down:
+
+```
+Organization config (highest authority)
+    │ overrides ↓
+Project config
+    │ overrides ↓
+Agent config (most specific)
+```
+
+**Rules:**
+- **Org overrides project:** If an org restricts `network_endpoint` access, no project within it can grant it back.
+- **Project overrides agent:** If a project restricts `bash` tool, no agent within it can use it.
+- **Agent config is most specific:** Within the bounds set by org and project, the agent's own config determines fine-grained behavior.
+- **Cross-org projects:** When a project spans multiple orgs, each org's restrictions apply independently — the *intersection* of all org policies is the effective ceiling.
+
+**Delegation:** When Agent A delegates to Agent B, B inherits A's permission *ceiling* (never more than A has), further narrowed by B's own config.
+
+### 4.7 Permission as a Graph Node
+
+```
+Permission
+  resource_type: String       -- e.g. "filesystem_object"
+  resource_selector: String   -- e.g. "/workspace/project-a/**"
+  action: Vec<String>         -- e.g. ["read", "modify"]
+  constraints: Json           -- condition slots
+  delegable: bool             -- can this be passed to sub-agents
+  approval_mode: String       -- "auto", "human_required", "human_recommended"
+  audit_class: String         -- "silent", "logged", "alerted"
+  provenance: String          -- who granted this (agent_id or "system")
+  revocation_scope: String    -- "immediate", "end_of_session", "manual"
+```
+
+**Edges:**
+- `Agent ──HAS_PERMISSION──▶ Permission`
+- `Project ──HAS_PERMISSION──▶ Permission` (project-level rules)
+- `Organization ──HAS_PERMISSION──▶ Permission` (org-level ceiling)
+- `Agent ──GRANTS_PERMISSION──▶ Permission` (provenance: who created it)
+
+### 4.8 phi-core Extension Points
+
+Permissions are a baby-phi concern. phi-core provides the hooks:
+
+| phi-core hook | Permission enforcement |
+|---|---|
+| `InputFilter` | Check `read` permission on `data_object` before message reaches agent |
+| `BeforeToolExecutionFn` | Check tool's authority manifest against agent's permissions |
+| `ExecutionLimits` | Enforce `time_compute_resource` and `economic_resource` constraints |
+| `BeforeLoopFn` | Check `delegate` permission before sub-agent loop starts |
+
+### 4.9 Open Questions
+
+- [ ] How are permissions bootstrapped? First agent needs permissions to create permissions.
+- [ ] Should there be a "root" permission that is non-revocable?
+- [ ] How do permissions interact with the Market (can an agent bid on work it doesn't have permissions for yet, with permissions granted on contract acceptance)?
+- [ ] Should audit_class be per-permission or per-action?
+- [ ] How do MCP server capabilities interact with the resource ontology?
+
+---
+
+## 5. Future Scenarios (from phi-core roadmap)
 
 These phi-core future scenarios directly feed into baby-phi's design:
 
-### 4.1 HITL Resume (Human-in-the-Loop)
+### 5.1 HITL Resume (Human-in-the-Loop)
 
 Agent is aborted mid-execution, human reviews, then resumes. Requires checkpoint/restore on Agent state. phi-core needs `Agent::checkpoint()` / `Agent::restore(checkpoint)`.
 
 **baby-phi implication:** The data model must support partial sessions — loops that are `Aborted` with a resumption path. The graph edge `CONTINUES_FROM` with `ContinuationKind::Rerun` or `Branch` captures this.
 
-### 4.2 Checkpoint Restore (Cross-Process)
+### 5.2 Checkpoint Restore (Cross-Process)
 
 Serialize agent state to storage, load it in a different process. phi-core needs `AgentSnapshot` type.
 
 **baby-phi implication:** The data layer IS the persistence. If all state is in the graph, checkpoint/restore is just "read the graph" / "write the graph". No separate snapshot mechanism needed.
 
-### 4.3 Parallel Exploration
+### 5.3 Parallel Exploration
 
 Multiple branches from the same checkpoint run concurrently. phi-core supports this via `agent_loop_continue(Branch)` with cloned contexts.
 
 **baby-phi implication:** The `Loop` node naturally supports this — multiple Loops share the same `CONTINUES_FROM` parent, each as a sibling branch. `ParallelGroupRecord` (value object on Loop) tracks which branch was selected. The `PARALLEL_WITH` edge connects siblings.
 
-### 4.4 Auto Origin/Continue Selection
+### 5.4 Auto Origin/Continue Selection
 
 Agent decides whether to `agent_loop` or `agent_loop_continue` based on context state.
 
@@ -545,29 +1085,29 @@ Agent decides whether to `agent_loop` or `agent_loop_continue` based on context 
 
 ---
 
-## 5. Multi-Agent Coordination Patterns (To Explore)
+## 6. Multi-Agent Coordination Patterns (To Explore)
 
 > Not yet designed — placeholders for future brainstorming.
 
-### 5.1 Shared Data (Blackboard)
+### 6.1 Shared Data (Blackboard)
 
 Agents coordinate by reading/writing shared nodes in the graph. No direct messaging — just data. Like a blackboard architecture. The Memory node type enables this.
 
-### 5.2 Event-Driven
+### 6.2 Event-Driven
 
 Agents subscribe to events on specific nodes. "When Agent A creates a Message with tool_call X, notify Agent B." Built on top of `AgentEvent` streams and the Event node.
 
-### 5.3 Explicit Messaging
+### 6.3 Explicit Messaging
 
 Agents send messages to each other through a dedicated channel. Could use a shared Session or a new `COMMUNICATES_WITH` edge with a message queue.
 
-### 5.4 Orchestrator Pattern
+### 6.4 Orchestrator Pattern
 
 A supervisor agent that spawns, monitors, and coordinates worker agents. Maps directly to `DELEGATES_TO` edges. The orchestrator has `HAS_PERMISSION` to spawn and monitor.
 
 ---
 
-## 6. Open Design Questions
+## 7. Open Design Questions
 
 - [ ] **Storage backend:** Start with JSON files (like phi-core sessions)? SQLite? In-memory graph?
 - [ ] **Query language:** How do agents (and the system) query the graph? Custom DSL? SQL? Cypher-like?
@@ -756,3 +1296,4 @@ Every public phi-core struct/enum mapped to its ontology classification.
 | 2026-04-05 | Permissions (emerging) | 5 permission dimensions identified; phi-core hooks as extension points; baby-phi owns policy |
 | 2026-04-05 | Future scenarios | HITL resume, checkpoint restore, parallel exploration, auto-dispatch — all mapped to ontology |
 | 2026-04-05 | Comprehensive expansion | 20 node types, 27 edge types, 50+ value objects, 45+ runtime-only types; added MCP, Memory, User, Permission, Event, SystemPrompt, EvaluationStrategy, CompactionPolicy, RetryPolicy, CachePolicy, OpenApiSpec, ToolImplementation, PromptBlock, AgentConfig nodes; full phi-core struct mapping in Appendix A |
+| 2026-04-09 | Agent philosophy & social structure | Soul (immutable genetics), Identity (emergent event-driven), Power (verbs→skills composition), Experience (3 memory tiers). Token economy: Contract vs Worker modes, Worth/Value/Meaning triad, bidding process. New nodes: Project (with status flow), Task (biddable work unit), Bid, Rating, Organization, Channel. Human Agent as Agent without Model. Market concept (placeholder). 26 node types, 42+ edge types. |
