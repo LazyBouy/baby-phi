@@ -1,50 +1,109 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-04-09 by Claude Code -->
 
 # Agent
 
-> Extracted from brainstorm.md Section 3.
-> See also: [human-agent.md](human-agent.md), [token-economy.md](token-economy.md), [permissions.md](permissions.md)
+> Extracted from brainstorm.md Section 3, refined 2026-04-09.
+> See also: [human-agent.md](human-agent.md), [token-economy.md](token-economy.md), [permissions.md](permissions.md), [project.md](project.md)
 
 ---
 
 ## Grounding Principle
 
-**Everything is an Agent.** Humans, LLM agents, and future entity types all share the Agent node type. They differ in capabilities (human agents lack models; LLM agents lack channel headers) but share identity, memory, sessions, permissions, and participation in projects.
+**Everything is an Agent.** Humans, LLM agents, and future entity types all share the Agent node type. They differ in capabilities (human agents lack models; LLM agents lack channel headers) but share **memory**, **sessions**, **permissions**, and **participation in projects**.
+
+> **Note on Identity:** Identity (the emergent self — see below) belongs only to LLM Agents. Human Agents do not have a system-computed Identity — their identity exists outside the system. Human Agents are participants, not subjects of identity tracking.
 
 ---
 
-## Agent Anatomy — The Extended Model
+## Agent Taxonomy
 
-An Agent is not just a config wrapper. It has **nature** (Soul), **capability** (Power), **history** (Experience), **reputation** (Worth), and **social position** (Value/Meaning).
+baby-phi recognizes the following agent types:
+
+```
+                          ┌─────────┐
+                          │  AGENT  │
+                          └────┬────┘
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+        ┌─────▼─────┐                     ┌─────▼─────┐
+        │   HUMAN   │                     │    LLM    │
+        │   AGENT   │                     │   AGENT   │
+        └───────────┘                     └─────┬─────┘
+                                                │
+                              ┌─────────────────┴─────────────────┐
+                              │                                   │
+                        ┌─────▼─────┐                       ┌─────▼─────┐
+                        │  SYSTEM   │                       │ STANDARD  │
+                        │   AGENT   │                       │   AGENT   │
+                        └───────────┘                       └─────┬─────┘
+                                                                  │
+                                                ┌─────────────────┴─────────────────┐
+                                                │                                   │
+                                          ┌─────▼─────┐                       ┌─────▼─────┐
+                                          │  INTERN   │  promotion threshold  │ CONTRACT  │
+                                          │   AGENT   │ ────────────────────► │   AGENT   │
+                                          └───────────┘                       └───────────┘
+```
+
+| Type | Token Economy | Bidding | Identity | Examples |
+|------|--------------|---------|----------|----------|
+| **Human Agent** | N/A | N/A (sponsors/assigns) | No (external) | Sponsor, reviewer, operator |
+| **System Agent** | Outside (fixed cost) | No | Yes | Introspection agent, project setup agent, monitoring agent |
+| **Standard / Intern** | Outside (until promoted) | No | Yes | New worker agent, < 10 jobs completed |
+| **Standard / Contract** | Inside (full participant) | Yes | Yes | Promoted agent with track record |
+
+---
+
+## Participation in Projects
+
+> **What "participation" means:** An Agent participates in a Project when there is a `HAS_AGENT` edge from the Project to the Agent. Participation grants the agent:
+> 1. **Read access** to project-scoped Memory (public + own private)
+> 2. **Eligibility** to receive Tasks within that project (assigned for Workers/Interns; biddable for Contractors)
+> 3. **Visibility** in the project's agent roster
+> 4. **Inheritance** of project-level Permissions and ExecutionLimits
+> 5. **Communication scope** — agents within the same project can send messages to each other (subject to permissions)
+>
+> An agent may participate in multiple projects simultaneously. Each agent has a `current_project` (active context) and a `base_project` (default home), used for Memory tagging and routing.
+>
+> Likewise, each agent has a `current_organization` and `base_organization` for org-scoped operations.
+
+---
+
+## LLM Agent Anatomy — The Extended Model
+
+An LLM Agent is not just a config wrapper. It has **nature** (Soul), **capability** (Power), **history** (Experience), **emergent self** (Identity), and **social standing** (Worth/Value/Meaning).
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                        AGENT                            │
+│                     LLM AGENT                           │
 │                                                         │
 │  ┌──────────┐   Soul (immutable, born structure)        │
 │  │ Genetics │   = AgentProfile + SystemPrompt +         │
-│  │          │     ModelConfig snapshot at creation       │
+│  │          │     ModelConfig snapshot at creation      │
 │  └──────────┘                                           │
 │                                                         │
 │  ┌──────────┐   Power (verbs, phrases, sentences)       │
 │  │ Ability  │   = Tools (verbs)                         │
-│  │          │   + MCP servers (verbs with locales)       │
-│  │          │   + Skills (composed verbs — organized,    │
-│  │          │     hence gives both edge AND blindspots)  │
+│  │          │   + MCP servers (verbs with locales)      │
+│  │          │   + Skills (composed verbs — organized,   │
+│  │          │     hence gives both edge AND blindspots) │
 │  └──────────┘                                           │
 │                                                         │
-│  ┌──────────┐   Experience (stored history)              │
-│  │ History  │   = Sessions + Memory (Short/Medium/Long)  │
+│  ┌──────────┐   Experience (stored history)             │
+│  │ History  │   = Sessions + Memory (Short/Medium/Long) │
 │  └──────────┘                                           │
 │                                                         │
-│  ┌──────────┐   Identity (emergent, event-driven)        │
-│  │ Self     │   = f(Soul + Experience + Skills)          │
-│  │          │   Updated reactively on: session end,      │
-│  │          │   skill added, rating received             │
+│  ┌──────────┐   Identity (emergent, event-driven)       │
+│  │ Self     │   = f(Soul + Experience + Skills)         │
+│  │          │   Updated reactively on: session end,     │
+│  │          │   skill added, rating received            │
 │  └──────────┘                                           │
 │                                                         │
-│  ┌──────────┐   Worth / Value / Meaning (economic)       │
-│  │ Standing │   = see token-economy.md                   │
+│  ┌──────────┐   Worth / Value / Meaning (economic)      │
+│  │ Standing │   = see token-economy.md                  │
+│  │          │   (Standard/Contract agents only)         │
 │  └──────────┘                                           │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -86,20 +145,92 @@ Power is what the agent **can do**. Three levels of composition:
 | **Sessions** | Permanent | Per-agent execution history | `Session`, `LoopRecord`, `Turn`, `Message` |
 | **Short-term Memory** | Ephemeral | Current session context | In-run context, steering messages |
 | **Medium-term Memory** | Session-scoped | Across loops within a session | Compacted summaries, tool outputs |
-| **Long-term Memory** | Permanent | Across all sessions | `Memory` node (user/feedback/project/reference types) |
+| **Long-term Memory** | Permanent | Across all sessions | `Memory` node with tagged scope (see below) |
+
+#### Memory Model — Public, Private, and Supervisor Extraction
+
+Long-term Memory is **tag-based**, not folder-based. Memory retrieval works by filtering on tags an agent is allowed to query.
+
+**Two visibility classes:**
+
+| Class | Tagging | Who Can Read |
+|-------|---------|--------------|
+| **Private Memory** | Tagged with `agent_id` only | Only the owning agent |
+| **Public Memory** | Tagged with one or more of: `agent_id`, `project_id`, `org_id`, or `#public` | Any agent allowed by the tags |
+
+**Tag scopes available to every agent:**
+
+| Scope | Meaning |
+|-------|---------|
+| `agent_id` | The agent itself — used for private memory or identifying authorship on public memory |
+| `current_project` | The project the agent is currently working in |
+| `base_project` | The agent's default home project |
+| `current_organization` | The org context the agent is currently operating under |
+| `base_organization` | The agent's default home organization |
+| `#public` | Open to all agents in the system |
+
+> A memory tagged **only** with an `agent_id` is **private** to that agent. A memory tagged with an `agent_id` **and** a project/org/`#public` tag is **public** — the `agent_id` then identifies the author rather than restricting access.
+
+When an agent extracts a memory, it chooses the scope tags. A finding relevant only to itself gets `agent_id`. A finding useful to the whole project gets `project_id`. A finding useful to everyone gets `#public`.
+
+**Supervisor / Sponsor Extraction:**
+
+> Supervisor and Sponsor agents have **read access to all sessions under their authority** for the purpose of extracting Memory. A Supervisor reading a sub-agent's Session can:
+> - Extract a Public Memory tagged with the project (visible to the project team)
+> - Extract a Private Memory tagged only with the Supervisor's `agent_id` (visible only to the Supervisor)
+>
+> This is how organizational learning happens: supervisors mine the work of their reports for insights, then publish those insights at the appropriate scope.
+
+Both creation modes — direct extraction by the working agent, and post-hoc extraction by a supervisor — produce Memory nodes in the same data model. The difference is *who* extracted and *what tags* were chosen.
+
+> Implementation details (how tag matching is enforced, whether memories are stored as graph nodes or in a separate vector store) are deferred — the conceptual model is what matters here.
 
 ### Identity (Emergent, Event-Driven)
+
+> **Applies to LLM Agents only.** Human Agents do not have a system-computed Identity.
 
 Identity is NOT assigned — it **develops** from the interaction of Soul, Experience, and Skills.
 
 ```
-Identity = f(Soul, Experience, Skills)
+Identity = f(Soul, LivedExperience, WitnessedExperience, Skills)
 ```
 
-- **Materialization:** Identity is a stored node, updated reactively:
-  - On session end -> experience changed
-  - On skill added/removed -> capability changed
-  - On rating received -> reputation changed
+#### Two Streams of Experience
+
+Experience contributes to Identity through two distinct streams:
+
+| Stream | Source | Who Has It | What It Captures |
+|--------|--------|------------|------------------|
+| **Lived Experience** | Sessions where the agent was the executing agent | All LLM Agents | Direct doing — what the agent has actually attempted, succeeded at, and failed at |
+| **Witnessed Experience** | Sessions of subordinates the agent has authority over | Supervisor / Sponsor / Lead Agents only | Observed work — patterns the agent has seen across the team it supervises |
+
+> **Why two streams:** A team lead's identity is not just what they personally executed — it is also shaped by what their team has done under their guidance. Modeling these as separate dimensions prevents two failure modes:
+> 1. **Identity inflation by association** — a supervisor with 100 reports would otherwise accumulate 100 agents' worth of identity passively
+> 2. **Erasure of mentorship** — without witnessed experience, supervisors look like idle agents in the identity model even when they are doing significant organizational work
+
+#### Witnessed Experience Is Mediated by Extraction
+
+A Supervisor does not passively accumulate Witnessed Experience by virtue of having reports. Instead, **Witnessed Experience accrues only through Memory extraction**:
+
+- A Supervisor reads a subordinate's session
+- The Supervisor extracts a Memory from that session (private or public — see [permissions.md](permissions.md))
+- The act of extraction is what contributes to the Supervisor's Witnessed Experience
+
+This means:
+- **Active observation matters** — Witnessed Experience is the supervisor's own synthesis, not raw access
+- **No double counting** — the subordinate's Lived Experience and the supervisor's Witnessed Experience are separate dimensions, even though they reference the same source sessions
+- **Authority gates contribution** — Witnessed Experience can only accumulate through sessions the Supervisor has authority to read (see [permissions.md — Authority Templates](permissions.md#authority-templates-formerly-the-authority-question) and [Multi-Scope Session Access](permissions.md#multi-scope-session-access))
+
+> **Open question:** Should Witnessed Experience be weighted differently from Lived Experience in the Identity computation? A literal "I did it myself" insight is arguably more valuable than "I saw someone else do it." But weighting them equally is simpler and avoids subjective parameters.
+
+#### Materialization
+
+Identity is a stored node, updated reactively:
+
+- On session end → Lived Experience changed
+- On Memory extraction from a subordinate's session → Witnessed Experience changed
+- On skill added/removed → capability changed
+- On rating received → reputation changed
 - **Not computed from scratch** each time — incrementally updated by the triggering event
 - **Queryable:** "What is Agent X's current identity?" returns the materialized node
 
@@ -107,30 +238,93 @@ Identity = f(Soul, Experience, Skills)
 > - A summary embedding (vector representation of the agent's character)
 > - A structured profile (strengths, weaknesses, specializations as fields)
 > - A natural language self-description (agent writes its own bio)
+> - Separate sub-fields for Lived vs Witnessed dimensions
 > - All of the above
 
 ---
 
-## Agent Modes
+## LLM Agent Categories
 
-Not all agents participate in the economy. Two modes:
+LLM Agents split into two top-level categories: **System Agents** and **Standard Agents**.
 
-### Contract Agent (Bidder)
+### System Agent
 
-- Participates in bidding for Tasks
-- Receives a token budget upon winning a contract
-- Keeps savings (tokens remaining after completing work)
-- Has Worth, Value, and Meaning calculations
-- Receives ratings on project completion
-- Can participate in task estimation (a basic skill)
-- Can evaluate other agents (a consistent framework)
+System Agents perform infrastructure, maintenance, or platform-level work for an organization or project. They operate **outside the token economy** by design.
 
-### Worker Agent (Assigned)
+**Properties:**
+- **Token usage is a fixed cost** to the owning organization or project — not charged against any individual contract or bid
+- **No bidding** — they are always-available services
+- **No Worth / Value / Meaning** — they are not rated or priced
+- **Direct communication** — any agent in the project or organization can talk to them without going through formal channels
+- **Always-on availability** — they are part of the platform fabric, not contracted on demand
+- **Identity still applies** — they have Soul, Power, Experience, and a developing Identity
 
-- Human directly assigns tasks
-- No bidding, no token budget
-- No Worth/Value/Meaning economics
-- Simpler model — the current default
-- Suitable for single-task, single-session use cases
+**Examples:**
+- **Introspection Agent** — exposes the data model for query, helps other agents understand "what exists"
+- **Project Setup Agent** — bootstraps new projects (creates initial nodes, applies templates, configures permissions)
+- **Memory Extraction Agent** — runs on session-end events to propose Memory nodes
+- **Monitoring Agent** — watches for anomalies, runaway costs, stuck loops
+- **Skill Curation Agent** — detects emergent skill patterns and proposes them for approval
 
-> **Mode is a property of Agent, not a subtype.** An agent can potentially transition from Worker to Contract mode as it gains experience and ratings. The system doesn't prevent it — permissions do.
+> System Agents are typically created at organization or project setup time and persist for the lifetime of their host.
+
+### Standard Agent
+
+Standard Agents are the "workers" of the system — agents that may eventually participate in the token economy. Standard Agents come in two sub-modes based on experience.
+
+#### Intern Agent (Pre-Economy)
+
+> **Was previously called "Worker Agent" in earlier brainstorms.**
+
+An Intern is a Standard Agent that has not yet qualified for the token economy.
+
+**Properties:**
+- **Human (or Lead Agent) directly assigns tasks** — no bidding
+- **No token budget** — token usage is paid by the project/org as overhead
+- **Receives ratings** — every completed job earns a rating, building track record
+- **Identity develops** as it gains experience and ratings
+- **Promotion criteria** (configurable, defaults shown):
+  - **Job count threshold:** completed at least **10 jobs** (default)
+  - **Rating threshold:** rolling-window average rating ≥ **0.6** (default)
+- **Promotion event:** When both thresholds are met, the agent is promoted to **Contract Agent**. This is a one-way transition.
+
+> **Why a probation period:** New agents have no track record. Letting them bid immediately would either flood the market with unknown quality, or force the market to ignore them. The Intern phase is a structured way to build a track record before market entry.
+
+#### Contract Agent (Token Economy Participant)
+
+A Contract Agent has been promoted from Intern status and now participates fully in the token economy.
+
+**Properties:**
+- **Bids for Tasks** in the Market or directly within projects
+- **Receives a token budget** upon winning a contract
+- **Keeps the savings** (tokens remaining after completing the work) — incentivizes efficiency
+- **Has Worth, Value, and Meaning** calculations (see [token-economy.md](token-economy.md))
+- **Receives ratings** that feed back into Worth
+- **Can participate in task estimation** (a basic skill all Contract agents share)
+- **Can evaluate other agents** (using a consistent framework)
+
+#### Worth, Value, Meaning, and the Rating Window
+
+> **Canonical home:** [token-economy.md](token-economy.md). This section is intentionally a pointer — formulas, the rolling rating window, the Intern → Contract carry-forward rule, and the bidding process all live in one place to avoid drift.
+
+In summary:
+
+- **Worth** is rating-weighted profitability per unit of work — a backward-looking reputation metric
+- **Value** is the market price the agent commands — forward-looking
+- **Meaning** is the relationship between the two
+- The **rolling rating window** stores the last N (default 20) ratings explicitly and folds older ratings into a running average
+- **Intern → Contract carry-forward:** Intern-period token consumption is preserved when the agent is promoted, avoiding divide-by-zero on the first contract
+
+---
+
+## Mode Transitions
+
+| From | To | Trigger | Reversible? |
+|------|----|---------|-------------|
+| (creation) | Intern | Standard agent created | — |
+| Intern | Contract | Job count ≥ 10 AND rolling avg rating ≥ 0.6 (defaults) | No (one-way promotion) |
+| (creation) | System | Created with `system_agent: true` flag at setup | No (System ↔ Standard not allowed) |
+
+> **Why no demotion:** A Contract agent that performs poorly is naturally penalized by the market — its Worth drops, its bids become less competitive, and other agents stop hiring it. There is no need for an explicit demotion path. Bad reputation is its own consequence.
+
+> **Why System ↔ Standard is not allowed:** System agents are infrastructure. Allowing them to enter the market would break the "fixed cost" assumption that organizations rely on for budgeting. They are a separate species.

@@ -1,9 +1,10 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-04-09 by Claude Code -->
 
 # Project, Task, Bid, Rating
 
-> Extracted from brainstorm.md Sections 3.6-3.9.
-> See also: [token-economy.md](token-economy.md) (bidding), [organization.md](organization.md) (project ownership)
+> Extracted from brainstorm.md Sections 3.6-3.9, refined 2026-04-09.
+> See also: [token-economy.md](token-economy.md) (bidding, Worth/Value/Meaning, rating window), [organization.md](organization.md) (project ownership), [permissions.md](permissions.md) (project-level permissions and the Multi-Scope Session Access rule for sessions belonging to multiple projects)
 
 ---
 
@@ -129,8 +130,8 @@ A Rating is a **quality assessment** given to an agent after completing work.
 | Property | Type | Description |
 |----------|------|-------------|
 | `rating_id` | String | Unique identifier |
-| `score` | f32 | Numeric score (e.g., 1.0 - 5.0) |
-| `dimensions` | Option<Json> | Multi-dimensional scores { quality, speed, efficiency, communication } |
+| `score` | f32 | Numeric score in `0.0 – 1.0` (normalized; see [token-economy.md](token-economy.md) for the rating window and Worth formula) |
+| `dimensions` | Option<Json> | Optional multi-dimensional scores { quality, speed, efficiency, communication } — each dimension also in `0.0 – 1.0` |
 | `comment` | Option<String> | Free-text feedback |
 | `rated_at` | DateTime | When the rating was given |
 

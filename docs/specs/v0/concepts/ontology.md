@@ -1,10 +1,11 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-04-09 by Claude Code -->
 
 # Ontological Data Model
 
-> Extracted from brainstorm.md Section 2 + Section 3.12.
+> Extracted from brainstorm.md Section 2 + Section 3.12, refined 2026-04-09.
 > The canonical reference for baby-phi's node types, edge types, value objects, and schema registry.
-> See also: [agent.md](agent.md) (extended agent model), [phi-core-mapping.md](phi-core-mapping.md) (full type mapping)
+> See also: [agent.md](agent.md) (extended agent model), [permissions.md](permissions.md) (capability model + Consent), [phi-core-mapping.md](phi-core-mapping.md) (full type mapping)
 
 ---
 
@@ -16,7 +17,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 
 ---
 
-## Node Types (26 total)
+## Node Types (27 total)
 
 ### Core Identity
 
@@ -55,6 +56,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 |------|----------|-----------------|---------------|
 | **ExecutionLimits** | generated | `ExecutionLimits` | Constrains agent resources |
 | **Permission** | generated | *baby-phi concept* | Capability-based access control |
+| **Consent** | `consent_id` | *baby-phi concept* | Subordinate consent record gating Authority Template grants (see [permissions.md → Consent Policy](permissions.md#consent-policy-organizational)) |
 | **CompactionPolicy** | generated | `CompactionConfig` | Context management strategy |
 | **RetryPolicy** | generated | `RetryConfig` | Error retry behavior |
 | **CachePolicy** | generated | `CacheConfig` | Prompt caching behavior |
@@ -75,7 +77,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 
 ---
 
-## Edge Types (42+ total)
+## Edge Types (44+ total)
 
 ### Agent-Centric (first-order)
 
@@ -156,8 +158,11 @@ This is a graph-first model (think ontology, not relational tables), even if the
 |------|------|----|-------------|---------|
 | User | `GRANTS_PERMISSION` | Permission | 1:N | Authorization source |
 | Permission | `APPLIES_TO` | Agent | N:N | Permission targets |
+| Agent | `HAS_PERMISSION` | Permission | 1:N | Agent-specific grants |
 | Project | `HAS_PERMISSION` | Permission | 1:N | Project rules |
 | Organization | `HAS_PERMISSION` | Permission | 1:N | Org ceiling |
+| Agent | `HAS_CONSENT` | Consent | 1:N | Subordinate's consent records (one-time consent policy) |
+| Consent | `SCOPED_TO` | Organization | N:1 | Org under whose policy the consent operates |
 
 ---
 
