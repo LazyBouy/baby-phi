@@ -4,7 +4,7 @@
 # Human Agent
 
 > Extracted from brainstorm.md Section 3.5, refined 2026-04-09.
-> See also: [agent.md](agent.md), [coordination.md](coordination.md), [permissions.md](permissions.md)
+> See also: [agent.md](agent.md), [coordination.md](coordination.md), [permissions.md](permissions/README.md)
 
 ---
 

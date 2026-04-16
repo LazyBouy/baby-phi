@@ -1,10 +1,10 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-09 by Claude Code -->
+<!-- Last verified: 2026-04-15 by Claude Code -->
 
 # Organization
 
 > Extracted from brainstorm.md Sections 3.10-3.11, refined 2026-04-09.
-> See also: [project.md](project.md), [permissions.md](permissions.md) (org-level rules and the Multi-Scope Session Access rule for joint projects)
+> See also: [project.md](project.md), [permissions.md](permissions/README.md) (org-level rules and the Multi-Scope Session Access rule for joint projects)
 
 ---
 
@@ -58,14 +58,18 @@ This is **Mechanism 1** in the permission model: top-down ceiling enforcement. A
 
 There is also a separate **Mechanism 2** — scope resolution — that determines which scope's grants apply when a session has multiple `org:` or `project:` tags. Scope resolution cascades the *opposite* direction (most-specific-first): project membership wins over org membership, with `base_*` as the tie-breaker, falling back to intersection for outsiders.
 
-> **Joint projects (one project, multiple owning orgs):** When an Organization shares ownership of a project with another org, the joint project's sessions carry both `org:` tags. Each lead reads under their own org's rules (the contractor model). See [permissions.md → Multi-Scope Session Access](permissions.md#multi-scope-session-access) for the full rule and worked examples.
+> **Joint projects (one project, multiple owning orgs):** When an Organization shares ownership of a project with another org, the joint project's sessions carry both `org:` tags. Each lead reads under their own org's rules (the contractor model). See [permissions.md → Multi-Scope Session Access](permissions/06-multi-scope-consent.md#multi-scope-session-access) for the full rule and worked examples.
 
-See [permissions.md](permissions.md) for the complete capability-based permission model, including resource ontology, action vocabulary, Authority Templates, and the Consent Policy mechanism.
+See [permissions.md](permissions/README.md) for the complete capability-based permission model, including resource ontology, action vocabulary, Authority Templates, and the Consent Policy mechanism.
 
 ---
 
 ## Market (Future Concept — Placeholder)
 
+> **`[OUT OF V0 SCOPE]`** — The Market is **deferred to v1**. v0 permission semantics do not require it; all grants are either template-fired (Authority Templates A–E) or ad-hoc Auth Request outcomes. The bidding-and-allocation flow described below is design intent, not v0 commitment, and absence from v0 is not a gap.
+>
+> v1 will revisit with full mechanics: bidding rules, price discovery, cross-org trust, escrow, dispute resolution.
+>
 > **Not yet designed.** A shared space where agents post Tasks and other agents bid. The poster evaluates bids and allocates work.
 
 The Market is where Supply (agent capability) meets Demand (task requirements). Key ideas:

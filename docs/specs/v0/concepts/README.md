@@ -13,7 +13,7 @@
 | **Token Economy** | [token-economy.md](token-economy.md) | Token currency flow, bidding, Worth (reputation), Value (market price), Meaning. |
 | **Project** | [project.md](project.md) | Project, Task, Bid, Rating — the work hierarchy. |
 | **Organization** | [organization.md](organization.md) | Organization structure, Market (future placeholder). |
-| **Permissions** | [permissions.md](permissions.md) | Capability-based permission model: resource ontology, action vocabulary, constraints, tool manifests, resolution hierarchy. |
+| **Permissions** | [permissions.md](permissions/README.md) | Capability-based permission model: resource ontology, action vocabulary, constraints, tool manifests, resolution hierarchy. |
 | **Coordination** | [coordination.md](coordination.md) | Multi-agent patterns: blackboard, event-driven, messaging, orchestrator. Future scenarios from phi-core. |
 | **phi-core Mapping** | [phi-core-mapping.md](phi-core-mapping.md) | Complete mapping of all phi-core types to the ontology (nodes, value objects, runtime-only). |
 

@@ -1,10 +1,10 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-09 by Claude Code -->
+<!-- Last verified: 2026-04-15 by Claude Code -->
 
 # Project, Task, Bid, Rating
 
 > Extracted from brainstorm.md Sections 3.6-3.9, refined 2026-04-09.
-> See also: [token-economy.md](token-economy.md) (bidding, Worth/Value/Meaning, rating window), [organization.md](organization.md) (project ownership), [permissions.md](permissions.md) (project-level permissions and the Multi-Scope Session Access rule for sessions belonging to multiple projects)
+> See also: [token-economy.md](token-economy.md) (bidding, Worth/Value/Meaning, rating window), [organization.md](organization.md) (project ownership), [permissions.md](permissions/README.md) (project-level permissions and the Multi-Scope Session Access rule for sessions belonging to multiple projects)
 
 ---
 
@@ -44,7 +44,7 @@ All status transitions carry a reason. OnHold captures ALL suspension scenarios 
 | Project | `HAS_AGENT` | Agent | 1:N | role: member/lead |
 | Project | `HAS_LEAD` | Agent | 1:1 | — (shortcut for HAS_AGENT where role=lead) |
 | Project | `HAS_TASK` | Task | 1:N | order: u32 |
-| Project | `HAS_PERMISSION` | Permission | 1:N | project-scoped rules |
+| Project | `HOLDS_GRANT` | Grant | 1:N | project-scoped rules |
 | Project | `HAS_CONFIG` | AgentConfig | 1:1 | project-level config |
 | Project | `HAS_SUBPROJECT` | Project | 1:N | — |
 | Project | `BELONGS_TO` | Organization | N:N | role: primary/secondary |

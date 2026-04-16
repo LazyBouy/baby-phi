@@ -1,10 +1,10 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-09 by Claude Code -->
+<!-- Last verified: 2026-04-15 by Claude Code -->
 
 # Agent
 
 > Extracted from brainstorm.md Section 3, refined 2026-04-09.
-> See also: [human-agent.md](human-agent.md), [token-economy.md](token-economy.md), [permissions.md](permissions.md), [project.md](project.md)
+> See also: [human-agent.md](human-agent.md), [token-economy.md](token-economy.md), [permissions.md](permissions/README.md), [project.md](project.md)
 
 ---
 
@@ -133,10 +133,18 @@ Power is what the agent **can do**. Three levels of composition:
 | **Phrases & Sentences** | Composed actions | `Skill` | Skills = combinations of verbs and other skills. Organized = gives both edge and blindspots |
 
 > **Skill creation:** Two mechanisms:
-> 1. **Explicit** — Agent intentionally composes a new skill from verbs + existing skills. Requires `HAS_PERMISSION(schema_mutation)`.
+> 1. **Explicit** — Agent intentionally composes a new skill from verbs + existing skills. Requires `HOLDS_GRANT` for schema mutation.
 > 2. **Emergent** — System detects repeated tool-call patterns in session history and proposes candidate skills. Agent or human approves.
 >
 > **Blindspots:** Skills are organized knowledge — but organization implies assumptions. A skill that always uses `bash` for file operations has a blindspot for `edit_file`. This is a feature, not a bug — it models real expertise tradeoffs. Because context is limited, having certain skills means the agent *cannot* have other skills — this is the basis of both edge and blindspot.
+
+> **How skills compose with grants.** A skill is a composition of tool verbs (and other skills). A grant authorises invocation of specific tool × resource × action tuples. **The two compose as set intersection at invocation time:**
+>
+> - An agent can invoke a verb within a skill if and only if they hold a grant that authorises that verb on that resource with those constraints.
+> - Possessing a skill does not grant authority; it only names a workflow. An agent with a "deploy_to_prod" skill but no `[execute]` grant on `process_exec_object` with the right selector still cannot deploy — the skill is loaded, but every step of its workflow fails the Permission Check.
+> - Conversely, holding authority does not impart skill. An agent with broad grants but no loaded skill that sequences the relevant verbs must invoke each verb individually; the skill's pre-composed reasoning isn't there to call on.
+>
+> Blindspots follow from this composition rule: a skill's workflow encodes a specific tool choice, so the agent reaches for that tool even when a different authorised tool would do better. The grants remain available for explicit non-skill invocations — a blindspot limits *what the skill reaches for*, not *what the agent can in principle do*.
 
 ### Experience (Sessions + Memory)
 
@@ -213,13 +221,15 @@ Experience contributes to Identity through two distinct streams:
 A Supervisor does not passively accumulate Witnessed Experience by virtue of having reports. Instead, **Witnessed Experience accrues only through Memory extraction**:
 
 - A Supervisor reads a subordinate's session
-- The Supervisor extracts a Memory from that session (private or public — see [permissions.md](permissions.md))
+- The Supervisor extracts a Memory from that session (private or public — see [permissions.md](permissions/README.md))
 - The act of extraction is what contributes to the Supervisor's Witnessed Experience
 
 This means:
 - **Active observation matters** — Witnessed Experience is the supervisor's own synthesis, not raw access
 - **No double counting** — the subordinate's Lived Experience and the supervisor's Witnessed Experience are separate dimensions, even though they reference the same source sessions
-- **Authority gates contribution** — Witnessed Experience can only accumulate through sessions the Supervisor has authority to read (see [permissions.md — Authority Templates](permissions.md#authority-templates-formerly-the-authority-question) and [Multi-Scope Session Access](permissions.md#multi-scope-session-access))
+- **Authority gates contribution** — Witnessed Experience can only accumulate through sessions the Supervisor has authority to read (see [permissions.md — Authority Templates](permissions/05-memory-sessions.md#authority-templates-formerly-the-authority-question) and [Multi-Scope Session Access](permissions/06-multi-scope-consent.md#multi-scope-session-access))
+
+**Concurrent sub-agent supervision.** A supervisor with multiple concurrently-running sub-agents accumulates Witnessed Experience **reactively per extraction**, not batched at session-end. Each Memory extraction emits a discrete update to the supervisor's `witnessed` struct; concurrent extractions from different sub-agents produce concurrent updates, ordered by the standard last-writer-wins consistency rule documented in [coordination.md § Design Decisions](coordination.md#design-decisions-v0-defaults-revisitable). No batch mode exists — this keeps the identity model's reactive semantics uniform across all triggers (session end, memory extraction, skill change, rating), so a supervisor observing ten parallel sub-agents gets ten independent updates rather than a single consolidated one at some arbitrary later moment.
 
 > **Open question:** Should Witnessed Experience be weighted differently from Lived Experience in the Identity computation? A literal "I did it myself" insight is arguably more valuable than "I saw someone else do it." But weighting them equally is simpler and avoids subjective parameters.
 
@@ -234,12 +244,34 @@ Identity is a stored node, updated reactively:
 - **Not computed from scratch** each time — incrementally updated by the triggering event
 - **Queryable:** "What is Agent X's current identity?" returns the materialized node
 
-> **Open question:** What does the Identity node actually contain? Candidates:
-> - A summary embedding (vector representation of the agent's character)
-> - A structured profile (strengths, weaknesses, specializations as fields)
-> - A natural language self-description (agent writes its own bio)
-> - Separate sub-fields for Lived vs Witnessed dimensions
-> - All of the above
+#### Identity Node Content — Provisional Direction
+
+> **Status:** provisional **and load-bearing for v0**. The three-field model below (`self_description` + `lived` + `witnessed` + `embedding`) is the v0 commitment — implementations should code against it. The "provisional" label means the *long-term* shape may evolve as usage patterns emerge in v1; it does **not** mean the v0 shape is incomplete or under negotiation. Future revisability is `[OUT OF V0 SCOPE]` and is not a v0 gap.
+
+The Identity node carries three complementary views, each serving a different query pattern:
+
+| Field | Type | Purpose | Update trigger |
+|-------|------|---------|----------------|
+| `self_description` | String (≤ 500 tokens) | Agent-authored natural-language bio. Optimised for human-facing introspection ("who is this agent?") and for LLM context — an agent can read its own `self_description` to ground its behaviour. | Rewritten by the agent (or by a system-agent synthesiser) on session end, skill change, or a significant rating event. |
+| `lived` | `LivedExperience` struct | Structured metrics of direct doing. Fields: `sessions_completed`, `sessions_successful`, `ratings_window` (last 20 per the rolling window in [token-economy.md](token-economy.md)), `skills: Vec<SkillRef>`, `specializations: Vec<String>` (top tags by frequency across completed work). | Session end, rating received, skill added/removed. |
+| `witnessed` | `WitnessedExperience` struct | Structured metrics of supervised doing. Fields: `memories_extracted: u64`, `subordinates_observed: Vec<agent_id>`, `extraction_scope_distribution` (how many extractions were private vs public). Empty for non-supervisor agents. | On Memory extraction from a subordinate's session. |
+| `embedding` | Vec<f32> (dim configurable; default 1536) | Dense vector derived from `self_description`. Used for similarity queries and matching (e.g., "find me an agent whose character is close to X"). | Re-derived whenever `self_description` is rewritten. |
+
+**Why three views are kept rather than one:**
+
+- `self_description` is the human-facing and LLM-facing narrative — irreplaceable for context-embedding the agent into its own reasoning.
+- `lived` + `witnessed` are filter-and-sort friendly — they let the market, supervisors, and the hiring logic ask precise questions (min rating, skill present, supervisory experience > 0) without parsing natural language.
+- `embedding` is the similarity-search surface — linking agents whose characters align, or retrieving past Identity snapshots for before/after comparisons.
+
+Redundancy is intentional. A future revision may prune one of the three once usage patterns make the canonical form clear; for v0 we keep all three to avoid premature commitment.
+
+**Scoping the embedding model.** The embedding model is a **platform-level configuration fixed at org-bootstrap time**, not a per-agent choice. The `embedding.dim` field in the schema exists to accommodate the platform's chosen model (e.g., 1536 for `text-embedding-3-small`, 3072 for `text-embedding-3-large`, 1024 for Voyage `voyage-3`), not to let individual agents pick different models. This matters because cosine similarity is only meaningful within a single model's vector space — an index mixing embeddings from different models silently produces wrong similarity scores, which is the kind of bug that looks correct in dev and fails silently in prod.
+
+**Model change is an admin event.** If the platform or org switches embedding providers, existing Identity embeddings become un-queryable against new ones. The switch therefore triggers a batch re-embed of every Identity node — this is an explicit admin action, not a silent migration, and it is itself auditable through the same Auth Request machinery used for all sensitive admin operations.
+
+**Separate sub-fields for Lived vs Witnessed** is satisfied by the `lived` and `witnessed` structs — they are computed independently and can be queried or weighted independently without the double-counting risk flagged in the [Two Streams of Experience](#two-streams-of-experience) section.
+
+> **Open (non-blocking):** Should `self_description` be versioned (keeping the full history of rewrites) or only the current form? The current plan stores only the latest revision; a `HAS_IDENTITY_HISTORY` edge to versioned snapshots can be added later without schema rework.
 
 ---
 

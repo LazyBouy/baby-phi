@@ -134,7 +134,7 @@ Value is determined by the **market** — what other agents and humans are willi
 
 Value measures: **"What is the market willing to pay this agent right now?"**
 
-> **Open question:** Should Value also use a rolling window like ratings, or always reflect the most recent N bids? Probably the same window mechanism — let's reuse it.
+> **Decision (v0):** Value uses the **same rolling-window mechanism as ratings** — window size 20, oldest entries collapse into a running average on overflow. Reuses the existing machinery; no new mechanism to design, no new parameter to tune. Revisitable if usage shows the two signals want different windows (e.g., Value wants a longer window to smooth bid-to-bid variance, while ratings want a shorter window to react to recent performance).
 
 ---
 
@@ -151,14 +151,16 @@ Meaning is the relationship between Worth (earned reputation) and Value (market 
 
 ### Open: Formal Meaning Formula?
 
-Meaning could be:
+> **`[OUT OF V0 SCOPE]`** — A formal Meaning formula is **deferred to v1**. v0 uses the **qualitative four-quadrant labelling** above (Respected / Undervalued / Overvalued / Struggling) as the working definition. This is sufficient for v0 introspection and rating queries; the deeper question of whether Meaning should also be a queryable scalar/ratio/vector is a v1 design decision and is not a v0 gap.
 
-- **Qualitative only** — a label other agents/humans assign based on the Worth/Value pair
+Meaning could be (for future revisitation):
+
+- **Qualitative only** — a label other agents/humans assign based on the Worth/Value pair (this is the v0 default)
 - **`Worth × Value`** — a single scalar that combines both
 - **`Worth / Value` ratio** — undervalued (>1) vs overvalued (<1)
 - **Vector** — a 2D position in (Worth, Value) space, with quadrants as labels
 
-> Decision deferred. The simpler the better — but we should pick one to make the concept queryable.
+> Decision deferred to v1. v0 uses qualitative labels; v1 will pick a queryable form once usage patterns surface.
 
 ---
 
