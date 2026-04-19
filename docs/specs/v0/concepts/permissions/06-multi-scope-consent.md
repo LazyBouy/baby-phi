@@ -56,6 +56,8 @@ The resolved scope's grants apply, **bounded above** by the org caps of all orgs
 
 **Outsider rule:** A reader who belongs to none of the session's scopes at any level faces the **intersection of all the session's scope ceilings**. This is the strictest possible treatment and prevents loopholes where someone could create a permissive shadow scope to bypass restrictions.
 
+**Empty-intersection case:** When the intersection contains no action the outsider's grants can exercise — for example, one scope forbids `read` while another restricts to a selector the outsider cannot match — the effect is **deny by default**. The outsider receives a `Denied` Permission Check result with `failed_step: 3 (no grant covers this reach)`. Access via Template E (explicit Auth Request approved by an owner) is the correct recourse — not implicit relaxation of the intersection.
+
 ### Worked Examples Across All Shapes
 
 The examples below cover every allowed session shape with multiple reader roles. Each runs the resolution rule above and reports the resolved scope.

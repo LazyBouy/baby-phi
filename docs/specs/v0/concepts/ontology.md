@@ -17,16 +17,16 @@ This is a graph-first model (think ontology, not relational tables), even if the
 
 ---
 
-## Node Types (29 total)
+## Node Types (31 total)
 
 ### Core Identity
 
 | Node | Identity | phi-core Source | Why it exists |
 |------|----------|-----------------|---------------|
 | **Agent** | `agent_id` | `BasicAgent` | The nucleus — everything radiates from here |
-| **AgentProfile** | `profile_id` | `AgentProfile` | Blueprint: who the agent IS |
+| **AgentProfile** | `profile_id` | `AgentProfile` | Blueprint: who the agent IS. Carries a `parallelize: u32` field (default 1) that bounds concurrent sessions — see [agent.md § Parallelized Sessions](agent.md#parallelized-sessions). |
 | **User** | `user_id` | *baby-phi concept* | Who owns/interacts with agents |
-| **Identity** | `agent_id` | *baby-phi concept* | Emergent self of an LLM Agent — materialized node with `self_description` (NL), `lived`/`witnessed` (structs), and `embedding` (vector). Updated reactively on session end, memory extraction, skill change, rating. See [agent.md § Identity Node Content](agent.md#identity-node-content--provisional-direction). LLM Agents only; Human Agents have no Identity. |
+| **Identity** | `agent_id` | *baby-phi concept* | Emergent self of an LLM Agent — a materialized node with **four fields**: `self_description` (NL bio, ≤500 tokens, agent-authored), `lived` (LivedExperience struct: sessions_completed, ratings_window, skills, specializations), `witnessed` (WitnessedExperience struct: memories_extracted, subordinates_observed, extraction_scope_distribution), and `embedding` (vector; dim set at platform bootstrap). Updated reactively on session end, memory extraction, skill change, rating received. See [agent.md § Identity Node Content](agent.md#identity-node-content--provisional-direction). LLM Agents only; Human Agents have no Identity. |
 
 ### Execution History
 
@@ -78,10 +78,12 @@ This is a graph-first model (think ontology, not relational tables), even if the
 | **Memory** | generated | Persistent knowledge across sessions |
 | **AgentConfig** | `config_name` | Root configuration document |
 | **PromptBlock** | `name` | One block within a system prompt strategy |
+| **InboxObject** | `agent_id` | An agent's received-messages queue. One per Agent; composite `inbox_object` per [permissions/01 § Composites](permissions/01-resource-ontology.md#composite-classes-8). Messages are `AgentMessage` value objects embedded on it. Separate from task queue. |
+| **OutboxObject** | `agent_id` | An agent's sent-messages log. One per Agent; composite `outbox_object`. Parallel to InboxObject. |
 
 ---
 
-## Edge Types (54+ total)
+## Edge Types (56+ total)
 
 ### Agent-Centric (first-order)
 
@@ -104,6 +106,8 @@ This is a graph-first model (think ontology, not relational tables), even if the
 | Agent | `DELEGATES_TO` | Agent | N:N | Sub-agent spawning |
 | Agent | `OWNED_BY` | User | N:1 | Who controls this agent. *(This is a special case of the generic `Resource ──OWNED_BY──▶ Principal` edge in Governance Wiring below: an Agent is itself an ownable resource, and a User is a Principal.)* |
 | Agent | `HAS_MEMORY` | Memory | 1:N | Persistent knowledge |
+| Agent | `HAS_INBOX` | InboxObject | 1:1 | Received-messages queue (one per Agent, auto-created) |
+| Agent | `HAS_OUTBOX` | OutboxObject | 1:1 | Sent-messages log (one per Agent, auto-created) |
 | Agent | `HAS_CHANNEL` | Channel | 1:N | Human Agent routing |
 | Agent | `LOADED_FROM` | AgentConfig | N:1 | Config origin |
 | Agent | `MEMBER_OF` | Organization | N:N | Org membership |
@@ -214,6 +218,11 @@ Value objects have no independent identity. They are embedded as properties with
   - `ResourceSlotState` enum: `In Progress | Approved | Denied | Partial | Expired`.
   - `ApproverSlotState` enum: `Unfilled | Approved | Denied`.
 - **Ownership transfer (value object, embedded on Auth Requests with `scope: [transfer]`):** `TransferRecord { transfer_id, resource_id, from_principal, to_principal, timestamp, requestor, approver }`. Not an independent node — traversable via the owning Auth Request. Immutability inherits from the Auth Request's post-submission immutability.
+- **Agent messaging value object** (embedded on InboxObject / OutboxObject):
+  - `AgentMessage { message_id, sender, recipient, subject, body, sent_at, thread_id, priority, delivered_to_inbox_at, read_at }`. `priority` enum: `Low | Normal | High | Urgent`. Not an independent node; traversable via the owning InboxObject or OutboxObject. See [permissions/05 § Inbox and Outbox](permissions/05-memory-sessions.md#inbox-and-outbox-agent-messaging).
+- **OKR value objects** (embedded on Project nodes via `objectives` / `key_results`):
+  - `Objective { objective_id, name, description, status, owner, deadline, key_result_ids }` — high-level project goal. Status enum: `Draft | Active | Achieved | Missed | Cancelled`.
+  - `KeyResult { kr_id, name, description, measurement_type, target_value, current_value, owner, deadline, status }` — measurable outcome that tracks progress toward an Objective. `measurement_type` enum: `Count | Boolean | Percentage | Custom`; `status` enum: `NotStarted | InProgress | Achieved | Missed | Cancelled`. See [project.md § Objectives and Key Results](project.md#objectives-and-key-results-okrs).
 
 ---
 

@@ -95,6 +95,78 @@ organization_template:
       sandbox_requirement: required
       timeout_secs: 120
 
+  # ── Resource Catalogue ─────────────────────────────────
+  # The set of resource instances this org makes available to its projects
+  # and agents. A resource must be in this catalogue to be referenced anywhere.
+  # See 01-resource-ontology.md § Resource Catalogue for the full rule.
+  resources_catalogue:
+    # === Fundamentals (9) ===
+    filesystem_objects:
+      - path: /workspace/{project}/**
+        default_owner: project
+        description: Per-project workspace tree
+      - path: /home/{agent}/**
+        default_owner: agent
+        description: Per-agent home directory
+    process_exec_objects:
+      - id: sandboxed-shell
+        sandbox_requirement: required
+    network_endpoints:
+      - domain: api.anthropic.com
+        purpose: LLM inference
+      - domain: api.openai.com
+        purpose: LLM inference
+    secrets:
+      - id: anthropic-api-key
+        custodian: agent:platform-admin
+      - id: openai-api-key
+        custodian: agent:platform-admin
+    data_objects: []                    # registered as needed; graph nodes
+    tags: []                            # reserved + org-defined vocabularies
+    identity_principals: []             # agents, users enumerated in agent_roster
+    economic_resources:
+      - id: token-budget-pool
+        units: tokens
+        initial_allocation: 0           # orgs configure their own budget
+    compute_resources:
+      - id: default-compute-pool
+        max_concurrent_sessions: 8
+    # === Composites (8) ===
+    memory_objects:
+      - scope: per-agent
+      - scope: per-project
+      - scope: per-org
+      - scope: '#public'
+    session_objects:
+      - scope: per-project
+      - scope: per-agent
+    external_services: []               # MCP servers etc; added via Template E
+    model_runtime_objects:
+      - id: claude-sonnet-default
+        provider: anthropic
+      - id: gpt-4o-default
+        provider: openai
+    control_plane_objects:
+      - id: tool-registry
+      - id: agent-catalogue              # used by agent-catalog-agent (see system_agents below)
+      - id: policy-store
+    auth_request_objects: []            # catalogue auto-contains all auth_requests
+    inbox_objects: []                   # auto-created per agent at agent creation
+    outbox_objects: []                  # same
+
+  # ── System Agents ──────────────────────────────────────
+  # Standard infrastructure agents instantiated at org adoption time.
+  # See concepts/system-agents.md for full definitions.
+  system_agents:
+    - id: memory-extraction-agent
+      profile_ref: system-memory-extraction
+      parallelize: 2                    # up to 2 concurrent session-end extractions
+      trigger: session_end
+    - id: agent-catalog-agent
+      profile_ref: system-agent-catalog
+      parallelize: 1
+      trigger: edge_change
+
   # ── Authority Templates ────────────────────────────────
   authority_templates_enabled: [A, B]   # project lead + direct delegation
   # Templates C (org chart) and D (project role) are opt-in per org

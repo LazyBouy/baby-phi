@@ -25,9 +25,9 @@ Fundamentals group into three flavors: physical/operational, data access, and id
 | `tag` | Data access + composite categorization | Tag-predicate access grammar. Owns `contains`/`intersects`/`subset_of` operators and the `namespace:value` format. **Implicitly included in every composite** to carry the `#kind:` identity tag. Dual role: (1) data-access capability for composites that hold data, (2) structural substrate that makes every composite distinguishable via `#kind:` filters. | Tag predicates on memory, session, and future tagged composites |
 | `identity_principal` | Identity | Agents, users, roles — the "who" axis | Agent, HumanAgent, Organization, Role |
 
-### Composite Classes (5)
+### Composite Classes (8)
 
-Every composite implicitly includes `tag` plus a `#kind:{composite_name}` identity tag — even composites that do not hold `data_object`. This is what makes composites distinguishable from each other at permission check time.
+Every composite implicitly **uses** the `tag` fundamental to carry a `#kind:{composite_name}` identity tag — even composites that do not hold `data_object`. The `tag` fundamental itself is defined in §Fundamental Classes above; composites don't create new tags, they rely on the `tag` fundamental's machinery. The `#kind:` tag is what makes composites distinguishable from each other at permission check time.
 
 | Class | Explicit fundamentals | Implicit (in every composite) | Notes |
 |-------|------------------------|-------------------------------|-------|
@@ -37,6 +37,8 @@ Every composite implicitly includes `tag` plus a `#kind:{composite_name}` identi
 | `memory_object` | `data_object` | `tag` + `#kind:memory` + {memory tag vocabulary + memory lifecycle rules} | Memory-specific lifecycle rules stay on the composite. See [Memory as a Resource Class](05-memory-sessions.md#memory-as-a-resource-class). |
 | `session_object` | `data_object` | `tag` + `#kind:session` + {session tag vocabulary + frozen-at-creation + Multi-Scope resolution} | Session-specific lifecycle and resolution rules stay on the composite. See [Sessions as a Tagged Resource](05-memory-sessions.md#sessions-as-a-tagged-resource). |
 | `auth_request_object` | `data_object` | `tag` + `#kind:auth_request` + {workflow lifecycle rules, per-state access matrix, routing table} | First-class workflow node that mediates Grant creation. See [Auth Request Lifecycle](02-auth-request.md#auth-request-lifecycle). |
+| `inbox_object` | `data_object` | `tag` + `#kind:inbox` + {one-per-Agent lifecycle} | An agent's **received messages** queue. One per Agent, created at Agent creation time and added to the org catalogue atomically. Messages are `AgentMessage` value objects embedded on the inbox. Separate from task queue — messaging is information flow, not control flow. See [Inbox and Outbox (Agent Messaging)](05-memory-sessions.md#inbox-and-outbox-agent-messaging). |
+| `outbox_object` | `data_object` | `tag` + `#kind:outbox` + {one-per-Agent lifecycle, append-only from owner} | An agent's **sent messages** log. One per Agent, parallel to inbox. Messages are `AgentMessage` value objects. The owning agent appends (via send); reads are allowed for the owner and for authorised auditors. See [Inbox and Outbox (Agent Messaging)](05-memory-sessions.md#inbox-and-outbox-agent-messaging). |
 
 **Rule:** Every new integration must project its operations into this schema before it can be enabled.
 
@@ -171,6 +173,31 @@ A project workspace `/workspace/project-a/**`:
 4. **Transfer.** The project lead changes: `agent:lead-acme-1` is replaced by `agent:new-lead-4`. The lead's Template A grant is revoked (the `HAS_LEAD` edge was removed), and the new lead's Template A grant fires. This is **automatic for allocation authority**. For genuine ownership transfer (moving the project to a different sponsor, for example), an Auth Request with `scope: [transfer]` is submitted by the current owner; on approval, the `OWNED_BY` edge is rewritten to point to the new owner, and a TransferRecord value object is embedded on the Auth Request as the named audit shape.
 
 5. **Revocation cascade.** If `agent:lead-acme-1` revokes the deputy's allocation (say, before the lead change), the deputy's downstream grants to team members cascade-revoke (forward-only): past reads remain in the audit log, but no new reads are permitted under those grants.
+
+### Resource Catalogue
+
+Every Organization maintains a `resources_catalogue` that enumerates the resource instances under its ownership or sub-allocation. A resource — **both primary fundamentals and composites** — can only be referenced by a project, agent, tool manifest, or grant if it is declared in the owning Organization's catalogue. The catalogue is the **single source of truth** for what exists in the org's scope.
+
+**What the catalogue covers:**
+
+- All **9 fundamentals**: `filesystem_object`, `process_exec_object`, `network_endpoint`, `secret/credential`, `data_object`, `tag`, `identity_principal`, `economic_resource`, `time/compute_resource`.
+- All **composites** (`memory_object`, `session_object`, `external_service_object`, `model/runtime_object`, `control_plane_object`, `auth_request_object`, plus `inbox_object` and `outbox_object` from [§Composite Classes](#composite-classes-8)).
+- **Composite instances constructed by the org's own operations.** Registering a new MCP server creates a new `external_service_object` instance; the registration operation **atomically** adds the new instance to the catalogue. Same for onboarding an LLM provider (`model/runtime_object`), minting a secret (`secret/credential`), or creating an agent inbox at agent-creation time.
+
+**How catalogue entries are added:**
+
+1. **At org setup** — the platform admin declares the initial catalogue as part of adopting the Standard Organization Template (see [07-templates-and-tools.md § Standard Organization Template](07-templates-and-tools.md#standard-organization-template) for the YAML shape).
+2. **At runtime** — a schema-extension-style Auth Request (Template E shape — see [07 § Template E](07-templates-and-tools.md#opt-in-example-templates-c-d-and-e)) is submitted by a principal holding `[allocate]` on `control_plane_object`. On approval, the catalogue gains the new entry and the operation that produced it runs. Adding to the catalogue is itself an auditable event; the approving Auth Request is the extension's provenance.
+
+**Effect on the Permission Check:**
+
+The catalogue is the **structural pre-condition** for grant resolution. Before the runtime evaluates grants, constraints, or ceilings, it checks that every resource the tool call reaches is present in the owning org's catalogue. A call that reaches an out-of-catalogue resource is denied at Step 0 — before the grant-matching machinery runs. See [04-manifest-and-resolution.md § Formal Algorithm (Pseudocode)](04-manifest-and-resolution.md#formal-algorithm-pseudocode), Step 0.
+
+**Why the catalogue is load-bearing:**
+
+- **No ambient resources.** An agent cannot invoke a tool that reaches a resource the org has not explicitly declared, even if the tool's manifest looks correct. This prevents "the bash tool happens to resolve some DNS name the org never approved" from becoming an exploit.
+- **Composite additions are auditable.** Runtime-constructed composites (new MCP server, new secret, new memory pool) flow through the same Auth Request machinery as everything else. The authority chain stays complete.
+- **Projects and agents reference the catalogue, not the universe.** A project's `resource_boundaries` names a subset of the catalogue it operates within. An agent's grants select over the catalogue. This makes resource scoping composable and bounded.
 
 ---
 

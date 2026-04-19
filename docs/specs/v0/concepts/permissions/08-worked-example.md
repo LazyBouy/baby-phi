@@ -5,6 +5,8 @@
 
 ## Worked End-to-End Use Case: Three Orgs, Twelve Projects
 
+> **Complementary catalogue.** This single end-to-end example is complemented by the 10-layout organization catalogue at [`../../organizations/`](../../organizations/README.md) and the 5-layout project catalogue at [`../../projects/`](../../projects/README.md). The 3-orgs-12-projects walkthrough below is depth-first (one scenario, every concept exercised); the two catalogues are breadth-first (many scenarios, each exercising a subset of the concepts). Both are intended to be read together.
+>
 > **Purpose:** Demonstrate every concept in this doc together — org ceilings, project grants, agent defaults, Authority Templates, consent policies, Multi-Scope Session Access, resource overlap, contractor scenarios, and the forbidden Shape E recovery. This is the "tabletop test" of the model.
 >
 > **Setup:** A fictional but realistic organizational structure. Each org starts from the Standard Organization Template introduced above, then customizes.

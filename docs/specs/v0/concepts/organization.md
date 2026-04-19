@@ -4,7 +4,9 @@
 # Organization
 
 > Extracted from brainstorm.md Sections 3.10-3.11, refined 2026-04-09.
-> See also: [project.md](project.md), [permissions.md](permissions/README.md) (org-level rules and the Multi-Scope Session Access rule for joint projects)
+> See also: [project.md](project.md), [permissions.md](permissions/README.md) (org-level rules and the Multi-Scope Session Access rule for joint projects), [system-agents.md](system-agents.md) (standard System Agents every org gets by default).
+>
+> **Ten worked examples:** see [`../organizations/`](../organizations/README.md) for ten reference organization layouts spanning consent policies, hierarchy depth, agent mix, audit posture, co-ownership, market participation, and more.
 
 ---
 
@@ -21,6 +23,9 @@ An Organization is a **social structure** that contains agents and projects.
 | `vision` | Option<String> | Long-term aspiration |
 | `mission` | Option<String> | How the vision is pursued |
 | `created_at` | DateTime | When the organization was created |
+| `resources_catalogue` | `ResourceCatalogue` | The authoritative enumeration of all resource instances (primary fundamentals + composites, including runtime-constructed composites) under this org's ownership or sub-allocation. A resource must be in the catalogue to be referenced by any project, agent, tool manifest, or grant under this org. See [permissions → Resource Catalogue](permissions/01-resource-ontology.md#resource-catalogue) and the `resources_catalogue:` section of [permissions → Standard Organization Template](permissions/07-templates-and-tools.md#standard-organization-template). |
+| `consent_policy` | enum `implicit` \| `one_time` \| `per_session` | Per-org configurable; default `implicit`. See [permissions → Consent Policy](permissions/06-multi-scope-consent.md#consent-policy-organizational). |
+| `system_agents` | `Vec<SystemAgentRef>` | Standard infrastructure agents instantiated at org adoption time. Default set includes `memory-extraction-agent` and `agent-catalog-agent` — see [system-agents.md](system-agents.md). |
 
 ### Organization Edges
 

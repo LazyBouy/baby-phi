@@ -19,8 +19,9 @@ auth_request:
   request_id: req-4581
   requestor: agent:claude-coder-7
   kinds: [session]                                # composites touched
-  scope: [read, list]                             # actions requested (Standard Action Vocabulary)
-                                                  # or [allocate] for delegation authority
+  scope: [read, list]                             # actions from the Standard Action Vocabulary
+                                                  # (any subset — e.g. [read, list], [allocate],
+                                                  #  [transfer], or mixed like [read, allocate])
   state: Pending                                  # see state machine below
   valid_until: 2026-05-01T00:00:00Z
   submitted_at: 2026-04-11T14:23:00Z

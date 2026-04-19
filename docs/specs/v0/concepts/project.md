@@ -4,7 +4,9 @@
 # Project, Task, Bid, Rating
 
 > Extracted from brainstorm.md Sections 3.6-3.9, refined 2026-04-09.
-> See also: [token-economy.md](token-economy.md) (bidding, Worth/Value/Meaning, rating window), [organization.md](organization.md) (project ownership), [permissions.md](permissions/README.md) (project-level permissions and the Multi-Scope Session Access rule for sessions belonging to multiple projects)
+> See also: [token-economy.md](token-economy.md) (bidding, Worth/Value/Meaning, rating window), [organization.md](organization.md) (project ownership), [permissions.md](permissions/README.md) (project-level permissions and the Multi-Scope Session Access rule for sessions belonging to multiple projects).
+>
+> **Five worked examples:** see [`../projects/`](../projects/README.md) for five reference project layouts spanning Shape A vs B, flat vs nested sub-projects, standing vs market-bid task flows, and sprint vs long-duration cadences.
 
 ---
 
@@ -24,6 +26,9 @@ A Project is a **container for work** with a goal, agents, and governance.
 | `token_budget` | Option<u64> | Total tokens allocated for this project |
 | `tokens_spent` | u64 | Running total of tokens consumed |
 | `created_at` | DateTime | When the project was created |
+| `objectives` | Option<Vec<Objective>> | High-level goals the project pursues. Optional — projects without explicit Objectives use the simpler `goal` field. Projects may mix (set both). See [Objectives and Key Results](#objectives-and-key-results-okrs) below. |
+| `key_results` | Option<Vec<KeyResult>> | Measurable outcomes that indicate progress toward Objectives. Each KR is tracked by its own schedule and status. See [Objectives and Key Results](#objectives-and-key-results-okrs) below. |
+| `resource_boundaries` | Option<ResourceBoundaries> | A subset of the owning org(s)' `resources_catalogue` that this project operates within. Narrows the available resource set for project-scoped grants. |
 
 ### Project Status
 
@@ -48,6 +53,49 @@ All status transitions carry a reason. OnHold captures ALL suspension scenarios 
 | Project | `HAS_CONFIG` | AgentConfig | 1:1 | project-level config |
 | Project | `HAS_SUBPROJECT` | Project | 1:N | — |
 | Project | `BELONGS_TO` | Organization | N:N | role: primary/secondary |
+
+### Objectives and Key Results (OKRs)
+
+Projects that need structured goal tracking declare **Objectives** (what the project is trying to achieve) and **Key Results** (measurable outcomes that indicate progress). Both are optional; a project without explicit OKRs continues to use the simpler `goal` field. Projects may mix — declare a top-level `goal` *and* specific OKRs — when the `goal` is a one-line framing and the OKRs are the measurement.
+
+Objectives and Key Results are **value objects embedded on the Project node**, not independent graph nodes. This keeps the shape small and scoped to the project that owns them.
+
+**`Objective`** value object:
+
+```
+Objective {
+  objective_id:   String
+  name:           String
+  description:    String
+  status:         enum { Draft, Active, Achieved, Missed, Cancelled }
+  owner:          agent_id                      // the agent accountable for the objective
+  deadline:       Option<DateTime>
+  key_result_ids: Vec<String>                   // links to this project's KeyResults
+}
+```
+
+**`KeyResult`** value object:
+
+```
+KeyResult {
+  kr_id:             String
+  name:              String
+  description:       String
+  measurement_type:  enum { Count, Boolean, Percentage, Custom }
+  target_value:      Value                      // typed by measurement_type
+  current_value:     Value                      // updated as the project progresses
+  owner:             agent_id
+  deadline:          Option<DateTime>
+  status:            enum { NotStarted, InProgress, Achieved, Missed, Cancelled }
+}
+```
+
+**Notes:**
+
+- **Measurement types:** `Count` uses integer target/current (e.g., "ship 5 features"); `Boolean` uses true/false (e.g., "security review passed"); `Percentage` uses 0.0–1.0 (e.g., "coverage ≥ 0.85"); `Custom` allows a free-form `Value` for domain-specific metrics (e.g., a SLA score composite).
+- **Aggregation across sub-projects:** a parent project with `HAS_SUBPROJECT` sub-projects may reference sub-project OKRs in its own Key Results (by `kr_id`) to roll up progress. The aggregation rule is explicit at the parent (sum / max / weighted average) rather than inferred.
+- **OKR vs Task distinction:** Objectives are goals; Tasks are units of work. A KR may be achieved by completing several Tasks; one Task may contribute to multiple KRs. The Project's `HAS_TASK` edges and `key_results` field are complementary views.
+- **Status lifecycle:** Objectives and KRs follow an explicit status lifecycle and are expected to transition deliberately (a KR doesn't silently expire; it moves to `Missed` or `Cancelled` with a reason). Status transitions are auditable events.
 
 ---
 

@@ -70,9 +70,9 @@ The `transitive` field is **load-bearing**, not merely documentary. When an agen
 >
 > **At runtime** (when an agent invokes an already-published tool), the runtime derives the full set of required **fundamentals** by (a) expanding the manifest's primary class to fundamentals (including the implicit `tag` on any composite), (b) expanding each class in the transitive list to fundamentals, and (c) classifying the target entity (if any) to fundamentals. The Permission Check must pass for **every fundamental in this union**. A missing grant for any fundamental is a **runtime denial** (the agent lacks authorization — not a manifest problem).
 >
-> **At publish time**, the validator rejects a manifest that (a) declares a composite but omits its `#kind:` value, (b) declares a `#kind:` without the matching fundamentals, or (c) declares fundamentals inconsistent with the composites it names. The error message names the specific missing declaration so the tool creator can fix it and resubmit.
+> **At publish time**, the validator rejects a manifest that (a) declares a composite but provides no `#kind:` value at all, (b) declares a `#kind:` without the matching fundamentals, or (c) declares fundamentals inconsistent with the composites it names. The error message names the specific missing declaration so the tool creator can fix it and resubmit.
 >
-> `#kind: *` (blanket) is legal but throws a publish-time warning. The composite label (using `external_service_object` instead of its fundamentals) is optional — a warning at publish time may suggest adding it for readability, but the manifest is accepted either way.
+> **Blanket `#kind: *` is treated as satisfying rule (a):** it declares *a* value (namely "any kind") and therefore is accepted, but with a **publish-time warning** that suggests narrowing to a specific kind for least-privilege. The composite label (using `external_service_object` instead of its fundamentals) is optional — a warning at publish time may suggest adding it for readability, but the manifest is accepted either way.
 
 **Worked example:**
 
@@ -207,6 +207,16 @@ The runtime's Permission Check is shown below as an executable-looking pseudocod
 def permission_check(agent: Agent, call: ToolCall) -> Decision:
     manifest = call.tool.manifest
 
+    # --- Step 0: Catalogue precondition ---
+    # Every resource the call will reach must be declared in the owning org's
+    # resources_catalogue. This is a structural precondition — it runs before
+    # grant matching. See 01-resource-ontology.md § Resource Catalogue.
+    for resource_ref in manifest.resources_reached(call):
+        owner = owning_org(resource_ref)
+        if not owner.resources_catalogue.contains(resource_ref):
+            return Denied(reason="resource not in owning org's catalogue",
+                          failed_step=0, detail=resource_ref)
+
     # --- Step 1: Expand manifest into required (fundamental, action) pairs ---
     # Composite resource types expand into their constituent fundamentals per the
     # composite-class definitions in 01-resource-ontology.md. The manifest's declared
@@ -293,6 +303,7 @@ def permission_check(agent: Agent, call: ToolCall) -> Decision:
 
 **Key invariants:**
 
+0. **Every resource reached must be in the owning org's catalogue.** Step 0 runs before anything else; an out-of-catalogue reach fails fast with no grant-matching attempted. This makes the org config the sole source of truth for what resources exist. See [01 § Resource Catalogue](01-resource-ontology.md#resource-catalogue).
 1. **Every required reach must match some grant.** There is no "default allow" — an action on a fundamental the manifest declares must find a covering grant, or the check fails at Step 3.
 2. **Ceilings clamp, they don't add.** Step 2a can only remove scope from a grant, never widen it. A grant that already fits within its ceilings is unchanged.
 3. **Scope resolution is deterministic.** The cascade in Step 5 is an ordered search; the first tier with a match wins. Ties within a tier are broken by the base-org rule (see [06 § Multi-Scope Session Access](06-multi-scope-consent.md#multi-scope-session-access)).

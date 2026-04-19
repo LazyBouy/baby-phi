@@ -573,3 +573,103 @@ In the common case, a session is born in exactly one project (the agent's `curre
 The forbidden shape is **multi-project AND multi-org on the same session**. When work needs to span multiple orgs *and* multiple projects, the system requires creating a parent project that is itself jointly owned by those orgs — and the session belongs to that parent project. This collapses any would-be multi-project-multi-org session into the joint-project case, which the resolution rule handles natively.
 
 ---
+
+## Inbox and Outbox (Agent Messaging)
+
+Every Agent has exactly one **Inbox** (messages received) and one **Outbox** (messages sent). These are the composites `inbox_object` and `outbox_object` declared in [01 § Composite Classes](01-resource-ontology.md#composite-classes-8). They are **distinct from the agent's task queue** (ASSIGNED_TO edges) and from delegation (DELEGATES_TO). Messaging is **peer-to-peer information flow**; task assignment and delegation are separate control-flow mechanisms.
+
+### Resource Classes: `inbox_object`, `outbox_object`
+
+- **`inbox_object`** — one per Agent; identity = `agent_id`. Created at Agent creation and atomically added to the owning org's `resources_catalogue`.
+- **`outbox_object`** — one per Agent; identity = `agent_id`. Parallel shape to inbox.
+
+Both are `data_object + tag` composites. The explicit `data_object` fundamental carries the message payloads; the `tag` fundamental scopes who can read what.
+
+### `AgentMessage` Value Object
+
+Messages are embedded on inbox/outbox nodes as value objects (no independent identity, no separate node type) — this keeps them distinct from phi-core's `Message` node (which is an LLM-turn content unit, a different concept).
+
+```
+AgentMessage {
+  message_id:   String
+  sender:       agent_id
+  recipient:    agent_id
+  subject:      Option<String>
+  body:         String
+  sent_at:      DateTime
+  thread_id:    Option<String>      // groups related messages into conversations
+  priority:     enum { Low, Normal, High, Urgent }
+  delivered_to_inbox_at:  Option<DateTime>
+  read_at:      Option<DateTime>
+}
+```
+
+### Tag Vocabulary for Inbox / Outbox
+
+| Tag | Meaning |
+|-----|---------|
+| `agent:{owner}` | Identifies the agent who owns this inbox/outbox (auto-assigned, frozen) |
+| `#kind:inbox` / `#kind:outbox` | Type identity (auto-assigned, runtime-owned) |
+| `sender:{agent_id}` | Applied to an inbox entry; identifies the sender |
+| `recipient:{agent_id}` | Applied to an outbox entry; identifies the recipient |
+| `thread:{conversation_id}` | Groups messages into a conversation thread |
+| `#urgent`, `#high`, `#normal`, `#low` | Priority (mirrors `AgentMessage.priority`) |
+| `#read` / `#unread` | Lifecycle state; agent flips `#unread` → `#read` when inspecting |
+
+### Standard Actions
+
+| Resource | Actions allowed by default to owner | Actions allowed to others |
+|----------|--------------------------------------|----------------------------|
+| own `inbox_object` | `read`, `list`, `inspect`, `recall`, `delete` | `write` (sender delivers a message); no read/list from non-owners unless explicitly granted |
+| own `outbox_object` | `read`, `list`, `inspect`, `send` (append) | `read`, `list` for authorised auditors only; no write from non-owners |
+
+The owner holds these as Default Grants at Agent creation time. Other agents use a `send_message` tool to deposit into the target's inbox; the tool's manifest declares `write` on `inbox_object` scoped to the recipient's inbox instance. The tool does **not** get read access — write-only delivery.
+
+### Default Grants Issued at Agent Creation
+
+```yaml
+# Issued to every newly-created Agent — ownership over their own inbox/outbox
+grant:
+  # subject = agent:{this_agent}
+  action: [read, list, inspect, recall, delete]
+  resource:
+    type: inbox_object
+    selector: "tags contains agent:{this_agent}"
+  provenance: template:agent_default@inbox
+  delegable: false
+  approval_mode: auto
+
+grant:
+  # subject = agent:{this_agent}
+  action: [read, list, inspect, send]
+  resource:
+    type: outbox_object
+    selector: "tags contains agent:{this_agent}"
+  provenance: template:agent_default@outbox
+  delegable: false
+  approval_mode: auto
+```
+
+### Agents React Independently
+
+**Receiving a message does not auto-trigger any behaviour.** The sender deposits a message; the recipient's next session (or an explicitly-scheduled inbox-review session) may inspect the inbox, prioritise, reply, ignore, or archive. This is a deliberate choice:
+
+- Agents stay **autonomous**. Message traffic does not fork the recipient's control flow.
+- Messaging is **informational**, not imperative. If a sender needs the recipient to *do* something, the right primitive is a Task (`ASSIGNED_TO` edge, Auth-Request-mediated) or a delegation (`DELEGATES_TO`, sub-session), not a message.
+- The recipient decides the **reaction policy**: batch-processed daily, reactive-per-message, polled per session, or ignored entirely for a known-unresponsive agent.
+
+### Separation from Task Queue and Delegation
+
+| Primitive | Shape | Effect on recipient |
+|-----------|-------|----------------------|
+| **Message** (inbox/outbox) | `AgentMessage` value object | Information only. No automatic action. Recipient decides. |
+| **Task** (`ASSIGNED_TO`) | Task node with status lifecycle | Work commitment. The assigned agent is expected to execute. |
+| **Delegation** (`DELEGATES_TO`) | Edge with a spawned sub-session | The spawning agent's current work is split into a sub-agent's session. Control flow actually forks. |
+
+A project lead asking a worker to do something has three available primitives: send a message (informational), assign a task (formal commitment), or delegate (fork work into sub-session). The three coexist; orgs and projects decide which to prefer for which situation.
+
+### Multi-Session Delivery Under Parallelized Agents
+
+When an agent runs at `parallelize: N` (see [agent.md § Parallelized Sessions](../agent.md#parallelized-sessions)), all N concurrent sessions share the same inbox and outbox. Messages deposited while one session is running are visible to all other sessions of that agent (subject to session timing). Cross-session reads follow the standard LWW consistency rule from [coordination.md § Design Decisions](../coordination.md#design-decisions-v0-defaults-revisitable).
+
+---

@@ -14,6 +14,8 @@
 
 > **Note on Identity:** Identity (the emergent self — see below) belongs only to LLM Agents. Human Agents do not have a system-computed Identity — their identity exists outside the system. Human Agents are participants, not subjects of identity tracking.
 
+> **Inter-Agent Messaging.** Every Agent has exactly one **Inbox** (messages received) and one **Outbox** (messages sent), formalised as the composites `inbox_object` and `outbox_object` (see [permissions/05 § Inbox and Outbox](permissions/05-memory-sessions.md#inbox-and-outbox-agent-messaging)). Messaging is **pure information flow**, separate from the agent's task queue (`ASSIGNED_TO`) and from sub-agent delegation (`DELEGATES_TO`). The sender deposits a message; the recipient's next session may inspect the inbox, but there is **no automatic reaction** — the agent decides whether, when, and how to respond. This keeps agents autonomous in behaviour while making peer-to-peer signalling first-class.
+
 ---
 
 ## Agent Taxonomy
@@ -98,7 +100,8 @@ An LLM Agent is not just a config wrapper. It has **nature** (Soul), **capabilit
 │  ┌──────────┐   Identity (emergent, event-driven)       │
 │  │ Self     │   = f(Soul + Experience + Skills)         │
 │  │          │   Updated reactively on: session end,     │
-│  │          │   skill added, rating received            │
+│  │          │   memory extraction, skill change,        │
+│  │          │   rating received                          │
 │  └──────────┘                                           │
 │                                                         │
 │  ┌──────────┐   Worth / Value / Meaning (economic)      │
@@ -154,6 +157,29 @@ Power is what the agent **can do**. Three levels of composition:
 | **Short-term Memory** | Ephemeral | Current session context | In-run context, steering messages |
 | **Medium-term Memory** | Session-scoped | Across loops within a session | Compacted summaries, tool outputs |
 | **Long-term Memory** | Permanent | Across all sessions | `Memory` node with tagged scope (see below) |
+
+#### Parallelized Sessions
+
+An AgentProfile carries a `parallelize: u32` field (default `1`) that bounds how many **concurrent sessions** a single agent instance may run at once. An agent with `parallelize: 4` can execute up to four independent sessions simultaneously — typically on different projects or on different tasks within the same project.
+
+**Semantics:**
+
+- **Sessions are always independent executions.** Concurrent sessions do not share short-term memory or the loop's in-flight context. Each runs its own `agent_loop()` (see [phi-core-mapping.md](phi-core-mapping.md) for the phi-core types involved).
+- **The agent's `HAS_MEMORY` pool is shared across concurrent sessions.** Memory writes from concurrent sessions follow the LWW consistency rule documented in [coordination.md § Design Decisions](coordination.md#design-decisions-v0-defaults-revisitable). Cross-references between sessions use `derived_from:session:{id}` tags on the resulting memories so downstream readers can trace which session produced which memory.
+- **Inbox and Outbox are shared, too.** All N concurrent sessions read from the same inbox and append to the same outbox — see [permissions/05 § Multi-Session Delivery Under Parallelized Agents](permissions/05-memory-sessions.md#multi-session-delivery-under-parallelized-agents). Message ordering follows LWW.
+- **Configurable at adoption; tightenable per project.** The `parallelize` value is set on the AgentProfile in the owning org's agent roster. A project may **tighten** (reduce) the effective `parallelize` for an agent working within its scope, but cannot raise it above the profile's declared maximum.
+- **`parallelize: 1` is the default** — the traditional single-session agent. Values > 1 are opt-in per profile.
+
+**Why parallelize per profile, not per agent instance:** the profile defines what the agent *is*; `parallelize` is about the agent's concurrency capacity under that profile. An org with 5 agents sharing a profile has 5 × `parallelize` total concurrent sessions possible from that profile family.
+
+**Typical values:**
+
+| Value | Fit |
+|-------|-----|
+| `1` | Single-threaded agents; interns; most LLM worker roles |
+| `2–4` | Productive workers supporting multiple parallel projects or subtasks |
+| `4–8` | System agents (memory extraction, catalog, monitoring) processing independent events |
+| `16+` | Platform-infrastructure agents handling high-throughput admin work — rare and deliberate |
 
 #### Memory Model — Public, Private, and Supervisor Extraction
 
@@ -291,12 +317,17 @@ System Agents perform infrastructure, maintenance, or platform-level work for an
 - **Always-on availability** — they are part of the platform fabric, not contracted on demand
 - **Identity still applies** — they have Soul, Power, Experience, and a developing Identity
 
-**Examples:**
+**v0 Standard System Agents** (formalised in [system-agents.md](system-agents.md)):
+- **Memory Extraction Agent** — runs on session-end events, extracts candidate memories, allocates them to the correct pool (agent / project / org / `#public`) based on tag permissions.
+- **Agent Catalog Agent** — maintains a queryable catalogue of all active Agents in the org, tracks lifecycle events.
+
+**Other Examples (future, `[OUT OF V0 SCOPE]`):**
 - **Introspection Agent** — exposes the data model for query, helps other agents understand "what exists"
 - **Project Setup Agent** — bootstraps new projects (creates initial nodes, applies templates, configures permissions)
-- **Memory Extraction Agent** — runs on session-end events to propose Memory nodes
 - **Monitoring Agent** — watches for anomalies, runaway costs, stuck loops
 - **Skill Curation Agent** — detects emergent skill patterns and proposes them for approval
+
+See [system-agents.md](system-agents.md) for the full catalogue, profiles, grants, and behaviour of the two v0 Standard System Agents, plus stubs for the future additions above.
 
 > System Agents are typically created at organization or project setup time and persist for the lifetime of their host.
 
