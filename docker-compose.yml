@@ -1,0 +1,37 @@
+# Local dev stack: baby-phi-server + Next.js dev server.
+# SurrealDB is embedded in baby-phi-server (RocksDB backend), so no DB service.
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: baby-phi/Dockerfile
+    image: baby-phi-server:dev
+    environment:
+      BABY_PHI_PROFILE: dev
+      BABY_PHI_STORAGE__DATA_DIR: /var/lib/baby-phi/data
+      BABY_PHI_TELEMETRY__LOG_FILTER: "info,baby_phi=debug"
+      BABY_PHI_TELEMETRY__JSON_LOGS: "false"
+    ports:
+      - "8080:8080"
+    volumes:
+      - baby-phi-data:/var/lib/baby-phi/data
+    restart: unless-stopped
+
+  web:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- -H 0.0.0.0"
+    environment:
+      BABY_PHI_API_URL: http://server:8080
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./modules/web:/app
+      - web-node-modules:/app/node_modules
+    depends_on:
+      - server
+
+volumes:
+  baby-phi-data:
+  web-node-modules:

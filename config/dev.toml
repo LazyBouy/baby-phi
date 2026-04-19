@@ -1,0 +1,12 @@
+# Developer workstation. Set BABY_PHI_PROFILE=dev (the default).
+
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[storage]
+data_dir = "data/baby-phi-dev.db"
+
+[telemetry]
+log_filter = "info,baby_phi=debug,baby_phi_server=debug,baby_phi_domain=debug,baby_phi_store=debug"
+json_logs = false

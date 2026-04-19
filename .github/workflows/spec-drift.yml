@@ -1,0 +1,15 @@
+name: spec-drift
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify every R-ADMIN-* id referenced in Rust/TS tests still exists in the spec
+        run: baby-phi/scripts/check-spec-drift.sh

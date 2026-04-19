@@ -1,0 +1,80 @@
+name: rust
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: rustfmt }
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - name: Install libclang (required by surrealdb-librocksdb-sys)
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: baby-phi }
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install libclang (required by surrealdb-librocksdb-sys)
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: baby-phi }
+      - run: cargo test --workspace --locked
+
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
+
+  deny:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: baby-phi/Cargo.toml

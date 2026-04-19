@@ -1,0 +1,16 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI for the baby-phi agent management platform."
+
+[[bin]]
+name = "baby-phi"
+path = "src/main.rs"
+
+[dependencies]
+phi-core = { workspace = true }
+tokio    = { workspace = true }
+clap     = { workspace = true }

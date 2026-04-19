@@ -1,8 +1,57 @@
-[package]
-name = "baby-phi"
+[workspace]
+resolver = "2"
+members = [
+    "modules/crates/cli",
+    "modules/crates/domain",
+    "modules/crates/server",
+    "modules/crates/store",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/LazyBouy/baby-phi"
 
-[dependencies]
+[workspace.dependencies]
 phi-core = { path = "../phi-core" }
-tokio    = { version = "1", features = ["full"] }
+
+domain = { path = "modules/crates/domain" }
+store  = { path = "modules/crates/store" }
+server = { path = "modules/crates/server" }
+
+tokio       = { version = "1", features = ["full"] }
+axum        = { version = "0.7", features = ["macros"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower       = "0.5"
+tower-http  = { version = "0.6", features = ["trace", "cors", "timeout"] }
+hyper       = "1"
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+toml        = "0.8"
+thiserror   = "1"
+anyhow      = "1"
+clap        = { version = "4", features = ["derive", "env"] }
+tracing     = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+metrics     = "0.23"
+metrics-exporter-prometheus = "0.15"
+axum-prometheus = "0.7"
+uuid        = { version = "1", features = ["v4", "serde"] }
+chrono      = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+futures     = "0.3"
+
+# Storage
+surrealdb = { version = "2", features = ["kv-rocksdb"] }
+
+# Config
+config = "0.14"
+
+# Dev / test
+proptest = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "debuginfo"

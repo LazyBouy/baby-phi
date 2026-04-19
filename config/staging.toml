@@ -1,0 +1,13 @@
+# Staging. Set BABY_PHI_PROFILE=staging.
+# Secrets (DB encryption key, OAuth client secret, etc.) must be env-injected.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[storage]
+data_dir = "/var/lib/baby-phi/data"
+
+[telemetry]
+log_filter = "info"
+json_logs = true

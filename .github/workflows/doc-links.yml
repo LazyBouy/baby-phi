@@ -1,0 +1,15 @@
+name: doc-links
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every relative link in docs/specs/v0/implementation/**/*.md must resolve; every page must carry a 'Last verified' header
+        run: baby-phi/scripts/check-doc-links.sh

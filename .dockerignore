@@ -1,0 +1,9 @@
+target
+data
+modules/web/node_modules
+modules/web/.next
+**/*.log
+.git
+.github
+docs/specs/plan/build
+tests/fixtures/workspace/session

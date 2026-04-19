@@ -1,0 +1,16 @@
+# Committed, non-secret defaults. Overlaid by config/<profile>.toml and
+# BABY_PHI_* environment variables. Secrets MUST NOT live here.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+# tls = { cert_path = "...", key_path = "..." }   # optional; usually set per-env
+
+[storage]
+data_dir = "data/baby-phi.db"
+namespace = "baby-phi"
+database = "v0"
+
+[telemetry]
+log_filter = "info"
+json_logs = true
