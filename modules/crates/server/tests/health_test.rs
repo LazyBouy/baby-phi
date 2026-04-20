@@ -1,34 +1,22 @@
-//! Smoke test for the server's health endpoints with a faked Repository.
+//! Smoke test for the server's health endpoints with the shared
+//! `domain::in_memory::InMemoryRepository` (enabled via
+//! `features = ["in-memory-repo"]` on the dev-dep).
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use domain::repository::{Repository, RepositoryError, RepositoryResult};
+use domain::in_memory::InMemoryRepository;
 use server::{build_router, AppState};
 use tower::ServiceExt;
 
-struct FakeRepo {
-    healthy: bool,
-}
-
-#[async_trait]
-impl Repository for FakeRepo {
-    async fn ping(&self) -> RepositoryResult<()> {
-        if self.healthy {
-            Ok(())
-        } else {
-            Err(RepositoryError::Backend("fake down".into()))
-        }
-    }
-}
-
 fn app(healthy: bool) -> axum::Router {
+    let repo = InMemoryRepository::new();
+    repo.set_unhealthy(!healthy);
     build_router(AppState {
-        repo: Arc::new(FakeRepo { healthy }),
+        repo: Arc::new(repo),
     })
 }
 

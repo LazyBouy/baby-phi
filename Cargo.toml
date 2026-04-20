@@ -48,8 +48,18 @@ surrealdb = { version = "2", features = ["kv-rocksdb"] }
 # Config
 config = "0.14"
 
+# Hashing (audit event chain)
+blake3 = "1"
+
+# At-rest envelope encryption for the secrets vault (see store::crypto).
+aes-gcm = "0.10"
+base64 = "0.22"
+rand = "0.9"
+
 # Dev / test
 proptest = "1"
+tempfile = "3"
+trybuild = "1"
 
 [profile.release]
 lto = true

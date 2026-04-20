@@ -182,7 +182,7 @@ For v0.1 the embedded tier is the right choice — low operational overhead, sin
 
 **Goal:** every subsequent milestone builds on a rock-solid Permission Check + Auth Request engine.
 
-- **Graph model:** Rust types for all 9 fundamentals + 8 composites + 31 nodes + 56+ edges from `concepts/ontology.md`. SurrealDB schema (tables + indices).
+- **Graph model:** Rust types for all 9 fundamentals + 8 composites + 37 nodes + 66 edges from `concepts/ontology.md` (count corrected from the earlier "31 + 56+" approximation during M1 pre-audit). SurrealDB schema (tables + indices).
 - **Permission Check engine** in `baby-phi-domain` — the 6-step formal algorithm from `permissions/04`. Property-based tests over randomly-generated grant sets.
 - **Auth Request state machine** per `permissions/02` — atomic per-slot transitions, per-resource aggregation, forward-only revocation. Property tests over the state diagram.
 - **System Bootstrap flow (s01):** bootstrap credential generation at install, single-use consumption, platform admin materialisation.

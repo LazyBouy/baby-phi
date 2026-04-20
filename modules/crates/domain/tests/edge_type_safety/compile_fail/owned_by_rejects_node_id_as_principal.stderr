@@ -1,0 +1,27 @@
+error[E0277]: the trait bound `NodeId: Principal` is not satisfied
+  --> tests/edge_type_safety/compile_fail/owned_by_rejects_node_id_as_principal.rs:10:43
+   |
+10 |     let _ = Edge::new_owned_by(&resource, &principal);
+   |             ------------------            ^^^^^^^^^^ the trait `Principal` is not implemented for `NodeId`
+   |             |
+   |             required by a bound introduced by this call
+   |
+help: the following other types implement trait `Principal`
+  --> src/model/principal_resource.rs
+   |
+   | impl Principal for AgentId {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^ `AgentId`
+...
+   | impl Principal for UserId {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ `UserId`
+...
+   | impl Principal for OrgId {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ `OrgId`
+...
+   | impl Principal for ProjectId {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `ProjectId`
+note: required by a bound in `Edge::new_owned_by`
+  --> src/model/edges.rs
+   |
+   |     pub fn new_owned_by<R: Resource, P: Principal>(resource: &R, principal: &P) -> Edge {
+   |                                         ^^^^^^^^^ required by this bound in `Edge::new_owned_by`

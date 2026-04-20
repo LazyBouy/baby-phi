@@ -35,7 +35,7 @@ config      = { workspace = true }
 async-trait = { workspace = true }
 
 [dev-dependencies]
-domain      = { workspace = true }
+domain      = { workspace = true, features = ["in-memory-repo"] }
 tokio       = { workspace = true }
 tower       = { workspace = true }
 axum        = { workspace = true }

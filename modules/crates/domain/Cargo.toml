@@ -18,7 +18,16 @@ uuid        = { workspace = true }
 chrono      = { workspace = true }
 async-trait = { workspace = true }
 futures     = { workspace = true }
+blake3      = { workspace = true }
+
+[features]
+# Opt-in in-memory Repository fake for tests in other crates (server,
+# acceptance). Also enabled automatically when `cargo test`ing domain
+# itself via `#[cfg(any(test, feature = "in-memory-repo"))]` in-module.
+# Not compiled into the release binary.
+in-memory-repo = []
 
 [dev-dependencies]
 proptest = { workspace = true }
 tokio    = { workspace = true }
+trybuild = { workspace = true }

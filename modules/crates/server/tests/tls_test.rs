@@ -9,20 +9,10 @@ use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use axum_server::tls_rustls::RustlsConfig;
-use domain::repository::{Repository, RepositoryResult};
+use domain::in_memory::InMemoryRepository;
 use rcgen::generate_simple_self_signed;
 use server::{build_router, AppState};
-
-struct UpRepo;
-
-#[async_trait]
-impl Repository for UpRepo {
-    async fn ping(&self) -> RepositoryResult<()> {
-        Ok(())
-    }
-}
 
 fn free_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind free port");
@@ -53,7 +43,7 @@ async fn native_tls_listener_serves_https_and_rejects_plaintext() {
         .expect("load self-signed cert");
 
     let app = build_router(AppState {
-        repo: Arc::new(UpRepo),
+        repo: Arc::new(InMemoryRepository::new()),
     });
     let handle = axum_server::Handle::new();
     let server_handle = handle.clone();

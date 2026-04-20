@@ -1,0 +1,22 @@
+error[E0277]: the trait bound `UserId: Resource` is not satisfied
+  --> tests/edge_type_safety/compile_fail/owned_by_rejects_user_as_resource.rs:11:32
+   |
+11 |     let _ = Edge::new_owned_by(&resource, &principal);
+   |             ------------------ ^^^^^^^^^ the trait `Resource` is not implemented for `UserId`
+   |             |
+   |             required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `Resource`:
+             AgentId
+             AuthRequestId
+             ConsentId
+             GrantId
+             MemoryId
+             NodeId
+             SessionId
+             TemplateId
+note: required by a bound in `Edge::new_owned_by`
+  --> src/model/edges.rs
+   |
+   |     pub fn new_owned_by<R: Resource, P: Principal>(resource: &R, principal: &P) -> Edge {
+   |                            ^^^^^^^^ required by this bound in `Edge::new_owned_by`

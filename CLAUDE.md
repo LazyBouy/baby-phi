@@ -73,3 +73,9 @@ Documentation in `docs/` must accurately reflect the current codebase at all tim
 - **Verification header**: Every doc file carries `<!-- Last verified: YYYY-MM-DD by Claude Code -->` at the top, updated on each review pass.
 - **No forward references**: Do not document features as existing unless the code is merged. Use `[PLANNED]` or `[CONCEPTUAL]` for future work.
 - **Spec-drift guard**: `scripts/check-spec-drift.sh` runs in CI. If a requirement id (`R-ADMIN-*`, `R-AGENT-*`, `R-SYS-*`, `R-NFR-*`) referenced in code disappears from `docs/specs/v0/requirements/`, CI fails.
+
+## Working Discipline
+
+- **Thoroughness over speed.** When a choice exists between "faster" and "more thorough," always pick thorough. Applies to audits, test coverage, documentation, refactors, and milestone execution. Speed is cheap to regain; shortcuts compound into debt.
+- **Phase-by-phase review.** For multi-phase milestones (M1+), pause at each phase boundary for a thorough self-review against the milestone's verification matrix before opening the next phase. Don't chain phases autonomously.
+- **Pre-implementation audits.** Before starting a milestone, run a gap-audit against every concept doc, requirement, and production-readiness commitment it touches. Surface deltas (stale counts, implicit assumptions, missing pieces) in the plan rather than discovering them during implementation.

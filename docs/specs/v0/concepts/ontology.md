@@ -1,5 +1,5 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-20 by Claude Code -->
 
 # Ontological Data Model
 
@@ -17,7 +17,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 
 ---
 
-## Node Types (31 total)
+## Node Types (37 total)
 
 ### Core Identity
 
@@ -83,7 +83,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 
 ---
 
-## Edge Types (56+ total)
+## Edge Types (66 total)
 
 ### Agent-Centric (first-order)
 
