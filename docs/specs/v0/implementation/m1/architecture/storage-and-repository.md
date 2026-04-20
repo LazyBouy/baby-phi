@@ -40,12 +40,14 @@ The raw methods (`upsert_ownership_raw`, etc.) remain accessible for
 callers that already have a `NodeId` (e.g. bulk migration scripts); they
 just don't give the compile-time guarantee.
 
-## Trait surface (35 async methods)
+## Trait surface (36 async methods)
 
 Grouped by concern. P2 shipped 33; P5 added `apply_bootstrap_claim`
-(the atomic seven-writes batch for the s01 adoption flow) and P6 added
-`list_bootstrap_credentials` (needed by the claim handler's verify-per-row
-scan — see ADR-0011 §Lookup).
+(the atomic seven-writes batch for the s01 adoption flow) and P6
+added `list_bootstrap_credentials` (needed by the claim handler's
+verify-per-row scan — see ADR-0011 §Lookup). The final post-P9 audit
+added `get_audit_event` so the P9 acceptance suite can read an audit
+row by id and assert class + provenance directly (not by proxy).
 
 | Group | Methods |
 |---|---|
@@ -57,7 +59,7 @@ scan — see ADR-0011 §Lookup).
 | Bootstrap credentials | `put_bootstrap_credential`, `find_unconsumed_credential`, `consume_bootstrap_credential`, `list_bootstrap_credentials` |
 | Bootstrap flow | `apply_bootstrap_claim` |
 | Resources catalogue | `seed_catalogue_entry`, `catalogue_contains` |
-| Audit | `write_audit_event`, `last_event_hash_for_org` |
+| Audit | `write_audit_event`, `get_audit_event`, `last_event_hash_for_org` |
 
 Plus three free-function wrappers in the same module — the typed entry
 points for ownership edges.
@@ -142,9 +144,10 @@ tested.
 
 Integration tests live in
 [`modules/crates/store/tests/repository_test.rs`](../../../../../../modules/crates/store/tests/repository_test.rs)
-— **60 tests** spanning every method in the trait (P2 shipped 26; the
-P3+ post-audit widening pass added 31 more, and P5 added 3 for the
-bootstrap-flow atomic batch). Categories:
+— **62 tests** spanning every method in the trait (P2 shipped 26; the
+P3+ post-audit widening pass added 31 more, P5 added 3 for the
+bootstrap-flow atomic batch, and the final post-P9 audit added 2 for
+`get_audit_event` roundtrip + miss). Categories:
 
 - Node CRUD round-trips (create + get; get-none; get-admin-before / after).
 - Grant CRUD + revoke + list-by-principal, including every
@@ -173,8 +176,8 @@ column-by-column breakdown — including domain proptest + worked-trace
 | Layer | P1 | P2 | P3+ widening | P5 | Current |
 |---|---|---|---|---|---|
 | Store unit (crypto + migrations) | 13 | 13 | 13 | 13 | **13** |
-| Store integration (migrations + crypto vault + repository) | 2 | 29 | 59 | 62 | **62** |
-| **Runnable total** (full workspace) | **46** | **82** | **186** | **260** | **292** |
+| Store integration (migrations + crypto vault + repository) | 2 | 29 | 59 | 62 | **64** |
+| **Runnable total** (full workspace) | **46** | **82** | **186** | **260** | **299** |
 
 ## Concept references
 

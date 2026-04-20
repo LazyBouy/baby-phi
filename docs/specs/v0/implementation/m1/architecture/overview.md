@@ -5,12 +5,12 @@
 M1 turns the M0 scaffolding into a functional Permission Check spine. This
 page is the system map; depth pages cover each subsystem.
 
-## System map (P1–P7 landed)
+## System map (P1–P9 landed — M1 sealed)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          web (Next.js 14 / SSR)                         │
-│                       [P8]  /bootstrap page                             │
+│     ✓ /bootstrap — SSR probe + claim Server Action + session cookie     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                       cli (clap; baby-phi binary)                       │
 │     ✓ bootstrap — `baby-phi bootstrap {status,claim}` (HTTP client)     │
@@ -27,7 +27,7 @@ page is the system map; depth pages cover each subsystem.
 │   ✓ model/   — 9 fundamentals, 8 composites, 37 nodes, 66 edges         │
 │   ✓ model/principal_resource — sealed Principal/Resource marker traits  │
 │   ✓ audit    — event shape, class tiers, hash-chain helper              │
-│   ✓ repository — 35-method trait + 3 typed free-function wrappers       │
+│   ✓ repository — 36-method trait + 3 typed free-function wrappers       │
 │   ✓ in_memory — HashMap-backed Repository fake (feature-gated)          │
 │   ✓ permissions — 6-step (+2a) engine, pure fn, metric-instrumented     │
 │   ✓ auth_requests — 9-state machine + aggregation + retention + revoke  │
@@ -36,7 +36,7 @@ page is the system map; depth pages cover each subsystem.
 │   ✓ SurrealStore::open_embedded runs migrations on startup              │
 │   ✓ migrations — forward-only runner with startup-gate fail-safe        │
 │   ✓ crypto — AES-GCM envelope for secrets_vault                         │
-│   ✓ repo_impl — full SurrealDB impl of all 35 Repository methods        │
+│   ✓ repo_impl — full SurrealDB impl of all 36 Repository methods        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                  SurrealDB (embedded RocksDB backend)                   │
 │   ✓ schema 0001_initial: 37 node tables + 66 edge relations             │
@@ -57,7 +57,7 @@ The `domain` crate does **not** depend on `store`; `Repository` is a trait
 defined in `domain` and implemented in `store`. This keeps the crate DAG
 downward-only and lets domain tests use an in-memory fake.
 
-## What P1 + P2 + P3 + P4 + P5 + P6 + P7 delivered
+## What P1 + P2 + P3 + P4 + P5 + P6 + P7 + P8 + P9 delivered
 
 **P1 foundation:**
 
@@ -83,7 +83,7 @@ downward-only and lets domain tests use an in-memory fake.
    + 6 `trybuild` compile-fail fixtures. See
    [ADR-0015](../decisions/0015-type-safe-ownership-edges.md).
 7. **Repository trait expansion** (`modules/crates/domain/src/repository.rs`):
-   35 object-safe methods + 3 typed free-function wrappers. See
+   36 object-safe methods + 3 typed free-function wrappers. See
    [storage-and-repository.md](storage-and-repository.md).
 8. **SurrealStore implementation** (`modules/crates/store/src/repo_impl.rs`):
    full CRUD against embedded SurrealDB via `type::thing(...)` record ids
@@ -245,6 +245,150 @@ downward-only and lets domain tests use an in-memory fake.
     the verification matrix, bringing the workspace to 292 — see
     §Post-P7 audit remediation.)
 
+**P8 Web `/bootstrap` page:**
+
+27. **`modules/web/app/bootstrap/`** — the first real human-facing UI
+    route. Composed of three files:
+    - [`page.tsx`](../../../../../../modules/web/app/bootstrap/page.tsx) —
+      Server Component; SSR-probes `GET /api/v0/bootstrap/status` and
+      branches to a claim form (unclaimed), a terminal view (claimed),
+      or a server-unreachable view. `export const dynamic =
+      "force-dynamic"` to avoid caching across admin-state flips.
+    - [`actions.ts`](../../../../../../modules/web/app/bootstrap/actions.ts) —
+      Server Action `submitClaim(prev, formData)` that validates
+      input, calls `postBootstrapClaim`, and — on a 201 response —
+      forwards the `Set-Cookie` the Rust server issued by parsing it
+      with `extractSessionJwt` and re-emitting via
+      `next/headers → cookies().set(...)` so the browser carries the
+      session cookie on every subsequent request.
+    - [`ClaimForm.tsx`](../../../../../../modules/web/app/bootstrap/ClaimForm.tsx) —
+      Client component using React 18's `useFormState` +
+      `useFormStatus` (the Next 14.2 idiom) for inline rerender of
+      the Server Action result.
+28. **`lib/` helpers extended**:
+    - [`api.ts`](../../../../../../modules/web/lib/api.ts) now exports
+      `getBootstrapStatus`, `postBootstrapClaim`, plus three pure
+      translators (`parseStatusBody`, `parseClaimSuccess`,
+      `extractSessionJwt`) — split out so unit tests can exercise
+      them without a live HTTP server.
+    - [`session.ts`](../../../../../../modules/web/lib/session.ts) reads
+      the signed cookie via `next/headers` and delegates verification
+      to [`session-verify.ts`](../../../../../../modules/web/lib/session-verify.ts),
+      the pure HS256 JWT verifier (jose-based). The split lets
+      Node's built-in test runner exercise `verifySessionToken`
+      without standing up a Next.js runtime.
+29. **Session-cookie roundtrip** between Rust (P6) and Web (P8):
+    the Rust server signs the JWT; the browser carries it; the Next
+    web process verifies it with the shared
+    `BABY_PHI_SESSION_SECRET` (≥ 32 bytes enforced on both sides).
+    Dev-placeholder secrets match so `npm run dev` + `baby-phi-server`
+    play nicely out of the box.
+30. **Test coverage**: 9 `api.test.ts` invariants (status parsing for
+    claimed/unclaimed/defensive; claim-success snake→camel map;
+    `extractSessionJwt` across four Set-Cookie shapes) + 5
+    `session.test.ts` invariants (valid token; wrong-secret;
+    garbage token; expired token; empty token). Zero-dep: Node 22's
+    built-in `--test` runner + `--experimental-strip-types`.
+31. **Manual smoke** at P8 close: minted a credential, booted server
+    and `npm run dev`, curled `/bootstrap` on an unclaimed install
+    (renders the claim form), POSTed directly to the HTTP claim
+    endpoint to flip state, re-fetched `/bootstrap` (renders
+    "Platform admin already claimed" with the correct UUID).
+    Browser-based Playwright coverage is scheduled for M7b.
+
+**P9 Acceptance harness + final seal:**
+
+32. **Acceptance harness**
+    ([`server/tests/acceptance_common/mod.rs`](../../../../../../modules/crates/server/tests/acceptance_common/mod.rs)):
+    boots a **real** `axum` app against a **real** embedded SurrealDB
+    in a fresh tempdir per test, binds to a random loopback port,
+    returns a `reqwest` client. Tests are E2E — no in-memory fakes,
+    no mocked HTTP. The Prometheus layer is installed once per
+    process via a `OnceLock` so the `/metrics` test can coexist
+    with the non-metric tests in the same binary.
+33. **Acceptance scenarios**
+    ([`server/tests/acceptance_bootstrap.rs`](../../../../../../modules/crates/server/tests/acceptance_bootstrap.rs)):
+    5 E2E tests covering the Part-8 verification-matrix rows C4 / C5
+    / C9 / C10 / C11 / C13:
+    - **`fresh_install_happy_claim`** (C4 + C5 + C9 + C11) — status
+      unclaimed → claim succeeds → status claimed; admin agent row
+      persisted; grant row with `[allocate]`-on-`system:root`,
+      delegable, correct `descends_from`; auth-request in `Approved`
+      with `audit_class = Alerted`; catalogue contains `system:root`;
+      credential consumed; session cookie emitted.
+    - **`wrong_credential_rejects_403_bootstrap_invalid`** (C5) —
+      403 with the stable code; no admin created; credential
+      untouched; audit chain empty.
+    - **`reused_credential_without_admin_rejects_403_already_consumed`** (C5)
+      — the edge case where `consumed_at` is stamped but no admin
+      exists; correct stable code.
+    - **`second_claim_after_success_rejects_409_platform_admin_claimed`** (C5)
+      — first-line admin-check beats credential scan.
+    - **`metrics_endpoint_exposes_bootstrap_claims_counter`** (C10) —
+      `/metrics` scrape exposes `baby_phi_bootstrap_claims_total`
+      with `result="success"` after a 201.
+34. **Operations runbooks**:
+    [schema-migrations](../operations/schema-migrations-operations.md),
+    [at-rest-encryption](../operations/at-rest-encryption-operations.md),
+    [bootstrap-credential-lifecycle](../operations/bootstrap-credential-lifecycle.md),
+    [audit-log-retention](../operations/audit-log-retention.md) — each
+    covers the operator-facing workflow, what M1 ships, what's
+    deferred to M7b, and the recovery paths.
+35. **Troubleshooting reference**
+    ([user-guide/troubleshooting.md](../user-guide/troubleshooting.md))
+    — grepable error-code table (HTTP codes + CLI exit codes +
+    web-specific symptoms) with explicit recovery steps.
+36. **CI workflow extension** (`.github/workflows/rust.yml`): two
+    new jobs sit alongside the existing `fmt` / `clippy` / `test` /
+    `audit` / `deny` pipeline:
+    - `proptest` — runs domain tests with `PROPTEST_CASES=256` and
+      `--test-threads 1` so proptest's failure-reduction is
+      deterministic.
+    - `acceptance` — runs the 5 acceptance scenarios in **release
+      profile** so any optimisation-only regressions surface here
+      before reaching prod.
+37. **Workspace totals after P9**: 297 cargo tests pass (292 pre-P9
+    + 5 acceptance) + 14 web tests = 311 total / 0 failed. The
+    post-P9 100 %-audit pass further raised this to **299 + 14 =
+    313 total / 0 failed** by adding `get_audit_event` + its two
+    store integration tests — see §Post-P9 100 %-audit remediation.
+
+## Post-P9 100%-audit remediation
+
+A final independent re-audit after P9 flagged three cosmetic items
+that were keeping confidence at 99 % rather than 100 %. The fixes:
+
+1. **`actions.ts` regex DRY.** The Server Action that forwards the
+   session cookie on a successful claim was re-implementing
+   `extractSessionJwt`'s regex inline at
+   [`app/bootstrap/actions.ts:91`](../../../../../../modules/web/app/bootstrap/actions.ts).
+   Now imports and calls `extractSessionJwt` from `lib/api.ts` —
+   single regex, single source of truth.
+2. **Acceptance harness: bounded poll in place of fixed sleep.** The
+   harness previously waited a hardcoded 50 ms after spawning the
+   axum task before returning the `Acceptance` handle. Replaced with
+   [`wait_until_serving`](../../../../../../modules/crates/server/tests/acceptance_common/mod.rs),
+   which polls `/healthz/live` on a 10 ms cadence until a 2xx is
+   observed (5 s deadline). Every acceptance test is now
+   deterministically race-free on slow machines and wastes no time
+   on fast ones.
+3. **`get_audit_event` added to Repository.** The P9 happy-path
+   acceptance test was asserting `audit_class = Alerted` via an
+   `AuthRequest.audit_class` proxy because the trait had no audit-row
+   lookup by id. Added
+   [`Repository::get_audit_event`](../../../../../../modules/crates/domain/src/repository.rs)
+   (bringing the trait to **36 methods**), implemented in both
+   `SurrealStore` (via `type::thing('audit_events', $id)` — the same
+   record-id pattern every other write uses) and
+   `InMemoryRepository`. The acceptance test now reads the event
+   directly by id and asserts `event_type`, `audit_class`, actor,
+   and provenance. 2 new store integration tests (round-trip every
+   field + miss-by-id returns None) pin the behaviour.
+
+After remediation: **299 Rust tests pass (+2), 14 Web tests pass,
+313 total / 0 failed**; fmt, clippy, doc-links, spec-drift all
+green.
+
 ## Post-P7 audit remediation
 
 A post-P7 independent re-audit flagged five doc / test issues before
@@ -292,32 +436,37 @@ spec-drift all green.
 | [`server`](../../../../../../modules/crates/server/) | axum HTTP surface + bootstrap handlers + session cookie | `bootstrap/` (M1/P5), `handlers/bootstrap.rs` + `session.rs` (M1/P6) |
 | [`cli`](../../../../../../modules/crates/cli/) | clap CLI — `baby-phi bootstrap {status,claim}` + `agent demo` | `commands/bootstrap.rs` + `commands/agent.rs` + `reqwest`/`server`/`serde` deps (M1/P7) |
 
-## Testing posture (after P7)
+## Testing posture (after P9 — M1 sealed)
 
-Values are **`cargo test` pass counts** — the number you get by running
-`cargo test --workspace` at the close of each phase. The trybuild row
-is `1` because the runner invokes 6 compile-fail fixtures through a
+Rust rows carry **`cargo test --workspace` pass counts** at the close
+of each phase. Web rows carry **`npm test` pass counts** (Node 22
+built-in test runner + TypeScript type-stripping). The trybuild row is
+`1` because the runner invokes 6 compile-fail fixtures through a
 single `#[test]`; the fixture count (6) is quoted in the Gains column
 so the more meaningful figure is still visible.
 
-| Layer | P1 | P2 | P3 | P3+ (widening) | P4 | P5 | P6 | P7 | P7+C6 | Gains |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Domain unit (model + audit + marker-trait impls + typed constructors + permissions helpers + auth-request state/transitions/revocation/retention) | 27 | 36 | 91 | 91 | 134 | 134 | 134 | 134 | 134 | — |
-| Domain proptest (permission-check + auth-request + audit-hash-chain invariants) | 0 | 0 | 14 | 14 | 29 | 29 | 29 | 29 | 33 | 11 files |
-| Domain compile-fail runner (`trybuild`) | 0 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | drives 6 compile-fail fixtures |
-| Domain worked-trace + doctests (`permission_check_worked_trace` + `permissions::selector`) | 0 | 0 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | — |
-| Store unit (crypto + migrations) | 13 | 13 | 13 | 13 | 13 | 13 | 13 | 13 | 13 | — |
-| Store integration (migrations + crypto vault + repository) | 2 | 29 | 29 | 59 | 59 | 62 | 62 | 62 | 62 | — |
-| Server unit (bootstrap credential + init + claim business logic + session sign/verify) | 0 | 0 | 0 | 0 | 0 | 13 | 19 | 19 | 19 | — |
-| Server integration (M0 health + TLS + P6 bootstrap handlers + session cookie) | 4 | 4 | 4 | 4 | 4 | 4 | 16 | 16 | 16 | — |
-| CLI unit (URL normalisation) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 3 | — |
-| CLI integration (end-to-end: spawn server in-process + shell out to `baby-phi`) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 7 | — |
-| **Runnable total** | **46** | **82** | **151** | **186** | **244** | **260** | **278** | **288** | **292** | — |
+| Layer | P1 | P2 | P3 | P3+ (widening) | P4 | P5 | P6 | P7 | P7+C6 | P8 | P9 | Gains |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Domain unit (model + audit + marker-trait impls + typed constructors + permissions helpers + auth-request state/transitions/revocation/retention) | 27 | 36 | 91 | 91 | 134 | 134 | 134 | 134 | 134 | 134 | 134 | — |
+| Domain proptest (permission-check + auth-request + audit-hash-chain invariants) | 0 | 0 | 14 | 14 | 29 | 29 | 29 | 29 | 33 | 33 | 33 | 10 files |
+| Domain compile-fail runner (`trybuild`) | 0 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | drives 6 compile-fail fixtures |
+| Domain worked-trace + doctests (`permission_check_worked_trace` + `permissions::selector`) | 0 | 0 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | — |
+| Store unit (crypto + migrations) | 13 | 13 | 13 | 13 | 13 | 13 | 13 | 13 | 13 | 13 | 13 | — |
+| Store integration (migrations + crypto vault + repository) | 2 | 29 | 29 | 59 | 59 | 62 | 62 | 62 | 62 | 62 | 64 | — |
+| Server unit (bootstrap credential + init + claim business logic + session sign/verify) | 0 | 0 | 0 | 0 | 0 | 13 | 19 | 19 | 19 | 19 | 19 | — |
+| Server integration (M0 health + TLS + P6 bootstrap handlers + session cookie) | 4 | 4 | 4 | 4 | 4 | 4 | 16 | 16 | 16 | 16 | 16 | — |
+| **Acceptance E2E (real server + embedded SurrealDB + real HTTP)** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **5** | new in P9 |
+| CLI unit (URL normalisation) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 3 | 3 | 3 | — |
+| CLI integration (end-to-end: spawn server in-process + shell out to `baby-phi`) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 7 | 7 | 7 | — |
+| Web unit (api wire-translators + `verifySessionToken`) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 14 | 14 | `npm test` |
+| **Runnable total** | **46** | **82** | **151** | **186** | **244** | **260** | **278** | **288** | **292** | **306** | **313** | — |
 
-The P7+C6 column sums row-wise to **292**, matching the `cargo test
---workspace` grand total exactly. The "+C6" tranche is the
-post-audit `audit_hash_chain_props.rs` file (4 proptest invariants)
-added to close commitment-ledger row C6. Historical columns (P2 / P3)
+The P9 column sums row-wise to **313** — 299 Rust (`cargo test
+--workspace`) + 14 Web (`npm test`). Includes the post-P9 100%-audit
+pass that added `get_audit_event` (36th Repository method) + 2 store
+integration tests + acceptance tightening. The "+C6" tranche is the
+post-P7-audit `audit_hash_chain_props.rs` file (4 proptest invariants)
+closing commitment-ledger row C6. Historical columns (P2 / P3)
 predate the accounting convention used here and carry a ≤6-test
 narrative drift from row-wise addition; their stated totals **are**
 the cargo counts that were observed at the close of each phase.
@@ -360,9 +509,11 @@ repository + 1 migrations + 1 crypto vault) — substantive coverage
 across every one of the then-33 trait methods + 3 free-function
 wrappers + the `ping` surface, with strong error-path parity on the
 critical paths (revocation, update, list filters, cross-scope
-isolation). P5 and P6 extended the trait to **35 methods** and added
-3 bootstrap-flow integration tests, so the current store integration
-count is **62**.
+isolation). P5 and P6 extended the trait to **35 methods** + 3
+bootstrap-flow integration tests, and the final post-P9 100%-audit
+pass added `get_audit_event` (bringing the trait to **36 methods**)
+plus 2 more store integration tests, taking the current store
+integration count to **64**.
 
 ## What to read next
 
@@ -387,5 +538,16 @@ count is **62**.
   `/api/v0/bootstrap/*` request + response contract the admin sees.
 - [cli-usage.md](../user-guide/cli-usage.md) — P7's
   `baby-phi bootstrap {status,claim}` + `agent demo` reference.
+- [web-topology.md](web-topology.md) — P8's `/bootstrap` SSR page +
+  Server Action + session-cookie plumbing.
+- [web-usage.md](../user-guide/web-usage.md) — end-user walkthrough
+  of the `/bootstrap` page, including the error-case table.
+- [troubleshooting.md](../user-guide/troubleshooting.md) — grepable
+  reference for every error code M1 can emit.
+- The M1 operations runbooks —
+  [schema-migrations](../operations/schema-migrations-operations.md),
+  [at-rest-encryption](../operations/at-rest-encryption-operations.md),
+  [bootstrap-credential-lifecycle](../operations/bootstrap-credential-lifecycle.md),
+  [audit-log-retention](../operations/audit-log-retention.md).
 - The M0 companion pages (one folder up,
   [`../../m0/`](../../m0/README.md)) for everything P1 builds upon.

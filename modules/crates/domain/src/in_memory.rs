@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::audit::AuditEvent;
-use crate::model::ids::{AgentId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId};
+use crate::model::ids::{AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId};
 use crate::model::nodes::{
     Agent, AgentKind, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
     Organization, OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
@@ -418,6 +418,15 @@ impl Repository for InMemoryRepository {
     async fn write_audit_event(&self, event: &AuditEvent) -> RepositoryResult<()> {
         self.lock()?.audit_events.push(event.clone());
         Ok(())
+    }
+
+    async fn get_audit_event(&self, id: AuditEventId) -> RepositoryResult<Option<AuditEvent>> {
+        Ok(self
+            .lock()?
+            .audit_events
+            .iter()
+            .find(|e| e.event_id == id)
+            .cloned())
     }
 
     async fn last_event_hash_for_org(

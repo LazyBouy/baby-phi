@@ -22,9 +22,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use domain::audit::AuditEvent;
+use domain::audit::{AuditClass, AuditEvent};
 use domain::model::ids::{
-    AgentId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId, ProjectId, UserId,
+    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId, ProjectId, UserId,
 };
 use domain::model::nodes::{
     Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
@@ -875,13 +875,28 @@ impl Repository for SurrealStore {
         let row = AuditEventRow::from_domain(event);
         let body = serde_json::to_value(&row).map_err(backend)?;
         self.client()
-            .query("CREATE audit_events CONTENT $body RETURN NONE")
+            .query("CREATE type::thing('audit_events', $id) CONTENT $body RETURN NONE")
+            .bind(("id", event.event_id.to_string()))
             .bind(("body", body))
             .await
             .map_err(backend)?
             .check()
             .map_err(backend)?;
         Ok(())
+    }
+
+    async fn get_audit_event(&self, id: AuditEventId) -> RepositoryResult<Option<AuditEvent>> {
+        let mut resp = self
+            .client()
+            .query("SELECT * OMIT id FROM type::thing('audit_events', $id)")
+            .bind(("id", id.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<AuditEventRow> = resp.take(0).map_err(backend)?;
+        match rows.into_iter().next() {
+            Some(row) => Ok(Some(row.into_domain(id)?)),
+            None => Ok(None),
+        }
     }
 
     async fn apply_bootstrap_claim(&self, claim: &BootstrapClaim) -> RepositoryResult<()> {
@@ -914,7 +929,7 @@ impl Repository for SurrealStore {
              CREATE type::thing('outbox_object', $outbox_id) CONTENT $outbox_body RETURN NONE;\n\
              CREATE type::thing('auth_request', $ar_id) CONTENT $auth_request_body RETURN NONE;\n\
              CREATE type::thing('grant', $grant_id) CONTENT $grant_body RETURN NONE;\n\
-             CREATE audit_events CONTENT $audit_body RETURN NONE;\n",
+             CREATE type::thing('audit_events', $audit_id) CONTENT $audit_body RETURN NONE;\n",
         );
         // One CREATE per catalogue entry.
         for i in 0..claim.catalogue_entries.len() {
@@ -950,6 +965,7 @@ impl Repository for SurrealStore {
             .bind(("auth_request_body", auth_request_body))
             .bind(("grant_id", claim.grant.id.to_string()))
             .bind(("grant_body", grant_body))
+            .bind(("audit_id", claim.audit_event.event_id.to_string()))
             .bind(("audit_body", audit_body))
             .bind(("cred_record_id", claim.credential_record_id.clone()))
             .bind(("now", now));
@@ -1017,7 +1033,7 @@ impl BootstrapRow {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct AuditEventRow {
     event_type: String,
     actor_agent_id: Option<String>,
@@ -1043,5 +1059,65 @@ impl AuditEventRow {
             org_scope: ev.org_scope.map(|o| o.to_string()),
             prev_event_hash_b64: ev.prev_event_hash.map(|h| BASE64_NOPAD.encode(h)),
         }
+    }
+
+    fn into_domain(self, event_id: AuditEventId) -> RepositoryResult<AuditEvent> {
+        let actor_agent_id = match self.actor_agent_id {
+            Some(s) => Some(AgentId::from_uuid(
+                s.parse::<uuid::Uuid>().map_err(backend)?,
+            )),
+            None => None,
+        };
+        let target_entity_id = match self.target_entity_id {
+            Some(s) => Some(NodeId::from_uuid(s.parse::<uuid::Uuid>().map_err(backend)?)),
+            None => None,
+        };
+        let provenance_auth_request_id = match self.provenance_auth_request_id {
+            Some(s) => Some(AuthRequestId::from_uuid(
+                s.parse::<uuid::Uuid>().map_err(backend)?,
+            )),
+            None => None,
+        };
+        let org_scope = match self.org_scope {
+            Some(s) => Some(OrgId::from_uuid(s.parse::<uuid::Uuid>().map_err(backend)?)),
+            None => None,
+        };
+        let prev_event_hash = match self.prev_event_hash_b64 {
+            Some(b64) => {
+                let bytes = BASE64_NOPAD.decode(&b64).map_err(backend)?;
+                if bytes.len() != 32 {
+                    return Err(RepositoryError::Backend(format!(
+                        "prev_event_hash_b64 decoded length != 32 ({} bytes)",
+                        bytes.len()
+                    )));
+                }
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&bytes);
+                Some(arr)
+            }
+            None => None,
+        };
+        let audit_class = match self.audit_class.as_str() {
+            "silent" => AuditClass::Silent,
+            "logged" => AuditClass::Logged,
+            "alerted" => AuditClass::Alerted,
+            other => {
+                return Err(RepositoryError::Backend(format!(
+                    "unknown audit_class string: {other}"
+                )))
+            }
+        };
+        Ok(AuditEvent {
+            event_id,
+            event_type: self.event_type,
+            actor_agent_id,
+            target_entity_id,
+            timestamp: self.timestamp,
+            diff: self.diff,
+            audit_class,
+            provenance_auth_request_id,
+            org_scope,
+            prev_event_hash,
+        })
     }
 }

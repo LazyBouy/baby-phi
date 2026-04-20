@@ -54,6 +54,48 @@ jobs:
         with: { workspaces: baby-phi }
       - run: cargo test --workspace --locked
 
+  proptest:
+    # Runs the domain-layer property tests with a deeper `PROPTEST_CASES`
+    # budget than the default `test` job. Single-threaded so proptest's
+    # failure reduction is deterministic across environments.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    env:
+      PROPTEST_CASES: "256"
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install libclang (required by surrealdb-librocksdb-sys)
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: baby-phi }
+      # `cargo test --test <name>` takes exact binary names (no glob),
+      # so we run the whole domain test tree. Unit tests are <1 s
+      # so the extra cost is negligible; this keeps the workflow
+      # robust when new proptest files land.
+      - run: cargo test -p domain -- --test-threads 1
+
+  acceptance:
+    # Full-system acceptance tests (real axum server, embedded
+    # SurrealDB, real HTTP over loopback). Release-profile so any
+    # optimisation-only regressions surface here before reaching prod.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install libclang (required by surrealdb-librocksdb-sys)
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: baby-phi }
+      - run: cargo test -p server --release --test acceptance_bootstrap -- --test-threads 1
+
   audit:
     runs-on: ubuntu-latest
     defaults:

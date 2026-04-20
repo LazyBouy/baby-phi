@@ -20,7 +20,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::audit::AuditEvent;
-use crate::model::ids::{AgentId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId};
+use crate::model::ids::{AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId};
 use crate::model::nodes::{
     Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
     OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
@@ -259,6 +259,12 @@ pub trait Repository: Send + Sync + 'static {
     /// populate `prev_event_hash` before calling; this method does not
     /// look up the chain (keeps the repository surface narrow).
     async fn write_audit_event(&self, event: &AuditEvent) -> RepositoryResult<()>;
+
+    /// Look up a single audit event by id. Returns `None` when no row
+    /// exists. Used by the acceptance suite to verify end-to-end that a
+    /// handler's stated `audit_event_id` really landed in storage with
+    /// the expected class + provenance.
+    async fn get_audit_event(&self, id: AuditEventId) -> RepositoryResult<Option<AuditEvent>>;
 
     /// Returns the hash of the most recent event within `org_scope`, or
     /// `None` if no events exist yet for that scope.

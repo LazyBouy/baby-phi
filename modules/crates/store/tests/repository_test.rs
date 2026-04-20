@@ -830,6 +830,51 @@ async fn audit_write_persists_event() {
 }
 
 #[tokio::test]
+async fn get_audit_event_roundtrips_every_field() {
+    let (store, _dir) = fresh_store().await;
+    let org = OrgId::new();
+    let actor = AgentId::new();
+    let ar = AuthRequestId::new();
+    let target = NodeId::new();
+    let mut ev = sample_event(Some(org), Some([7u8; 32]), 0);
+    ev.event_type = "platform_admin.claimed".into();
+    ev.audit_class = AuditClass::Alerted;
+    ev.actor_agent_id = Some(actor);
+    ev.target_entity_id = Some(target);
+    ev.provenance_auth_request_id = Some(ar);
+    ev.diff = serde_json::json!({"after": {"id": "x"}});
+
+    store.write_audit_event(&ev).await.unwrap();
+    let fetched = store
+        .get_audit_event(ev.event_id)
+        .await
+        .unwrap()
+        .expect("event row must exist after write");
+
+    assert_eq!(fetched.event_id, ev.event_id);
+    assert_eq!(fetched.event_type, "platform_admin.claimed");
+    assert_eq!(fetched.audit_class, AuditClass::Alerted);
+    assert_eq!(fetched.actor_agent_id, Some(actor));
+    assert_eq!(fetched.target_entity_id, Some(target));
+    assert_eq!(fetched.provenance_auth_request_id, Some(ar));
+    assert_eq!(fetched.org_scope, Some(org));
+    assert_eq!(fetched.prev_event_hash, Some([7u8; 32]));
+    assert_eq!(fetched.diff, serde_json::json!({"after": {"id": "x"}}));
+    // Timestamps round-trip at RFC3339 precision.
+    assert_eq!(fetched.timestamp.to_rfc3339(), ev.timestamp.to_rfc3339());
+}
+
+#[tokio::test]
+async fn get_audit_event_returns_none_for_missing_id() {
+    let (store, _dir) = fresh_store().await;
+    assert!(store
+        .get_audit_event(AuditEventId::new())
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
 async fn last_event_hash_for_empty_org_returns_none() {
     let (store, _dir) = fresh_store().await;
     let out = store.last_event_hash_for_org(None).await.unwrap();

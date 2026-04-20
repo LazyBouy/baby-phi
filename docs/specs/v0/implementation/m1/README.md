@@ -38,8 +38,8 @@ M1 is delivered phase-by-phase. This index is updated as each phase lands.
 | P5 System Bootstrap flow | ✓ done |
 | P6 HTTP endpoints + session cookie | ✓ done |
 | P7 CLI subcommands | ✓ done |
-| P8 Web `/bootstrap` page | [PLANNED M1/P8] |
-| P9 Acceptance harness + final seal | [PLANNED M1/P9] |
+| P8 Web `/bootstrap` page | ✓ done |
+| P9 Acceptance harness + final seal | ✓ done |
 
 ## Layout
 
@@ -67,8 +67,8 @@ be linked once the corresponding phase lands.
 | [auth-request-state-machine.md](architecture/auth-request-state-machine.md) | 9-state lifecycle + aggregation tables + transition API + retention window + proptest coverage |
 | [bootstrap-flow.md](architecture/bootstrap-flow.md) | s01 atomic adoption flow + entity shape + rollback contract |
 | [server-topology.md](architecture/server-topology.md) | Extends the M0 route table with `/api/v0/bootstrap/*` + the signed-cookie layer + the `baby_phi_bootstrap_claims_total` counter |
-| `web-topology.md` | `[PLANNED M1/P8]` — extends M0 version with `/bootstrap` + cookie |
-| [storage-and-repository.md](architecture/storage-and-repository.md) | M0 extension — 35-method Repository surface + typed ownership-edge helpers |
+| [web-topology.md](architecture/web-topology.md) | Extends the M0 web map with the `/bootstrap` SSR page + Server Action + session-cookie plumbing |
+| [storage-and-repository.md](architecture/storage-and-repository.md) | M0 extension — 36-method Repository surface + typed ownership-edge helpers |
 
 ## user-guide/
 
@@ -76,18 +76,18 @@ be linked once the corresponding phase lands.
 |---|---|
 | [first-bootstrap.md](user-guide/first-bootstrap.md) | End-to-end walkthrough — install command, credential delivery, claim flow, failure cases |
 | [cli-usage.md](user-guide/cli-usage.md) | `baby-phi bootstrap {status,claim}` + `agent demo` reference |
-| `web-usage.md` | `[PLANNED M1/P8]` — `/bootstrap` page walkthrough |
+| [web-usage.md](user-guide/web-usage.md) | `/bootstrap` page walkthrough with error-case table |
 | [http-api-reference.md](user-guide/http-api-reference.md) | `/api/v0/bootstrap/*` request + response contract |
-| `troubleshooting.md` | `[PLANNED M1/P9]` — M1 error codes + recovery |
+| [troubleshooting.md](user-guide/troubleshooting.md) | M1 error codes + exit-code ladder + recovery paths |
 
 ## operations/
 
 | Page | Purpose |
 |---|---|
-| `schema-migrations-operations.md` | `[PLANNED M1/P9]` — applying, audit, rolling-back-ish |
-| `at-rest-encryption-operations.md` | `[PLANNED M1/P9]` — master-key rotation stub (full at M7b) |
-| `bootstrap-credential-lifecycle.md` | `[PLANNED M1/P9]` — generation → delivery → consumption |
-| `audit-log-retention.md` | `[PLANNED M1/P9]` — class-tier retention + 90d window |
+| [schema-migrations-operations.md](operations/schema-migrations-operations.md) | Applying migrations, audit, broken-migration recovery |
+| [at-rest-encryption-operations.md](operations/at-rest-encryption-operations.md) | Master-key handling, backup guidance, rotation stub (full at M7b) |
+| [bootstrap-credential-lifecycle.md](operations/bootstrap-credential-lifecycle.md) | Generation → delivery → consumption, recovery paths |
+| [audit-log-retention.md](operations/audit-log-retention.md) | Class-tier retention, hash-chain verification, M7b deferrals |
 
 ## decisions/
 
