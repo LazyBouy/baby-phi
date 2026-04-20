@@ -7,7 +7,7 @@ tool invocation, every grant issue, every Auth Request transition runs
 through it. P3 ships the full 6-step (+Step 2a) pipeline in the `domain`
 crate as a **pure** function with a structured [`Decision`] return type.
 
-- Module: [`modules/crates/domain/src/permissions/`](../../../../../modules/crates/domain/src/permissions/mod.rs)
+- Module: [`modules/crates/domain/src/permissions/`](../../../../../../modules/crates/domain/src/permissions/mod.rs)
 - Concept doc: [`concepts/permissions/04-manifest-and-resolution.md`](../../../concepts/permissions/04-manifest-and-resolution.md) §Formal Algorithm.
 - ADR: [0008 — Permission Check as an eight-stage typed pipeline](../decisions/0008-permission-check-as-pipeline.md)
 
@@ -85,14 +85,14 @@ grant satisfy the manifest's constraints?" before the winner exists.
 
 | File | Purpose |
 |---|---|
-| [`mod.rs`](../../../../../modules/crates/domain/src/permissions/mod.rs) | Re-exports + crate-level module docs |
-| [`decision.rs`](../../../../../modules/crates/domain/src/permissions/decision.rs) | `Decision`, `DeniedReason`, `FailedStep`, `ResolvedReach`, `AwaitingConsent` |
-| [`manifest.rs`](../../../../../modules/crates/domain/src/permissions/manifest.rs) | `CheckContext`, `Manifest`, `ToolCall`, `ConsentIndex` |
-| [`selector.rs`](../../../../../modules/crates/domain/src/permissions/selector.rs) | `Selector` grammar + parser + matcher |
-| [`catalogue.rs`](../../../../../modules/crates/domain/src/permissions/catalogue.rs) | `CatalogueLookup` trait + `StaticCatalogue` in-memory fake |
-| [`metrics.rs`](../../../../../modules/crates/domain/src/permissions/metrics.rs) | `PermissionCheckMetrics` trait + `NoopMetrics` |
-| [`expansion.rs`](../../../../../modules/crates/domain/src/permissions/expansion.rs) | `expand_resource_to_fundamentals`, `resolve_grant`, `ResolvedGrant` |
-| [`engine.rs`](../../../../../modules/crates/domain/src/permissions/engine.rs) | `check()` + `step_0..step_6` helpers + `ScopeTier` + `Candidate` |
+| [`mod.rs`](../../../../../../modules/crates/domain/src/permissions/mod.rs) | Re-exports + crate-level module docs |
+| [`decision.rs`](../../../../../../modules/crates/domain/src/permissions/decision.rs) | `Decision`, `DeniedReason`, `FailedStep`, `ResolvedReach`, `AwaitingConsent` |
+| [`manifest.rs`](../../../../../../modules/crates/domain/src/permissions/manifest.rs) | `CheckContext`, `Manifest`, `ToolCall`, `ConsentIndex` |
+| [`selector.rs`](../../../../../../modules/crates/domain/src/permissions/selector.rs) | `Selector` grammar + parser + matcher |
+| [`catalogue.rs`](../../../../../../modules/crates/domain/src/permissions/catalogue.rs) | `CatalogueLookup` trait + `StaticCatalogue` in-memory fake |
+| [`metrics.rs`](../../../../../../modules/crates/domain/src/permissions/metrics.rs) | `PermissionCheckMetrics` trait + `NoopMetrics` |
+| [`expansion.rs`](../../../../../../modules/crates/domain/src/permissions/expansion.rs) | `expand_resource_to_fundamentals`, `resolve_grant`, `ResolvedGrant` |
+| [`engine.rs`](../../../../../../modules/crates/domain/src/permissions/engine.rs) | `check()` + `step_0..step_6` helpers + `ScopeTier` + `Candidate` |
 
 Everything compiles as one crate module (`pub mod permissions;`); each
 sub-file is `pub mod <name>;` inside `permissions/mod.rs`.
@@ -139,7 +139,7 @@ pub enum Decision {
   distinct from `Denied` — the caller can wait / request / retry rather
   than reject outright.
 
-See [`decision.rs`](../../../../../modules/crates/domain/src/permissions/decision.rs)
+See [`decision.rs`](../../../../../../modules/crates/domain/src/permissions/decision.rs)
 for the full enum definitions + helper methods
 (`metric_result_label`, `failed_step`, `resolved_grants_map`).
 
@@ -203,19 +203,19 @@ correlate audit events (C6) with their originating check.
 ## Canonical invariants (proptest coverage)
 
 Six integration files under
-[`modules/crates/domain/tests/`](../../../../../modules/crates/domain/tests/)
+[`modules/crates/domain/tests/`](../../../../../../modules/crates/domain/tests/)
 cover the engine — at `PROPTEST_CASES=100` per invariant that's ≈ 1,700
 random-input branches per CI run, scaling to ≈ 17,000 at
 `PROPTEST_CASES=1000`.
 
 | File | Invariants |
 |---|---|
-| [`permission_check_catalogue_props.rs`](../../../../../modules/crates/domain/tests/permission_check_catalogue_props.rs) | Step 0 denies exactly when target ∉ catalogue; Step 0 never fires when target ∈ catalogue |
-| [`permission_check_match_props.rs`](../../../../../modules/crates/domain/tests/permission_check_match_props.rs) | Empty grants → Step 2 denial; disjoint grant/manifest → Step 3 denial; covering grant → Allowed; every fundamental has a working single-grant path |
-| [`permission_check_constraint_props.rs`](../../../../../modules/crates/domain/tests/permission_check_constraint_props.rs) | Missing constraint → Step 4 denial; full constraint context → never Step 4 denial |
-| [`permission_check_consent_props.rs`](../../../../../modules/crates/domain/tests/permission_check_consent_props.rs) | Template-gated grant + no consent → Pending; + consent → Allowed; non-template grant → never Pending |
-| [`permission_check_monotonicity_props.rs`](../../../../../modules/crates/domain/tests/permission_check_monotonicity_props.rs) | Adding an unrelated grant preserves Allowed; ceiling never widens a denial; revoked grants are invisible |
-| [`permission_check_worked_trace.rs`](../../../../../modules/crates/domain/tests/permission_check_worked_trace.rs) | `bash cargo build` canonical trace → Allowed; `bash rm -rf /` without filesystem grant → Step 3 denial; Decision JSON round-trip |
+| [`permission_check_catalogue_props.rs`](../../../../../../modules/crates/domain/tests/permission_check_catalogue_props.rs) | Step 0 denies exactly when target ∉ catalogue; Step 0 never fires when target ∈ catalogue |
+| [`permission_check_match_props.rs`](../../../../../../modules/crates/domain/tests/permission_check_match_props.rs) | Empty grants → Step 2 denial; disjoint grant/manifest → Step 3 denial; covering grant → Allowed; every fundamental has a working single-grant path |
+| [`permission_check_constraint_props.rs`](../../../../../../modules/crates/domain/tests/permission_check_constraint_props.rs) | Missing constraint → Step 4 denial; full constraint context → never Step 4 denial |
+| [`permission_check_consent_props.rs`](../../../../../../modules/crates/domain/tests/permission_check_consent_props.rs) | Template-gated grant + no consent → Pending; + consent → Allowed; non-template grant → never Pending |
+| [`permission_check_monotonicity_props.rs`](../../../../../../modules/crates/domain/tests/permission_check_monotonicity_props.rs) | Adding an unrelated grant preserves Allowed; ceiling never widens a denial; revoked grants are invisible |
+| [`permission_check_worked_trace.rs`](../../../../../../modules/crates/domain/tests/permission_check_worked_trace.rs) | `bash cargo build` canonical trace → Allowed; `bash rm -rf /` without filesystem grant → Step 3 denial; Decision JSON round-trip |
 
 ## What's deferred to later phases
 

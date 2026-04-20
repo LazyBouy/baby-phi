@@ -12,7 +12,7 @@ use std::time::Duration;
 use axum_server::tls_rustls::RustlsConfig;
 use domain::in_memory::InMemoryRepository;
 use rcgen::generate_simple_self_signed;
-use server::{build_router, AppState};
+use server::{build_router, AppState, SessionKey};
 
 fn free_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind free port");
@@ -44,6 +44,7 @@ async fn native_tls_listener_serves_https_and_rejects_plaintext() {
 
     let app = build_router(AppState {
         repo: Arc::new(InMemoryRepository::new()),
+        session: SessionKey::for_tests("test-secret-test-secret-test-secret-test-secret"),
     });
     let handle = axum_server::Handle::new();
     let server_handle = handle.clone();

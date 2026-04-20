@@ -14,3 +14,18 @@ database = "v0"
 [telemetry]
 log_filter = "info"
 json_logs = true
+
+# Session-cookie signing.
+#
+# `secret` is a publicly-known dev placeholder; every real deployment MUST
+# override it via `BABY_PHI_SESSION__SECRET` (env var). Setting a weak or
+# default secret in production means anyone can forge admin sessions.
+#
+# `secure = true` is correct for every environment that fronts TLS.
+# `config/dev.toml` flips it to `false` so the cookie survives plaintext
+# localhost HTTP.
+[session]
+secret = "dev-only-placeholder-override-via-env-var-32b"
+cookie_name = "baby_phi_session"
+ttl_seconds = 43200
+secure = true

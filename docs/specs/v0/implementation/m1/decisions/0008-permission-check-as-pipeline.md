@@ -54,7 +54,7 @@ Public `step_0_catalogue`, `step_1_expand_manifest`,
 `step_2_resolve_grants`, `step_2a_ceiling`, `step_3_match_reaches`,
 `step_4_constraints`, `step_5_scope_resolution`,
 `step_6_consent_gating` in
-[`engine.rs`](../../../../../modules/crates/domain/src/permissions/engine.rs).
+[`engine.rs`](../../../../../../modules/crates/domain/src/permissions/engine.rs).
 Each step returns a typed intermediate that the next step consumes:
 
 ```
@@ -149,17 +149,17 @@ Negative:
 ## References
 
 - Implementation:
-  [`modules/crates/domain/src/permissions/engine.rs`](../../../../../modules/crates/domain/src/permissions/engine.rs)
+  [`modules/crates/domain/src/permissions/engine.rs`](../../../../../../modules/crates/domain/src/permissions/engine.rs)
   (pipeline + step helpers);
-  [`decision.rs`](../../../../../modules/crates/domain/src/permissions/decision.rs)
+  [`decision.rs`](../../../../../../modules/crates/domain/src/permissions/decision.rs)
   (enums);
-  [`metrics.rs`](../../../../../modules/crates/domain/src/permissions/metrics.rs)
+  [`metrics.rs`](../../../../../../modules/crates/domain/src/permissions/metrics.rs)
   (trait + noop).
 - Architecture page: [permission-check-engine.md](../architecture/permission-check-engine.md).
 - Proptest coverage: 6 files under
-  [`modules/crates/domain/tests/`](../../../../../modules/crates/domain/tests/)
+  [`modules/crates/domain/tests/`](../../../../../../modules/crates/domain/tests/)
   with prefix `permission_check_`.
 - Source-of-truth pseudocode:
   [`concepts/permissions/04-manifest-and-resolution.md`](../../../concepts/permissions/04-manifest-and-resolution.md)
   §Formal Algorithm.
-- Plan: [015a217a-m1-permission-check-spine.md §P3](../../../plan/build/015a217a-m1-permission-check-spine.md).
+- Plan: [015a217a-m1-permission-check-spine.md §P3](../../../../plan/build/015a217a-m1-permission-check-spine.md).

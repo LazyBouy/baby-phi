@@ -361,17 +361,30 @@ impl Repository for InMemoryRepository {
 
     async fn consume_bootstrap_credential(&self, record_id: &str) -> RepositoryResult<()> {
         let mut state = self.lock()?;
-        match state
+        if let Some(row) = state
             .bootstrap_credentials
             .iter_mut()
             .find(|r| r.record_id == record_id)
         {
-            Some(row) => {
-                row.consumed_at = Some(Utc::now());
-                Ok(())
-            }
-            None => Err(RepositoryError::NotFound),
+            row.consumed_at = Some(Utc::now());
         }
+        // Mirrors SurrealStore's UPDATE-no-op-on-missing semantics. The
+        // repository integration test `consume_missing_credential_is_noop`
+        // pins this contract.
+        Ok(())
+    }
+
+    async fn list_bootstrap_credentials(
+        &self,
+        unconsumed_only: bool,
+    ) -> RepositoryResult<Vec<BootstrapCredentialRow>> {
+        let state = self.lock()?;
+        Ok(state
+            .bootstrap_credentials
+            .iter()
+            .filter(|r| !unconsumed_only || r.consumed_at.is_none())
+            .cloned()
+            .collect())
     }
 
     // ---- Resources Catalogue ----
@@ -418,6 +431,58 @@ impl Repository for InMemoryRepository {
             .rev()
             .find(|e| e.org_scope == org)
             .and_then(|e| e.prev_event_hash))
+    }
+
+    async fn apply_bootstrap_claim(
+        &self,
+        claim: &crate::repository::BootstrapClaim,
+    ) -> RepositoryResult<()> {
+        // The single write-lock gives us pseudo-atomicity: if the guard
+        // returns mid-batch (panic / error), the other thread sees a
+        // poisoned mutex. For the happy path we apply every write; any
+        // validation error is surfaced before mutation begins.
+        let mut state = self.lock()?;
+
+        // Pre-flight validation so partial state doesn't survive:
+        // credential must still exist and be unconsumed.
+        let cred = state
+            .bootstrap_credentials
+            .iter_mut()
+            .find(|c| c.record_id == claim.credential_record_id)
+            .ok_or(RepositoryError::NotFound)?;
+        if cred.consumed_at.is_some() {
+            return Err(RepositoryError::Conflict(
+                "bootstrap credential already consumed".into(),
+            ));
+        }
+
+        // Writes in order matching the SurrealStore transaction.
+        state
+            .agents
+            .insert(claim.human_agent.id, claim.human_agent.clone());
+        state
+            .channels
+            .insert(claim.channel.id, claim.channel.clone());
+        state.inboxes.insert(claim.inbox.id, claim.inbox.clone());
+        state.outboxes.insert(claim.outbox.id, claim.outbox.clone());
+        state
+            .auth_requests
+            .insert(claim.auth_request.id, claim.auth_request.clone());
+        state.grants.insert(claim.grant.id, claim.grant.clone());
+        state.audit_events.push(claim.audit_event.clone());
+        for (uri, kind) in &claim.catalogue_entries {
+            state.catalogue.push((None, uri.clone(), kind.clone()));
+        }
+
+        // Mark credential consumed LAST — this is the moment the claim
+        // becomes irreversible from the caller's perspective.
+        let cred = state
+            .bootstrap_credentials
+            .iter_mut()
+            .find(|c| c.record_id == claim.credential_record_id)
+            .expect("credential located above");
+        cred.consumed_at = Some(chrono::Utc::now());
+        Ok(())
     }
 }
 

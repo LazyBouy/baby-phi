@@ -34,10 +34,10 @@ M1 is delivered phase-by-phase. This index is updated as each phase lands.
 | P1 Foundation (graph model, schema, migrations, audit, crypto) | ✓ done |
 | P2 Repository trait expansion + type-safe ownership edges (ADR-0015) | ✓ done |
 | P3 Permission Check engine | ✓ done |
-| P4 Auth Request state machine | [PLANNED M1/P4] |
-| P5 System Bootstrap flow | [PLANNED M1/P5] |
-| P6 HTTP endpoints + session cookie | [PLANNED M1/P6] |
-| P7 CLI subcommands | [PLANNED M1/P7] |
+| P4 Auth Request state machine | ✓ done |
+| P5 System Bootstrap flow | ✓ done |
+| P6 HTTP endpoints + session cookie | ✓ done |
+| P7 CLI subcommands | ✓ done |
 | P8 Web `/bootstrap` page | [PLANNED M1/P8] |
 | P9 Acceptance harness + final seal | [PLANNED M1/P9] |
 
@@ -64,20 +64,20 @@ be linked once the corresponding phase lands.
 | [audit-events.md](architecture/audit-events.md) | Base shape, classes, hash-chain seed |
 | [at-rest-encryption.md](architecture/at-rest-encryption.md) | Envelope encryption for the secrets vault |
 | [permission-check-engine.md](architecture/permission-check-engine.md) | 6-step (+2a) pipeline with ASCII diagram, module layout, metric wiring, proptest coverage |
-| `auth-request-state-machine.md` | `[PLANNED M1/P4]` — 9-state diagram + transition table |
-| `bootstrap-flow.md` | `[PLANNED M1/P5]` — s01 sequence diagram |
-| `server-topology.md` | `[PLANNED M1/P6]` — extends M0 version with the new route table |
+| [auth-request-state-machine.md](architecture/auth-request-state-machine.md) | 9-state lifecycle + aggregation tables + transition API + retention window + proptest coverage |
+| [bootstrap-flow.md](architecture/bootstrap-flow.md) | s01 atomic adoption flow + entity shape + rollback contract |
+| [server-topology.md](architecture/server-topology.md) | Extends the M0 route table with `/api/v0/bootstrap/*` + the signed-cookie layer + the `baby_phi_bootstrap_claims_total` counter |
 | `web-topology.md` | `[PLANNED M1/P8]` — extends M0 version with `/bootstrap` + cookie |
-| [storage-and-repository.md](architecture/storage-and-repository.md) | M0 extension — 33-method Repository surface + typed ownership-edge helpers |
+| [storage-and-repository.md](architecture/storage-and-repository.md) | M0 extension — 35-method Repository surface + typed ownership-edge helpers |
 
 ## user-guide/
 
 | Page | Purpose |
 |---|---|
-| `first-bootstrap.md` | `[PLANNED M1/P5]` — end-to-end walkthrough (CLI + web) |
-| `cli-usage.md` | `[PLANNED M1/P7]` — `baby-phi bootstrap {status,claim}` reference |
+| [first-bootstrap.md](user-guide/first-bootstrap.md) | End-to-end walkthrough — install command, credential delivery, claim flow, failure cases |
+| [cli-usage.md](user-guide/cli-usage.md) | `baby-phi bootstrap {status,claim}` + `agent demo` reference |
 | `web-usage.md` | `[PLANNED M1/P8]` — `/bootstrap` page walkthrough |
-| `http-api-reference.md` | `[PLANNED M1/P6]` — `/api/v0/bootstrap/*` contract |
+| [http-api-reference.md](user-guide/http-api-reference.md) | `/api/v0/bootstrap/*` request + response contract |
 | `troubleshooting.md` | `[PLANNED M1/P9]` — M1 error codes + recovery |
 
 ## operations/
@@ -98,8 +98,8 @@ pattern. Numbering continues from M0 (which holds 0001–0007).
 |---|---|---|
 | [0008](decisions/0008-permission-check-as-pipeline.md) | Permission Check as an eight-stage typed pipeline | Accepted — 2026-04-20 (P3) |
 | [0009](decisions/0009-surrealdb-schema-layout.md) | SurrealDB schema layout: one SCHEMAFULL table per node + typed RELATION per edge | Accepted — 2026-04-20 |
-| 0010 | Per-slot aggregation for Auth Requests | `[PLANNED M1/P4]` |
-| 0011 | Bootstrap credential: argon2id-hashed, stdout-delivered, single-use | `[PLANNED M1/P5]` |
+| [0010](decisions/0010-per-slot-aggregation.md) | Per-slot aggregation for Auth Requests | Accepted — 2026-04-20 (P4) |
+| [0011](decisions/0011-bootstrap-credential-single-use.md) | Bootstrap credential: argon2id-hashed, stdout-delivered, single-use | Accepted — 2026-04-20 (P5) |
 | [0012](decisions/0012-forward-only-migrations.md) | Forward-only embedded migrations with startup-gate fail-safe | Accepted — 2026-04-20 |
 | [0013](decisions/0013-audit-events-class-and-chain.md) | Audit events: class tiers + per-org hash-chain | Accepted — 2026-04-20 |
 | [0014](decisions/0014-at-rest-encryption-envelope.md) | At-rest encryption: AES-GCM envelope for the secrets vault | Accepted — 2026-04-20 |

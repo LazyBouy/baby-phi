@@ -10,3 +10,7 @@ data_dir = "data/baby-phi-dev.db"
 [telemetry]
 log_filter = "info,baby_phi=debug,baby_phi_server=debug,baby_phi_domain=debug,baby_phi_store=debug"
 json_logs = false
+
+# Plaintext localhost HTTP — let the browser keep the cookie.
+[session]
+secure = false

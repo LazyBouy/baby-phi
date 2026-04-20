@@ -12,5 +12,19 @@ path = "src/main.rs"
 
 [dependencies]
 phi-core = { workspace = true }
+server   = { workspace = true }
 tokio    = { workspace = true }
 clap     = { workspace = true }
+reqwest  = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "charset"] }
+serde    = { workspace = true }
+serde_json = { workspace = true }
+anyhow   = { workspace = true }
+thiserror = { workspace = true }
+tracing  = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+domain  = { workspace = true, features = ["in-memory-repo"] }
+server  = { workspace = true }
+axum    = { workspace = true }
+tokio   = { workspace = true }

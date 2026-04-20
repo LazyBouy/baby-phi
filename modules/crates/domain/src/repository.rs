@@ -61,6 +61,41 @@ pub struct BootstrapCredentialRow {
 }
 
 // ----------------------------------------------------------------------------
+// Bootstrap claim payload — the full set of entities apply_bootstrap_claim
+// must commit atomically.
+// ----------------------------------------------------------------------------
+
+/// All the writes the S01 flow commits in one atomic batch.
+///
+/// The caller (server::bootstrap::claim) assembles the entities from the
+/// submitted credential + validated form input; the repository runs them
+/// in a single SurrealDB transaction.
+#[derive(Debug, Clone)]
+pub struct BootstrapClaim {
+    /// SurrealDB record id of the unconsumed credential to mark `consumed_at`.
+    pub credential_record_id: String,
+    /// The new Human Agent node (R-SYS-s01-2).
+    pub human_agent: crate::model::nodes::Agent,
+    /// The Human Agent's channel (Slack / email / web).
+    pub channel: crate::model::nodes::Channel,
+    /// The Human Agent's inbox (R-SYS-s01-3).
+    pub inbox: crate::model::nodes::InboxObject,
+    /// The Human Agent's outbox (R-SYS-s01-3).
+    pub outbox: crate::model::nodes::OutboxObject,
+    /// The Bootstrap Auth Request, pre-built in `Approved` state with the
+    /// `system:genesis` slot already filled (R-SYS-s01-1).
+    pub auth_request: crate::model::nodes::AuthRequest,
+    /// The `[allocate]`-on-`system:root` Grant (R-SYS-s01-4).
+    pub grant: crate::model::nodes::Grant,
+    /// Platform-level catalogue seeds — `(uri, kind)` pairs (R-SYS-s01-3).
+    /// Must include at minimum `system:root` and the new inbox/outbox URIs.
+    pub catalogue_entries: Vec<(String, String)>,
+    /// The `PlatformAdminClaimed` audit event (R-ADMIN-01-N1 /
+    /// R-SYS-s01 side-effects).
+    pub audit_event: crate::audit::AuditEvent,
+}
+
+// ----------------------------------------------------------------------------
 // The trait
 // ----------------------------------------------------------------------------
 
@@ -169,6 +204,17 @@ pub trait Repository: Send + Sync + 'static {
         digest: &str,
     ) -> RepositoryResult<Option<BootstrapCredentialRow>>;
     async fn consume_bootstrap_credential(&self, record_id: &str) -> RepositoryResult<()>;
+    /// List bootstrap credentials. Used by the s01 claim flow to verify
+    /// a supplied plaintext against every stored argon2id hash (can't
+    /// look up by hash directly because each row has its own salt).
+    ///
+    /// When `unconsumed_only` is true, filters out rows with a
+    /// `consumed_at` timestamp. When false, returns every row (the
+    /// caller filters as needed).
+    async fn list_bootstrap_credentials(
+        &self,
+        unconsumed_only: bool,
+    ) -> RepositoryResult<Vec<BootstrapCredentialRow>>;
 
     // ---- Resources Catalogue ----------------------------------------------
 
@@ -183,6 +229,29 @@ pub trait Repository: Send + Sync + 'static {
         owning_org: Option<OrgId>,
         resource_uri: &str,
     ) -> RepositoryResult<bool>;
+
+    // ---- Bootstrap claim (atomic — the full s01 flow in one txn) ---------
+
+    /// Apply the System Bootstrap Template adoption in a single atomic
+    /// write. Per `concepts/permissions/02` §System Bootstrap Template
+    /// and `requirements/system/s01-bootstrap-template-adoption.md`
+    /// (R-SYS-s01-1 … R-SYS-s01-6), **all** of the following writes must
+    /// succeed together or none at all:
+    ///
+    /// 1. Create the Human Agent node.
+    /// 2. Create the Inbox and Outbox composites.
+    /// 3. Seed the platform-level `resources_catalogue` entries.
+    /// 4. Create the (auto-Approved) Bootstrap Auth Request.
+    /// 5. Create the `[allocate]`-on-`system:root` Grant.
+    /// 6. Write the `PlatformAdminClaimed` audit event.
+    /// 7. Mark the bootstrap credential consumed.
+    ///
+    /// If the method returns `Ok(())`, the write is durably applied. If
+    /// it returns `Err(_)`, **no** partial state survives — the
+    /// credential remains unconsumed and the caller may retry. SurrealDB
+    /// impl uses a `BEGIN TRANSACTION … COMMIT TRANSACTION` envelope;
+    /// in-memory fake uses its single write-lock to serialise the batch.
+    async fn apply_bootstrap_claim(&self, claim: &BootstrapClaim) -> RepositoryResult<()>;
 
     // ---- Audit ------------------------------------------------------------
 

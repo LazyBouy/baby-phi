@@ -33,6 +33,15 @@ tracing-subscriber = { workspace = true }
 axum-prometheus    = { workspace = true }
 config      = { workspace = true }
 async-trait = { workspace = true }
+chrono      = { workspace = true }
+uuid        = { workspace = true }
+argon2      = { workspace = true }
+base64      = { workspace = true }
+rand        = { workspace = true }
+clap        = { workspace = true }
+jsonwebtoken = { workspace = true }
+tower-cookies = { workspace = true }
+metrics     = { workspace = true }
 
 [dev-dependencies]
 domain      = { workspace = true, features = ["in-memory-repo"] }
@@ -45,3 +54,5 @@ reqwest     = { version = "0.12", default-features = false, features = ["rustls-
 rcgen       = "0.13"
 rustls      = { version = "0.23", default-features = false, features = ["ring"] }
 tempfile    = "3"
+http-body-util = "0.1"
+serde_json  = { workspace = true }

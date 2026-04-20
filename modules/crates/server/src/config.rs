@@ -17,6 +17,7 @@ pub struct ServerConfig {
     pub server: HttpConfig,
     pub storage: StorageConfig,
     pub telemetry: TelemetryConfig,
+    pub session: SessionConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -50,6 +51,45 @@ pub struct TelemetryConfig {
     pub log_filter: String,
     /// Emit structured JSON logs (production) vs pretty logs (dev).
     pub json_logs: bool,
+}
+
+/// Session-cookie configuration.
+///
+/// M1 ships a signed session cookie that is set on a successful bootstrap
+/// claim so the browser knows *who* just finished bootstrapping. OAuth
+/// wiring (which replaces this signed-cookie scheme for the general case)
+/// lands in M3 — see [ADR-0015] (placeholder) and the admin journey plan.
+///
+/// The secret must be at least 32 bytes. In production it MUST come from
+/// `BABY_PHI_SESSION__SECRET`; committed `config/*.toml` holds only a dev
+/// default (see `config/dev.toml`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct SessionConfig {
+    /// HS256 signing key for the `baby_phi_session` cookie.
+    pub secret: String,
+    /// Cookie name. Defaults to `baby_phi_session`.
+    #[serde(default = "default_cookie_name")]
+    pub cookie_name: String,
+    /// Token lifetime in seconds. Defaults to 12 hours.
+    #[serde(default = "default_ttl_seconds")]
+    pub ttl_seconds: u64,
+    /// Set the `Secure` cookie attribute. Defaults to `true`; set to
+    /// `false` in `config/dev.toml` so the cookie survives plaintext
+    /// localhost HTTP.
+    #[serde(default = "default_secure")]
+    pub secure: bool,
+}
+
+fn default_cookie_name() -> String {
+    "baby_phi_session".to_string()
+}
+
+fn default_ttl_seconds() -> u64 {
+    12 * 60 * 60
+}
+
+fn default_secure() -> bool {
+    true
 }
 
 impl ServerConfig {

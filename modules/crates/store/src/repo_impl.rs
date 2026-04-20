@@ -30,7 +30,9 @@ use domain::model::nodes::{
     Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
     OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
 };
-use domain::repository::{BootstrapCredentialRow, Repository, RepositoryError, RepositoryResult};
+use domain::repository::{
+    BootstrapClaim, BootstrapCredentialRow, Repository, RepositoryError, RepositoryResult,
+};
 
 use crate::SurrealStore;
 
@@ -807,6 +809,22 @@ impl Repository for SurrealStore {
         Ok(())
     }
 
+    async fn list_bootstrap_credentials(
+        &self,
+        unconsumed_only: bool,
+    ) -> RepositoryResult<Vec<BootstrapCredentialRow>> {
+        let q = if unconsumed_only {
+            "SELECT record::id(id) AS _rid, digest, created_at, consumed_at \
+             FROM bootstrap_credentials WHERE consumed_at IS NONE"
+        } else {
+            "SELECT record::id(id) AS _rid, digest, created_at, consumed_at \
+             FROM bootstrap_credentials"
+        };
+        let mut resp = self.client().query(q).await.map_err(backend)?;
+        let rows: Vec<BootstrapRow> = resp.take(0).map_err(backend)?;
+        Ok(rows.into_iter().map(BootstrapRow::into_domain).collect())
+    }
+
     // ---- Resources Catalogue --------------------------------------------
 
     async fn seed_catalogue_entry(
@@ -863,6 +881,84 @@ impl Repository for SurrealStore {
             .map_err(backend)?
             .check()
             .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn apply_bootstrap_claim(&self, claim: &BootstrapClaim) -> RepositoryResult<()> {
+        // All s01 writes happen inside a single SurrealDB transaction. If
+        // any query errors, SurrealDB rolls the whole batch back — the
+        // credential stays unconsumed and the admin may retry.
+        //
+        // We serialize each entity once, up-front, so a serde error surfaces
+        // before we open the transaction.
+        let agent_body = strip_id(serde_json::to_value(&claim.human_agent).map_err(backend)?);
+        let channel_body = strip_id(serde_json::to_value(&claim.channel).map_err(backend)?);
+        let inbox_body = strip_id(serde_json::to_value(&claim.inbox).map_err(backend)?);
+        let outbox_body = strip_id(serde_json::to_value(&claim.outbox).map_err(backend)?);
+        let auth_request_body =
+            serde_json::to_value(AuthRequestRow::from_domain(&claim.auth_request)?)
+                .map_err(backend)?;
+        let grant_body =
+            serde_json::to_value(GrantRow::from_domain(&claim.grant)).map_err(backend)?;
+        let audit_body = serde_json::to_value(AuditEventRow::from_domain(&claim.audit_event))
+            .map_err(backend)?;
+
+        // Catalogue entries — we emit one CREATE per entry inside the
+        // transaction. SurrealDB 2.x permits multiple statements separated
+        // by `;` in a single `query(...)` call.
+        let mut q = String::from(
+            "BEGIN TRANSACTION;\n\
+             CREATE type::thing('agent', $agent_id) CONTENT $agent_body RETURN NONE;\n\
+             CREATE type::thing('channel', $channel_id) CONTENT $channel_body RETURN NONE;\n\
+             CREATE type::thing('inbox_object', $inbox_id) CONTENT $inbox_body RETURN NONE;\n\
+             CREATE type::thing('outbox_object', $outbox_id) CONTENT $outbox_body RETURN NONE;\n\
+             CREATE type::thing('auth_request', $ar_id) CONTENT $auth_request_body RETURN NONE;\n\
+             CREATE type::thing('grant', $grant_id) CONTENT $grant_body RETURN NONE;\n\
+             CREATE audit_events CONTENT $audit_body RETURN NONE;\n",
+        );
+        // One CREATE per catalogue entry.
+        for i in 0..claim.catalogue_entries.len() {
+            q.push_str(&format!(
+                "CREATE resources_catalogue SET owning_org = NONE, \
+                 resource_uri = $cat_uri_{i}, kind = $cat_kind_{i}, \
+                 added_at = $now RETURN NONE;\n"
+            ));
+        }
+        q.push_str(
+            "UPDATE type::thing('bootstrap_credentials', $cred_record_id) \
+             SET consumed_at = $now RETURN NONE;\n\
+             COMMIT TRANSACTION;",
+        );
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let channel_id = claim.channel.id.to_string();
+        let inbox_id = claim.inbox.id.to_string();
+        let outbox_id = claim.outbox.id.to_string();
+
+        let mut binder = self
+            .client()
+            .query(q)
+            .bind(("agent_id", claim.human_agent.id.to_string()))
+            .bind(("agent_body", agent_body))
+            .bind(("channel_id", channel_id))
+            .bind(("channel_body", channel_body))
+            .bind(("inbox_id", inbox_id))
+            .bind(("inbox_body", inbox_body))
+            .bind(("outbox_id", outbox_id))
+            .bind(("outbox_body", outbox_body))
+            .bind(("ar_id", claim.auth_request.id.to_string()))
+            .bind(("auth_request_body", auth_request_body))
+            .bind(("grant_id", claim.grant.id.to_string()))
+            .bind(("grant_body", grant_body))
+            .bind(("audit_body", audit_body))
+            .bind(("cred_record_id", claim.credential_record_id.clone()))
+            .bind(("now", now));
+        for (i, (uri, kind)) in claim.catalogue_entries.iter().enumerate() {
+            binder = binder
+                .bind((format!("cat_uri_{i}"), uri.clone()))
+                .bind((format!("cat_kind_{i}"), kind.clone()));
+        }
+        binder.await.map_err(backend)?.check().map_err(backend)?;
         Ok(())
     }
 

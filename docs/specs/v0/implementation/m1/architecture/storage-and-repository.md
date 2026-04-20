@@ -40,9 +40,12 @@ The raw methods (`upsert_ownership_raw`, etc.) remain accessible for
 callers that already have a `NodeId` (e.g. bulk migration scripts); they
 just don't give the compile-time guarantee.
 
-## Trait surface (33 async methods)
+## Trait surface (35 async methods)
 
-Grouped by concern:
+Grouped by concern. P2 shipped 33; P5 added `apply_bootstrap_claim`
+(the atomic seven-writes batch for the s01 adoption flow) and P6 added
+`list_bootstrap_credentials` (needed by the claim handler's verify-per-row
+scan — see ADR-0011 §Lookup).
 
 | Group | Methods |
 |---|---|
@@ -51,7 +54,8 @@ Grouped by concern:
 | Grants | `create_grant`, `get_grant`, `revoke_grant`, `list_grants_for_principal` |
 | Auth Requests | `create_auth_request`, `get_auth_request`, `update_auth_request`, `list_active_auth_requests_for_resource` |
 | Ownership edges (raw) | `upsert_ownership_raw`, `upsert_creation_raw`, `upsert_allocation_raw` |
-| Bootstrap credentials | `put_bootstrap_credential`, `find_unconsumed_credential`, `consume_bootstrap_credential` |
+| Bootstrap credentials | `put_bootstrap_credential`, `find_unconsumed_credential`, `consume_bootstrap_credential`, `list_bootstrap_credentials` |
+| Bootstrap flow | `apply_bootstrap_claim` |
 | Resources catalogue | `seed_catalogue_entry`, `catalogue_contains` |
 | Audit | `write_audit_event`, `last_event_hash_for_org` |
 
@@ -138,29 +142,39 @@ tested.
 
 Integration tests live in
 [`modules/crates/store/tests/repository_test.rs`](../../../../../../modules/crates/store/tests/repository_test.rs)
-— 26 tests spanning every method in the trait. Categories:
+— **60 tests** spanning every method in the trait (P2 shipped 26; the
+P3+ post-audit widening pass added 31 more, and P5 added 3 for the
+bootstrap-flow atomic batch). Categories:
 
 - Node CRUD round-trips (create + get; get-none; get-admin-before / after).
-- Grant CRUD + revoke + list-by-principal (incl. negative cases).
-- AuthRequest CRUD + full-replace update + list-active-by-resource.
-- Typed ownership-edge wrappers (ownership / creation / allocation).
-- Bootstrap credentials lifecycle (put / find / find-after-consume / consume).
-- Catalogue (seed / contains-hit / contains-miss / per-org isolation).
-- Audit (write / last-hash-empty / last-hash-per-org-isolation).
+- Grant CRUD + revoke + list-by-principal, including every
+  `PrincipalRef` variant as a holder (incl. negative cases).
+- AuthRequest CRUD + full-replace update + list-active-by-resource +
+  multi-slot / multi-approver round-trips.
+- Typed ownership-edge wrappers (ownership / creation / allocation) +
+  edge-id uniqueness under repeated upserts.
+- Bootstrap credentials lifecycle (put / find / consume / list) +
+  `apply_bootstrap_claim` atomic commit + rollback-on-collision
+  (see ADR-0011 §Atomicity).
+- Catalogue (seed / contains-hit / contains-miss / per-org isolation +
+  case-sensitive lookup).
+- Audit (write / last-hash-empty / last-hash-per-org-isolation +
+  most-recent ordering by timestamp).
 
 Each test boots a fresh embedded SurrealDB in its own tempdir and drops
 it on scope end, so they're independent and parallel-safe.
 
-## Testing counts (P1 → P2)
+## Testing counts (P1 → current)
 
-| Layer | P1 | P2 |
-|---|---|---|
-| Domain unit | 27 | **36** (+9 marker-trait / typed-constructor tests) |
-| Compile-fail (`trybuild`) | 0 | **6** (wrong-pair endpoint constructions) |
-| Store unit | 13 | 13 |
-| Store integration | 2 | **29** (2 existing + 26 new repository + 1 harness) |
-| Server integration | 4 | 4 |
-| **Runnable total** | **46** | **82** |
+Summary (cargo-test pass counts at each checkpoint). The full
+column-by-column breakdown — including domain proptest + worked-trace
++ doctest rows — lives in [overview.md](overview.md) §Testing posture.
+
+| Layer | P1 | P2 | P3+ widening | P5 | Current |
+|---|---|---|---|---|---|
+| Store unit (crypto + migrations) | 13 | 13 | 13 | 13 | **13** |
+| Store integration (migrations + crypto vault + repository) | 2 | 29 | 59 | 62 | **62** |
+| **Runnable total** (full workspace) | **46** | **82** | **186** | **260** | **292** |
 
 ## Concept references
 

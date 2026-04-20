@@ -9,7 +9,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use domain::in_memory::InMemoryRepository;
-use server::{build_router, AppState};
+use server::{build_router, AppState, SessionKey};
 use tower::ServiceExt;
 
 fn app(healthy: bool) -> axum::Router {
@@ -17,6 +17,7 @@ fn app(healthy: bool) -> axum::Router {
     repo.set_unhealthy(!healthy);
     build_router(AppState {
         repo: Arc::new(repo),
+        session: SessionKey::for_tests("test-secret-test-secret-test-secret-test-secret"),
     })
 }
 

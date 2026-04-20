@@ -1,18 +1,34 @@
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use axum_prometheus::PrometheusMetricLayer;
+use tower_cookies::CookieManagerLayer;
 
-use crate::{health, state::AppState};
+use crate::{handlers, health, state::AppState};
 
 /// Build the base application router. This is the routes an **integration
 /// test** exercises — it does NOT install a global Prometheus recorder, so
 /// many tests can construct their own app in parallel.
 ///
-/// API endpoints (bootstrap, orgs, agents, projects, grants, sessions,
-/// auth-requests) are added in subsequent milestones.
+/// Mounts:
+/// - `/healthz/live`               (M0)
+/// - `/healthz/ready`              (M0)
+/// - `GET  /api/v0/bootstrap/status` (M1/P6)
+/// - `POST /api/v0/bootstrap/claim`  (M1/P6)
+///
+/// The `CookieManagerLayer` is applied once here so every handler that
+/// pulls `Cookies` from the extractor gets a working jar.
 pub fn build_router(state: AppState) -> Router {
+    let api_v0 = Router::new()
+        .route("/bootstrap/status", get(handlers::bootstrap::status))
+        .route("/bootstrap/claim", post(handlers::bootstrap::claim));
+
     Router::new()
         .route("/healthz/live", get(health::live))
         .route("/healthz/ready", get(health::ready))
+        .nest("/api/v0", api_v0)
+        .layer(CookieManagerLayer::new())
         .with_state(state)
 }
 

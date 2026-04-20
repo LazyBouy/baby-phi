@@ -8,7 +8,7 @@
 //!   seed that M7b promotes to a tamper-evident off-site stream.
 //! - The Permission Check engine (lands in P3 —
 //!   `permissions/04-manifest-and-resolution.md`).
-//! - The Auth Request state machine (lands in P4 —
+//! - The Auth Request state machine (`crate::auth_requests` —
 //!   `permissions/02-auth-request.md`).
 //! - The system-flow state machines (s01 in P5; s02–s06 in later milestones).
 //!
@@ -16,10 +16,10 @@
 //! the `store` crate.
 
 pub mod audit;
+pub mod auth_requests;
 pub mod model;
 pub mod permissions;
 pub mod repository;
-pub mod state_machines;
 
 #[cfg(any(test, feature = "in-memory-repo"))]
 pub mod in_memory;

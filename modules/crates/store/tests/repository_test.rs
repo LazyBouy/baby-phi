@@ -1341,3 +1341,238 @@ async fn audit_last_event_hash_isolated_between_org_and_platform_scope() {
         "org scope must see its own hash"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Bootstrap claim — atomic s01 flow (P5)
+// ---------------------------------------------------------------------------
+
+fn claim_entities() -> (AgentId, NodeId, NodeId, NodeId, AuthRequestId, GrantId) {
+    (
+        AgentId::new(),
+        NodeId::new(),
+        NodeId::new(),
+        NodeId::new(),
+        AuthRequestId::new(),
+        GrantId::new(),
+    )
+}
+
+fn bootstrap_claim_for(
+    credential_record_id: &str,
+    agent_id: AgentId,
+    channel_id: NodeId,
+    inbox_id: NodeId,
+    outbox_id: NodeId,
+    auth_request_id: AuthRequestId,
+    grant_id: GrantId,
+) -> domain::repository::BootstrapClaim {
+    let now = Utc::now();
+    domain::repository::BootstrapClaim {
+        credential_record_id: credential_record_id.to_string(),
+        human_agent: Agent {
+            id: agent_id,
+            kind: AgentKind::Human,
+            display_name: "Alex Chen".into(),
+            owning_org: None,
+            created_at: now,
+        },
+        channel: Channel {
+            id: channel_id,
+            agent_id,
+            kind: ChannelKind::Slack,
+            handle: "@alex".into(),
+            created_at: now,
+        },
+        inbox: InboxObject {
+            id: inbox_id,
+            agent_id,
+            created_at: now,
+        },
+        outbox: OutboxObject {
+            id: outbox_id,
+            agent_id,
+            created_at: now,
+        },
+        auth_request: AuthRequest {
+            id: auth_request_id,
+            requestor: PrincipalRef::System("system:genesis".into()),
+            kinds: vec!["control_plane_object".into()],
+            scope: vec!["allocate".into()],
+            state: AuthRequestState::Approved,
+            valid_until: None,
+            submitted_at: now,
+            resource_slots: vec![ResourceSlot {
+                resource: ResourceRef {
+                    uri: "system:root".into(),
+                },
+                approvers: vec![ApproverSlot {
+                    approver: PrincipalRef::System("system:genesis".into()),
+                    state: ApproverSlotState::Approved,
+                    responded_at: Some(now),
+                    reconsidered_at: None,
+                }],
+                state: ResourceSlotState::Approved,
+            }],
+            justification: Some("bootstrap".into()),
+            audit_class: AuditClass::Alerted,
+            terminal_state_entered_at: Some(now),
+            archived: false,
+            active_window_days: 3650,
+            provenance_template: Some(TemplateId::from_uuid(Uuid::nil())),
+        },
+        grant: Grant {
+            id: grant_id,
+            holder: PrincipalRef::Agent(agent_id),
+            action: vec!["allocate".into()],
+            resource: ResourceRef {
+                uri: "system:root".into(),
+            },
+            descends_from: Some(auth_request_id),
+            delegable: true,
+            issued_at: now,
+            revoked_at: None,
+        },
+        catalogue_entries: vec![
+            (
+                "system:root".to_string(),
+                "control_plane_object".to_string(),
+            ),
+            (format!("inbox:{}", inbox_id), "inbox_object".to_string()),
+        ],
+        audit_event: AuditEvent {
+            event_id: AuditEventId::new(),
+            event_type: "platform_admin.claimed".into(),
+            actor_agent_id: Some(agent_id),
+            target_entity_id: Some(NodeId::from_uuid(*agent_id.as_uuid())),
+            timestamp: now,
+            diff: serde_json::json!({"after": {"display_name": "Alex Chen"}}),
+            audit_class: AuditClass::Alerted,
+            provenance_auth_request_id: Some(auth_request_id),
+            org_scope: None,
+            prev_event_hash: None,
+        },
+    }
+}
+
+#[tokio::test]
+async fn apply_bootstrap_claim_happy_path_commits_every_entity() {
+    let (store, _dir) = fresh_store().await;
+    let cred = store
+        .put_bootstrap_credential("argon2-digest".into())
+        .await
+        .unwrap();
+    let (agent_id, channel_id, inbox_id, outbox_id, ar_id, grant_id) = claim_entities();
+    let claim = bootstrap_claim_for(
+        &cred.record_id,
+        agent_id,
+        channel_id,
+        inbox_id,
+        outbox_id,
+        ar_id,
+        grant_id,
+    );
+
+    store.apply_bootstrap_claim(&claim).await.expect("commit");
+
+    // Every entity is persisted.
+    assert!(store.get_agent(agent_id).await.unwrap().is_some());
+    assert!(store.get_grant(grant_id).await.unwrap().is_some());
+    assert!(store.get_auth_request(ar_id).await.unwrap().is_some());
+    assert!(store.catalogue_contains(None, "system:root").await.unwrap());
+    // The credential has been marked consumed.
+    let cred_after = store
+        .find_unconsumed_credential("argon2-digest")
+        .await
+        .unwrap();
+    assert!(
+        cred_after.is_none(),
+        "credential must be consumed after successful claim"
+    );
+    // Admin lookup finds the new human agent.
+    let admin = store.get_admin_agent().await.unwrap().unwrap();
+    assert_eq!(admin.id, agent_id);
+}
+
+#[tokio::test]
+async fn apply_bootstrap_claim_is_idempotent_failure_when_agent_id_collides() {
+    // Pinning atomicity: if a duplicate-id inside the transaction fires a
+    // SurrealDB error, the whole batch rolls back — no partial state
+    // survives, and the credential stays unconsumed for retry.
+    let (store, _dir) = fresh_store().await;
+    let cred = store
+        .put_bootstrap_credential("argon2-collide".into())
+        .await
+        .unwrap();
+
+    let (agent_id, channel_id, inbox_id, outbox_id, ar_id, grant_id) = claim_entities();
+
+    // Pre-create the agent so the transaction's CREATE will collide.
+    store
+        .create_agent(&Agent {
+            id: agent_id,
+            kind: AgentKind::Human,
+            display_name: "Pre-Existing".into(),
+            owning_org: None,
+            created_at: Utc::now(),
+        })
+        .await
+        .unwrap();
+
+    let claim = bootstrap_claim_for(
+        &cred.record_id,
+        agent_id,
+        channel_id,
+        inbox_id,
+        outbox_id,
+        ar_id,
+        grant_id,
+    );
+
+    let err = store
+        .apply_bootstrap_claim(&claim)
+        .await
+        .expect_err("must fail on agent-id collision");
+    drop(err);
+
+    // Rollback guarantees: the grant / auth request / new catalogue
+    // entries / audit event did NOT land, and the credential is STILL
+    // unconsumed so the admin can retry with a fresh agent id.
+    assert!(store.get_grant(grant_id).await.unwrap().is_none());
+    assert!(store.get_auth_request(ar_id).await.unwrap().is_none());
+    let cred_after = store
+        .find_unconsumed_credential("argon2-collide")
+        .await
+        .unwrap();
+    assert!(
+        cred_after.is_some(),
+        "credential must remain unconsumed after failed claim"
+    );
+    // Catalogue was untouched.
+    assert!(
+        !store.catalogue_contains(None, "system:root").await.unwrap(),
+        "catalogue must not gain entries when the transaction rolls back"
+    );
+}
+
+#[tokio::test]
+async fn list_bootstrap_credentials_returns_all_when_unconsumed_only_false() {
+    let (store, _dir) = fresh_store().await;
+    let _a = store
+        .put_bootstrap_credential("digest-1".into())
+        .await
+        .unwrap();
+    let b = store
+        .put_bootstrap_credential("digest-2".into())
+        .await
+        .unwrap();
+    store
+        .consume_bootstrap_credential(&b.record_id)
+        .await
+        .unwrap();
+
+    let all = store.list_bootstrap_credentials(false).await.unwrap();
+    assert_eq!(all.len(), 2);
+    let unconsumed = store.list_bootstrap_credentials(true).await.unwrap();
+    assert_eq!(unconsumed.len(), 1);
+    assert_eq!(unconsumed[0].digest, "digest-1");
+}
