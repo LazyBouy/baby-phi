@@ -21,13 +21,16 @@ async fn seal_persist_read_open_roundtrip() {
         .client()
         .query(
             "CREATE secrets_vault SET \
-                label = $label, \
+                slug = $slug, \
+                custodian_id = $custodian, \
+                sensitive = true, \
                 value_ciphertext_b64 = $ct, \
                 nonce_b64 = $nonce, \
                 created_at = time::now(), \
-                rotated_at = NONE",
+                last_rotated_at = NONE",
         )
-        .bind(("label", "test-openrouter"))
+        .bind(("slug", "test-openrouter"))
+        .bind(("custodian", uuid::Uuid::new_v4().to_string()))
         .bind(("ct", ct_b64))
         .bind(("nonce", nonce_b64))
         .await
@@ -38,8 +41,8 @@ async fn seal_persist_read_open_roundtrip() {
     // Read it back and rebuild the SealedSecret.
     let mut resp = store
         .client()
-        .query("SELECT value_ciphertext_b64, nonce_b64 FROM secrets_vault WHERE label = $label")
-        .bind(("label", "test-openrouter"))
+        .query("SELECT value_ciphertext_b64, nonce_b64 FROM secrets_vault WHERE slug = $slug")
+        .bind(("slug", "test-openrouter"))
         .await
         .expect("query secret");
 

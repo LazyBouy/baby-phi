@@ -117,6 +117,13 @@ struct GrantRow {
     holder_id: String,
     action: Vec<String>,
     resource_uri: String,
+    /// Explicit fundamentals — serialized as a `Vec<&'static str>`
+    /// since [`Fundamental`] already serdes as a snake_case string.
+    /// `#[serde(default)]` means existing rows (pre-M2/P4.5) deserialize
+    /// with an empty vec, which preserves legacy URI-derivation in
+    /// `resolve_grant` (see its Case C fallback).
+    #[serde(default)]
+    fundamentals: Vec<domain::model::Fundamental>,
     descends_from: Option<String>,
     delegable: bool,
     issued_at: DateTime<Utc>,
@@ -131,6 +138,7 @@ impl GrantRow {
             holder_id,
             action: g.action.clone(),
             resource_uri: g.resource.uri.clone(),
+            fundamentals: g.fundamentals.clone(),
             descends_from: g.descends_from.map(|a| a.to_string()),
             delegable: g.delegable,
             issued_at: g.issued_at,
@@ -153,6 +161,7 @@ impl GrantRow {
             resource: ResourceRef {
                 uri: self.resource_uri,
             },
+            fundamentals: self.fundamentals,
             descends_from,
             delegable: self.delegable,
             issued_at: self.issued_at,
@@ -982,31 +991,181 @@ impl Repository for SurrealStore {
         &self,
         org: Option<OrgId>,
     ) -> RepositoryResult<Option<[u8; 32]>> {
-        // SurrealDB requires the ORDER BY idiom to appear in the SELECT
-        // projection; we pull `timestamp` solely to satisfy that rule.
+        // Read the full last event within `org_scope` and hash its
+        // canonical bytes. The next event's `prev_event_hash` copies
+        // this digest — that's what makes the chain a chain:
+        //
+        //   event_n.prev_event_hash = hash_event(event_{n-1})
+        //
+        // Returning the stored `prev_event_hash_b64` column would
+        // propagate the SECOND-to-last event's hash, not the last —
+        // `prev_event_hash(n) = prev_event_hash(n-1)` is a constant,
+        // not a chain. We pull the full row + id so we can rebuild the
+        // domain struct exactly and call `hash_event`.
         let mut resp = self
             .client()
             .query(
-                "SELECT prev_event_hash_b64, timestamp FROM audit_events \
+                "SELECT *, record::id(id) AS __id OMIT id FROM audit_events \
                  WHERE org_scope = $org ORDER BY timestamp DESC LIMIT 1",
             )
             .bind(("org", org.map(|o| o.to_string())))
             .await
             .map_err(backend)?;
-        let rows: Vec<Option<String>> = resp.take((0, "prev_event_hash_b64")).map_err(backend)?;
-        let Some(Some(b64)) = rows.into_iter().next() else {
+        let raw: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let Some(mut row) = raw.into_iter().next() else {
             return Ok(None);
         };
-        let bytes = BASE64_NOPAD.decode(&b64).map_err(backend)?;
-        if bytes.len() != 32 {
-            return Err(RepositoryError::Backend(format!(
-                "prev_event_hash_b64 decoded length != 32 ({} bytes)",
-                bytes.len()
-            )));
+        let id_str = row
+            .get("__id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| RepositoryError::Backend("last audit event missing __id".into()))?
+            .to_string();
+        if let serde_json::Value::Object(ref mut map) = row {
+            map.remove("__id");
         }
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&bytes);
-        Ok(Some(out))
+        let parsed: AuditEventRow = serde_json::from_value(row).map_err(backend)?;
+        let id = AuditEventId::from_uuid(parse_uuid(&id_str)?);
+        let event = parsed.into_domain(id)?;
+        Ok(Some(domain::audit::hash_event(&event)))
+    }
+
+    // ================================================================
+    // M2 trait delegations — bodies live in `repo_impl_m2.rs` to keep
+    // this file bounded. See that module for row translators + the
+    // full SurrealQL for each surface.
+    // ================================================================
+
+    async fn put_secret(
+        &self,
+        credential: &domain::model::SecretCredential,
+        sealed: &domain::repository::SealedBlob,
+    ) -> RepositoryResult<()> {
+        self.m2_put_secret(credential, sealed).await
+    }
+
+    async fn get_secret_by_slug(
+        &self,
+        slug: &domain::model::SecretRef,
+    ) -> RepositoryResult<
+        Option<(
+            domain::model::SecretCredential,
+            domain::repository::SealedBlob,
+        )>,
+    > {
+        self.m2_get_secret_by_slug(slug).await
+    }
+
+    async fn list_secrets(&self) -> RepositoryResult<Vec<domain::model::SecretCredential>> {
+        self.m2_list_secrets().await
+    }
+
+    async fn rotate_secret(
+        &self,
+        id: domain::model::ids::SecretId,
+        new_sealed: &domain::repository::SealedBlob,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        self.m2_rotate_secret(id, new_sealed, at).await
+    }
+
+    async fn reassign_secret_custodian(
+        &self,
+        id: domain::model::ids::SecretId,
+        new_custodian: AgentId,
+    ) -> RepositoryResult<()> {
+        self.m2_reassign_secret_custodian(id, new_custodian).await
+    }
+
+    async fn put_model_provider(
+        &self,
+        provider: &domain::model::ModelRuntime,
+    ) -> RepositoryResult<()> {
+        self.m2_put_model_provider(provider).await
+    }
+
+    async fn list_model_providers(
+        &self,
+        include_archived: bool,
+    ) -> RepositoryResult<Vec<domain::model::ModelRuntime>> {
+        self.m2_list_model_providers(include_archived).await
+    }
+
+    async fn archive_model_provider(
+        &self,
+        id: domain::model::ids::ModelProviderId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        self.m2_archive_model_provider(id, at).await
+    }
+
+    async fn put_mcp_server(
+        &self,
+        server: &domain::model::ExternalService,
+    ) -> RepositoryResult<()> {
+        self.m2_put_mcp_server(server).await
+    }
+
+    async fn list_mcp_servers(
+        &self,
+        include_archived: bool,
+    ) -> RepositoryResult<Vec<domain::model::ExternalService>> {
+        self.m2_list_mcp_servers(include_archived).await
+    }
+
+    async fn patch_mcp_tenants(
+        &self,
+        id: domain::model::ids::McpServerId,
+        new_allowed: &domain::model::TenantSet,
+    ) -> RepositoryResult<()> {
+        self.m2_patch_mcp_tenants(id, new_allowed).await
+    }
+
+    async fn archive_mcp_server(
+        &self,
+        id: domain::model::ids::McpServerId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        self.m2_archive_mcp_server(id, at).await
+    }
+
+    async fn get_platform_defaults(
+        &self,
+    ) -> RepositoryResult<Option<domain::model::PlatformDefaults>> {
+        self.m2_get_platform_defaults().await
+    }
+
+    async fn put_platform_defaults(
+        &self,
+        defaults: &domain::model::PlatformDefaults,
+    ) -> RepositoryResult<()> {
+        self.m2_put_platform_defaults(defaults).await
+    }
+
+    async fn narrow_mcp_tenants(
+        &self,
+        id: domain::model::ids::McpServerId,
+        new_allowed: &domain::model::TenantSet,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<Vec<domain::repository::TenantRevocation>> {
+        self.m2_narrow_mcp_tenants(id, new_allowed, at).await
+    }
+
+    async fn revoke_grants_by_descends_from(
+        &self,
+        ar: domain::model::ids::AuthRequestId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<Vec<GrantId>> {
+        self.m2_revoke_grants_by_descends_from(ar, at).await
+    }
+
+    async fn seed_catalogue_entry_for_composite(
+        &self,
+        owning_org: Option<OrgId>,
+        resource_uri: &str,
+        composite: domain::model::Composite,
+    ) -> RepositoryResult<()> {
+        self.m2_seed_catalogue_entry_for_composite(owning_org, resource_uri, composite)
+            .await
     }
 }
 

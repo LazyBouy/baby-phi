@@ -42,6 +42,8 @@ fn app_with(repo: Arc<InMemoryRepository>) -> Router {
     build_router(AppState {
         repo,
         session: test_session(),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     })
 }
 

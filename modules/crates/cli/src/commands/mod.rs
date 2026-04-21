@@ -3,3 +3,5 @@
 
 pub mod agent;
 pub mod bootstrap;
+pub mod login;
+pub mod secrets;

@@ -39,3 +39,27 @@ export async function getSession(): Promise<Session> {
   }
   return verifySessionToken(token, getSecret());
 }
+
+/**
+ * Gate helper for Server Components inside `app/(admin)/`. On an
+ * authenticated request, resolves to the `Session`. Otherwise calls
+ * Next.js `redirect('/bootstrap')` which throws to short-circuit
+ * rendering — callers do NOT need to branch on `{ authenticated }`.
+ *
+ * M3+ will extend this to enforce the `PlatformAdmin` principal
+ * explicitly; M2 ships with a single principal so the check is
+ * redundant but the helper centralises the gate.
+ */
+export async function requireAdminSession(): Promise<
+  Extract<Session, { authenticated: true }>
+> {
+  const { redirect } = await import("next/navigation");
+  const session = await getSession();
+  if (!session.authenticated) {
+    // `redirect` returns `never` at runtime but TS can't narrow `session`
+    // through a dynamic import call — re-assert with an explicit throw.
+    redirect("/bootstrap");
+    throw new Error("unreachable");
+  }
+  return session;
+}

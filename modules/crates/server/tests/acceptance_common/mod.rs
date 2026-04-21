@@ -12,6 +12,8 @@
 //! sibling `acceptance_*.rs` files via `mod acceptance_common;`. This
 //! pattern is documented in the Cargo book under "Integration tests".
 
+pub mod admin;
+
 use std::net::{SocketAddr, TcpListener};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -69,9 +71,12 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
         .expect("open embedded SurrealStore");
 
     let store = Arc::new(store);
+    let repo: Arc<dyn domain::Repository> = store.clone();
     let state = AppState {
-        repo: store.clone(),
+        repo: repo.clone(),
         session: SessionKey::for_tests(TEST_SESSION_SECRET),
+        audit: Arc::new(store::SurrealAuditEmitter::new(repo)),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     };
 
     let app: Router = if with_metrics {

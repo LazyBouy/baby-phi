@@ -359,35 +359,66 @@ fn tie_break_within_tier(mut cands: Vec<Candidate>) -> Option<ResolvedGrant> {
 // ----------------------------------------------------------------------------
 
 /// For each manifest-required constraint, the winning grant must be
-/// callable with a value for that constraint. In v0.1 we model constraint
-/// satisfaction as "the invocation's `constraint_context` carries a value
-/// under the constraint's name". Grants in M1 don't yet track per-constraint
-/// shapes; M2+ tightens this into a lattice check.
+/// callable with a value for that constraint.
+///
+/// v0 rule (M2): the invocation's `constraint_context` must carry a
+/// value under each required constraint name (**presence check**).
+/// Additionally, when `manifest.constraint_requirements` names a
+/// required value for that constraint, the context value must be
+/// **equal** to that required value (**value-match check**).
+///
+/// Examples:
+/// - `constraints = ["purpose"]`, no requirement — passes if the
+///   context has ANY `"purpose"` entry.
+/// - `constraints = ["purpose"]` + `constraint_requirements["purpose"]
+///   = json!("reveal")` — passes only if the context's `"purpose"`
+///   equals `"reveal"` exactly.
+///
+/// Pattern matching / lattice ordering land in M3 when the constraint
+/// lattice machinery arrives. String / number / boolean equality is
+/// sufficient for M2's page-04 `purpose=reveal` contract (G3 in the
+/// archived M2 plan).
 pub fn step_4_constraints(
     resolved: &HashMap<ReachKey, ResolvedGrant>,
     manifest: &Manifest,
     ctx: &CheckContext<'_>,
 ) -> Option<Decision> {
     for required in &manifest.constraints {
-        if !ctx.call.constraint_context.contains_key(required) {
-            // Pick any winner to attribute the violation to (deterministic:
-            // first key in sorted order). Map ordering not guaranteed, so
-            // sort to stay deterministic for tests.
-            let mut keys: Vec<_> = resolved.keys().cloned().collect();
-            keys.sort_by(|a, b| (a.0 as u8, &a.1).cmp(&(b.0 as u8, &b.1)));
-            if let Some(k) = keys.first() {
-                let winner = &resolved[k];
-                return Some(Decision::Denied {
-                    failed_step: FailedStep::Constraint,
-                    reason: DeniedReason::ConstraintViolation {
-                        constraint: required.clone(),
-                        grant_id: winner.grant.id,
-                    },
-                });
+        let Some(provided) = ctx.call.constraint_context.get(required) else {
+            return Some(constraint_violation(resolved, required));
+        };
+        // When the manifest names a required *value*, check equality.
+        // Missing from `constraint_requirements` means presence-only
+        // (matching M1 behaviour).
+        if let Some(expected) = manifest.constraint_requirements.get(required) {
+            if provided != expected {
+                return Some(constraint_violation(resolved, required));
             }
         }
     }
     None
+}
+
+/// Build the denial decision for a constraint violation, attributing it
+/// to a deterministic winner (smallest sorted reach key) so tests and
+/// logs stay stable across `HashMap` iteration-order runs.
+fn constraint_violation(resolved: &HashMap<ReachKey, ResolvedGrant>, constraint: &str) -> Decision {
+    let mut keys: Vec<_> = resolved.keys().cloned().collect();
+    keys.sort_by(|a, b| (a.0 as u8, &a.1).cmp(&(b.0 as u8, &b.1)));
+    // `resolved` is non-empty here: callers invoke this only after Step
+    // 5 fills `resolved`, which itself is non-empty because Step 1
+    // would otherwise have returned at ManifestEmpty.
+    let k = keys
+        .first()
+        .expect("step_4 called with non-empty resolved map");
+    let winner = &resolved[k];
+    Decision::Denied {
+        failed_step: FailedStep::Constraint,
+        reason: DeniedReason::ConstraintViolation {
+            constraint: constraint.to_string(),
+            grant_id: winner.grant.id,
+        },
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -491,6 +522,7 @@ mod tests {
             resource: ResourceRef {
                 uri: resource_uri.into(),
             },
+            fundamentals: vec![],
             descends_from: None,
             delegable: false,
             issued_at: Utc::now(),
@@ -678,6 +710,73 @@ mod tests {
         m.constraints = vec!["path_prefix".into()];
         let d = check(&ctx, &m, &NoopMetrics);
         assert_eq!(d.failed_step(), Some(FailedStep::Constraint));
+    }
+
+    #[test]
+    fn engine_denies_at_step_4_when_constraint_value_differs_from_requirement() {
+        // G3 in the archived M2 plan — the invocation carries SOME
+        // value under `purpose`, but not the one the manifest demands.
+        let mut f = Fixture::new();
+        f.agent_grants.push(grant(
+            PrincipalRef::Agent(f.agent),
+            &["read"],
+            "filesystem_object",
+        ));
+        let mut call = ToolCall::default();
+        call.constraint_context
+            .insert("purpose".into(), serde_json::json!("list"));
+        let ctx = f.ctx(call);
+        let mut m = manifest(&["read"], &["filesystem_object"]);
+        m.constraints = vec!["purpose".into()];
+        m.constraint_requirements
+            .insert("purpose".into(), serde_json::json!("reveal"));
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert_eq!(
+            d.failed_step(),
+            Some(FailedStep::Constraint),
+            "value-match mismatch must fail at Step 4"
+        );
+    }
+
+    #[test]
+    fn engine_allows_when_constraint_value_matches_requirement() {
+        let mut f = Fixture::new();
+        f.agent_grants.push(grant(
+            PrincipalRef::Agent(f.agent),
+            &["read"],
+            "filesystem_object",
+        ));
+        let mut call = ToolCall::default();
+        call.constraint_context
+            .insert("purpose".into(), serde_json::json!("reveal"));
+        let ctx = f.ctx(call);
+        let mut m = manifest(&["read"], &["filesystem_object"]);
+        m.constraints = vec!["purpose".into()];
+        m.constraint_requirements
+            .insert("purpose".into(), serde_json::json!("reveal"));
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(d.is_allowed(), "exact value-match must pass Step 4");
+    }
+
+    #[test]
+    fn engine_presence_only_still_works_when_no_requirement_set() {
+        // No constraint_requirements → Step 4 only checks presence
+        // (M1 behaviour preserved).
+        let mut f = Fixture::new();
+        f.agent_grants.push(grant(
+            PrincipalRef::Agent(f.agent),
+            &["read"],
+            "filesystem_object",
+        ));
+        let mut call = ToolCall::default();
+        call.constraint_context
+            .insert("purpose".into(), serde_json::json!("anything"));
+        let ctx = f.ctx(call);
+        let mut m = manifest(&["read"], &["filesystem_object"]);
+        m.constraints = vec!["purpose".into()];
+        // No constraint_requirements entry.
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(d.is_allowed(), "presence-only must stay green");
     }
 
     #[test]

@@ -18,14 +18,21 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::audit::AuditEvent;
-use crate::model::ids::{AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId};
+use crate::model::ids::{
+    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
+    OrgId, SecretId,
+};
 use crate::model::nodes::{
     Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
     OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
 };
-use crate::model::{Principal, Resource};
+use crate::model::{
+    Composite, ExternalService, ModelRuntime, PlatformDefaults, Principal, Resource,
+    SecretCredential, SecretRef, TenantSet,
+};
 
 // ----------------------------------------------------------------------------
 // Error type
@@ -44,6 +51,26 @@ pub enum RepositoryError {
 }
 
 pub type RepositoryResult<T> = Result<T, RepositoryError>;
+
+// ----------------------------------------------------------------------------
+// Sealed-material envelope — domain-side projection of the crypto layer's
+// output (`store::SealedSecret`) that the repository trait can reference
+// without depending on the `store` crate. The two base64 strings are
+// stored directly on the `secrets_vault` row.
+// ----------------------------------------------------------------------------
+
+/// The persisted sealed form of a secret: AES-GCM ciphertext + nonce,
+/// both base64-encoded (standard alphabet, no padding — see
+/// [`crate::model::composites_m2`] docs and the vault schema in
+/// `store/migrations/0001_initial.surql` for the rationale).
+///
+/// The `store::crypto` layer produces the bytes; the repository stores
+/// them. The domain layer never holds plaintext.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SealedBlob {
+    pub ciphertext_b64: String,
+    pub nonce_b64: String,
+}
 
 // ----------------------------------------------------------------------------
 // Bootstrap-credential row — lightweight projection for the handful of
@@ -272,6 +299,170 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         org: Option<OrgId>,
     ) -> RepositoryResult<Option<[u8; 32]>>;
+
+    // ================================================================
+    // M2 additions — admin pages 02–05.
+    //
+    // These methods land with M2 / P2 (commitment C3 in the archived
+    // plan). Each one is documented inline; handlers in P4–P7 wrap them
+    // behind Permission Check + audit emission via `handler_support`.
+    // ================================================================
+
+    // ---- Secrets vault (M2 / P4 — credentials vault) ---------------
+
+    /// Insert a new vault row. Fails with
+    /// [`RepositoryError::Conflict`] when the slug is already in use
+    /// (UNIQUE INDEX on `secrets_vault.slug`).
+    async fn put_secret(
+        &self,
+        credential: &SecretCredential,
+        sealed: &SealedBlob,
+    ) -> RepositoryResult<()>;
+
+    /// Look up a secret by its human-readable slug. Returns both the
+    /// catalogue entry and the sealed bytes so the reveal path can
+    /// unseal without a second round-trip.
+    async fn get_secret_by_slug(
+        &self,
+        slug: &SecretRef,
+    ) -> RepositoryResult<Option<(SecretCredential, SealedBlob)>>;
+
+    /// List every vault entry. Ciphertext bytes are NOT returned —
+    /// the list view is metadata-only (slug, custodian, sensitive,
+    /// last_rotated_at). Callers wanting to unseal a specific entry
+    /// follow up with [`Self::get_secret_by_slug`].
+    async fn list_secrets(&self) -> RepositoryResult<Vec<SecretCredential>>;
+
+    /// Rotate the sealed material + bump `last_rotated_at`. The slug
+    /// and custodian are unchanged. `NotFound` when the id does not
+    /// exist.
+    async fn rotate_secret(
+        &self,
+        id: SecretId,
+        new_sealed: &SealedBlob,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()>;
+
+    /// Reassign custody of a secret to a different Agent. The sealed
+    /// material is untouched — the Agent delegation is a governance
+    /// concern, not a crypto one.
+    async fn reassign_secret_custodian(
+        &self,
+        id: SecretId,
+        new_custodian: AgentId,
+    ) -> RepositoryResult<()>;
+
+    // ---- Model providers (M2 / P5) ---------------------------------
+
+    /// Upsert a model-runtime row. The embedded
+    /// [`phi_core::provider::model::ModelConfig`] is stored as a
+    /// flexible object so phi-core's field evolution does not force a
+    /// baby-phi migration.
+    async fn put_model_provider(&self, provider: &ModelRuntime) -> RepositoryResult<()>;
+
+    /// List model-runtime rows. When `include_archived` is `false`,
+    /// rows whose `archived_at` is non-null are filtered out.
+    async fn list_model_providers(
+        &self,
+        include_archived: bool,
+    ) -> RepositoryResult<Vec<ModelRuntime>>;
+
+    /// Mark a model-runtime row archived (soft delete). Does not
+    /// remove the row; audit + provenance still references it.
+    async fn archive_model_provider(
+        &self,
+        id: ModelProviderId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()>;
+
+    // ---- MCP servers (M2 / P6) -------------------------------------
+
+    /// Upsert an external-service (`mcp_server`) row.
+    async fn put_mcp_server(&self, server: &ExternalService) -> RepositoryResult<()>;
+
+    async fn list_mcp_servers(
+        &self,
+        include_archived: bool,
+    ) -> RepositoryResult<Vec<ExternalService>>;
+
+    /// Overwrite `tenants_allowed` without cascading. Used when the
+    /// new set is a superset of the old (no revocations required).
+    /// For shrinking, callers MUST use [`Self::narrow_mcp_tenants`]
+    /// so the cascade runs in the same transaction.
+    async fn patch_mcp_tenants(
+        &self,
+        id: McpServerId,
+        new_allowed: &TenantSet,
+    ) -> RepositoryResult<()>;
+
+    async fn archive_mcp_server(&self, id: McpServerId, at: DateTime<Utc>) -> RepositoryResult<()>;
+
+    // ---- Platform defaults (M2 / P7) -------------------------------
+
+    /// Read the singleton row. `None` when no row has been seeded yet
+    /// (fresh install); handlers seed via [`Self::put_platform_defaults`]
+    /// on first write.
+    async fn get_platform_defaults(&self) -> RepositoryResult<Option<PlatformDefaults>>;
+
+    /// Upsert the singleton row. The `singleton = 1` UNIQUE INDEX on
+    /// the underlying table guarantees at most one row.
+    async fn put_platform_defaults(&self, defaults: &PlatformDefaults) -> RepositoryResult<()>;
+
+    // ---- Cascade (M2 / P6 — tenant narrowing + bulk revocation) ----
+
+    /// Narrow an MCP server's `tenants_allowed`, cascading revocation
+    /// to every grant whose provenance `descends_from` an Auth Request
+    /// scoped to a now-excluded org.
+    ///
+    /// Returns one entry per affected (org, AR) pair, listing the
+    /// grants that were revoked. The caller (M2/P6 handler) emits one
+    /// summary `McpServerTenantAccessRevoked` event plus one
+    /// `auth_request.revoked` event per entry. Revocation is
+    /// forward-only: revoked grants carry `revoked_at = at`.
+    ///
+    /// Must be called only when `new_allowed` is STRICTLY SMALLER than
+    /// the existing set — the handler validates this pre-flight. A
+    /// no-shrink call returns an empty `Vec` and leaves the state
+    /// unchanged (the handler routes those through
+    /// [`Self::patch_mcp_tenants`] instead).
+    async fn narrow_mcp_tenants(
+        &self,
+        id: McpServerId,
+        new_allowed: &TenantSet,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<Vec<TenantRevocation>>;
+
+    /// Revoke every live grant whose `descends_from = ar`. Returns the
+    /// list of affected grant ids so the caller can emit per-grant
+    /// audit events. No-op when no matching grants exist.
+    async fn revoke_grants_by_descends_from(
+        &self,
+        ar: AuthRequestId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<Vec<GrantId>>;
+
+    // ---- Catalogue (M2 / P4 + P5 + P6) -----------------------------
+
+    /// Seed a catalogue entry tagged with `composite.kind_name()`.
+    /// Thin convenience wrapper over [`Self::seed_catalogue_entry`] —
+    /// used by every M2 admin write that creates a composite instance
+    /// so Permission-Check Step 0 resolves on the resulting URI.
+    async fn seed_catalogue_entry_for_composite(
+        &self,
+        owning_org: Option<OrgId>,
+        resource_uri: &str,
+        composite: Composite,
+    ) -> RepositoryResult<()>;
+}
+
+/// One cascade hit recorded by [`Repository::narrow_mcp_tenants`] —
+/// the org whose access was dropped, the Auth Request whose grants
+/// were revoked, and the grant ids that flipped to `revoked`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TenantRevocation {
+    pub org: OrgId,
+    pub auth_request: AuthRequestId,
+    pub revoked_grants: Vec<GrantId>,
 }
 
 // ----------------------------------------------------------------------------

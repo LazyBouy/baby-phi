@@ -11,7 +11,7 @@ page covers.
 ## Class tiers
 
 Every audit event is tagged with an `AuditClass`
-([`domain/src/audit.rs`](../../../../../../modules/crates/domain/src/audit.rs)):
+([`domain/src/audit.rs`](../../../../../../modules/crates/domain/src/audit/mod.rs)):
 
 | Class | Retention | Delivery | Example |
 |---|---|---|---|
@@ -124,7 +124,7 @@ SurrealDB table is the source of truth.
   the class-tier + hash-chain decision.
 - [requirements/cross-cutting/nfr-observability.md](../../../requirements/cross-cutting/nfr-observability.md)
   — retention rules per class.
-- [modules/crates/domain/src/audit.rs](../../../../../../modules/crates/domain/src/audit.rs)
+- [modules/crates/domain/src/audit/mod.rs](../../../../../../modules/crates/domain/src/audit/mod.rs)
   — the `AuditEvent` + `AuditClass` + `hash_event` types.
 - [modules/crates/domain/tests/audit_hash_chain_props.rs](../../../../../../modules/crates/domain/tests/audit_hash_chain_props.rs)
   — the chain invariants exercised in CI.

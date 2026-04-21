@@ -10,7 +10,7 @@ Rationale for the hash-chain seed is in
 
 ## Shape
 
-Defined at [`domain::audit`](../../../../../../modules/crates/domain/src/audit.rs):
+Defined at [`domain::audit`](../../../../../../modules/crates/domain/src/audit/mod.rs):
 
 ```rust
 pub struct AuditEvent {
@@ -42,7 +42,7 @@ wires the retention sweep + off-site stream.
 
 Every event has `prev_event_hash` = BLAKE3-256 of the previous event within
 the same `org_scope`. The helper
-[`hash_event`](../../../../../../modules/crates/domain/src/audit.rs) computes
+[`hash_event`](../../../../../../modules/crates/domain/src/audit/mod.rs) computes
 a digest over the event's canonical bytes (see below); emitters look up
 the last-recorded event for the org and populate `prev_event_hash` before
 writing.
@@ -57,7 +57,7 @@ stream with object-lock, making tampering detectable end-to-end.
 
 ## Emitter contract
 
-[`AuditEmitter`](../../../../../../modules/crates/domain/src/audit.rs) is the
+[`AuditEmitter`](../../../../../../modules/crates/domain/src/audit/mod.rs) is the
 write-side trait. Implementations (landing in P2/P6) must:
 
 1. Look up the last `prev_event_hash_b64` for `event.org_scope` and set
@@ -107,8 +107,31 @@ rather than native `bytes`.
 Hash-chain walk proptests + emitter integration land in P2 / P4 when the
 repository grows `write_audit_event` + `last_event_hash_for_org`.
 
+## Relationship to `phi_core::AgentEvent`
+
+baby-phi's [`AuditEvent`](../../../../../../modules/crates/domain/src/audit/mod.rs)
+and phi-core's [`AgentEvent`](../../../../../../../phi-core/src/types/event.rs)
+are **orthogonal surfaces**, not alternatives for each other:
+
+| Axis | `domain::audit::AuditEvent` | `phi_core::types::event::AgentEvent` |
+|---|---|---|
+| Purpose | Governance write log | Agent-loop turn telemetry |
+| Scope | Admin / platform writes (grants issued, auth requests transitioned, credentials claimed) | LLM streaming + tool execution progress |
+| Storage | Persisted to `audit_events` table with per-org hash chain | Streamed to `mpsc::UnboundedSender<AgentEvent>`; caller persists via `SessionRecorder` if desired |
+| Retention | Tier-dependent (Silent 30d, Logged 365d, Alerted 365d+) | Not a retention concern — events live in the session trace |
+| Tamper-evidence | Blake3 hash chain + M7b off-site object-lock stream | None — part of the recorder's opaque JSON |
+
+They can reference each other (an `AuditEvent` describing "agent X ran
+session Y" can carry the phi-core `loop_id` / `turn_id` in its `diff`),
+but they are not substitutable. M5+ session-launch flows emit **both**:
+phi-core streams `AgentEvent`s to the UI; baby-phi simultaneously
+writes `AuditEvent`s to the audit log for compliance.
+
 ## Concept references
 
 - NFR: `docs/specs/v0/requirements/cross-cutting/nfr-observability.md`.
 - ADR: [0013 audit events — class + chain](../decisions/0013-audit-events-class-and-chain.md).
+- phi-core mapping: [`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
+  §`AgentEvent` (classified as a **Node** mapping to baby-phi's **Event**
+  graph concept — distinct from the `AuditEvent` compliance log).
 - Build plan: "Audit-log tamper resistance" row — M1 seeds, M7b completes.

@@ -64,6 +64,38 @@ Every platform-level feature sits in this workspace — phi-core stays a pure ag
 - System flows s02–s06 (M7).
 - Production hardening — OAuth 2.0, TLS, at-rest encryption, backup/restore, OpenTelemetry, rate limiting, GDPR erasure, runbook (M7b).
 
+## phi-core Leverage (first-class mandate)
+
+baby-phi is a **consumer** of phi-core, not a parallel implementation. Every surface that overlaps with an existing `phi_core::` type MUST reuse it directly or wrap it — **never re-implement**. This is not a style preference; it is a two-source-of-truth problem that compounds per milestone.
+
+**Rules of engagement:**
+
+1. **Before introducing any struct/enum/trait** whose shape overlaps with something in phi-core, check `phi-core/src/` first. If phi-core ships it, import it.
+   - Direct reuse (`use phi_core::X`) — use phi-core's type as-is.
+   - Wrap (`pub struct Y { inner: phi_core::X, ... }`) — extend with baby-phi-only governance fields.
+   - Build from scratch — only if phi-core has **no** counterpart (e.g., permission-check engine, credentials vault, tenant sets, audit hash-chain).
+
+2. **Known reuse surfaces** (non-exhaustive; see `docs/specs/v0/concepts/phi-core-mapping.md` for the full list):
+   - Config / agent blueprint → `phi_core::agents::profile::AgentProfile`, `phi_core::config::{parser, schema}`.
+   - Providers → `phi_core::provider::{model::ModelConfig, model::ApiProtocol, registry::ProviderRegistry, traits::{StreamProvider, StreamConfig, StreamEvent}, retry::RetryConfig}`.
+   - Tools → `phi_core::types::tool::{AgentTool, ToolResult}`, `phi_core::mcp::{client::McpClient, types::*, tool_adapter::McpToolAdapter}`.
+   - Execution / context → `phi_core::context::{execution::ExecutionLimits, ContextConfig, CompactionStrategy}`, `phi_core::types::usage::{CacheConfig, ThinkingLevel}`.
+   - Sessions / events → `phi_core::types::event::AgentEvent`, `phi_core::session::model::{Session, LoopRecord, Turn, LoopStatus}`, `phi_core::session::recorder::SessionRecorder`.
+
+3. **Enforcement.** `scripts/check-phi-core-reuse.sh` runs in CI and fails on forbidden duplications (e.g., any `struct ExecutionLimits`, `struct ModelConfig`, `struct McpClient`, `struct AgentProfile`, `struct AgentEvent`, `struct Session`, etc. defined anywhere under `modules/crates/`). The lint is advisory during a milestone's foundation phase and flips to hard-gate at the next re-audit.
+
+4. **Reviewer checklist.** In code review, reject any PR that introduces a new type whose field set matches a phi-core type; require the phi-core import instead. When in doubt, consult the phi-core-reuse-map doc for the milestone.
+
+5. **`thiserror` must track phi-core's version** (currently `"2"`). Version drift breaks `#[from]` conversions at runtime with cryptic "implementations not found" errors.
+
+**Orthogonal surfaces that are NOT phi-core duplicates** (these are intentionally baby-phi-only — do not conflate):
+- `domain::audit::AuditEvent` (governance write log, hash-chain, retention tier) vs `phi_core::types::event::AgentEvent` (agent-loop telemetry stream) — see `implementation/m1/architecture/audit-events.md`.
+- `server::session::SessionClaims` (HTTP cookie JWT) vs `phi_core::session::Session` (persisted execution trace) — see `implementation/m1/architecture/server-topology.md`.
+- `domain::model::ToolDefinition` (permission metadata node) vs `phi_core::types::tool::AgentTool` (runtime trait) — see `implementation/m1/architecture/graph-model.md`.
+- `server::config::ServerConfig` (HTTP infrastructure TOML) vs `phi_core::config::schema::AgentConfig` (agent blueprint YAML/TOML/JSON with `${VAR}`) — see `implementation/m1/architecture/overview.md`.
+
+When the line is unclear, err toward reuse and ask in review.
+
 ## Documentation Alignment
 
 Documentation in `docs/` must accurately reflect the current codebase at all times. Code is always the source of truth.

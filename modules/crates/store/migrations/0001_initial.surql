@@ -56,13 +56,27 @@ DEFINE INDEX bootstrap_credentials_digest ON bootstrap_credentials FIELDS digest
 -- SurrealDB Rust driver serializes as a JSON array of numbers, which does
 -- not coerce into the `bytes` field type. Base64 strings are wire-safe and
 -- human-debuggable.
+-- Columns:
+--   slug            — human-readable identifier (e.g. "anthropic-api-key"),
+--                     stable across rotations; paired with the domain-layer
+--                     SecretId UUID for referential integrity.
+--   custodian_id    — AgentId (UUID string) of the agent currently
+--                     authorized to rotate + reveal. Set at creation;
+--                     mutable only via the custody-reassign flow (M2/P4).
+--   sensitive       — opt-in masking for list / audit-diff views. The
+--                     vault always masks plaintext regardless.
+--   value_ciphertext_b64, nonce_b64 — AES-GCM-sealed material.
+--   last_rotated_at — set on every successful rotate; null before the
+--                     first rotation.
 DEFINE TABLE secrets_vault SCHEMAFULL;
-DEFINE FIELD label              ON secrets_vault TYPE string;
+DEFINE FIELD slug               ON secrets_vault TYPE string;
+DEFINE FIELD custodian_id       ON secrets_vault TYPE string;
+DEFINE FIELD sensitive          ON secrets_vault TYPE bool DEFAULT false;
 DEFINE FIELD value_ciphertext_b64 ON secrets_vault TYPE string;
 DEFINE FIELD nonce_b64          ON secrets_vault TYPE string;
 DEFINE FIELD created_at         ON secrets_vault TYPE string;
-DEFINE FIELD rotated_at         ON secrets_vault TYPE option<string>;
-DEFINE INDEX secrets_vault_label ON secrets_vault FIELDS label UNIQUE;
+DEFINE FIELD last_rotated_at    ON secrets_vault TYPE option<string>;
+DEFINE INDEX secrets_vault_slug ON secrets_vault FIELDS slug UNIQUE;
 
 -- Audit event log. One row per emitted event. The `prev_event_hash_b64`
 -- column forms the hash chain scoped per `org_scope` (see `domain::audit`).
@@ -104,11 +118,15 @@ DEFINE FIELD owning_org    ON agent TYPE option<string>;
 DEFINE FIELD created_at    ON agent TYPE string;
 DEFINE INDEX agent_owning_org ON agent FIELDS owning_org;
 
+-- AgentProfile wraps phi-core's AgentProfile (per concepts/phi-core-mapping.md).
+-- `blueprint` is the full phi-core struct serialized as a flexible object
+-- so SurrealDB doesn't strip fields as phi-core evolves. baby-phi-only
+-- governance fields (`agent_id`, `parallelize`) sit alongside the wrap.
 DEFINE TABLE agent_profile SCHEMAFULL;
 DEFINE FIELD agent_id      ON agent_profile TYPE string;
-DEFINE FIELD display_name  ON agent_profile TYPE string;
 DEFINE FIELD parallelize   ON agent_profile TYPE int DEFAULT 1
     ASSERT $value >= 1;
+DEFINE FIELD blueprint     ON agent_profile FLEXIBLE TYPE object;
 DEFINE FIELD created_at    ON agent_profile TYPE string;
 DEFINE INDEX agent_profile_agent_id ON agent_profile FIELDS agent_id UNIQUE;
 
@@ -172,6 +190,11 @@ DEFINE FIELD holder_kind    ON grant TYPE string;
 DEFINE FIELD holder_id      ON grant TYPE string;
 DEFINE FIELD action         ON grant TYPE array<string>;
 DEFINE FIELD resource_uri   ON grant TYPE string;
+-- Explicit fundamentals list (M2/P4.5 — G19 / D17). Empty array preserves
+-- legacy URI-derivation semantics in the engine's `resolve_grant` Case C.
+-- Populated by handlers issuing instance-URI grants (e.g. `secret:<slug>`)
+-- so the engine can resolve fundamentals without a URI-scheme parser.
+DEFINE FIELD fundamentals   ON grant TYPE array<string> DEFAULT [];
 DEFINE FIELD descends_from  ON grant TYPE option<string>;
 DEFINE FIELD delegable      ON grant TYPE bool DEFAULT false;
 DEFINE FIELD issued_at      ON grant TYPE string;

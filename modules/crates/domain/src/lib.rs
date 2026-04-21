@@ -20,6 +20,7 @@ pub mod auth_requests;
 pub mod model;
 pub mod permissions;
 pub mod repository;
+pub mod templates;
 
 #[cfg(any(test, feature = "in-memory-repo"))]
 pub mod in_memory;

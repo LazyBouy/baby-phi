@@ -54,6 +54,24 @@ P6 ships a minimal signed-cookie session; OAuth lands in M3.
 - **Revocation** — none in M1; the TTL is the only defence. Server-side
   session rows + `POST /sessions/{id}/revoke` are the M3 follow-up.
 
+**Relationship to `phi_core::session::Session`.** This `SessionClaims`
+struct is an **HTTP request-identity token** — a short-lived signed
+cookie carrying the authenticated admin's `agent_id`. It is NOT the
+same concept as [`phi_core::session::Session`](../../../../../../../phi-core/src/session/model.rs),
+which is a **persisted execution trace** — turns, tool calls, usage
+metrics, and loop records accumulated while an agent runs. The two
+coexist at M5 when session-launch lands: a human hits an endpoint
+carrying their `SessionClaims` cookie (HTTP identity), the endpoint
+invokes `phi_core::agent_loop(...)` which emits an `AgentEvent` stream
+that a `SessionRecorder` materialises as a `phi_core::Session` record
+(execution trace), and baby-phi persists that record alongside
+provenance fields (org, project, actor) for later audit correlation.
+Same word, different layers; the concept-doc mapping at
+[`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
+classifies phi-core's `Session` as a **Node** mapping to baby-phi's
+`Session` graph concept — distinct from the HTTP session layer this
+section covers.
+
 ## Error envelope
 
 Every 4xx response from the bootstrap routes has the shape

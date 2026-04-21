@@ -63,7 +63,7 @@ downward-only and lets domain tests use an in-memory fake.
 
 1. **Graph model** (`modules/crates/domain/src/model/`). See
    [graph-model.md](graph-model.md) for the full inventory.
-2. **Audit-event skeleton** (`modules/crates/domain/src/audit.rs`). See
+2. **Audit-event skeleton** (`modules/crates/domain/src/audit/mod.rs`). See
    [audit-events.md](audit-events.md).
 3. **Schema + migration runner** (`modules/crates/store/migrations/` +
    `modules/crates/store/src/migrations.rs`). See
@@ -514,6 +514,37 @@ bootstrap-flow integration tests, and the final post-P9 100%-audit
 pass added `get_audit_event` (bringing the trait to **36 methods**)
 plus 2 more store integration tests, taking the current store
 integration count to **64**.
+
+## Configuration — `ServerConfig` vs phi-core `AgentConfig`
+
+baby-phi's [`ServerConfig::load()`](../../../../../../modules/crates/server/src/config.rs)
+parses layered TOML (`config/default.toml` + `config/{profile}.toml`)
+with per-key environment-variable overrides (`BABY_PHI__SERVER__PORT=8080`
+sets `server.port`). It deserialises a fixed schema of server-infra
+concerns: HTTP bind, storage directory, telemetry filter, session-cookie
+secret.
+
+phi-core's [`parse_config_file()` / `parse_config_auto()`](../../../../../../../phi-core/src/config/parser.rs)
+parse TOML / YAML / JSON into phi-core's
+[`AgentConfig`](../../../../../../../phi-core/src/config/schema.rs) —
+an **agent blueprint** schema (provider sections, tools, execution
+limits, cache policy) — with `${ENV_VAR}` substitution inside field
+values.
+
+The two parsers are **orthogonal**, not substitutable:
+
+| Aspect | `ServerConfig::load()` | `phi_core::parse_config_file()` |
+|---|---|---|
+| Scope | Server infrastructure (host, port, DB path, session secret) | Agent blueprint (LLM provider, tools, profile, execution limits) |
+| Override style | Per-key env-var overrides (`BABY_PHI__KEY__NESTED=value`) | `${VAR}` interpolation inside field values |
+| Schema shape | baby-phi's `ServerConfig` struct | phi-core's `AgentConfig` struct |
+| Who reads it | `main.rs` on startup | `agents_from_config(&config)` when materialising agents |
+
+**M2 page 05 (Platform Defaults) is the correct reuse point** — it
+imports / exports platform defaults via `phi_core::parse_config` +
+`parse_config_auto` so operators can paste a phi-core-shaped YAML into
+the admin UI and have it materialise as a `PlatformDefaults` row.
+`ServerConfig` stays as-is because its shape is genuinely different.
 
 ## What to read next
 

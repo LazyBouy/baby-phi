@@ -28,3 +28,5 @@ rand    = { workspace = true }
 [dev-dependencies]
 tokio    = { workspace = true }
 tempfile = { workspace = true }
+phi-core = { workspace = true }
+proptest = { workspace = true }

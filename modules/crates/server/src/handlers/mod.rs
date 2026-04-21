@@ -5,3 +5,4 @@
 //! sibling module.
 
 pub mod bootstrap;
+pub mod platform_secrets;

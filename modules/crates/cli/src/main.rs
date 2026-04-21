@@ -19,6 +19,8 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 mod commands;
+pub mod exit;
+pub mod session_store;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -50,6 +52,17 @@ enum Command {
     Agent {
         #[command(subcommand)]
         cmd: AgentCommand,
+    },
+    /// Session-management subcommands. M2/P1 ships `status` + `logout`;
+    /// credential-based re-login lands with M2/P4.
+    Login {
+        #[command(subcommand)]
+        cmd: commands::login::LoginCommand,
+    },
+    /// Credentials-vault subcommands (M2/P4).
+    Secret {
+        #[command(subcommand)]
+        cmd: commands::secrets::SecretCommand,
     },
 }
 
@@ -109,6 +122,8 @@ async fn main() {
     let code = match cli.command {
         Command::Bootstrap { cmd } => commands::bootstrap::run(cli.server_url, cmd).await,
         Command::Agent { cmd } => commands::agent::run(cmd).await,
+        Command::Login { cmd } => commands::login::run(cmd).await,
+        Command::Secret { cmd } => commands::secrets::run(cli.server_url, cmd).await,
     };
     std::process::exit(code);
 }

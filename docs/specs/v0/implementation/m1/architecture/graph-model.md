@@ -110,6 +110,45 @@ ToolImplementation/McpServer/OpenApiSpec/SystemPrompt/EvaluationStrategy
 (M4), Project/Task/Bid (M4), Rating (M5), AgentConfig (M2), PromptBlock
 (M4).
 
+**`Grant.fundamentals`** (added M2/P4.5 — G19 / D17). The `Grant` node
+carries an explicit `fundamentals: Vec<Fundamental>` field alongside
+`resource.uri`. When non-empty, the engine's
+[`resolve_grant`](../../../../../../modules/crates/domain/src/permissions/expansion.rs)
+uses this list verbatim (Case D). When empty (the `#[serde(default)]`
+for pre-P4.5 rows), the engine falls back to the legacy URI-derivation
+path that shipped in M1: fundamental name → {that fundamental};
+composite name → constituent fundamentals; `system:root` → every
+fundamental; opaque URI → empty set (grant can't match). **Empty
+preserves M1 semantics**, so every grant persisted before P4.5
+continues to resolve identically. Handlers that issue instance-URI
+grants (e.g. the vault's `secret:<slug>` grant) populate the field
+explicitly so the engine binds the grant to the right class without a
+URI-scheme convention.
+
+**AgentProfile wraps phi-core.** Baby-phi's `AgentProfile` node
+[wraps](../../../../../../modules/crates/domain/src/model/nodes.rs)
+[`phi_core::agents::profile::AgentProfile`](../../../../../../../phi-core/src/agents/profile.rs)
+as a `blueprint` field. Baby-phi adds only the graph-node governance
+fields (`id`, `agent_id`, `parallelize`, `created_at`); every field
+phi-core's blueprint already models (`system_prompt`, `thinking_level`,
+`temperature`, `skills`, `workspace`, etc.) lives on `blueprint` as
+the single source of truth. This matches
+[`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
+which classifies phi-core's `AgentProfile` as a **Node** mapping to
+baby-phi's `AgentProfile`. M4's "Agent Profile Editor" page will edit
+both the governance fields and the blueprint directly.
+
+**ToolDefinition vs `phi_core::AgentTool`.** The scaffolded
+`ToolDefinition` node type (fleshed out in M2) is a **policy / audit
+metadata** surface — the tool's permission grants, cost bounds, audit
+class — whereas
+[`phi_core::types::tool::AgentTool`](../../../../../../../phi-core/src/types/tool.rs)
+is a **runtime trait** (`name`, `parameters_schema`, `execute(params,
+ctx) -> ToolResult`). They meet at execution time: M4's session-launch
+wraps each `phi_core::AgentTool` behind a permission-check that
+consults the matching `ToolDefinition`. Distinct concerns; no
+reimplementation.
+
 ### Edges ([`edges.rs`](../../../../../../modules/crates/domain/src/model/edges.rs))
 
 66 variants as a tagged enum. Each variant's payload carries the edge's

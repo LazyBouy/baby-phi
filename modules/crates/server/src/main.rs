@@ -83,9 +83,14 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     .await?;
 
     let session = SessionKey::from_config(&cfg.session)?;
+    let master_key = Arc::new(store::crypto::MasterKey::from_env()?);
+    let repo: Arc<dyn domain::Repository> = Arc::new(store);
+    let audit = Arc::new(store::SurrealAuditEmitter::new(repo.clone()));
     let state = AppState {
-        repo: Arc::new(store),
+        repo,
         session,
+        audit,
+        master_key,
     };
     let app = with_prometheus(build_router(state));
 

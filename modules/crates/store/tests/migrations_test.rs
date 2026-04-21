@@ -23,11 +23,16 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 1, "exactly one migration recorded");
+    assert_eq!(rows.len(), 2, "both baseline migrations recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
         Some("initial")
+    );
+    assert_eq!(rows[1].get("version").and_then(|v| v.as_i64()), Some(2));
+    assert_eq!(
+        rows[1].get("slug").and_then(|v| v.as_str()),
+        Some("platform_setup")
     );
 
     // A sample table from the initial migration exists and accepts a row

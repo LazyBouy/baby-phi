@@ -10,9 +10,13 @@
 //! - [`migrations`] — forward-only SurrealDB migration runner with fail-safe
 //!   startup gate.
 
+pub mod audit_emitter;
 pub mod crypto;
 pub mod migrations;
 pub mod repo_impl;
+pub mod repo_impl_m2;
+
+pub use audit_emitter::SurrealAuditEmitter;
 
 use std::path::Path;
 

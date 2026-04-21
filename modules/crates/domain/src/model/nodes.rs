@@ -189,14 +189,37 @@ pub enum AgentKind {
     Llm,
 }
 
-/// Blueprint — who an agent IS. Carries the `parallelize` bound.
+/// Blueprint — who an agent IS.
+///
+/// Per [`concepts/phi-core-mapping.md`](../../../../../docs/specs/v0/concepts/phi-core-mapping.md)
+/// baby-phi's `AgentProfile` node maps to phi-core's `AgentProfile` type.
+/// Rather than duplicating phi-core's field set, this struct **wraps**
+/// [`phi_core::agents::profile::AgentProfile`] as `blueprint` and adds
+/// only the baby-phi-specific governance fields on top.
+///
+/// Fields defined here (baby-phi-only):
+/// - `id` — graph-node identity.
+/// - `agent_id` — owning Agent node.
+/// - `parallelize` — concurrent session cap (enforced at session-start);
+///   this is a platform governance concern that phi-core doesn't model.
+/// - `created_at` — persistence timestamp.
+///
+/// Everything else (`system_prompt`, `thinking_level`, `temperature`,
+/// `max_tokens`, `config_id`, `skills`, `workspace`, human-readable
+/// `name`, `description`) lives on `blueprint` — the single source of
+/// truth, imported directly from phi-core. This keeps the two
+/// representations in lock-step and matches the M2 reuse mandate
+/// (ADR-0015 / §1.6 of the M2 plan).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentProfile {
     pub id: NodeId,
     pub agent_id: AgentId,
-    pub display_name: String,
     /// Concurrent session cap (default 1); enforced at session-start time.
+    /// baby-phi-specific governance field — not on `phi_core::AgentProfile`.
     pub parallelize: u32,
+    /// The phi-core execution blueprint. Source of truth for
+    /// `system_prompt`, `thinking_level`, `skills`, etc.
+    pub blueprint: phi_core::agents::profile::AgentProfile,
     pub created_at: DateTime<Utc>,
 }
 
@@ -220,21 +243,109 @@ pub struct Organization {
 
 /// A reusable permission pattern whose adoption emits an Auth Request that
 /// serves as the provenance for subsequent grants the template fires.
+///
+/// The [`kind`](Template::kind) discriminator identifies which lifecycle
+/// pattern the template implements. v0 currently defines:
+/// `SystemBootstrap`, `A`, `B`, `C`, `D`, `E`, `F`. M2 exercises
+/// `SystemBootstrap` (already landed in M1) and `E` (self-interested
+/// auto-approve — the platform admin both submits and approves their own
+/// write). The other variants land as their owning milestones need them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {
     pub id: TemplateId,
     /// Stable name — e.g. `template:system_bootstrap`.
     pub name: String,
+    /// Lifecycle family this template implements. Pre-M2 rows default to
+    /// [`TemplateKind::SystemBootstrap`] via serde's `default`.
+    #[serde(default)]
+    pub kind: TemplateKind,
     pub created_at: DateTime<Utc>,
 }
 
+/// The lifecycle pattern family a [`Template`] implements.
+///
+/// Source of truth: `docs/specs/v0/concepts/permissions/02-templates.md`.
+/// The variants match the concept doc's A–F table plus the pre-M2
+/// `SystemBootstrap` shipping template.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TemplateKind {
+    /// The platform-install bootstrap template seeded by `--bootstrap-init`.
+    /// Pre-dates the A–F taxonomy; shipped with M1's claim flow.
+    SystemBootstrap,
+    /// Explicit human-to-human request (human agent asks human approver).
+    A,
+    /// Delegated approval (agent asks on behalf of another principal).
+    B,
+    /// Pre-authorized template (grants auto-issue, no approval step).
+    C,
+    /// Consent-gated template (consent record is the approval).
+    D,
+    /// Self-interested auto-approve — the requestor fills their own
+    /// approver slot. Used by all M2 admin writes (pages 02–05) because
+    /// the platform admin owns both the write and the approval.
+    E,
+    /// Break-glass (elevated audit-class, mandatory post-incident review).
+    F,
+}
+
+impl TemplateKind {
+    /// Every variant in a stable order (matches the concept doc's
+    /// §Templates table A–F, preceded by `SystemBootstrap`).
+    pub const ALL: [TemplateKind; 7] = [
+        TemplateKind::SystemBootstrap,
+        TemplateKind::A,
+        TemplateKind::B,
+        TemplateKind::C,
+        TemplateKind::D,
+        TemplateKind::E,
+        TemplateKind::F,
+    ];
+
+    /// Canonical string form, matches the `#[serde(rename_all)]` output.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TemplateKind::SystemBootstrap => "system_bootstrap",
+            TemplateKind::A => "a",
+            TemplateKind::B => "b",
+            TemplateKind::C => "c",
+            TemplateKind::D => "d",
+            TemplateKind::E => "e",
+            TemplateKind::F => "f",
+        }
+    }
+}
+
+impl Default for TemplateKind {
+    /// Pre-M2 templates are all the bootstrap template; serde falls back
+    /// here when deserializing rows written before the `kind` field
+    /// existed on disk.
+    fn default() -> Self {
+        TemplateKind::SystemBootstrap
+    }
+}
+
 /// Capability-based access control record (the 5-tuple from `permissions/03`).
+///
+/// `fundamentals` (added in M2/P4.5, G19 / D17) lets callers bind a grant
+/// to explicit fundamental classes when the `resource.uri` is an **instance
+/// URI** (e.g. `secret:anthropic-api-key`, `provider:42`) — the engine's
+/// `resolve_grant` function has no other way to derive the fundamental
+/// from such a URI. Leaving the field empty (the serde default) preserves
+/// pre-M2/P4.5 semantics: the engine falls back to URI-derived expansion
+/// (class name → fundamental; composite name → constituents; `system:root`
+/// → every fundamental; opaque URI → empty set, i.e. never matches).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Grant {
     pub id: GrantId,
     pub holder: PrincipalRef,
     pub action: Vec<String>,
     pub resource: ResourceRef,
+    /// Explicit fundamental classes this grant covers — authoritative
+    /// when non-empty. Empty means "use legacy URI-derivation" (M1
+    /// semantics). See `domain::permissions::expansion::resolve_grant`.
+    #[serde(default)]
+    pub fundamentals: Vec<crate::model::Fundamental>,
     /// Auth Request that produced this grant (structural provenance).
     pub descends_from: Option<AuthRequestId>,
     pub delegable: bool,

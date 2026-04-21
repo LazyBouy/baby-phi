@@ -89,6 +89,7 @@ pub fn grant_on(holder: PrincipalRef, actions: &[&str], resource_uri: &str) -> G
         resource: ResourceRef {
             uri: resource_uri.into(),
         },
+        fundamentals: vec![],
         descends_from: None,
         delegable: false,
         issued_at: ts(0),
@@ -143,6 +144,7 @@ pub fn any_agent_grant(agent: AgentId) -> impl Strategy<Value = Grant> {
         resource: ResourceRef {
             uri: f.as_str().to_string(),
         },
+        fundamentals: vec![],
         descends_from: None,
         delegable: false,
         issued_at: ts(0),

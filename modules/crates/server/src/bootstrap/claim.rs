@@ -214,7 +214,9 @@ pub async fn execute_claim(
     };
 
     // `[allocate]`-on-`system:root` Grant — underpins every delegation
-    // downstream.
+    // downstream. `fundamentals` intentionally left empty — the
+    // `system:root` URI is special-cased in `resolve_grant` (it admits
+    // every fundamental), so the new P4.5 field is unnecessary here.
     let grant = Grant {
         id: grant_id,
         holder: PrincipalRef::Agent(agent_id),
@@ -222,6 +224,7 @@ pub async fn execute_claim(
         resource: ResourceRef {
             uri: "system:root".into(),
         },
+        fundamentals: vec![],
         descends_from: Some(auth_request_id),
         delegable: true,
         issued_at: now,

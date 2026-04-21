@@ -25,6 +25,7 @@ use tower_cookies::Cookies;
 use tracing::{error, info};
 
 use crate::bootstrap::{execute_claim, ClaimError, ClaimInput, ClaimRejection};
+use crate::handler_support::ApiError;
 use crate::session::sign_and_build_cookie;
 use crate::state::AppState;
 
@@ -117,15 +118,6 @@ pub struct ClaimSuccess {
     pub audit_event_id: AuditEventId,
 }
 
-/// Error envelope shared by all 4xx responses. `code` is stable (machine
-/// readable); `message` is a human explanation. For `BOOTSTRAP_*` codes
-/// the HTTP status is 403 per `admin/01` §10.
-#[derive(Debug, Serialize)]
-pub struct ApiError {
-    pub code: &'static str,
-    pub message: String,
-}
-
 pub async fn claim(
     State(state): State<AppState>,
     cookies: Cookies,
@@ -184,58 +176,38 @@ fn reject(rej: ClaimRejection) -> Response {
     match rej {
         ClaimRejection::Invalid(reason) => {
             counter!(CLAIMS_COUNTER, "result" => "validation").increment(1);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError {
-                    code: "VALIDATION_FAILED",
-                    message: reason.to_string(),
-                }),
-            )
-                .into_response()
+            ApiError::validation_failed(reason.to_string()).into_response()
         }
         ClaimRejection::CredentialInvalid => {
             counter!(CLAIMS_COUNTER, "result" => "invalid").increment(1);
-            (
+            ApiError::new(
                 StatusCode::FORBIDDEN,
-                Json(ApiError {
-                    code: "BOOTSTRAP_INVALID",
-                    message: "bootstrap credential is not recognised".into(),
-                }),
+                "BOOTSTRAP_INVALID",
+                "bootstrap credential is not recognised",
             )
-                .into_response()
+            .into_response()
         }
         ClaimRejection::CredentialAlreadyConsumed => {
             counter!(CLAIMS_COUNTER, "result" => "already_consumed").increment(1);
-            (
+            ApiError::new(
                 StatusCode::FORBIDDEN,
-                Json(ApiError {
-                    code: "BOOTSTRAP_ALREADY_CONSUMED",
-                    message: "bootstrap credential has already been consumed".into(),
-                }),
+                "BOOTSTRAP_ALREADY_CONSUMED",
+                "bootstrap credential has already been consumed",
             )
-                .into_response()
+            .into_response()
         }
         ClaimRejection::AlreadyClaimed => {
             counter!(CLAIMS_COUNTER, "result" => "already_claimed").increment(1);
-            (
+            ApiError::new(
                 StatusCode::CONFLICT,
-                Json(ApiError {
-                    code: "PLATFORM_ADMIN_CLAIMED",
-                    message: "a platform admin has already been claimed".into(),
-                }),
+                "PLATFORM_ADMIN_CLAIMED",
+                "a platform admin has already been claimed",
             )
-                .into_response()
+            .into_response()
         }
     }
 }
 
 fn internal_error() -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ApiError {
-            code: "INTERNAL_ERROR",
-            message: "an internal error occurred".into(),
-        }),
-    )
-        .into_response()
+    ApiError::internal().into_response()
 }

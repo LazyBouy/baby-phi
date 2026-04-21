@@ -96,6 +96,22 @@ id_newtype!(
     /// Identifier of an `AuditEvent`.
     AuditEventId
 );
+id_newtype!(
+    /// Identifier of a secret entry in the credentials vault (M2 page 04).
+    ///
+    /// Distinct from [`SecretRef`] (the human-readable slug, e.g.
+    /// `anthropic-api-key`). `SecretId` is the opaque UUID used for
+    /// referential integrity; `SecretRef` is what operators type.
+    SecretId
+);
+id_newtype!(
+    /// Identifier of a `ModelRuntime` composite instance (M2 page 02).
+    ModelProviderId
+);
+id_newtype!(
+    /// Identifier of an `ExternalService` composite instance (M2 page 03).
+    McpServerId
+);
 
 #[cfg(test)]
 mod tests {

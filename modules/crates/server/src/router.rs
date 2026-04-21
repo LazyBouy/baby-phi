@@ -12,17 +12,38 @@ use crate::{handlers, health, state::AppState};
 /// many tests can construct their own app in parallel.
 ///
 /// Mounts:
-/// - `/healthz/live`               (M0)
-/// - `/healthz/ready`              (M0)
-/// - `GET  /api/v0/bootstrap/status` (M1/P6)
-/// - `POST /api/v0/bootstrap/claim`  (M1/P6)
+/// - `/healthz/live`                                  (M0)
+/// - `/healthz/ready`                                 (M0)
+/// - `GET  /api/v0/bootstrap/status`                  (M1/P6)
+/// - `POST /api/v0/bootstrap/claim`                   (M1/P6)
+/// - `GET  /api/v0/platform/secrets`                  (M2/P4)
+/// - `POST /api/v0/platform/secrets`                  (M2/P4)
+/// - `POST /api/v0/platform/secrets/{slug}/rotate`    (M2/P4)
+/// - `POST /api/v0/platform/secrets/{slug}/reveal`    (M2/P4)
+/// - `POST /api/v0/platform/secrets/{slug}/reassign-custody` (M2/P4)
 ///
 /// The `CookieManagerLayer` is applied once here so every handler that
 /// pulls `Cookies` from the extractor gets a working jar.
 pub fn build_router(state: AppState) -> Router {
     let api_v0 = Router::new()
         .route("/bootstrap/status", get(handlers::bootstrap::status))
-        .route("/bootstrap/claim", post(handlers::bootstrap::claim));
+        .route("/bootstrap/claim", post(handlers::bootstrap::claim))
+        .route(
+            "/platform/secrets",
+            get(handlers::platform_secrets::list).post(handlers::platform_secrets::add),
+        )
+        .route(
+            "/platform/secrets/:slug/rotate",
+            post(handlers::platform_secrets::rotate),
+        )
+        .route(
+            "/platform/secrets/:slug/reveal",
+            post(handlers::platform_secrets::reveal),
+        )
+        .route(
+            "/platform/secrets/:slug/reassign-custody",
+            post(handlers::platform_secrets::reassign),
+        );
 
     Router::new()
         .route("/healthz/live", get(health::live))

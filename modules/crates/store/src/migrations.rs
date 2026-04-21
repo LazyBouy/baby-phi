@@ -34,11 +34,18 @@ pub struct Migration {
 
 /// The canonical migration list baked into the binary. Ordered by `version`
 /// ascending. Extending it is how subsequent milestones evolve the schema.
-pub const EMBEDDED_MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    slug: "initial",
-    sql: include_str!("../migrations/0001_initial.surql"),
-}];
+pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        slug: "initial",
+        sql: include_str!("../migrations/0001_initial.surql"),
+    },
+    Migration {
+        version: 2,
+        slug: "platform_setup",
+        sql: include_str!("../migrations/0002_platform_setup.surql"),
+    },
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrationError {
@@ -199,10 +206,21 @@ mod tests {
         let applied = run_migrations(&db, EMBEDDED_MIGRATIONS)
             .await
             .expect("fresh db migrates green");
-        assert_eq!(applied, vec![1]);
+        // Every version in `EMBEDDED_MIGRATIONS` applies in order. Asserting
+        // the full list (rather than just `vec![1]`) keeps the test honest
+        // as new migrations are appended; each one must apply successfully
+        // against an empty DB.
+        let expected: Vec<i64> = EMBEDDED_MIGRATIONS.iter().map(|m| m.version).collect();
+        assert_eq!(applied, expected);
 
-        let seen = read_applied_versions(&db).await.expect("read ledger");
-        assert_eq!(seen, vec![1]);
+        // `read_applied_versions` does not impose an ORDER BY — SurrealDB is
+        // free to return ledger rows in any order — so sort both sides
+        // before comparing.
+        let mut seen = read_applied_versions(&db).await.expect("read ledger");
+        seen.sort();
+        let mut expected_sorted = expected.clone();
+        expected_sorted.sort();
+        assert_eq!(seen, expected_sorted);
     }
 
     #[tokio::test]

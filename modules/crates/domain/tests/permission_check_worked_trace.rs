@@ -33,6 +33,7 @@ fn bash_manifest() -> domain::permissions::Manifest {
         ],
         constraints: vec![],
         kinds: vec![],
+        ..Default::default()
     }
 }
 

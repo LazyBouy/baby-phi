@@ -37,6 +37,8 @@ async fn cookie_on_success_is_signed_with_app_secret() {
     let app = build_router(AppState {
         repo,
         session: session_key(),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     });
 
     let body = serde_json::json!({
@@ -94,6 +96,8 @@ async fn cookie_from_a_different_secret_does_not_verify() {
     let app = build_router(AppState {
         repo,
         session: session_key(),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     });
 
     let body = serde_json::json!({
@@ -134,6 +138,8 @@ async fn status_endpoint_does_not_set_cookie() {
     let app = build_router(AppState {
         repo,
         session: session_key(),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     });
     let res = app
         .oneshot(

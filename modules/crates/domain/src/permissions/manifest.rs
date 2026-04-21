@@ -47,18 +47,45 @@ pub struct Manifest {
     /// `command_pattern`, `path_prefix`, `sandbox`). Step 4 checks each
     /// against the winning grant.
     pub constraints: Vec<String>,
+    /// Per-constraint **value requirements**. When a constraint name is
+    /// present in `constraints` AND in `constraint_requirements`, Step
+    /// 4 checks BOTH the key's presence in the invocation's
+    /// `constraint_context` AND strict equality of the context value
+    /// against this required value. When a constraint is only in
+    /// `constraints` (not in `constraint_requirements`), Step 4 checks
+    /// only presence, matching M1 behaviour.
+    ///
+    /// Value-match is the M2 widening that unlocks the
+    /// `purpose=reveal` contract for the credentials vault (page 04):
+    /// the manifest declares `constraint_requirements["purpose"] =
+    /// "reveal"` so invocations that forget to assert the purpose
+    /// land at `FailedStep::Constraint` instead of silently exposing
+    /// plaintext.
+    ///
+    /// Richer comparators (pattern match, lattice, numeric ranges)
+    /// land in M3 when the constraint lattice machinery arrives.
+    #[serde(default)]
+    pub constraint_requirements: std::collections::HashMap<String, serde_json::Value>,
     /// `#kind:` filters that must be carried on the target's tags.
     pub kinds: Vec<String>,
 }
 
 impl Manifest {
     /// Lift the persisted graph node into the engine's input shape.
+    ///
+    /// `constraint_requirements` starts empty — `ToolAuthorityManifest`
+    /// (the graph node) doesn't persist per-constraint value
+    /// requirements in M2. Callers that need value-match (e.g. the
+    /// credentials-vault `reveal` path in page 04) construct `Manifest`
+    /// directly rather than going through the node. M3 extends
+    /// `ToolAuthorityManifest` when the constraint lattice lands.
     pub fn from_node(m: &ToolAuthorityManifest) -> Self {
         Self {
             actions: m.actions.clone(),
             resource: m.resource.clone(),
             transitive: m.transitive.clone(),
             constraints: m.constraints.clone(),
+            constraint_requirements: std::collections::HashMap::new(),
             kinds: m.kinds.clone(),
         }
     }

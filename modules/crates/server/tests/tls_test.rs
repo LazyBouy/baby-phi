@@ -45,6 +45,8 @@ async fn native_tls_listener_serves_https_and_rejects_plaintext() {
     let app = build_router(AppState {
         repo: Arc::new(InMemoryRepository::new()),
         session: SessionKey::for_tests("test-secret-test-secret-test-secret-test-secret"),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     });
     let handle = axum_server::Handle::new();
     let server_handle = handle.clone();

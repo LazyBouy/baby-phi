@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use crate::model::ids::{AgentId, AuditEventId, AuthRequestId, NodeId, OrgId};
 use crate::repository::RepositoryResult;
 
+pub mod events;
+
 /// Retention class for an audit event.
 ///
 /// Per `nfr-observability.md`:
@@ -120,6 +122,20 @@ pub trait AuditEmitter: Send + Sync + 'static {
     /// - Appending to the shadow NDJSON log.
     /// - For `Alerted` events, scheduling delivery to the org's alert channel.
     async fn emit(&self, event: AuditEvent) -> RepositoryResult<()>;
+}
+
+/// Test-only `AuditEmitter` that silently accepts every event. Used by
+/// server tests that don't care about audit wiring (health probes,
+/// session-cookie tests, etc.). Production code must never use this —
+/// a missing audit trail defeats the governance invariant.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoopAuditEmitter;
+
+#[async_trait]
+impl AuditEmitter for NoopAuditEmitter {
+    async fn emit(&self, _event: AuditEvent) -> RepositoryResult<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

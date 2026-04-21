@@ -104,12 +104,19 @@ async fn row_exists(store: &SurrealStore, table: &str, id: &str) -> bool {
 async fn create_agent_profile_persists_row() {
     let (store, _dir) = fresh_store().await;
     let id = NodeId::new();
+    let blueprint = phi_core::agents::profile::AgentProfile {
+        profile_id: "alice-profile".into(),
+        name: Some("Alice-profile".into()),
+        system_prompt: Some("You are Alice.".into()),
+        temperature: Some(0.7),
+        ..phi_core::agents::profile::AgentProfile::default()
+    };
     store
         .create_agent_profile(&AgentProfile {
             id,
             agent_id: AgentId::new(),
-            display_name: "Alice-profile".into(),
             parallelize: 4,
+            blueprint,
             created_at: Utc::now(),
         })
         .await
@@ -126,6 +133,21 @@ async fn create_agent_profile_persists_row() {
         .take((0, "parallelize"))
         .unwrap();
     assert_eq!(p.first().copied(), Some(4));
+
+    // Confirm the phi-core blueprint round-trips (system_prompt preserved).
+    let prompts: Vec<Option<String>> = store
+        .client()
+        .query("SELECT blueprint.system_prompt AS system_prompt FROM type::thing('agent_profile', $id)")
+        .bind(("id", id.to_string()))
+        .await
+        .unwrap()
+        .take((0, "system_prompt"))
+        .unwrap();
+    assert_eq!(
+        prompts.first().and_then(|p| p.clone()).as_deref(),
+        Some("You are Alice."),
+        "phi-core blueprint fields must round-trip through SurrealDB"
+    );
 }
 
 #[tokio::test]
@@ -151,6 +173,7 @@ async fn create_template_persists_row_with_name() {
         .create_template(&Template {
             id,
             name: "template:system_bootstrap".into(),
+            kind: domain::model::nodes::TemplateKind::SystemBootstrap,
             created_at: Utc::now(),
         })
         .await
@@ -401,6 +424,7 @@ fn sample_grant(holder: PrincipalRef, action: &str, resource_uri: &str) -> Grant
         resource: ResourceRef {
             uri: resource_uri.into(),
         },
+        fundamentals: vec![],
         descends_from: None,
         delegable: false,
         issued_at: Utc::now(),
@@ -883,11 +907,19 @@ async fn last_event_hash_for_empty_org_returns_none() {
 
 #[tokio::test]
 async fn last_event_hash_returns_most_recent_hash_per_org() {
+    // Contract: `last_event_hash_for_org(org)` returns
+    // `hash_event(most_recent_event_in_org)` — the digest the NEXT
+    // emit in that org will copy into its `prev_event_hash` to form
+    // the chain. Returning the stored `prev_event_hash` would
+    // propagate the SECOND-to-last event's hash (i.e. not a chain).
+    use domain::audit::hash_event;
     let (store, _dir) = fresh_store().await;
     let org = OrgId::new();
     let other = OrgId::new();
 
-    // Two events for `org`, later one has a specific hash.
+    // Two events for `org`; we re-read the latest one to compute its
+    // deterministic hash against the same canonical bytes the lookup
+    // path uses.
     store
         .write_audit_event(&sample_event(Some(org), None, 0))
         .await
@@ -895,17 +927,27 @@ async fn last_event_hash_returns_most_recent_hash_per_org() {
     let mut with_hash = sample_event(Some(org), None, 1);
     with_hash.prev_event_hash = Some([3u8; 32]);
     store.write_audit_event(&with_hash).await.unwrap();
+    let stored_latest_org = store
+        .get_audit_event(with_hash.event_id)
+        .await
+        .unwrap()
+        .unwrap();
 
-    // One event for a DIFFERENT org; must not bleed into the `org` lookup.
+    // Event for a DIFFERENT org; must not bleed into the `org` lookup.
     let mut other_event = sample_event(Some(other), None, 2);
     other_event.prev_event_hash = Some([99u8; 32]);
     store.write_audit_event(&other_event).await.unwrap();
+    let stored_other = store
+        .get_audit_event(other_event.event_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     let last_for_org = store.last_event_hash_for_org(Some(org)).await.unwrap();
-    assert_eq!(last_for_org, Some([3u8; 32]));
+    assert_eq!(last_for_org, Some(hash_event(&stored_latest_org)));
 
     let last_for_other = store.last_event_hash_for_org(Some(other)).await.unwrap();
-    assert_eq!(last_for_other, Some([99u8; 32]));
+    assert_eq!(last_for_other, Some(hash_event(&stored_other)));
 
     // Platform scope (org = None) has no events.
     let last_for_platform = store.last_event_hash_for_org(None).await.unwrap();
@@ -1354,14 +1396,19 @@ async fn audit_event_full_field_round_trip() {
 
     store.write_audit_event(&ev).await.unwrap();
 
-    // The hash we just persisted is the one `last_event_hash_for_org` will
-    // surface for the next event in this org scope.
+    // `last_event_hash_for_org` returns `hash_event(latest)` — the
+    // digest the next event would copy as its `prev_event_hash` to
+    // form a chain. Re-read from the store so we compute against the
+    // same canonical bytes the lookup path sees.
+    use domain::audit::hash_event;
+    let stored = store.get_audit_event(ev.event_id).await.unwrap().unwrap();
     let last = store.last_event_hash_for_org(Some(org)).await.unwrap();
-    assert_eq!(last, Some([9u8; 32]));
+    assert_eq!(last, Some(hash_event(&stored)));
 }
 
 #[tokio::test]
 async fn audit_last_event_hash_isolated_between_org_and_platform_scope() {
+    use domain::audit::hash_event;
     let (store, _dir) = fresh_store().await;
     let org = OrgId::new();
 
@@ -1369,21 +1416,31 @@ async fn audit_last_event_hash_isolated_between_org_and_platform_scope() {
     let mut platform = sample_event(None, Some([7u8; 32]), 0);
     platform.event_type = "platform.alert".into();
     store.write_audit_event(&platform).await.unwrap();
+    let stored_platform = store
+        .get_audit_event(platform.event_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     // Then an org-scope event with a different hash.
     let mut org_event = sample_event(Some(org), Some([11u8; 32]), 1);
     org_event.event_type = "org.created".into();
     store.write_audit_event(&org_event).await.unwrap();
+    let stored_org = store
+        .get_audit_event(org_event.event_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     assert_eq!(
         store.last_event_hash_for_org(None).await.unwrap(),
-        Some([7u8; 32]),
-        "platform scope must see its own hash"
+        Some(hash_event(&stored_platform)),
+        "platform scope must see its own last event's hash"
     );
     assert_eq!(
         store.last_event_hash_for_org(Some(org)).await.unwrap(),
-        Some([11u8; 32]),
-        "org scope must see its own hash"
+        Some(hash_event(&stored_org)),
+        "org scope must see its own last event's hash"
     );
 }
 
@@ -1472,6 +1529,7 @@ fn bootstrap_claim_for(
             resource: ResourceRef {
                 uri: "system:root".into(),
             },
+            fundamentals: vec![],
             descends_from: Some(auth_request_id),
             delegable: true,
             issued_at: now,

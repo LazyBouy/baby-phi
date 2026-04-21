@@ -33,6 +33,8 @@ async fn spawn_server(credentials: &[&str]) -> (String, tokio::task::JoinHandle<
     let app = build_router(AppState {
         repo,
         session: SessionKey::for_tests(TEST_SECRET),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     });
     let port = free_port();
     let addr: SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();

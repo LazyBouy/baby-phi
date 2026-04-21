@@ -145,10 +145,30 @@ pub fn resolve_grant(grant: &Grant) -> ResolvedGrant {
             grant: grant.clone(),
         };
     }
-    // Case C: the URI is an opaque instance URI — parse as a selector; the
-    // caller supplies the fundamentals via with_fundamentals when they need
-    // the grant to cover specific classes (this is how the bootstrap
-    // `system:root` grant becomes an [allocate]-on-identity-principal grant).
+    // Case D (M2/P4.5 — G19 / D17): the grant carries an explicit
+    // `fundamentals` vec. This is how handlers that issue instance-URI
+    // grants (e.g. `secret:anthropic-api-key`, `provider:<id>`) tell
+    // the engine which fundamental classes to bind the grant to.
+    // Selector is parsed from the instance URI, so the grant scopes to
+    // the specific instance rather than the whole class. No `#kind:`
+    // refinement — the persisted fundamentals are authoritative.
+    if !grant.fundamentals.is_empty() {
+        return ResolvedGrant {
+            fundamentals: grant.fundamentals.iter().copied().collect(),
+            selector: Selector::parse(uri),
+            kind_refinement: None,
+            grant: grant.clone(),
+        };
+    }
+    // Case C (legacy): the URI is an opaque instance URI + no explicit
+    // fundamentals — parse as a selector; the caller supplies the
+    // fundamentals via with_fundamentals when they need the grant to
+    // cover specific classes (this is how the bootstrap `system:root`
+    // grant becomes an [allocate]-on-identity-principal grant).
+    //
+    // Preserved unchanged for M1 back-compat: grants persisted before
+    // the P4.5 field addition have `fundamentals = []` (serde default)
+    // and fall through to this branch.
     ResolvedGrant {
         fundamentals: HashSet::new(),
         selector: Selector::parse(uri),
@@ -183,6 +203,7 @@ mod tests {
             resource: ResourceRef {
                 uri: resource_uri.into(),
             },
+            fundamentals: vec![],
             descends_from: None,
             delegable: false,
             issued_at: Utc::now(),

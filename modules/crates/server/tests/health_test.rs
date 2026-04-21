@@ -18,6 +18,8 @@ fn app(healthy: bool) -> axum::Router {
     build_router(AppState {
         repo: Arc::new(repo),
         session: SessionKey::for_tests("test-secret-test-secret-test-secret-test-secret"),
+        audit: Arc::new(domain::audit::NoopAuditEmitter),
+        master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
     })
 }
 

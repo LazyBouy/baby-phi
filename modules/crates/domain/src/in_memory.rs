@@ -16,12 +16,22 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::audit::AuditEvent;
-use crate::model::ids::{AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId};
+use crate::model::ids::{
+    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
+    OrgId, SecretId,
+};
 use crate::model::nodes::{
     Agent, AgentKind, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
     Organization, OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
 };
-use crate::repository::{BootstrapCredentialRow, Repository, RepositoryError, RepositoryResult};
+use crate::model::{
+    Composite, ExternalService, ModelRuntime, PlatformDefaults, SecretCredential, SecretRef,
+    TenantSet,
+};
+use crate::repository::{
+    BootstrapCredentialRow, Repository, RepositoryError, RepositoryResult, SealedBlob,
+    TenantRevocation,
+};
 
 #[derive(Default)]
 struct State {
@@ -44,6 +54,11 @@ struct State {
     bootstrap_credentials: Vec<BootstrapCredentialRow>,
     catalogue: Vec<(Option<OrgId>, String, String)>, // (owning_org, uri, kind)
     audit_events: Vec<AuditEvent>,
+    // M2 additions (P2 — one HashMap per new composite-instance table).
+    secrets: HashMap<SecretId, (SecretCredential, SealedBlob)>,
+    model_providers: HashMap<ModelProviderId, ModelRuntime>,
+    mcp_servers: HashMap<McpServerId, ExternalService>,
+    platform_defaults: Option<PlatformDefaults>,
 }
 
 #[derive(Clone)]
@@ -433,13 +448,22 @@ impl Repository for InMemoryRepository {
         &self,
         org: Option<OrgId>,
     ) -> RepositoryResult<Option<[u8; 32]>> {
+        // Hash the LAST event's content (canonical bytes exclude
+        // `prev_event_hash` itself). The next event within this org
+        // copies the returned digest into its `prev_event_hash` field,
+        // forming the chain:
+        //
+        //   event_n.prev_event_hash = hash_event(event_{n-1})
+        //
+        // Returning `event.prev_event_hash` instead would propagate the
+        // second-to-last event's hash, not the last — that's not a chain.
         Ok(self
             .lock()?
             .audit_events
             .iter()
             .rev()
             .find(|e| e.org_scope == org)
-            .and_then(|e| e.prev_event_hash))
+            .map(crate::audit::hash_event))
     }
 
     async fn apply_bootstrap_claim(
@@ -492,6 +516,297 @@ impl Repository for InMemoryRepository {
             .expect("credential located above");
         cred.consumed_at = Some(chrono::Utc::now());
         Ok(())
+    }
+
+    // ================================================================
+    // M2 additions — match the new trait methods in the same order as
+    // `repository.rs`.
+    // ================================================================
+
+    // ---- Secrets vault ---------------------------------------------
+
+    async fn put_secret(
+        &self,
+        credential: &SecretCredential,
+        sealed: &SealedBlob,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        // Slug uniqueness — mirrors `secrets_vault_slug` UNIQUE INDEX.
+        if state
+            .secrets
+            .values()
+            .any(|(c, _)| c.slug == credential.slug)
+        {
+            return Err(RepositoryError::Conflict(format!(
+                "vault slug already in use: {}",
+                credential.slug
+            )));
+        }
+        state
+            .secrets
+            .insert(credential.id, (credential.clone(), sealed.clone()));
+        Ok(())
+    }
+
+    async fn get_secret_by_slug(
+        &self,
+        slug: &SecretRef,
+    ) -> RepositoryResult<Option<(SecretCredential, SealedBlob)>> {
+        Ok(self
+            .lock()?
+            .secrets
+            .values()
+            .find(|(c, _)| c.slug == *slug)
+            .cloned())
+    }
+
+    async fn list_secrets(&self) -> RepositoryResult<Vec<SecretCredential>> {
+        Ok(self
+            .lock()?
+            .secrets
+            .values()
+            .map(|(c, _)| c.clone())
+            .collect())
+    }
+
+    async fn rotate_secret(
+        &self,
+        id: SecretId,
+        new_sealed: &SealedBlob,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        match state.secrets.get_mut(&id) {
+            Some((cred, sealed)) => {
+                cred.last_rotated_at = Some(at);
+                *sealed = new_sealed.clone();
+                Ok(())
+            }
+            None => Err(RepositoryError::NotFound),
+        }
+    }
+
+    async fn reassign_secret_custodian(
+        &self,
+        id: SecretId,
+        new_custodian: AgentId,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        match state.secrets.get_mut(&id) {
+            Some((cred, _)) => {
+                cred.custodian = new_custodian;
+                Ok(())
+            }
+            None => Err(RepositoryError::NotFound),
+        }
+    }
+
+    // ---- Model providers -------------------------------------------
+
+    async fn put_model_provider(&self, provider: &ModelRuntime) -> RepositoryResult<()> {
+        self.lock()?
+            .model_providers
+            .insert(provider.id, provider.clone());
+        Ok(())
+    }
+
+    async fn list_model_providers(
+        &self,
+        include_archived: bool,
+    ) -> RepositoryResult<Vec<ModelRuntime>> {
+        Ok(self
+            .lock()?
+            .model_providers
+            .values()
+            .filter(|p| include_archived || p.archived_at.is_none())
+            .cloned()
+            .collect())
+    }
+
+    async fn archive_model_provider(
+        &self,
+        id: ModelProviderId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        match state.model_providers.get_mut(&id) {
+            Some(p) => {
+                p.archived_at = Some(at);
+                p.status = crate::model::RuntimeStatus::Archived;
+                Ok(())
+            }
+            None => Err(RepositoryError::NotFound),
+        }
+    }
+
+    // ---- MCP servers -----------------------------------------------
+
+    async fn put_mcp_server(&self, server: &ExternalService) -> RepositoryResult<()> {
+        self.lock()?.mcp_servers.insert(server.id, server.clone());
+        Ok(())
+    }
+
+    async fn list_mcp_servers(
+        &self,
+        include_archived: bool,
+    ) -> RepositoryResult<Vec<ExternalService>> {
+        Ok(self
+            .lock()?
+            .mcp_servers
+            .values()
+            .filter(|s| include_archived || s.archived_at.is_none())
+            .cloned()
+            .collect())
+    }
+
+    async fn patch_mcp_tenants(
+        &self,
+        id: McpServerId,
+        new_allowed: &TenantSet,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        match state.mcp_servers.get_mut(&id) {
+            Some(s) => {
+                s.tenants_allowed = new_allowed.clone();
+                Ok(())
+            }
+            None => Err(RepositoryError::NotFound),
+        }
+    }
+
+    async fn archive_mcp_server(&self, id: McpServerId, at: DateTime<Utc>) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        match state.mcp_servers.get_mut(&id) {
+            Some(s) => {
+                s.archived_at = Some(at);
+                s.status = crate::model::RuntimeStatus::Archived;
+                Ok(())
+            }
+            None => Err(RepositoryError::NotFound),
+        }
+    }
+
+    // ---- Platform defaults -----------------------------------------
+
+    async fn get_platform_defaults(&self) -> RepositoryResult<Option<PlatformDefaults>> {
+        Ok(self.lock()?.platform_defaults.clone())
+    }
+
+    async fn put_platform_defaults(&self, defaults: &PlatformDefaults) -> RepositoryResult<()> {
+        self.lock()?.platform_defaults = Some(defaults.clone());
+        Ok(())
+    }
+
+    // ---- Cascade ---------------------------------------------------
+
+    async fn narrow_mcp_tenants(
+        &self,
+        id: McpServerId,
+        new_allowed: &TenantSet,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<Vec<TenantRevocation>> {
+        let mut state = self.lock()?;
+
+        // 1. Compute the dropped-orgs diff against the current set.
+        let server = state
+            .mcp_servers
+            .get_mut(&id)
+            .ok_or(RepositoryError::NotFound)?;
+        let dropped = dropped_orgs(&server.tenants_allowed, new_allowed);
+        if dropped.is_empty() {
+            // No shrink — treat as a no-op patch so callers that
+            // mis-route stay correct.
+            server.tenants_allowed = new_allowed.clone();
+            return Ok(vec![]);
+        }
+        server.tenants_allowed = new_allowed.clone();
+
+        // 2. For each dropped org, find every live Auth Request whose
+        //    requestor was that org and revoke every grant
+        //    descending from it.
+        let mut out: Vec<TenantRevocation> = Vec::new();
+        for org in dropped {
+            // Collect candidate Auth Requests (the requestor was this
+            // org). Cloned so we can mutate `state.grants` below
+            // without aliasing the iterator.
+            let ars: Vec<AuthRequestId> = state
+                .auth_requests
+                .values()
+                .filter(|ar| matches!(ar.requestor, PrincipalRef::Organization(o) if o == org))
+                .map(|ar| ar.id)
+                .collect();
+            for ar in ars {
+                let mut revoked: Vec<GrantId> = Vec::new();
+                for g in state.grants.values_mut() {
+                    if g.descends_from == Some(ar) && g.revoked_at.is_none() {
+                        g.revoked_at = Some(at);
+                        revoked.push(g.id);
+                    }
+                }
+                if !revoked.is_empty() {
+                    out.push(TenantRevocation {
+                        org,
+                        auth_request: ar,
+                        revoked_grants: revoked,
+                    });
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    async fn revoke_grants_by_descends_from(
+        &self,
+        ar: AuthRequestId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<Vec<GrantId>> {
+        let mut state = self.lock()?;
+        let mut out: Vec<GrantId> = Vec::new();
+        for g in state.grants.values_mut() {
+            if g.descends_from == Some(ar) && g.revoked_at.is_none() {
+                g.revoked_at = Some(at);
+                out.push(g.id);
+            }
+        }
+        Ok(out)
+    }
+
+    // ---- Catalogue -------------------------------------------------
+
+    async fn seed_catalogue_entry_for_composite(
+        &self,
+        owning_org: Option<OrgId>,
+        resource_uri: &str,
+        composite: Composite,
+    ) -> RepositoryResult<()> {
+        self.seed_catalogue_entry(owning_org, resource_uri, composite.kind_name())
+            .await
+    }
+}
+
+/// Compute the set of orgs that are in `old` but not in `new`. Used by
+/// `narrow_mcp_tenants` to drive the cascade. `TenantSet::All` on
+/// either side is treated as "every known org" — but since we don't
+/// hold a platform-wide org index here, we approximate:
+///
+/// - `old = All`, `new = Only(ids)` → dropped is implicitly "everything
+///   NOT in `ids`". Since we can't enumerate "everything", we return an
+///   empty list here and rely on the handler (which CAN enumerate org
+///   rows via `list_all_orgs`) to compute the full dropped set. M2/P6
+///   restricts this path to handlers that enumerate explicitly.
+/// - `old = Only(a)`, `new = Only(b)` → dropped = `a \ b`.
+/// - `old = Only(_)`, `new = All` → widening; no drops.
+/// - `old = All`, `new = All` → no change.
+fn dropped_orgs(old: &TenantSet, new: &TenantSet) -> Vec<OrgId> {
+    match (old, new) {
+        (TenantSet::Only(old_ids), TenantSet::Only(new_ids)) => old_ids
+            .iter()
+            .filter(|o| !new_ids.contains(o))
+            .copied()
+            .collect(),
+        (TenantSet::Only(_), TenantSet::All) => vec![],
+        (TenantSet::All, TenantSet::All) => vec![],
+        (TenantSet::All, TenantSet::Only(_)) => vec![],
     }
 }
 

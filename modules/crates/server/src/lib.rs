@@ -6,14 +6,19 @@
 
 pub mod bootstrap;
 pub mod config;
+pub mod handler_support;
 pub mod handlers;
 pub mod health;
+pub mod platform;
 pub mod router;
 pub mod session;
 pub mod state;
 pub mod telemetry;
 
 pub use config::ServerConfig;
+pub use handler_support::{
+    check_permission, denial_to_api_error, emit_audit, ApiError, AuthenticatedSession,
+};
 pub use router::{build_router, with_prometheus};
 pub use session::{SessionBuildError, SessionClaims, SessionError, SessionKey};
 pub use state::AppState;

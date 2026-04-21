@@ -17,6 +17,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use server::ServerConfig;
 
+use crate::session_store::{self, SavedSession};
 use crate::{BootstrapCommand, ChannelKindArg};
 
 const EXIT_OK: i32 = 0;
@@ -212,6 +213,11 @@ async fn claim(
     };
     let status = res.status();
     if status.as_u16() == 201 {
+        // Capture the session cookie BEFORE consuming the body — `reqwest`
+        // returns an owned `Response` whose headers vanish once `.json()`
+        // moves it.
+        let session_cookie = extract_session_cookie(res.headers());
+
         let success: ClaimSuccess = match res.json().await {
             Ok(b) => b,
             Err(e) => {
@@ -229,6 +235,28 @@ async fn claim(
             success.bootstrap_auth_request_id
         );
         println!("  audit_event_id:            {}", success.audit_event_id);
+
+        // Save the session cookie so subsequent `baby-phi secret …`
+        // invocations (M2/P4) don't need to re-prompt for the bootstrap
+        // credential (it's single-use anyway). See decision D14 in the
+        // M2 plan.
+        if let Some(cookie_value) = session_cookie {
+            match save_session(&success.human_agent_id, &cookie_value) {
+                Ok(path) => {
+                    println!();
+                    println!("  session saved to:          {}", path.display());
+                }
+                Err(e) => {
+                    eprintln!("baby-phi: warning — claim succeeded but session save failed: {e}");
+                    eprintln!(
+                        "  subsequent `baby-phi secret …` invocations will be unauthenticated."
+                    );
+                }
+            }
+        } else {
+            eprintln!("baby-phi: warning — claim response carried no session cookie; subsequent commands will need manual auth");
+        }
+
         println!();
         println!(
             "Next step: continue to the M2 platform-admin journey (model-provider registration)."
@@ -258,6 +286,37 @@ async fn claim(
     }
 }
 
+// ---- Session-cookie extraction + persistence -------------------------------
+
+fn extract_session_cookie(headers: &reqwest::header::HeaderMap) -> Option<String> {
+    for value in headers.get_all(reqwest::header::SET_COOKIE) {
+        let raw = value.to_str().ok()?;
+        if let Some(rest) = raw.split("baby_phi_session=").nth(1) {
+            if let Some(cookie) = rest.split(';').next() {
+                return Some(cookie.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn save_session(
+    agent_id: &str,
+    cookie_value: &str,
+) -> Result<std::path::PathBuf, session_store::SessionStoreError> {
+    let path = session_store::default_session_path()?;
+    let issued_at = chrono::Utc::now().to_rfc3339();
+    session_store::save(
+        &path,
+        &SavedSession {
+            cookie_value: cookie_value.to_string(),
+            issued_at,
+            agent_id: agent_id.to_string(),
+        },
+    )?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,5 +337,30 @@ mod tests {
             strip_trailing_slash("http://a:8080".into()),
             "http://a:8080"
         );
+    }
+
+    #[test]
+    fn extract_session_cookie_parses_canonical_set_cookie_value() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.append(
+            reqwest::header::SET_COOKIE,
+            reqwest::header::HeaderValue::from_static(
+                "baby_phi_session=abc.def.ghi; Path=/; HttpOnly",
+            ),
+        );
+        assert_eq!(
+            extract_session_cookie(&headers),
+            Some("abc.def.ghi".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_session_cookie_returns_none_when_cookie_missing() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.append(
+            reqwest::header::SET_COOKIE,
+            reqwest::header::HeaderValue::from_static("other_cookie=xyz"),
+        );
+        assert!(extract_session_cookie(&headers).is_none());
     }
 }

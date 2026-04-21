@@ -95,7 +95,7 @@ Negative:
 ## References
 
 - Architecture page: [audit-events.md](../architecture/audit-events.md)
-- Implementation: [`modules/crates/domain/src/audit.rs`](../../../../../../modules/crates/domain/src/audit.rs)
+- Implementation: [`modules/crates/domain/src/audit/mod.rs`](../../../../../../modules/crates/domain/src/audit/mod.rs)
 - NFR source: `docs/specs/v0/requirements/cross-cutting/nfr-observability.md`
 - Plan row: "Audit-log tamper resistance" (M7 + M7b) — M1 seeds the local
   chain; M7b adds the off-site object-locked stream.

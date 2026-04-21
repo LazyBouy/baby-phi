@@ -11,6 +11,7 @@
 //! `docs/specs/v0/concepts/permissions/01-resource-ontology.md`.
 
 pub mod composites;
+pub mod composites_m2;
 pub mod edges;
 pub mod fundamentals;
 pub mod ids;
@@ -18,17 +19,21 @@ pub mod nodes;
 pub mod principal_resource;
 
 pub use composites::Composite;
+pub use composites_m2::{
+    ExternalService, ExternalServiceKind, ModelRuntime, PlatformDefaults, ProviderKind,
+    RuntimeStatus, SecretCredential, SecretRef, TenantSet,
+};
 pub use edges::{Edge, EDGE_KIND_NAMES};
 pub use fundamentals::Fundamental;
 pub use ids::{
-    AgentId, AuditEventId, AuthRequestId, ConsentId, EdgeId, GrantId, MemoryId, NodeId, OrgId,
-    ProjectId, SessionId, TemplateId, UserId,
+    AgentId, AuditEventId, AuthRequestId, ConsentId, EdgeId, GrantId, McpServerId, MemoryId,
+    ModelProviderId, NodeId, OrgId, ProjectId, SecretId, SessionId, TemplateId, UserId,
 };
 pub use nodes::{
     Agent, AgentKind, AgentProfile, ApproverSlot, ApproverSlotState, AuthRequest, AuthRequestState,
     Channel, ChannelKind, Consent, Grant, InboxObject, Memory, NodeKind, Organization,
     OutboxObject, PrincipalRef, ResourceRef, ResourceSlot, ResourceSlotState, Template,
-    ToolAuthorityManifest, User,
+    TemplateKind, ToolAuthorityManifest, User,
 };
 pub use principal_resource::{Principal, Resource};
 
