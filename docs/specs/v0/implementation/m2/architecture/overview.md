@@ -14,13 +14,13 @@ rollout.
 | Domain model | 9 fundamentals, 8 composites, 37 nodes, 66 edges | `ModelRuntime`, `ExternalService`, `SecretCredential`, `PlatformDefaults` composite-instance structs; `TemplateKind` discriminator; `SecretId`, `ModelProviderId`, `McpServerId` ID newtypes | [EXISTS] (P1) |
 | phi-core reuse | `AgentProfile` wraps phi-core's (P0) | Every M2 composite overlapping phi-core imports or wraps it — see [phi-core-reuse-map.md](phi-core-reuse-map.md) | [EXISTS] (P1) |
 | Schema | Migration `0001_initial.surql` | Migration `0002_platform_setup.surql` adds `template.kind`, full `mcp_server` columns, `model_runtime` table, singleton `platform_defaults` | [EXISTS] (P1) |
-| Repository | 36 methods | ~17 M2 methods (secrets ×5, providers ×3, mcp ×4, defaults ×2, cascade ×2, catalogue ×1) | [PLANNED M2/P2] |
-| Engine | 8-step Permission Check | Step 4 widened to support constraint **value-match** (`purpose=reveal`) | [PLANNED M2/P2] |
-| Templates | `SystemBootstrap` only | `TemplateKind::E` + `build_auto_approved_request` pure helper | [PLANNED M2/P2] |
-| Handler infra | Bootstrap bypassed the engine | `handler_support` module: `AuthenticatedSession`, `check_permission`, `emit_audit`, shared `ApiError` | [PLANNED M2/P3] |
-| Audit | Trait + hash helpers | `SurrealAuditEmitter` concrete impl; per-event builder functions | [PLANNED M2/P3] |
+| Repository | 36 methods | ~17 M2 methods (secrets ×5, providers ×3, mcp ×4, defaults ×2, cascade ×2, catalogue ×1) | [EXISTS] (P2) |
+| Engine | 8-step Permission Check | Step 4 widened to support constraint **value-match** (`purpose=reveal`) | [EXISTS] (P2) |
+| Templates | `SystemBootstrap` only | `TemplateKind::E` + `build_auto_approved_request` pure helper | [EXISTS] (P2) |
+| Handler infra | Bootstrap bypassed the engine | `handler_support` module: `AuthenticatedSession`, `check_permission`, `emit_audit`, shared `ApiError` | [EXISTS] (P3) |
+| Audit | Trait + hash helpers | `SurrealAuditEmitter` concrete impl; per-event builder functions | [EXISTS] (P3) |
 | Web shell | `/bootstrap` SSR page | `app/(admin)/` Route Group + auth gate + shared primitives | [EXISTS] (P1) |
-| CLI | `bootstrap`, `agent demo` | `login`, `secret`, `model-provider`, `mcp-server`, `platform-defaults`, `completion` | [PLANNED M2/P4–P8] |
+| CLI | `bootstrap`, `agent demo` | `login`, `secret`, `model-provider`, `mcp-server`, `platform-defaults`, `completion` | [EXISTS] (P4–P8) |
 
 ## Phase-to-page mapping
 

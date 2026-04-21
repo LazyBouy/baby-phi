@@ -2,7 +2,7 @@
 
 # Architecture — `handler_support` shim
 
-**Status: [PLANNED M2/P3]**
+**Status: [EXISTS]** — shipped in M2/P3; every M2 page handler builds on it.
 
 The reusable axum shim every M2+ handler builds on:
 
@@ -12,7 +12,7 @@ The reusable axum shim every M2+ handler builds on:
 - `emit_audit(state.audit, event)` (trait dispatch + 500 on failure).
 - Shared `ApiError { code, message }` envelope.
 
-Fleshed out in P3. ADR: [0018-handler-support-module.md](../decisions/0018-handler-support-module.md).
+ADR: [0018-handler-support-module.md](../decisions/0018-handler-support-module.md).
 
 See also:
 - [`../../m1/architecture/permission-check-engine.md`](../../m1/architecture/permission-check-engine.md)
