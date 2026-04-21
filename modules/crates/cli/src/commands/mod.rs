@@ -3,5 +3,9 @@
 
 pub mod agent;
 pub mod bootstrap;
+pub mod completion;
 pub mod login;
+pub mod mcp_server;
+pub mod model_provider;
+pub mod platform_defaults;
 pub mod secrets;

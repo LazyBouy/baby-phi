@@ -244,6 +244,33 @@ pub struct PlatformDefaults {
     pub version: u64,
 }
 
+impl PlatformDefaults {
+    /// The platform's factory defaults — used by the P7 GET endpoint
+    /// when no row has been persisted yet, as the "factory reset"
+    /// target in the web UI, and as the baseline every unwritten
+    /// install starts from.
+    ///
+    /// Every phi-core-overlapping field is the phi-core `::default()`
+    /// — so bumping phi-core automatically bumps baby-phi's factory
+    /// without a migration. The only baby-phi-native fields
+    /// (`default_retention_days`, `default_alert_channels`) get
+    /// conservative starters: 30 days retention + no channels
+    /// configured.
+    pub fn factory(now: DateTime<Utc>) -> Self {
+        Self {
+            singleton: 1,
+            execution_limits: phi_core::context::execution::ExecutionLimits::default(),
+            default_agent_profile: phi_core::agents::profile::AgentProfile::default(),
+            context_config: phi_core::context::config::ContextConfig::default(),
+            retry_config: phi_core::provider::retry::RetryConfig::default(),
+            default_retention_days: 30,
+            default_alert_channels: Vec::new(),
+            updated_at: now,
+            version: 0,
+        }
+    }
+}
+
 // ============================================================================
 // Tests — shape + serde round-trip for every new type.
 // ============================================================================

@@ -82,6 +82,11 @@ jobs:
     # Full-system acceptance tests (real axum server, embedded
     # SurrealDB, real HTTP over loopback). Release-profile so any
     # optimisation-only regressions surface here before reaching prod.
+    #
+    # Each `--test <name>` compiles to a separate binary (and therefore
+    # a separate process), so the `OnceLock` in the Prometheus layer
+    # used by `acceptance_metrics` is safe alongside the other
+    # binaries.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -94,7 +99,52 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: baby-phi }
-      - run: cargo test -p server --release --test acceptance_bootstrap -- --test-threads 1
+      - run: |
+          cargo test -p server --release \
+            --test acceptance_bootstrap \
+            --test acceptance_secrets \
+            --test acceptance_model_providers \
+            --test acceptance_mcp_servers \
+            --test acceptance_platform_defaults \
+            --test acceptance_m2 \
+            --test acceptance_metrics \
+            -- --test-threads 1
+
+  phi-core-reuse:
+    # Advisory lint — grep for baby-phi-local redeclarations of phi-core
+    # types. Flipped to hard gate in M2/P3 close per plan §D16.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - run: bash scripts/check-phi-core-reuse.sh
+
+  doc-links:
+    # Walk every markdown under docs/specs/v0/implementation/ and check
+    # relative links + the `Last verified: YYYY-MM-DD by …` header.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - run: bash scripts/check-doc-links.sh
+
+  ops-doc-headers:
+    # Ensure every ops runbook under docs/ops/ and */operations/
+    # carries the `Last verified` header.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: baby-phi
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - run: bash scripts/check-ops-doc-headers.sh
 
   audit:
     runs-on: ubuntu-latest

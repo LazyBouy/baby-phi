@@ -17,6 +17,7 @@
 //!      [`server::config`]).
 
 use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 
 mod commands;
 pub mod exit;
@@ -30,7 +31,7 @@ pub mod session_store;
     long_about = "baby-phi platform CLI. M1/P7 wires `bootstrap` subcommands + \
 preserves the phi-core agent-loop demo under `agent demo`."
 )]
-struct Cli {
+pub struct Cli {
     /// Override the server base URL. If unset, falls back to
     /// `BABY_PHI_API_URL`, then to the layered `ServerConfig::load()`.
     #[arg(long, env = "BABY_PHI_API_URL", global = true)]
@@ -63,6 +64,29 @@ enum Command {
     Secret {
         #[command(subcommand)]
         cmd: commands::secrets::SecretCommand,
+    },
+    /// Model-provider subcommands (M2/P5).
+    ModelProvider {
+        #[command(subcommand)]
+        cmd: commands::model_provider::ModelProviderCommand,
+    },
+    /// MCP-server subcommands (M2/P6). Covers list/add/patch-tenants/archive.
+    McpServer {
+        #[command(subcommand)]
+        cmd: commands::mcp_server::McpServerCommand,
+    },
+    /// Platform-defaults subcommands (M2/P7). Read / update the singleton
+    /// row of execution + agent + context + retry defaults.
+    PlatformDefaults {
+        #[command(subcommand)]
+        cmd: commands::platform_defaults::PlatformDefaultsCommand,
+    },
+    /// Emit shell-completion scripts (M2/P8). Delegates to
+    /// `clap_complete::generate`; output goes to stdout. Offline.
+    Completion {
+        /// Target shell. Picked from clap_complete's supported set.
+        #[arg(value_enum)]
+        shell: Shell,
     },
 }
 
@@ -124,6 +148,12 @@ async fn main() {
         Command::Agent { cmd } => commands::agent::run(cmd).await,
         Command::Login { cmd } => commands::login::run(cmd).await,
         Command::Secret { cmd } => commands::secrets::run(cli.server_url, cmd).await,
+        Command::ModelProvider { cmd } => commands::model_provider::run(cli.server_url, cmd).await,
+        Command::McpServer { cmd } => commands::mcp_server::run(cli.server_url, cmd).await,
+        Command::PlatformDefaults { cmd } => {
+            commands::platform_defaults::run(cli.server_url, cmd).await
+        }
+        Command::Completion { shell } => commands::completion::run(shell),
     };
     std::process::exit(code);
 }

@@ -33,10 +33,10 @@ M2 is delivered phase-by-phase. This index is updated as each phase lands.
 | P3 `handler_support` + `SurrealAuditEmitter` + `spawn_claimed` fixture | ✓ done |
 | P4 Page 04 vertical (Credentials Vault) | ✓ done |
 | P4.5 Grant instance-URI fundamentals detour (G19 / D17 / C21) | ✓ done |
-| P5 Page 02 vertical (Model Providers) | [PLANNED M2/P5] |
-| P6 Page 03 vertical (MCP Servers + cascading revocation) | [PLANNED M2/P6] |
-| P7 Page 05 vertical (Platform Defaults) | [PLANNED M2/P7] |
-| P8 Seal (CLI completion + cross-page acceptance + CI + runbook + re-audit) | [PLANNED M2/P8] |
+| P5 Page 02 vertical (Model Providers) | ✓ done |
+| P6 Page 03 vertical (MCP Servers + cascading revocation) | ✓ done |
+| P7 Page 05 vertical (Platform Defaults) | ✓ done |
+| P8 Seal (CLI completion + cross-page acceptance + CI + runbook + re-audit) | ✓ done |
 
 ## Layout
 
@@ -96,7 +96,7 @@ Alternatives pattern. Numbering continues from M1 (0008–0015).
 | [0016](decisions/0016-template-e-self-interested-auto-approve.md) | Template E ("self-interested auto-approve") as the canonical M2 admin-write pattern | Accepted |
 | [0017](decisions/0017-vault-encryption-envelope.md) | Per-entry seal-with-fresh-nonce + one master key for M2's vault | Accepted |
 | [0018](decisions/0018-handler-support-module.md) | `handler_support` as a first-class shim (extractor + Permission Check wrapper + audit emitter) | Accepted |
-| [0019](decisions/0019-platform-defaults-non-retroactive.md) | Platform defaults are non-retroactive — edits never mutate existing orgs | [PLANNED M2/P7] |
+| [0019](decisions/0019-platform-defaults-non-retroactive.md) | Platform defaults are non-retroactive — edits never mutate existing orgs | Accepted |
 
 ## Conventions
 

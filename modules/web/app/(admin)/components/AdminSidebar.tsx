@@ -23,9 +23,9 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: "/secrets", label: "Credentials Vault", ready: true },
-  { href: "/model-providers", label: "Model Providers", ready: false },
-  { href: "/mcp-servers", label: "MCP Servers", ready: false },
-  { href: "/platform-defaults", label: "Platform Defaults", ready: false },
+  { href: "/model-providers", label: "Model Providers", ready: true },
+  { href: "/mcp-servers", label: "MCP Servers", ready: true },
+  { href: "/platform-defaults", label: "Platform Defaults", ready: true },
 ];
 
 export function AdminSidebar({ currentUserId }: { currentUserId: string }) {

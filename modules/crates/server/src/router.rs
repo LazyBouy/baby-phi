@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{get, patch, post},
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
@@ -12,15 +12,25 @@ use crate::{handlers, health, state::AppState};
 /// many tests can construct their own app in parallel.
 ///
 /// Mounts:
-/// - `/healthz/live`                                  (M0)
-/// - `/healthz/ready`                                 (M0)
-/// - `GET  /api/v0/bootstrap/status`                  (M1/P6)
-/// - `POST /api/v0/bootstrap/claim`                   (M1/P6)
-/// - `GET  /api/v0/platform/secrets`                  (M2/P4)
-/// - `POST /api/v0/platform/secrets`                  (M2/P4)
-/// - `POST /api/v0/platform/secrets/{slug}/rotate`    (M2/P4)
-/// - `POST /api/v0/platform/secrets/{slug}/reveal`    (M2/P4)
-/// - `POST /api/v0/platform/secrets/{slug}/reassign-custody` (M2/P4)
+/// - `/healthz/live`                                        (M0)
+/// - `/healthz/ready`                                       (M0)
+/// - `GET  /api/v0/bootstrap/status`                        (M1/P6)
+/// - `POST /api/v0/bootstrap/claim`                         (M1/P6)
+/// - `GET  /api/v0/platform/secrets`                        (M2/P4)
+/// - `POST /api/v0/platform/secrets`                        (M2/P4)
+/// - `POST /api/v0/platform/secrets/{slug}/rotate`          (M2/P4)
+/// - `POST /api/v0/platform/secrets/{slug}/reveal`          (M2/P4)
+/// - `POST /api/v0/platform/secrets/{slug}/reassign-custody`(M2/P4)
+/// - `GET  /api/v0/platform/model-providers`                (M2/P5)
+/// - `POST /api/v0/platform/model-providers`                (M2/P5)
+/// - `POST /api/v0/platform/model-providers/{id}/archive`   (M2/P5)
+/// - `GET  /api/v0/platform/provider-kinds`                 (M2/P5)
+/// - `GET   /api/v0/platform/mcp-servers`                    (M2/P6)
+/// - `POST  /api/v0/platform/mcp-servers`                    (M2/P6)
+/// - `PATCH /api/v0/platform/mcp-servers/{id}/tenants`       (M2/P6)
+/// - `POST  /api/v0/platform/mcp-servers/{id}/archive`       (M2/P6)
+/// - `GET   /api/v0/platform/defaults`                        (M2/P7)
+/// - `PUT   /api/v0/platform/defaults`                        (M2/P7)
 ///
 /// The `CookieManagerLayer` is applied once here so every handler that
 /// pulls `Cookies` from the extractor gets a working jar.
@@ -43,6 +53,36 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/platform/secrets/:slug/reassign-custody",
             post(handlers::platform_secrets::reassign),
+        )
+        .route(
+            "/platform/model-providers",
+            get(handlers::platform_model_providers::list)
+                .post(handlers::platform_model_providers::register),
+        )
+        .route(
+            "/platform/model-providers/:id/archive",
+            post(handlers::platform_model_providers::archive),
+        )
+        .route(
+            "/platform/provider-kinds",
+            get(handlers::platform_model_providers::provider_kinds),
+        )
+        .route(
+            "/platform/mcp-servers",
+            get(handlers::platform_mcp_servers::list)
+                .post(handlers::platform_mcp_servers::register),
+        )
+        .route(
+            "/platform/mcp-servers/:id/tenants",
+            patch(handlers::platform_mcp_servers::patch_tenants),
+        )
+        .route(
+            "/platform/mcp-servers/:id/archive",
+            post(handlers::platform_mcp_servers::archive),
+        )
+        .route(
+            "/platform/defaults",
+            get(handlers::platform_defaults::get).put(handlers::platform_defaults::put),
         );
 
     Router::new()

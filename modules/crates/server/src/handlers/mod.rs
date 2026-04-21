@@ -5,4 +5,7 @@
 //! sibling module.
 
 pub mod bootstrap;
+pub mod platform_defaults;
+pub mod platform_mcp_servers;
+pub mod platform_model_providers;
 pub mod platform_secrets;
