@@ -80,6 +80,77 @@ export type ShowOrgWire = {
   adopted_template_count: number;
 };
 
+// ---- Dashboard wire shapes (M3/P5) ---------------------------------------
+//
+// The dashboard endpoint **deliberately strips** phi-core-wrapping
+// fields from the payload (see the Q1/Q2/Q3 pre-audit pinned in
+// `server/src/platform/orgs/dashboard.rs`). Nothing in the shapes
+// below carries phi-core types — keeping the polling contract
+// decoupled from phi-core schema evolution.
+
+export type ViewerRoleWire = "admin" | "project_lead" | "member" | "none";
+
+export type OrganizationDashboardHeaderWire = {
+  id: string;
+  display_name: string;
+  vision?: string | null;
+  mission?: string | null;
+  consent_policy: ConsentPolicyWire;
+};
+
+export type ViewerContextWire = {
+  agent_id: string;
+  role: ViewerRoleWire;
+  can_admin_manage: boolean;
+};
+
+export type AgentsSummaryWire = {
+  total: number;
+  human: number;
+  llm: number;
+};
+
+export type ProjectsSummaryWire = {
+  active: number;
+  shape_a: number;
+  shape_b: number;
+};
+
+export type TokenBudgetViewWire = {
+  used: number;
+  total: number;
+  pool_id: string;
+};
+
+export type RecentEventSummaryWire = {
+  id: string;
+  kind: string;
+  actor: string | null;
+  timestamp: string;
+  summary: string;
+};
+
+export type EmptyStateCtaCardsWire = {
+  add_agent?: string | null;
+  create_project?: string | null;
+  adopt_template?: string | null;
+  configure_system_agents?: string | null;
+};
+
+export type DashboardSummaryWire = {
+  org: OrganizationDashboardHeaderWire;
+  viewer: ViewerContextWire;
+  agents_summary: AgentsSummaryWire;
+  projects_summary: ProjectsSummaryWire;
+  pending_auth_requests_count: number;
+  alerted_events_24h: number;
+  token_budget: TokenBudgetViewWire;
+  recent_events: RecentEventSummaryWire[];
+  templates_adopted: TemplateKindWire[];
+  cta_cards: EmptyStateCtaCardsWire;
+  welcome_banner?: string | null;
+};
+
 export type ApiErrorWire = { code: string; message: string };
 
 export type ApiResult<T> =
@@ -144,4 +215,23 @@ export async function showOrgApi(
     return { ok: false, httpStatus: res.status, ...err };
   }
   return { ok: true, value: (await res.json()) as ShowOrgWire };
+}
+
+export async function dashboardOrgApi(
+  headers: Headers,
+  id: string,
+): Promise<ApiResult<DashboardSummaryWire>> {
+  const res = await fetch(
+    `${API_BASE}${PATH}/${encodeURIComponent(id)}/dashboard`,
+    {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) {
+    const err = await readError(res);
+    return { ok: false, httpStatus: res.status, ...err };
+  }
+  return { ok: true, value: (await res.json()) as DashboardSummaryWire };
 }

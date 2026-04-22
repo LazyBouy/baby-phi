@@ -602,6 +602,29 @@ pub trait Repository: Send + Sync + 'static {
         org: OrgId,
     ) -> RepositoryResult<Vec<AuthRequest>>;
 
+    /// Fetch the single [`TokenBudgetPool`] associated with `org`, or
+    /// `None` if none exists (should not happen for orgs created via
+    /// [`Repository::apply_org_creation`] — the compound tx always
+    /// creates exactly one pool per org). Used by the M3/P5 dashboard's
+    /// `TokenBudget` panel to render `used / total`.
+    ///
+    /// [`TokenBudgetPool`]: crate::model::composites_m3::TokenBudgetPool
+    async fn get_token_budget_pool_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Option<crate::model::composites_m3::TokenBudgetPool>>;
+
+    /// Count audit events whose `org_scope = Some(org)` AND
+    /// `audit_class = Alerted` AND `timestamp >= since`. Used by the
+    /// M3/P5 dashboard's `AlertedEventsCount` panel (R-ADMIN-07-R5 "in
+    /// the last 24 hours"). The SurrealDB impl pushes the filter into
+    /// the query — the in-memory impl walks the store under the lock.
+    async fn count_alerted_events_for_org_since(
+        &self,
+        org: OrgId,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<u32>;
+
     // ---- Org creation compound tx (M3/P3) -----------------------------
     //
     // Single atomic write: Organization + CEO Agent/Channel/Inbox/Outbox/

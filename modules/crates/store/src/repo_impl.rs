@@ -1351,6 +1351,69 @@ impl Repository for SurrealStore {
         Ok(out)
     }
 
+    async fn get_token_budget_pool_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Option<domain::model::composites_m3::TokenBudgetPool>> {
+        // The compound tx creates exactly one pool per org keyed by
+        // `owning_org`; the read-path fetches the single row (or none
+        // if the org doesn't exist yet).
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM token_budget_pool \
+                 WHERE owning_org = $org LIMIT 1",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| RepositoryError::Backend("token_budget_pool row missing _rid".into()))?;
+        let node_id = domain::model::ids::NodeId::from_uuid(parse_uuid(&rid)?);
+        let row = inject_id(row, node_id)?;
+        let pool: domain::model::composites_m3::TokenBudgetPool =
+            serde_json::from_value(row).map_err(backend)?;
+        Ok(Some(pool))
+    }
+
+    async fn count_alerted_events_for_org_since(
+        &self,
+        org: OrgId,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<u32> {
+        // Pushes the filter into SurrealDB; the compound index
+        // `audit_events_org_timestamp` (org_scope, timestamp) from
+        // migration 0001 services both the ORDER BY in
+        // `list_recent_audit_events_for_org` and the counter here.
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT count() AS n FROM audit_events \
+                 WHERE org_scope = $org \
+                   AND audit_class = 'alerted' \
+                   AND timestamp >= $since \
+                 GROUP ALL",
+            )
+            .bind(("org", org.to_string()))
+            .bind(("since", since.to_rfc3339()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let n = rows
+            .first()
+            .and_then(|v| v.get("n"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        Ok(n as u32)
+    }
+
     async fn apply_org_creation(
         &self,
         payload: &OrgCreationPayload,

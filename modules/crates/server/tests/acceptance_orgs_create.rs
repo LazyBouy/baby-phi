@@ -363,3 +363,116 @@ async fn show_unknown_org_is_404() {
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["code"].as_str(), Some("ORG_NOT_FOUND"));
 }
+
+// ---------------------------------------------------------------------------
+// Reference-layout E2E fidelity (M3/P6 — covers page 06 §11 Scenario 2).
+// Pulls the three fixture YAMLs through the real HTTP path and asserts the
+// shipped org matches the layout's prescribed shape (templates, consent,
+// token budget). The layouts are the same ones `baby-phi org create
+// --from-layout <ref>` consumes; these tests are the E2E companion to the
+// CLI-level fixture-parse test in `cli/tests/org_help.rs` +
+// `cli::commands::org::tests::all_three_reference_layouts_parse`.
+// ---------------------------------------------------------------------------
+
+fn load_reference_layout(name: &str) -> serde_json::Value {
+    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("cli/fixtures/reference_layouts")
+        .join(format!("{name}.yaml"));
+    let text = std::fs::read_to_string(&fixture_path)
+        .unwrap_or_else(|_| panic!("read layout {}", fixture_path.display()));
+    let yaml: serde_yaml::Value = serde_yaml::from_str(&text).expect("parse layout");
+    serde_json::to_value(yaml).expect("yaml → json")
+}
+
+#[tokio::test]
+async fn regulated_enterprise_layout_persists_full_template_suite() {
+    // Page 06 §11 Scenario 2 sibling: a regulated-enterprise shape
+    // (per-session consent, alerted default, all four templates).
+    let admin = spawn_claimed(false).await;
+    let body = load_reference_layout("regulated-enterprise");
+    let res = post_orgs(&admin, body).await;
+    assert_eq!(res.status().as_u16(), 201);
+    let receipt: serde_json::Value = res.json().await.unwrap();
+    // 4 adoption ARs — one per template {A, B, C, D}.
+    assert_eq!(
+        receipt["adoption_auth_request_ids"]
+            .as_array()
+            .map(|v| v.len()),
+        Some(4),
+        "regulated-enterprise enables A+B+C+D"
+    );
+    // 5 audit events = OrganizationCreated + 4 AuthorityTemplateAdopted.
+    assert_eq!(
+        receipt["audit_event_ids"].as_array().map(|v| v.len()),
+        Some(5)
+    );
+
+    let org_id = receipt["org_id"].as_str().unwrap().to_string();
+    let show = admin
+        .authed_client
+        .get(admin.url(&format!("/api/v0/orgs/{org_id}")))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(show.status().as_u16(), 200);
+    let sbody: serde_json::Value = show.json().await.unwrap();
+    let org = &sbody["organization"];
+    assert_eq!(org["display_name"].as_str(), Some("Regulated Enterprise"));
+    assert_eq!(org["consent_policy"].as_str(), Some("per_session"));
+    assert_eq!(org["audit_class_default"].as_str(), Some("alerted"));
+    let templates = org["authority_templates_enabled"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let kinds: std::collections::HashSet<&str> =
+        templates.iter().filter_map(|v| v.as_str()).collect();
+    assert_eq!(
+        kinds,
+        std::collections::HashSet::from(["a", "b", "c", "d"]),
+        "layout fidelity: all four templates must land"
+    );
+}
+
+#[tokio::test]
+async fn mid_product_team_layout_persists_three_templates_and_slack_ceo() {
+    // Page 06 §11 Scenario 2 sibling: the mid-product-team layout
+    // (one_time consent, alerted default, A+B+C, Slack CEO channel).
+    let admin = spawn_claimed(false).await;
+    let body = load_reference_layout("mid-product-team");
+    let res = post_orgs(&admin, body).await;
+    assert_eq!(res.status().as_u16(), 201);
+    let receipt: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(
+        receipt["adoption_auth_request_ids"]
+            .as_array()
+            .map(|v| v.len()),
+        Some(3)
+    );
+
+    let org_id = receipt["org_id"].as_str().unwrap().to_string();
+    let show = admin
+        .authed_client
+        .get(admin.url(&format!("/api/v0/orgs/{org_id}")))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(show.status().as_u16(), 200);
+    let sbody: serde_json::Value = show.json().await.unwrap();
+    let org = &sbody["organization"];
+    assert_eq!(org["display_name"].as_str(), Some("Mid Product Team"));
+    assert_eq!(org["consent_policy"].as_str(), Some("one_time"));
+    assert_eq!(org["audit_class_default"].as_str(), Some("alerted"));
+    let templates = org["authority_templates_enabled"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let kinds: std::collections::HashSet<&str> =
+        templates.iter().filter_map(|v| v.as_str()).collect();
+    assert_eq!(
+        kinds,
+        std::collections::HashSet::from(["a", "b", "c"]),
+        "layout fidelity: A+B+C templates must land"
+    );
+}

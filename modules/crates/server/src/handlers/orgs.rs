@@ -7,6 +7,7 @@
 //! | `POST` | `/api/v0/orgs` | create org via wizard payload |
 //! | `GET`  | `/api/v0/orgs` | list all orgs |
 //! | `GET`  | `/api/v0/orgs/:id` | show one org (detail; defaults_snapshot included) |
+//! | `GET`  | `/api/v0/orgs/:id/dashboard` | consolidated aggregate read (M3/P5) |
 //!
 //! ## phi-core leverage
 //!
@@ -39,6 +40,7 @@ use tracing::{error, info};
 use crate::handler_support::{ApiError, AuthenticatedSession};
 use crate::platform::orgs::{
     create::{create_organization, CreateInput},
+    dashboard::{dashboard_summary, DashboardOutcome},
     list::list_organizations,
     show::show_organization,
     OrgError,
@@ -183,6 +185,29 @@ pub async fn list(
         })
         .collect();
     Ok((StatusCode::OK, Json(ListOrgsResponse { orgs })).into_response())
+}
+
+pub async fn dashboard(
+    State(state): State<AppState>,
+    session: AuthenticatedSession,
+    Path(id): Path<OrgId>,
+) -> Result<Response, ApiError> {
+    let outcome = dashboard_summary(state.repo.clone(), id, session.agent_id, Utc::now())
+        .await
+        .map_err(error_to_api_error)?;
+    match outcome {
+        DashboardOutcome::Found(summary) => Ok((StatusCode::OK, Json(*summary)).into_response()),
+        DashboardOutcome::NotFound => Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "ORG_NOT_FOUND",
+            format!("no organization with id {id}"),
+        )),
+        DashboardOutcome::AccessDenied => Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            "ORG_ACCESS_DENIED",
+            format!("viewer has no relation to org {id}"),
+        )),
+    }
 }
 
 pub async fn show(

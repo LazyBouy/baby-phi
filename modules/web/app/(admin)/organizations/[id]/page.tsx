@@ -37,9 +37,17 @@ export default async function OrgDetailPage({
           <h1 className="text-xl font-semibold">{organization.display_name}</h1>
           <div className="font-mono text-xs opacity-60">{organization.id}</div>
         </div>
-        <Link href="/organizations" className="text-sm underline">
-          ← Back
-        </Link>
+        <div className="flex gap-3 text-sm">
+          <Link
+            href={`/organizations/${organization.id}/dashboard`}
+            className="underline"
+          >
+            Dashboard →
+          </Link>
+          <Link href="/organizations" className="underline">
+            ← Back
+          </Link>
+        </div>
       </header>
 
       {(organization.vision || organization.mission) && (

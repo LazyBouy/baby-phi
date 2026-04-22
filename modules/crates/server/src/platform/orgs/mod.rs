@@ -35,6 +35,7 @@
 //! `Organization.default_model_provider: ModelProviderId` only.
 
 pub mod create;
+pub mod dashboard;
 pub mod list;
 pub mod show;
 

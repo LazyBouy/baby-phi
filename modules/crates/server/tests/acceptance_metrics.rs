@@ -69,7 +69,30 @@ async fn metrics_endpoint_surfaces_prometheus_exposition_after_traffic() {
         .unwrap();
     assert_eq!(r.status().as_u16(), 400);
 
-    // 2. Scrape `/metrics`.
+    // 3. Also drive the M3 org-creation path so metrics record it.
+    //    This is the M3/P6 extension (commitment C13): a non-zero
+    //    `POST /api/v0/orgs` count must land in the Prometheus
+    //    exposition after the wizard completes.
+    let r = admin
+        .authed_client
+        .post(admin.url("/api/v0/orgs"))
+        .json(&json!({
+            "display_name": "Metrics Smoke",
+            "consent_policy": "implicit",
+            "audit_class_default": "logged",
+            "authority_templates_enabled": ["a"],
+            "default_model_provider": null,
+            "ceo_display_name": "Alice",
+            "ceo_channel_kind": "email",
+            "ceo_channel_handle": "alice@metrics.test",
+            "token_budget": 1_000_000,
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 201, "M3 org-creation must succeed");
+
+    // 4. Scrape `/metrics`.
     let r = admin
         .authed_client
         .get(admin.url("/metrics"))
@@ -79,7 +102,7 @@ async fn metrics_endpoint_surfaces_prometheus_exposition_after_traffic() {
     assert_eq!(r.status().as_u16(), 200, "/metrics reachable");
     let body = r.text().await.unwrap();
 
-    // 3. Verify Prometheus text-exposition format. At minimum the
+    // 5. Verify Prometheus text-exposition format. At minimum the
     //    response must carry the `# TYPE` directive and a recognised
     //    axum-prometheus HTTP metric name. We don't hard-code the
     //    exact metric name (axum-prometheus evolves the names
@@ -96,5 +119,24 @@ async fn metrics_endpoint_surfaces_prometheus_exposition_after_traffic() {
     assert!(
         has_request_metric,
         "/metrics must include at least one HTTP-request metric; got:\n{body}"
+    );
+
+    // 6. **M3/P6 extension (C13)**: the POST /orgs line above must
+    //    surface in the scrape. We look for a line that carries the
+    //    path label (axum-prometheus labels requests by templated
+    //    path when the route pattern is matched). The two acceptable
+    //    shapes are:
+    //      - `axum_http_requests_total{...path="/api/v0/orgs",...} <n>`
+    //      - `http_requests_total{...endpoint="/api/v0/orgs",...} <n>`
+    //    We accept any line that mentions `/api/v0/orgs` in the
+    //    metric sample; the polymorphism guards against label-name
+    //    drift in axum-prometheus upgrades.
+    let has_orgs_path_metric = body
+        .lines()
+        .any(|line| !line.starts_with('#') && line.contains("/api/v0/orgs"));
+    assert!(
+        has_orgs_path_metric,
+        "/metrics must record at least one sample for the /api/v0/orgs path \
+         after the wizard POST; got:\n{body}"
     );
 }

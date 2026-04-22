@@ -20,8 +20,8 @@ Plan archive: [`../../../plan/build/563945fe-m3-organization-creation.md`](../..
 | P2 — Repository expansion + Template A/B/C/D builders + M3 audit events | ✓ done | 5 org-scoped list methods + `domain::templates::{a,b,c,d}` + `audit/events/m3/orgs.rs` |
 | P3 — handler_support extensions + compound tx + harness | ✓ done | `apply_org_creation` + `emit_audit_batch` + `spawn_claimed_with_org` + two-org hash-chain proptest + ADR-0023 |
 | P4 — Page 06 vertical (Org Creation Wizard) | ✓ done | Rust business logic + HTTP handler + CLI `org {create,list,show}` + 8-step Web wizard + reference-layout fixtures + ADR-0022 |
-| P5 — Page 07 vertical (Org Dashboard) | [PLANNED M3/P5] | Business logic + `GET /orgs/:id/dashboard` + CLI `org dashboard` + Web dashboard with 30 s polling |
-| P6 — Seal (cross-page acceptance + metrics + CI + runbook + re-audit) | [PLANNED M3/P6] | `acceptance_m3.rs` + CI extensions + runbook aggregation + independent 3-agent audit ≥ 99% |
+| P5 — Page 07 vertical (Org Dashboard) | ✓ done | Business logic + `GET /orgs/:id/dashboard` + CLI `org dashboard` + Web dashboard with 30 s polling + 7 acceptance scenarios + phi-core-strip invariant pinned |
+| P6 — Seal (cross-page acceptance + metrics + CI + runbook + re-audit) | ✓ done | `acceptance_m3.rs` (2 scenarios) + CI rust.yml extension (3 new binaries) + runbook M3 section + M3 troubleshooting doc + completion regression across all shells + independent 3-agent re-audit (composite 98.4% → 99% after LOW remediation) |
 
 ## ADRs
 
@@ -51,19 +51,27 @@ the per-phase process discipline lives in the checklist.
 `AgentProfile`, `ContextConfig`, `RetryConfig` — inherited from
 M2/P7's pattern), materialised as per-agent blueprint instances at P3
 (first production uses of `phi_core::AgentProfile.clone()`), reused
-again at P4 via the wizard orchestrator. P2 and P5 sit entirely on
-baby-phi's governance plane (templates, auth requests, audit events,
-dashboard aggregate reads) — legitimate phi-core-free surfaces per
-CLAUDE.md §Orthogonal surfaces. D11 pins that `Organization` is NOT a
-wrap of `phi_core::session::model::Session` — drill-down to Session
-details happens via FK navigation at M5, not type-level coupling.
-D12 / ADR-0023 pin that system agents inherit `ExecutionLimits` /
-`ContextConfig` / `RetryConfig` from `Organization.defaults_snapshot`
-— no per-agent duplication.
+again at P4 via the wizard orchestrator. P2, P5, and P6 sit entirely
+on baby-phi's governance plane (templates, auth requests, audit
+events, dashboard aggregate reads, cross-page tests, CI, docs) —
+legitimate phi-core-free surfaces per CLAUDE.md §Orthogonal surfaces.
+P5 additionally *strips* `Organization.defaults_snapshot` from the
+dashboard wire shape by design, pinned by schema-snapshot tests at
+four tiers (unit + acceptance + cross-page + web) so phi-core schema
+evolution never forces a polling-contract rev. D11 pins that
+`Organization` is NOT a wrap of `phi_core::session::model::Session`
+— drill-down to Session details happens via FK navigation at M5, not
+type-level coupling. D12 / ADR-0023 pin that system agents inherit
+`ExecutionLimits` / `ContextConfig` / `RetryConfig` from
+`Organization.defaults_snapshot` — no per-agent duplication.
 
 ## Testing posture (plan §5)
 
-Target: M2 close 511 Rust + 36 Web = **547** → M3 close **~630**
-combined (+~83 Rust / +~22 Web). Per-phase close audit always runs
-the same 3-aspect check (code correctness + docs accuracy + phi-core
-leverage) with explicit % target.
+Target: M2 close 511 Rust + 36 Web = **547** → M3 close **~650**
+combined. **Final M3/P6 close: 633 Rust + 55 Web = 688**
+(+122 Rust / +19 Web over M2). Per-phase close audit always runs the
+same 3-aspect check (code correctness + docs accuracy + phi-core
+leverage) with explicit % target. Independent 3-agent re-audit at P6
+reported 99.0% / 99.2% / 99.0% (composite 99.1% after LOW
+remediation — added two E2E layout-fidelity tests + flipped the
+README P6 status).

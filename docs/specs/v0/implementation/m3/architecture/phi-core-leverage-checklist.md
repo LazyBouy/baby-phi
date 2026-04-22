@@ -177,12 +177,86 @@ M4's plan inherits this checklist. Every milestone's Part 1.5 (phi-core
 reuse map) cross-links here. The plan-template convention for
 `### phi-core leverage` now uses the Q1/Q2/Q3 split by default.
 
-## Enforcement
+## Enforcement — four-tier model
 
-Structural discipline, not CI-enforced. The existing
-`scripts/check-phi-core-reuse.sh` continues to hard-gate duplicated
-phi-core type definitions. This checklist catches the complementary
-failure mode (miss-leverage) that the grep-linter cannot see.
+A single grep linter is insufficient. phi-core leverage is guarded
+by four tiers, each catching a failure the other tiers cannot. The
+checklist below is **only one of the tiers**; documented here so
+reviewers and future planners know what else is in place and don't
+regress to "the script passes, ship it".
+
+### Tier 1 — CI-enforced, zero-human-judgement
+
+Catches: duplication, type swaps, wire-shape drift.
+
+| Mechanism | What it catches | Failure surface |
+|---|---|---|
+| [`scripts/check-phi-core-reuse.sh`](../../../../../../scripts/check-phi-core-reuse.sh) | Parallel redeclarations of phi-core types under `modules/crates/` (e.g. a local `struct AgentProfile`) | Duplication only — **blind to miss-leverage** where a surface *should* wrap phi-core but doesn't. |
+| Compile-time coercion tests (e.g. `fn is_phi_core_agent_profile(_: &phi_core::…::AgentProfile) {}` then `is_phi_core_agent_profile(&built_pair[0].1.blueprint)`) | Accidental swap of a phi-core wrap for a local struct — the test stops compiling. | Only the call-sites the test exercises. Add one per non-trivial wrap. |
+| Schema-snapshot tests with **forbidden-key** lists (M3/P5's triple-tier: unit + acceptance + web) | A reviewer re-adding a phi-core-wrapping field to a deliberately-stripped wire shape. | Only the wire shapes with explicit tests. Add one whenever a response *strips* phi-core. |
+
+### Tier 2 — Structural, reviewer-enforced (this checklist)
+
+Catches: miss-leverage, silent omissions, reductive "None" answers.
+
+- Q1/Q2/Q3 per-phase audit in the plan (see §§1–5 above).
+- **Deliverable-level** phi-core tags — not phase-level summaries.
+- Positive close-audit grep assertions in `### Confidence check`
+  ("this import MUST exist"), not only negative ones.
+- Pre-audit runs **before** implementation (P5.0 precedent) when a
+  phase touches anything data-plane or wire-shape-ish.
+
+### Tier 3 — Governance record (ADRs + reuse map)
+
+Catches: re-litigation of already-decided boundaries; drift in the
+"where does each phi-core type live?" answer.
+
+- [`phi-core-reuse-map.md`](phi-core-reuse-map.md) — durable table of type-level wraps, updated per milestone close. Includes the "why `Organization` is NOT a wrap of `phi_core::Session`" argument (D11).
+- ADRs for non-trivial reuse decisions: [ADR-0019 non-retroactive snapshot](../decisions/), [ADR-0023 inherit-from-snapshot](../decisions/0023-system-agents-inherit-from-org-snapshot.md).
+- The build plan's `#### Carryovers from M<n>` subsections carry phi-core implications forward to the next milestone's detailed planning session (M3 added carryovers to both M4 and M5 sections of the base plan).
+
+### Tier 4 — Independent retrospective
+
+Catches: aggregate drift, coordinate failures across phases, cases
+where each phase looked fine but the milestone overall missed.
+
+- Independent re-audit **agent** at milestone close (M2/P8 precedent; M3/P6 planned). Target: ≥99% composite confidence. The agent re-walks the Q1/Q2/Q3 discipline across every phase's shipped code without the author's context.
+- Post-milestone update to the reuse map + the leverage-checklist `§Backstory` (add a new slip entry if one occurred, so the next milestone's planner reads the failure mode).
+
+## What each tier does NOT catch
+
+Calling out the gaps explicitly so a future reviewer knows not to
+treat "tier X passes" as sufficient:
+
+- **Tier 1 does not catch miss-leverage.** The grep only fires on
+  *present* parallel types. A phase that forgets to wrap phi-core at
+  all looks identical to a phase that correctly has no phi-core
+  overlap.
+- **Tier 2 is human-applied.** Reviewer fatigue + reductive answers
+  ("leverage = None") have already slipped through once (M3/P3 — see
+  §Backstory). This is why Tier 4 exists.
+- **Tier 3 is a static record.** An ADR pinned yesterday doesn't
+  catch a code change made today that silently contradicts it.
+- **Tier 4 is milestone-coarse.** A mid-milestone slip can merge + sit
+  uncaught for ~2 weeks.
+
+## Known gaps (candidates for future hardening)
+
+Not yet implemented; noting here so they don't slip out of scope:
+
+- **PR-level phi-core gate.** A per-PR template with Q1/Q2/Q3
+  checkboxes would catch slips within hours rather than at phase
+  close. Candidate for M7b's CI-hardening phase.
+- **Automated miss-leverage detection.** A grep for baby-phi struct
+  definitions that *mirror* (by field-name set) a phi-core type
+  would catch cases the current linter misses. Candidate for M6+ when
+  the type inventory stabilises.
+- **"Why did this wrap get deferred?" audit.** When a phase chooses
+  not to wrap despite an overlap, require an explicit ADR-tier
+  justification (not just a plan comment). Would have surfaced the
+  M3/P3 slip before P3 opened.
+
+## Reviewer rejection criteria (Tier 2 baseline)
 
 Reviewers should reject any plan's `### phi-core leverage` subsection
 that:
@@ -190,3 +264,5 @@ that:
 - Says "None" without Q3's explicit module-walk rejection list.
 - Has only negative close-audit assertions.
 - Has phase-level summary tags instead of deliverable-level tags.
+- Cites only Tier 1 (the grep linter) as evidence of leverage
+  discipline — Tier 1 cannot catch miss-leverage.

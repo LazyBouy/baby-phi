@@ -885,6 +885,36 @@ impl Repository for InMemoryRepository {
             .collect())
     }
 
+    async fn get_token_budget_pool_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Option<crate::model::composites_m3::TokenBudgetPool>> {
+        let state = self.lock()?;
+        Ok(state
+            .token_budget_pools
+            .values()
+            .find(|p| p.owning_org == org)
+            .cloned())
+    }
+
+    async fn count_alerted_events_for_org_since(
+        &self,
+        org: OrgId,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<u32> {
+        let state = self.lock()?;
+        let n = state
+            .audit_events
+            .iter()
+            .filter(|e| {
+                e.org_scope == Some(org)
+                    && matches!(e.audit_class, crate::audit::AuditClass::Alerted)
+                    && e.timestamp >= since
+            })
+            .count();
+        Ok(n as u32)
+    }
+
     async fn apply_org_creation(
         &self,
         payload: &OrgCreationPayload,

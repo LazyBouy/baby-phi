@@ -1,16 +1,18 @@
 //! `baby-phi org {create, list, show, dashboard}` subcommands.
 //!
-//! Create / list / show are wired at M3/P4 against the HTTP surface
-//! under `/api/v0/orgs`. Dashboard stays stubbed until M3/P5.
+//! Create / list / show wired at M3/P4; dashboard wired at M3/P5.
 //!
 //! ## phi-core leverage
 //!
 //! Q1 **none** at the CLI tier — no `use phi_core::…` imports.
-//! Q2 **yes, via serde**: when the operator supplies
-//! `--from-layout <ref>` the fixture YAML may include a
-//! `defaults_snapshot_override` field that carries phi-core-wrapping
-//! types. We deserialise to `serde_json::Value` and forward verbatim,
-//! so field evolution in phi-core never forces a CLI migration.
+//!
+//! Q2: the create subcommand forwards a `defaults_snapshot_override`
+//! field (which wraps 4 phi-core types) verbatim when the operator
+//! supplies `--from-layout <ref>`. The dashboard subcommand transits
+//! **zero phi-core fields** — the server's P5 business logic strips
+//! `defaults_snapshot` from the dashboard wire shape by design (see
+//! the pre-audit in [`server::platform::orgs::dashboard`]).
+//!
 //! Q3 considered-and-rejected: phi-core has no CLI layer; nothing to
 //! reuse.
 
@@ -149,45 +151,30 @@ impl CeoChannelKindArg {
     }
 }
 
-/// Reserved for the dashboard subcommand; P5 flips it back to 7.
-pub const EXIT_NOT_IMPLEMENTED: i32 = 7;
-
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
 pub async fn run(server_url_override: Option<String>, cmd: OrgCommand) -> i32 {
+    let base = match resolve_base_url(server_url_override) {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+            return EXIT_INTERNAL;
+        }
+    };
+    let client = match build_authed_client() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("baby-phi: {e}");
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
     match cmd {
-        OrgCommand::Dashboard { .. } => {
-            eprintln!(
-                "baby-phi: `org dashboard` is scaffolded but the HTTP \
-                 wiring lands in M3/P5. Completion scripts know the \
-                 flag surface today."
-            );
-            EXIT_NOT_IMPLEMENTED
-        }
-        cmd => {
-            let base = match resolve_base_url(server_url_override) {
-                Ok(u) => u,
-                Err(e) => {
-                    eprintln!("baby-phi: failed to resolve server URL: {e:#}");
-                    return EXIT_INTERNAL;
-                }
-            };
-            let client = match build_authed_client() {
-                Ok(c) => c,
-                Err(e) => {
-                    eprintln!("baby-phi: {e}");
-                    return EXIT_PRECONDITION_FAILED;
-                }
-            };
-            match cmd {
-                OrgCommand::Create { .. } => create_impl(&client, &base, cmd).await,
-                OrgCommand::List { json } => list_impl(&client, &base, json).await,
-                OrgCommand::Show { id, json } => show_impl(&client, &base, &id, json).await,
-                OrgCommand::Dashboard { .. } => unreachable!(),
-            }
-        }
+        OrgCommand::Create { .. } => create_impl(&client, &base, cmd).await,
+        OrgCommand::List { json } => list_impl(&client, &base, json).await,
+        OrgCommand::Show { id, json } => show_impl(&client, &base, &id, json).await,
+        OrgCommand::Dashboard { id, json } => dashboard_impl(&client, &base, &id, json).await,
     }
 }
 
@@ -436,6 +423,104 @@ async fn show_impl(client: &reqwest::Client, base: &str, id: &str, json: bool) -
     EXIT_OK
 }
 
+async fn dashboard_impl(client: &reqwest::Client, base: &str, id: &str, json: bool) -> i32 {
+    let url = format!("{base}/api/v0/orgs/{id}/dashboard");
+    let res = match client.get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("baby-phi: GET {url} failed: {e}");
+            return EXIT_TRANSPORT;
+        }
+    };
+    let status = res.status();
+    if !status.is_success() {
+        return report_api_error(res, status).await;
+    }
+    let body: serde_json::Value = match res.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("baby-phi: decode response: {e}");
+            return EXIT_INTERNAL;
+        }
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&body).unwrap());
+        return EXIT_OK;
+    }
+    render_dashboard_human(&body);
+    EXIT_OK
+}
+
+fn render_dashboard_human(body: &serde_json::Value) {
+    let org = &body["org"];
+    let viewer = &body["viewer"];
+    let agents = &body["agents_summary"];
+    let projects = &body["projects_summary"];
+    let budget = &body["token_budget"];
+    println!(
+        "{} ({})",
+        org["display_name"].as_str().unwrap_or("?"),
+        org["id"].as_str().unwrap_or("?")
+    );
+    println!(
+        "  viewer:             agent={} role={}",
+        viewer["agent_id"].as_str().unwrap_or("?"),
+        viewer["role"].as_str().unwrap_or("?"),
+    );
+    println!(
+        "  agents:             {} (human={} llm={})",
+        agents["total"].as_u64().unwrap_or(0),
+        agents["human"].as_u64().unwrap_or(0),
+        agents["llm"].as_u64().unwrap_or(0),
+    );
+    println!(
+        "  projects:           {}",
+        projects["active"].as_u64().unwrap_or(0),
+    );
+    println!(
+        "  pending approvals:  {}",
+        body["pending_auth_requests_count"].as_u64().unwrap_or(0),
+    );
+    println!(
+        "  alerted (24h):      {}",
+        body["alerted_events_24h"].as_u64().unwrap_or(0),
+    );
+    println!(
+        "  token budget:       {} / {}",
+        budget["used"].as_u64().unwrap_or(0),
+        budget["total"].as_u64().unwrap_or(0),
+    );
+    let templates = body["templates_adopted"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if !templates.is_empty() {
+        let joined: Vec<String> = templates
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_uppercase()))
+            .collect();
+        println!("  adopted templates:  {}", joined.join(", "));
+    }
+    let recent = body["recent_events"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if !recent.is_empty() {
+        println!("  recent events:");
+        for ev in recent {
+            println!(
+                "    {}  {}",
+                ev["timestamp"].as_str().unwrap_or("-"),
+                ev["summary"].as_str().unwrap_or("-"),
+            );
+        }
+    }
+    if let Some(banner) = body["welcome_banner"].as_str() {
+        println!();
+        println!("  {banner}");
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers — `--from-layout` YAML + HTTP plumbing + error mapping
 // ---------------------------------------------------------------------------
@@ -519,14 +604,6 @@ async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exit::{EXIT_INTERNAL, EXIT_OK};
-
-    #[test]
-    fn exit_not_implemented_is_distinct_from_other_codes() {
-        assert_ne!(EXIT_NOT_IMPLEMENTED, EXIT_OK);
-        assert_ne!(EXIT_NOT_IMPLEMENTED, EXIT_INTERNAL);
-        assert_eq!(EXIT_NOT_IMPLEMENTED, 7);
-    }
 
     #[test]
     fn load_layout_reads_minimal_startup_fixture() {
@@ -570,5 +647,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn render_dashboard_human_handles_fresh_and_populated_shapes() {
+        // Minimal fresh-org payload — matches the shape the P5
+        // orchestrator returns on a just-created org. Must render
+        // without panic and include the welcome banner.
+        let fresh = serde_json::json!({
+            "org": {"id": "00000000-0000-0000-0000-000000000001", "display_name": "Acme"},
+            "viewer": {"agent_id": "00000000-0000-0000-0000-000000000002", "role": "admin"},
+            "agents_summary": {"total": 3, "human": 1, "llm": 2},
+            "projects_summary": {"active": 0, "shape_a": 0, "shape_b": 0},
+            "pending_auth_requests_count": 0,
+            "alerted_events_24h": 0,
+            "token_budget": {"used": 0, "total": 1_000_000, "pool_id": "00000000-0000-0000-0000-000000000003"},
+            "recent_events": [],
+            "templates_adopted": [],
+            "cta_cards": {},
+            "welcome_banner": "Welcome to Acme.",
+        });
+        render_dashboard_human(&fresh);
+        let populated = serde_json::json!({
+            "org": {"id": "00000000-0000-0000-0000-000000000001", "display_name": "Acme"},
+            "viewer": {"agent_id": "00000000-0000-0000-0000-000000000002", "role": "member"},
+            "agents_summary": {"total": 6, "human": 3, "llm": 3},
+            "projects_summary": {"active": 2, "shape_a": 1, "shape_b": 1},
+            "pending_auth_requests_count": 3,
+            "alerted_events_24h": 1,
+            "token_budget": {"used": 12000, "total": 5_000_000, "pool_id": "p"},
+            "recent_events": [
+                {"id": "e1", "kind": "agent.created", "actor": null, "timestamp": "2026-04-22T10:00:00Z", "summary": "x"}
+            ],
+            "templates_adopted": ["a", "b"],
+            "cta_cards": {},
+            "welcome_banner": null,
+        });
+        render_dashboard_human(&populated);
     }
 }

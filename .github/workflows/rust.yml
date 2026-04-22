@@ -107,6 +107,9 @@ jobs:
             --test acceptance_mcp_servers \
             --test acceptance_platform_defaults \
             --test acceptance_m2 \
+            --test acceptance_orgs_create \
+            --test acceptance_orgs_dashboard \
+            --test acceptance_m3 \
             --test acceptance_metrics \
             -- --test-threads 1
 

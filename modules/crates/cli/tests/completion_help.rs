@@ -92,6 +92,44 @@ fn completion_fish_emits_nonempty_script() {
 }
 
 #[test]
+fn completion_bash_surfaces_org_dashboard_subcommand() {
+    // Regression: clap_complete walks the subcommand tree at script
+    // generation time. M3/P1 scaffolded `org dashboard`; M3/P5 wired
+    // it. Completion must expose the subcommand so shell users can
+    // tab-complete it.
+    let (ok, stdout, _) = run(&["completion", "bash"]);
+    assert!(ok);
+    assert!(
+        stdout.contains("dashboard"),
+        "bash completion must surface `dashboard` subcommand; got snippet:\n{}",
+        &stdout[..stdout.len().min(500)]
+    );
+}
+
+#[test]
+fn completion_scripts_expose_org_subcommand_tree_on_every_shell() {
+    // M3/P6 commitment C14: clap_complete's subcommand-tree walk
+    // must surface every `org {create,list,show,dashboard}` subcommand
+    // on every shell. Keeps shell-completion parity regression-proof
+    // when new subcommands land in later milestones.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok, "completion {shell} exited non-zero");
+        // Every shell backend inlines subcommand names verbatim into
+        // its generated script, so a case-sensitive substring check
+        // is sufficient across backends.
+        for sub in ["create", "list", "show", "dashboard"] {
+            assert!(
+                stdout.contains(sub),
+                "{shell} completion must surface `org {sub}`; got \
+                 snippet:\n{}",
+                &stdout[..stdout.len().min(600)]
+            );
+        }
+    }
+}
+
+#[test]
 fn completion_powershell_emits_nonempty_script() {
     let (ok, stdout, stderr) = run(&["completion", "powershell"]);
     assert!(ok, "completion powershell exit non-zero: {stderr}");
