@@ -69,7 +69,7 @@ This 5-tuple is the shape of a **Grant** — a capability HELD by a specific pri
 
 ### Subject — WHO
 
-The subject is the **principal** on whom the authority is conferred. In baby-phi, the subject is **implicit in the graph edge** that connects the principal to the Grant node — it is not stored as a property on the Grant node itself.
+The subject is the **principal** on whom the authority is conferred. In phi, the subject is **implicit in the graph edge** that connects the principal to the Grant node — it is not stored as a property on the Grant node itself.
 
 ```
 Agent ──HOLDS_GRANT──▶ Permission     -- the source of the edge IS the subject

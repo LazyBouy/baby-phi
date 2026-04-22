@@ -132,7 +132,7 @@ pub enum Decision {
 - `resolved_grants` lets callers record *which* grant authorised *which*
   reach — load-bearing for audit events (C6).
 - `failed_step` doubles as the Prometheus label in
-  `baby_phi_permission_check_duration_seconds{result, failed_step}` (C10).
+  `phi_permission_check_duration_seconds{result, failed_step}` (C10).
   Step 2a is encoded as `"2a"` for label readability.
 - `awaiting_consent` carries the `(subordinate, org)` pair the caller must
   present to the subordinate before the check can progress. `Pending` is
@@ -191,7 +191,7 @@ metrics.record(elapsed, result_label, failed_step_label);
 - `failed_step_label` ∈ `{Some("0"..="6"), Some("2a"), None}`.
 - P6 will implement the trait against `prometheus::HistogramVec` labelled
   `{result, failed_step}`. The histogram name lands as
-  `baby_phi_permission_check_duration_seconds` (C10) and the P9
+  `phi_permission_check_duration_seconds` (C10) and the P9
   acceptance tests scrape `/metrics` to assert non-zero count.
 
 ## Tracing

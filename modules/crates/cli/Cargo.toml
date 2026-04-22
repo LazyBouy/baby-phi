@@ -4,10 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "CLI for the baby-phi agent management platform."
+description = "CLI for the phi agent management platform."
 
 [[bin]]
-name = "baby-phi"
+name = "phi"
 path = "src/main.rs"
 
 [dependencies]

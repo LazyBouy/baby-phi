@@ -1,5 +1,5 @@
 # Committed, non-secret defaults. Overlaid by config/<profile>.toml and
-# BABY_PHI_* environment variables. Secrets MUST NOT live here.
+# PHI_* environment variables. Secrets MUST NOT live here.
 
 [server]
 host = "0.0.0.0"
@@ -7,8 +7,8 @@ port = 8080
 # tls = { cert_path = "...", key_path = "..." }   # optional; usually set per-env
 
 [storage]
-data_dir = "data/baby-phi.db"
-namespace = "baby-phi"
+data_dir = "data/phi.db"
+namespace = "phi"
 database = "v0"
 
 [telemetry]
@@ -18,7 +18,7 @@ json_logs = true
 # Session-cookie signing.
 #
 # `secret` is a publicly-known dev placeholder; every real deployment MUST
-# override it via `BABY_PHI_SESSION__SECRET` (env var). Setting a weak or
+# override it via `PHI_SESSION__SECRET` (env var). Setting a weak or
 # default secret in production means anyone can forge admin sessions.
 #
 # `secure = true` is correct for every environment that fronts TLS.
@@ -26,6 +26,6 @@ json_logs = true
 # localhost HTTP.
 [session]
 secret = "dev-only-placeholder-override-via-env-var-32b"
-cookie_name = "baby_phi_session"
+cookie_name = "phi_kernel_session"
 ttl_seconds = 43200
 secure = true

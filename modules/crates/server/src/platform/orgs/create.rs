@@ -35,7 +35,7 @@
 //!    agent-catalog): clone the snapshot's
 //!    `default_agent_profile: phi_core::AgentProfile` and override
 //!    `name` + `system_prompt` for the role. This is the one place
-//!    baby-phi takes an explicit `use phi_core::...` at M3.
+//!    phi takes an explicit `use phi_core::...` at M3.
 //! 5. Build the `TokenBudgetPool` from wizard `initial_allocation`.
 //! 6. For each enabled template kind (subset of A/B/C/D), mint an
 //!    adoption AR via [`domain::templates::adoption::build_adoption_request`]
@@ -73,7 +73,7 @@ use domain::templates::adoption::{build_adoption_request, AdoptionArgs};
 // --- phi-core direct import ------------------------------------------------
 // The *only* new `use phi_core::...` line introduced in M3/P4. Used
 // exclusively for the per-system-agent blueprint clone + tweak below.
-// `check-phi-core-reuse.sh` confirms no baby-phi redeclaration of
+// `check-phi-core-reuse.sh` confirms no phi redeclaration of
 // this type exists anywhere under `modules/crates/`.
 use phi_core::agents::profile::AgentProfile as PhiCoreAgentProfile;
 // ---------------------------------------------------------------------------
@@ -145,6 +145,8 @@ pub async fn create_organization(
         kind: AgentKind::Human,
         display_name: input.ceo_display_name.clone(),
         owning_org: Some(org_id),
+        // M4 will set `Some(AgentRole::Executive)` from the wizard.
+        role: None,
         created_at: input.now,
     };
     let ceo_channel = Channel {
@@ -183,7 +185,7 @@ pub async fn create_organization(
     let system_agents = build_system_agents(&snapshot, org_id, input.now);
     let system_agent_ids = [system_agents[0].0.id, system_agents[1].0.id];
 
-    // 5. Token budget pool (baby-phi-native — no phi-core counterpart).
+    // 5. Token budget pool (phi-native — no phi-core counterpart).
     let token_budget_pool = TokenBudgetPool::new(org_id, input.token_budget, input.now);
 
     // 6. Adoption ARs. Template *node* persistence is deferred to
@@ -376,6 +378,10 @@ fn build_system_agents(
         kind: AgentKind::Llm,
         display_name: "memory-extractor".into(),
         owning_org: Some(org_id),
+        // M4 will set `Some(AgentRole::System)` once system-agent
+        // provisioning is migrated; leaving None keeps the existing
+        // dashboard behaviour (counted under `unclassified`).
+        role: None,
         created_at: now,
     };
     let mut memory_blueprint: PhiCoreAgentProfile = base.clone();
@@ -399,6 +405,7 @@ fn build_system_agents(
         kind: AgentKind::Llm,
         display_name: "agent-catalog".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: now,
     };
     let mut catalog_blueprint: PhiCoreAgentProfile = base.clone();
@@ -483,7 +490,7 @@ mod tests {
     }
 
     /// Positive phi-core invariant: the blueprint on each built system
-    /// agent MUST be exactly `phi_core::AgentProfile` (not a baby-phi
+    /// agent MUST be exactly `phi_core::AgentProfile` (not a phi
     /// redeclaration). Compile-time coercion test — if anyone swaps
     /// in a local struct, this test stops compiling.
     #[test]

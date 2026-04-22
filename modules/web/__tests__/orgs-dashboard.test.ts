@@ -15,7 +15,7 @@
 // accidentally re-introduce the coupling.
 // Q3: no phi-core module maps to a dashboard panel; every candidate
 // (Session, AgentEvent, Usage) belongs to orthogonal planes per
-// `baby-phi/CLAUDE.md`.
+// `phi/CLAUDE.md`.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

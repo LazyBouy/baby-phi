@@ -2,7 +2,7 @@
 //
 // Operators use this as the "revert to factory" reference when
 // editing the form. The server sends `factory` on every GET so the
-// panel stays in sync even after a phi-core bump without baby-phi
+// panel stays in sync even after a phi-core bump without phi
 // code changes (all four phi-core sections are opaque on the wire).
 
 "use client";

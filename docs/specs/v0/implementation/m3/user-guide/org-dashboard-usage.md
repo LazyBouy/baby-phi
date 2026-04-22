@@ -5,7 +5,7 @@
 **Status: [PLANNED M3/P5]** — fleshed out when P5 ships.
 
 Operator-facing walkthrough of the org dashboard (web panels + CLI
-`baby-phi org dashboard --id <uuid> [--json]`). Covers polling
+`phi org dashboard --id <uuid> [--json]`). Covers polling
 cadence (30 s), empty-state CTA cards, and how to drill into recent
 audit events.
 

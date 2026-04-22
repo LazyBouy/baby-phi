@@ -2,22 +2,22 @@
 
 # Operations — Docker deployment
 
-The M0 Dockerfile at [`Dockerfile`](../../../../../../Dockerfile) produces a minimal, non-root, tini-initialised `baby-phi-server` image. Kubernetes manifests and Helm charts are M7b deliverables; this page covers what ships today.
+The M0 Dockerfile at [`Dockerfile`](../../../../../../Dockerfile) produces a minimal, non-root, tini-initialised `phi-server` image. Kubernetes manifests and Helm charts are M7b deliverables; this page covers what ships today.
 
 ## Build context
 
-The Dockerfile sits inside `baby-phi/`, but it expects the build context to be the **parent directory** (`/root/projects/phi/`) so it can `COPY phi-core` alongside `baby-phi`. The `phi-core` path dep in [`Cargo.toml`](../../../../../../Cargo.toml) resolves to `../phi-core`, and Docker's `COPY` can only see paths under the build context.
+The Dockerfile sits inside `phi/`, but it expects the build context to be the **parent directory** (`/root/projects/phi/`) so it can `COPY phi-core` alongside `phi`. The `phi-core` path dep in [`Cargo.toml`](../../../../../../Cargo.toml) resolves to `../phi-core`, and Docker's `COPY` can only see paths under the build context.
 
 Two ways to build:
 
 ```bash
-# From the parent that contains both phi-core/ and baby-phi/
-docker build -t baby-phi-server:dev -f baby-phi/Dockerfile .
+# From the parent that contains both phi-core/ and phi/
+docker build -t phi-server:dev -f phi/Dockerfile .
 ```
 
 ```bash
 # Or via docker-compose, which sets the right context automatically
-cd baby-phi
+cd phi
 docker compose build server
 ```
 
@@ -32,8 +32,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       pkg-config libclang-dev clang cmake protobuf-compiler \
   && rm -rf /var/lib/apt/lists/*
 COPY phi-core /build/phi-core
-COPY baby-phi /build/baby-phi
-WORKDIR /build/baby-phi
+COPY phi /build/phi
+WORKDIR /build/phi
 RUN cargo build --release --package server
 ```
 
@@ -58,32 +58,32 @@ FROM debian:${DEBIAN_VERSION}-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates tini \
   && rm -rf /var/lib/apt/lists/* \
-  && groupadd --system --gid 10001 babyphi \
-  && useradd  --system --uid 10001 --gid babyphi --home-dir /var/lib/baby-phi babyphi \
-  && mkdir -p /var/lib/baby-phi/data /etc/baby-phi \
-  && chown -R babyphi:babyphi /var/lib/baby-phi /etc/baby-phi
+  && groupadd --system --gid 10001 phi \
+  && useradd  --system --uid 10001 --gid phi --home-dir /var/lib/phi phi \
+  && mkdir -p /var/lib/phi/data /etc/phi \
+  && chown -R phi:phi /var/lib/phi /etc/phi
 ```
 
-- **Non-root user.** `babyphi` runs as UID 10001 in group GID 10001. A compromise in the server process cannot escalate to root inside the container.
+- **Non-root user.** `phi` runs as UID 10001 in group GID 10001. A compromise in the server process cannot escalate to root inside the container.
 - **ca-certificates.** Required for future outbound TLS (OAuth IdP calls in M3, audit-stream S3/GCS uploads in M7b).
 - **tini.** PID 1 zombie reaper and signal forwarder. Without it, `SIGTERM` sent to the container might not reach the child process, and zombie children from any shell-out could accumulate.
 
 Binary + config layering:
 ```
-COPY --from=builder /build/baby-phi/target/release/baby-phi-server /usr/local/bin/baby-phi-server
-COPY baby-phi/config/default.toml /etc/baby-phi/config/default.toml
-COPY baby-phi/config/prod.toml    /etc/baby-phi/config/prod.toml
+COPY --from=builder /build/phi/target/release/phi-server /usr/local/bin/phi-server
+COPY phi/config/default.toml /etc/phi/config/default.toml
+COPY phi/config/prod.toml    /etc/phi/config/prod.toml
 ```
 
 Default profile for the image:
 ```
-ENV BABY_PHI_PROFILE=prod \
-    BABY_PHI_STORAGE__DATA_DIR=/var/lib/baby-phi/data
+ENV PHI_PROFILE=prod \
+    PHI_STORAGE__DATA_DIR=/var/lib/phi/data
 ```
 
 Entry point:
 ```
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/baby-phi-server"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/phi-server"]
 ```
 
 ## Runtime contract
@@ -94,8 +94,8 @@ ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/baby-phi-server"]
 
 ### Volume
 
-`/var/lib/baby-phi/data` — the SurrealDB RocksDB file tree. Must be a persistent volume:
-- Docker: `-v baby-phi-data:/var/lib/baby-phi/data`
+`/var/lib/phi/data` — the SurrealDB RocksDB file tree. Must be a persistent volume:
+- Docker: `-v phi-data:/var/lib/phi/data`
 - Compose: declared as a named volume in [`docker-compose.yml`](../../../../../../docker-compose.yml).
 - Kubernetes (M7b): PersistentVolumeClaim.
 
@@ -105,14 +105,14 @@ Consulted by [`ServerConfig::load()`](../../../../../../modules/crates/server/sr
 
 | Var | Typical prod value |
 |---|---|
-| `BABY_PHI_PROFILE` | `prod` (set by Dockerfile) |
-| `BABY_PHI_STORAGE__DATA_DIR` | `/var/lib/baby-phi/data` (set by Dockerfile) |
-| `BABY_PHI_SERVER__PORT` | `8080` (inherited from `default.toml`) |
-| `BABY_PHI_SERVER__HOST` | `0.0.0.0` |
-| `BABY_PHI_TELEMETRY__LOG_FILTER` | `info` |
-| `BABY_PHI_TELEMETRY__JSON_LOGS` | `true` |
-| `BABY_PHI_SERVER__TLS__CERT_PATH` | (optional) path inside container |
-| `BABY_PHI_SERVER__TLS__KEY_PATH` | (optional) path inside container |
+| `PHI_PROFILE` | `prod` (set by Dockerfile) |
+| `PHI_STORAGE__DATA_DIR` | `/var/lib/phi/data` (set by Dockerfile) |
+| `PHI_SERVER__PORT` | `8080` (inherited from `default.toml`) |
+| `PHI_SERVER__HOST` | `0.0.0.0` |
+| `PHI_TELEMETRY__LOG_FILTER` | `info` |
+| `PHI_TELEMETRY__JSON_LOGS` | `true` |
+| `PHI_SERVER__TLS__CERT_PATH` | (optional) path inside container |
+| `PHI_SERVER__TLS__KEY_PATH` | (optional) path inside container |
 
 See [configuration-profiles.md](configuration-profiles.md) for profile semantics.
 
@@ -135,10 +135,10 @@ If you enable native TLS, the healthcheck command needs adjustment — `wget --n
 
 | Service | Purpose |
 |---|---|
-| `server` | Builds from `Dockerfile` with context `..`. Publishes 8080. Mounts `baby-phi-data` volume. |
+| `server` | Builds from `Dockerfile` with context `..`. Publishes 8080. Mounts `phi-data` volume. |
 | `web` | Runs the Next.js dev server via a `node:22-bookworm-slim` image, bind-mounting `./modules/web`. For local dev only. |
 
-A full local stack is `docker compose up --build` (run from `baby-phi/`). See [`../user-guide/docker-compose.md`](../user-guide/docker-compose.md) for the user-side view.
+A full local stack is `docker compose up --build` (run from `phi/`). See [`../user-guide/docker-compose.md`](../user-guide/docker-compose.md) for the user-side view.
 
 ## Image size
 
@@ -149,10 +149,10 @@ The final image is a few hundred MB (debian-slim base + ~20 MB statically-linked
 The Dockerfile-only deploy is fine for a single-node install behind a reverse proxy. For production, the recommended topology is:
 
 ```
-Internet ──▶ [nginx / Caddy / ALB terminating TLS] ──▶ [baby-phi-server container, plaintext HTTP on internal net]
+Internet ──▶ [nginx / Caddy / ALB terminating TLS] ──▶ [phi-server container, plaintext HTTP on internal net]
 ```
 
-Native TLS (via `axum-server` + `BABY_PHI_SERVER__TLS__*`) is supported for simple single-node deploys where no reverse proxy is desired. See [tls-and-transport-security.md](tls-and-transport-security.md).
+Native TLS (via `axum-server` + `PHI_SERVER__TLS__*`) is supported for simple single-node deploys where no reverse proxy is desired. See [tls-and-transport-security.md](tls-and-transport-security.md).
 
 ## What's NOT in the Dockerfile yet (`[PLANNED M7b]`)
 

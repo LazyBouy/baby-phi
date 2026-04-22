@@ -401,7 +401,7 @@ This completes the end-to-end demonstration. Every concept in the doc — from f
 
 ## phi-core Extension Points
 
-Permissions are a baby-phi concern. phi-core provides the hooks:
+Permissions are a phi concern. phi-core provides the hooks:
 
 | phi-core hook | Permission enforcement |
 |---|---|

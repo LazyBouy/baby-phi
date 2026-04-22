@@ -1,6 +1,6 @@
 <!-- Last verified: 2026-04-21 by Claude Code -->
 
-# baby-phi — M2 implementation documentation
+# phi — M2 implementation documentation
 
 M2 is the **Platform Setup** milestone. It lands admin pages **02–05**:
 
@@ -74,7 +74,7 @@ Pages are live as their phase lands; the rest carry a
 | [mcp-servers-usage.md](user-guide/mcp-servers-usage.md) | Registering / patching / archiving MCP servers |
 | [secrets-vault-usage.md](user-guide/secrets-vault-usage.md) | Add / rotate / reveal / reassign custody |
 | [platform-defaults-usage.md](user-guide/platform-defaults-usage.md) | Editing + importing / exporting the singleton |
-| [cli-reference-m2.md](user-guide/cli-reference-m2.md) | New subcommands + `baby-phi completion <shell>` |
+| [cli-reference-m2.md](user-guide/cli-reference-m2.md) | New subcommands + `phi completion <shell>` |
 
 ## operations/
 

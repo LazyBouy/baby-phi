@@ -9,9 +9,9 @@
 //! phi-core leverage (mandatory per `CLAUDE.md`):
 //! - The persisted `PlatformDefaults.execution_limits /
 //!   .default_agent_profile / .context_config / .retry_config` fields
-//!   ARE the phi-core types directly. No parallel baby-phi shape.
+//!   ARE the phi-core types directly. No parallel phi shape.
 //! - The wire body for PUT deserialises into `PlatformDefaults` via
-//!   serde, so phi-core's field evolution never forces a baby-phi
+//!   serde, so phi-core's field evolution never forces a phi
 //!   migration (the store layer's `FLEXIBLE TYPE object` columns
 //!   absorb added fields too).
 //! - YAML / TOML format conversions for import/export are **CLI-side

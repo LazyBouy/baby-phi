@@ -1,7 +1,7 @@
 // Server Actions for the MCP-servers page.
 //
 // Every action forwards the admin's session cookie + calls the
-// matching baby-phi API endpoint. PATCH-tenants carries the full
+// matching phi API endpoint. PATCH-tenants carries the full
 // cascade summary back to the dialog so the client can show
 // "revoked N grants across M orgs".
 

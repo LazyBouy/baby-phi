@@ -10,7 +10,7 @@ sweep land in M7b).
 ## Context
 
 Per `docs/specs/v0/requirements/cross-cutting/nfr-observability.md`, every
-write-side action in baby-phi emits an audit event. The NFR spec calls for:
+write-side action in phi emits an audit event. The NFR spec calls for:
 
 - A base event shape (event type, actor, target, timestamp, diff,
   provenance).

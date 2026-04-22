@@ -12,16 +12,16 @@ page is the system map; depth pages cover each subsystem.
 │                          web (Next.js 14 / SSR)                         │
 │     ✓ /bootstrap — SSR probe + claim Server Action + session cookie     │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                       cli (clap; baby-phi binary)                       │
-│     ✓ bootstrap — `baby-phi bootstrap {status,claim}` (HTTP client)     │
-│     ✓ agent     — `baby-phi agent demo` (legacy phi-core demo loop)     │
+│                       cli (clap; phi binary)                       │
+│     ✓ bootstrap — `phi bootstrap {status,claim}` (HTTP client)     │
+│     ✓ agent     — `phi agent demo` (legacy phi-core demo loop)     │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                 server (axum; baby-phi-server binary)                   │
+│                 server (axum; phi-server binary)                   │
 │   existing: /healthz/live /healthz/ready /metrics                       │
 │     ✓ bootstrap — `bootstrap-init` subcommand + atomic claim logic      │
 │     ✓ handlers  — GET /api/v0/bootstrap/status + POST /bootstrap/claim  │
-│     ✓ session   — HS256 signed `baby_phi_session` cookie + verify       │
-│     ✓ metric    — baby_phi_bootstrap_claims_total{result}               │
+│     ✓ session   — HS256 signed `phi_kernel_session` cookie + verify       │
+│     ✓ metric    — phi_bootstrap_claims_total{result}               │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                              domain                                     │
 │   ✓ model/   — 9 fundamentals, 8 composites, 37 nodes, 66 edges         │
@@ -152,7 +152,7 @@ downward-only and lets domain tests use an in-memory fake.
     - [`claim.rs`](../../../../../../modules/crates/server/src/bootstrap/claim.rs):
       handler-free `execute_claim(repo, ClaimInput) -> Result<ClaimOutcome, ClaimError>`
       implementing R-SYS-s01-1 … R-SYS-s01-6 + R-ADMIN-01-W1 … W4.
-    - `--bootstrap-init` subcommand on the `baby-phi-server` binary
+    - `--bootstrap-init` subcommand on the `phi-server` binary
       (clap-based); prints the plaintext once to stdout.
 17. **Atomic `Repository::apply_bootstrap_claim`**: new trait method
     wrapping the seven writes (Human Agent + Channel + Inbox + Outbox +
@@ -182,14 +182,14 @@ downward-only and lets domain tests use an in-memory fake.
     [server-topology.md](server-topology.md) +
     [http-api-reference.md](../user-guide/http-api-reference.md).
 20. **`server/src/session.rs`** — HS256 JWT signed with
-    `session.secret`, packaged into a `baby_phi_session` cookie
+    `session.secret`, packaged into a `phi_kernel_session` cookie
     (`HttpOnly`, `SameSite=Lax`, `Secure` per config). `sub` is the
     admin's `agent_id` UUID; `exp` defaults to 12h. Set on a 201
     response; verified via
     [`verify_from_cookies`](../../../../../../modules/crates/server/src/session.rs)
     on every authenticated route (routes that consume the cookie land
     in M2+). Server-side session rows + revocation are M3.
-21. **Prometheus counter** `baby_phi_bootstrap_claims_total{result}`
+21. **Prometheus counter** `phi_bootstrap_claims_total{result}`
     via the `metrics` facade crate; labels cover
     `success | invalid | already_consumed | already_claimed |
     validation | internal`. Registered at claim time; exposed on
@@ -211,13 +211,13 @@ downward-only and lets domain tests use an in-memory fake.
 
 **P7 CLI subcommands:**
 
-24. **`baby-phi` binary migration** (`modules/crates/cli/src/`): replaced
+24. **`phi` binary migration** (`modules/crates/cli/src/`): replaced
     the legacy single-use phi-core demo loop with a clap subcommand
     tree.
     - [`main.rs`](../../../../../../modules/crates/cli/src/main.rs):
-      top-level `baby-phi bootstrap {status,claim}` + `baby-phi agent
+      top-level `phi bootstrap {status,claim}` + `phi agent
       demo` commands + `--server-url` global flag (bound to the
-      `BABY_PHI_API_URL` env var).
+      `PHI_API_URL` env var).
     - [`commands/bootstrap.rs`](../../../../../../modules/crates/cli/src/commands/bootstrap.rs):
       `reqwest`-based clients for both HTTP endpoints. Maps HTTP
       outcomes to stable CLI exit codes (0 success / 1 transport / 2
@@ -225,17 +225,17 @@ downward-only and lets domain tests use an in-memory fake.
       "retry later" from "fix input" from "escalate".
     - [`commands/agent.rs`](../../../../../../modules/crates/cli/src/commands/agent.rs):
       preserves the phi-core agent-loop demo verbatim behind the new
-      subcommand. Still reads `baby-phi/config.toml` for now;
+      subcommand. Still reads `phi/config.toml` for now;
       retiring that reader is an M2+ cleanup item.
 25. **URL resolution precedence**: `--server-url` (flag or
-    `BABY_PHI_API_URL` env) wins over the layered
+    `PHI_API_URL` env) wins over the layered
     [`ServerConfig::load()`](../../../../../../modules/crates/server/src/config.rs)
     fallback. A bind-all `0.0.0.0` config host is rewritten to
     `127.0.0.1` so the CLI never dials a bind-only address.
 26. **Test coverage**: 3 unit tests (URL trailing-slash normalisation)
     + 7 CLI integration tests that boot the axum router on a random
     local port against `InMemoryRepository`, shell out to the built
-    `baby-phi` binary via `CARGO_BIN_EXE_baby-phi`, and assert exit
+    `phi` binary via `CARGO_BIN_EXE_phi`, and assert exit
     code + stdout shape for status (unclaimed/claimed), claim (happy
     201 shape, 403-invalid rejected, 409 already-claimed rejected),
     the transport-error path, and the `agent demo` subcommand's
@@ -280,8 +280,8 @@ downward-only and lets domain tests use an in-memory fake.
 29. **Session-cookie roundtrip** between Rust (P6) and Web (P8):
     the Rust server signs the JWT; the browser carries it; the Next
     web process verifies it with the shared
-    `BABY_PHI_SESSION_SECRET` (≥ 32 bytes enforced on both sides).
-    Dev-placeholder secrets match so `npm run dev` + `baby-phi-server`
+    `PHI_SESSION_SECRET` (≥ 32 bytes enforced on both sides).
+    Dev-placeholder secrets match so `npm run dev` + `phi-server`
     play nicely out of the box.
 30. **Test coverage**: 9 `api.test.ts` invariants (status parsing for
     claimed/unclaimed/defensive; claim-success snake→camel map;
@@ -325,7 +325,7 @@ downward-only and lets domain tests use an in-memory fake.
     - **`second_claim_after_success_rejects_409_platform_admin_claimed`** (C5)
       — first-line admin-check beats credential scan.
     - **`metrics_endpoint_exposes_bootstrap_claims_counter`** (C10) —
-      `/metrics` scrape exposes `baby_phi_bootstrap_claims_total`
+      `/metrics` scrape exposes `phi_bootstrap_claims_total`
       with `result="success"` after a 201.
 34. **Operations runbooks**:
     [schema-migrations](../operations/schema-migrations-operations.md),
@@ -434,7 +434,7 @@ spec-drift all green.
 | [`domain`](../../../../../../modules/crates/domain/) | Graph model + Permission Check engine + Auth Request state machine | `model/` submodule (5 files), `audit.rs`, blake3 dep |
 | [`store`](../../../../../../modules/crates/store/) | SurrealDB (RocksDB) adapter | `migrations.rs`, `crypto.rs`, `migrations/0001_initial.surql`, aes-gcm + base64 + rand deps |
 | [`server`](../../../../../../modules/crates/server/) | axum HTTP surface + bootstrap handlers + session cookie | `bootstrap/` (M1/P5), `handlers/bootstrap.rs` + `session.rs` (M1/P6) |
-| [`cli`](../../../../../../modules/crates/cli/) | clap CLI — `baby-phi bootstrap {status,claim}` + `agent demo` | `commands/bootstrap.rs` + `commands/agent.rs` + `reqwest`/`server`/`serde` deps (M1/P7) |
+| [`cli`](../../../../../../modules/crates/cli/) | clap CLI — `phi bootstrap {status,claim}` + `agent demo` | `commands/bootstrap.rs` + `commands/agent.rs` + `reqwest`/`server`/`serde` deps (M1/P7) |
 
 ## Testing posture (after P9 — M1 sealed)
 
@@ -457,7 +457,7 @@ so the more meaningful figure is still visible.
 | Server integration (M0 health + TLS + P6 bootstrap handlers + session cookie) | 4 | 4 | 4 | 4 | 4 | 4 | 16 | 16 | 16 | 16 | 16 | — |
 | **Acceptance E2E (real server + embedded SurrealDB + real HTTP)** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **5** | new in P9 |
 | CLI unit (URL normalisation) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 3 | 3 | 3 | — |
-| CLI integration (end-to-end: spawn server in-process + shell out to `baby-phi`) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 7 | 7 | 7 | — |
+| CLI integration (end-to-end: spawn server in-process + shell out to `phi`) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 7 | 7 | 7 | — |
 | Web unit (api wire-translators + `verifySessionToken`) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 14 | 14 | `npm test` |
 | **Runnable total** | **46** | **82** | **151** | **186** | **244** | **260** | **278** | **288** | **292** | **306** | **313** | — |
 
@@ -517,9 +517,9 @@ integration count to **64**.
 
 ## Configuration — `ServerConfig` vs phi-core `AgentConfig`
 
-baby-phi's [`ServerConfig::load()`](../../../../../../modules/crates/server/src/config.rs)
+phi's [`ServerConfig::load()`](../../../../../../modules/crates/server/src/config.rs)
 parses layered TOML (`config/default.toml` + `config/{profile}.toml`)
-with per-key environment-variable overrides (`BABY_PHI__SERVER__PORT=8080`
+with per-key environment-variable overrides (`PHI__SERVER__PORT=8080`
 sets `server.port`). It deserialises a fixed schema of server-infra
 concerns: HTTP bind, storage directory, telemetry filter, session-cookie
 secret.
@@ -536,8 +536,8 @@ The two parsers are **orthogonal**, not substitutable:
 | Aspect | `ServerConfig::load()` | `phi_core::parse_config_file()` |
 |---|---|---|
 | Scope | Server infrastructure (host, port, DB path, session secret) | Agent blueprint (LLM provider, tools, profile, execution limits) |
-| Override style | Per-key env-var overrides (`BABY_PHI__KEY__NESTED=value`) | `${VAR}` interpolation inside field values |
-| Schema shape | baby-phi's `ServerConfig` struct | phi-core's `AgentConfig` struct |
+| Override style | Per-key env-var overrides (`PHI__KEY__NESTED=value`) | `${VAR}` interpolation inside field values |
+| Schema shape | phi's `ServerConfig` struct | phi-core's `AgentConfig` struct |
 | Who reads it | `main.rs` on startup | `agents_from_config(&config)` when materialising agents |
 
 **M2 page 05 (Platform Defaults) is the correct reuse point** — it
@@ -568,7 +568,7 @@ the admin UI and have it materialise as a `PlatformDefaults` row.
 - [http-api-reference.md](../user-guide/http-api-reference.md) — the
   `/api/v0/bootstrap/*` request + response contract the admin sees.
 - [cli-usage.md](../user-guide/cli-usage.md) — P7's
-  `baby-phi bootstrap {status,claim}` + `agent demo` reference.
+  `phi bootstrap {status,claim}` + `agent demo` reference.
 - [web-topology.md](web-topology.md) — P8's `/bootstrap` SSR page +
   Server Action + session-cookie plumbing.
 - [web-usage.md](../user-guide/web-usage.md) — end-user walkthrough

@@ -24,7 +24,7 @@ for the envelope.
 Two surfaces:
 
 - **CLI**:
-  `baby-phi mcp-server add --display-name <NAME> --endpoint <ENDPOINT> [--secret-ref <slug>] [--tenants-allowed all|uuid1,uuid2]`.
+  `phi mcp-server add --display-name <NAME> --endpoint <ENDPOINT> [--secret-ref <slug>] [--tenants-allowed all|uuid1,uuid2]`.
 - **Web**: `/mcp-servers` → *Register an MCP server*.
 
 `--endpoint` is phi-core's `McpClient` transport argument verbatim:
@@ -34,7 +34,7 @@ Two surfaces:
 
 **Referential integrity:** when `--secret-ref` is set, the handler
 rejects with `SECRET_REF_NOT_FOUND` (400) if the slug does not already
-exist in the vault. Add the secret first (`baby-phi secret add --slug
+exist in the vault. Add the secret first (`phi secret add --slug
 … --material-file …`) or drop the flag for unauthenticated services.
 
 **Audit event:** `platform.mcp_server.registered` (Alerted). Diff
@@ -54,7 +54,7 @@ This is the contract-dense operation on page 03.
 **Surfaces:**
 
 - CLI:
-  `baby-phi mcp-server patch-tenants --id <uuid> --tenants-allowed all|uuid1,uuid2 --confirm-cascade`.
+  `phi mcp-server patch-tenants --id <uuid> --tenants-allowed all|uuid1,uuid2 --confirm-cascade`.
   The `--confirm-cascade` flag is **required** — without it, the CLI
   aborts with `EXIT_CASCADE_ABORTED` (5).
 - Web: Per-row *Patch tenants* → `PatchTenantsDialog`. The dialog runs
@@ -102,7 +102,7 @@ pre-cascade state from the hash-chain.
 
 ## 3. Archiving a server
 
-- CLI: `baby-phi mcp-server archive --id <uuid>`.
+- CLI: `phi mcp-server archive --id <uuid>`.
 - Web: Per-row *Archive*.
 
 **Effects:**
@@ -133,8 +133,8 @@ When M7b lands, incident triage follows this sequence:
 1. `health_degraded` event published → on-call receives a page.
 2. Read the `reason` field — `connect timed out`, `list_tools
    failed: …`, or `unsupported scheme`.
-3. Verify the server is actually down (`baby-phi mcp-server list` +
-   manual probe via `baby-phi mcp-server tools <id>` — the M7b tools
+3. Verify the server is actually down (`phi mcp-server list` +
+   manual probe via `phi mcp-server tools <id>` — the M7b tools
    command surfaces the phi-core `list_tools()` response).
 4. Either restart the underlying service, narrow
    `tenants_allowed` to quarantine until the owner responds, or
@@ -165,13 +165,13 @@ org's grants also descended from the dropped-org's ARs).
 
 ## 6. phi-core leverage reminder
 
-- `ExternalService` is **baby-phi-only** (phi-core has no persisted
+- `ExternalService` is **phi-only** (phi-core has no persisted
   MCP-binding container).
 - The live client is constructed on demand from the stored
   `endpoint` string via phi-core's `McpClient::connect_stdio` /
   `connect_http` at probe/invocation time — **never stored**.
 - `McpToolInfo`, `ServerInfo`, `list_tools()` surfaces are phi-core's
   single source of truth; M7b's scheduled probe uses them directly.
-- Health-probe timeout+retry is the only baby-phi-native MCP code
+- Health-probe timeout+retry is the only phi-native MCP code
   (phi-core has no probe abstraction). The 2 s per-attempt timeout
   matches plan §P6.

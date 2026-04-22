@@ -49,7 +49,7 @@ snapshot, and uses those values.
 ## Consequences
 
 **Positive:**
-- Each phi-core type lives in **one place per org** — the baby-phi/CLAUDE.md §phi-core Leverage mandate satisfied
+- Each phi-core type lives in **one place per org** — the phi/CLAUDE.md §phi-core Leverage mandate satisfied
   in the strongest form. Materialising per-agent copies would put
   `phi_core::ExecutionLimits` in 1 org + 2 system agents = 3 copies
   per org, amplifying every subsequent phi-core schema change 3×.
@@ -107,5 +107,5 @@ phi-core type definitions in CI.
 
 - [M3 plan §D12](../../../../plan/build/563945fe-m3-organization-creation.md)
 - [ADR-0019 — Platform defaults are non-retroactive](../../m2/decisions/0019-platform-defaults-non-retroactive.md)
-- [baby-phi/CLAUDE.md §phi-core Leverage](../../../../../../CLAUDE.md)
+- [phi/CLAUDE.md §phi-core Leverage](../../../../../../CLAUDE.md)
 - [`modules/crates/domain/src/model/composites_m3.rs`](../../../../../../modules/crates/domain/src/model/composites_m3.rs) — `OrganizationDefaultsSnapshot`

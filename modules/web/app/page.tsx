@@ -7,7 +7,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-2xl p-8">
-      <h1 className="text-3xl font-semibold">baby-phi</h1>
+      <h1 className="text-3xl font-semibold">phi</h1>
       <p className="mt-2 text-sm opacity-70">
         Fresh install. Bootstrap flow lands in M1 (Phase 1 — claim platform
         admin).

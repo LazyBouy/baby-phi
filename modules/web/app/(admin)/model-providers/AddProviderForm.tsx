@@ -3,7 +3,7 @@
 // `AgentConfig.provider` section) + picks a vault slug for the API
 // key. Pre-populated templates for the most common providers are
 // served as textarea placeholders, not hard-coded defaults — phi-core
-// evolves the ModelConfig shape independently and baby-phi shouldn't
+// evolves the ModelConfig shape independently and phi shouldn't
 // pin a particular set of fields.
 
 "use client";

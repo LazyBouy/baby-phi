@@ -1,13 +1,13 @@
 <!-- Last verified: 2026-04-20 by Claude Code -->
 
-# CLI usage — `baby-phi bootstrap {status,claim}` + `agent demo`
+# CLI usage — `phi bootstrap {status,claim}` + `agent demo`
 
-M1/P7 migrates the `baby-phi` binary to a `clap`-based subcommand tree.
+M1/P7 migrates the `phi` binary to a `clap`-based subcommand tree.
 Two top-level groups ship in this phase:
 
-1. `baby-phi bootstrap {status,claim}` — the HTTP client for the P6
+1. `phi bootstrap {status,claim}` — the HTTP client for the P6
    endpoints (operator-facing).
-2. `baby-phi agent demo` — the pre-M1 phi-core agent-loop demo,
+2. `phi agent demo` — the pre-M1 phi-core agent-loop demo,
    preserved behind an explicit subcommand so the prototype doesn't
    regress while M2+ adds real agent-management subcommands.
 
@@ -17,7 +17,7 @@ For any subcommand that hits the HTTP API, the CLI resolves the base
 URL via this precedence (highest wins):
 
 1. `--server-url <URL>` flag.
-2. `BABY_PHI_API_URL` environment variable.
+2. `PHI_API_URL` environment variable.
 3. `{scheme}://{server.host}:{server.port}` from
    [`ServerConfig::load()`](../../../../../../modules/crates/server/src/config.rs)
    — the same layered TOML stack the server reads. Scheme is `https` if
@@ -27,19 +27,19 @@ URL via this precedence (highest wins):
 
 Trailing slashes on the URL are stripped.
 
-## `baby-phi bootstrap status`
+## `phi bootstrap status`
 
 ```console
-$ baby-phi bootstrap status
+$ phi bootstrap status
 platform admin NOT yet claimed
-  next step: run `baby-phi bootstrap claim --credential bphi-bootstrap-… \
+  next step: run `phi bootstrap claim --credential bphi-bootstrap-… \
     --display-name '…' --channel-kind slack --channel-handle @you`
 ```
 
 After a successful claim:
 
 ```console
-$ baby-phi bootstrap status
+$ phi bootstrap status
 platform admin already claimed
   admin_agent_id: a7b01e03-…
 ```
@@ -53,13 +53,13 @@ Exit codes:
 | 2 | server returned 4xx with a known `code` (shouldn't fire on `status`) |
 | 3 | server returned 5xx or an unexpected shape |
 
-## `baby-phi bootstrap claim`
+## `phi bootstrap claim`
 
 Consumes the single-use credential printed at install time
-(`baby-phi-server bootstrap-init`) and creates the platform admin.
+(`phi-server bootstrap-init`) and creates the platform admin.
 
 ```console
-$ baby-phi bootstrap claim \
+$ phi bootstrap claim \
     --credential bphi-bootstrap-abc123… \
     --display-name 'Alex Chen' \
     --channel-kind slack \
@@ -91,7 +91,7 @@ to stderr so shell scripts can parse it with `grep`. The response
 envelope is stable — see
 [http-api-reference.md](http-api-reference.md).
 
-## `baby-phi agent demo`
+## `phi agent demo`
 
 Runs the phi-core agent loop against the legacy `config.toml` at the
 current working directory. Preserved from pre-M1 for prototype
@@ -99,9 +99,9 @@ continuity; retiring the loop in favour of real agent-management
 subcommands is an M2+ cleanup item.
 
 ```console
-$ baby-phi agent demo
+$ phi agent demo
 Agent: email-writer
-=== baby-phi agent demo ===
+=== phi agent demo ===
 
 Prompt: Write a marketing email …
 ---
@@ -116,7 +116,7 @@ Session saved to: workspace/session/<id>.json
 Takes an optional prompt override:
 
 ```console
-$ baby-phi agent demo "Summarize the phi-core README in 3 bullets."
+$ phi agent demo "Summarize the phi-core README in 3 bullets."
 ```
 
 Exits non-zero if `config.toml` is missing, can't be parsed, or if no
@@ -126,9 +126,9 @@ agent can be instantiated from it.
 
 | Var | Effect |
 |---|---|
-| `BABY_PHI_API_URL` | Override the bootstrap server URL (step 2 of resolution) |
-| `BABY_PHI_PROFILE` | Which `config/{profile}.toml` layer `ServerConfig::load()` reads (step 3) |
-| `BABY_PHI__*` | Per-key overrides for the layered config (see [ServerConfig](../../../../../../modules/crates/server/src/config.rs)) |
+| `PHI_API_URL` | Override the bootstrap server URL (step 2 of resolution) |
+| `PHI_PROFILE` | Which `config/{profile}.toml` layer `ServerConfig::load()` reads (step 3) |
+| `PHI__*` | Per-key overrides for the layered config (see [ServerConfig](../../../../../../modules/crates/server/src/config.rs)) |
 
 ## Test coverage
 
@@ -138,7 +138,7 @@ agent can be instantiated from it.
 | Integration | [`tests/bootstrap_cli.rs`](../../../../../../modules/crates/cli/tests/bootstrap_cli.rs) | 7 (status unclaimed / claimed, claim 201 shape, 403 rejected, 409 rejected, transport error, demo without config) |
 
 Integration tests spin up the axum router in-process against
-`InMemoryRepository`, shell out to the built `baby-phi` binary, and
+`InMemoryRepository`, shell out to the built `phi` binary, and
 assert exit code + stdout.
 
 ## Cross-references

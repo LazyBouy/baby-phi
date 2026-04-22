@@ -96,7 +96,7 @@ pin the guarantees:
 3. `org_scope` is in the hash preimage (no cross-tenant merges).
 4. Two-event chain detects a tampered predecessor.
 
-An operator-facing verify tool (`baby-phi admin verify-audit-chain
+An operator-facing verify tool (`phi admin verify-audit-chain
 --org <id>`) is an M7b item.
 
 ## Shadow NDJSON log

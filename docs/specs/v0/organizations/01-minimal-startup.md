@@ -33,7 +33,7 @@ The two System Agents (`memory-extraction-agent` and `agent-catalog-agent`) are 
 **Scenarios this layout handles well:**
 - Prototyping an agent-assisted product.
 - Personal research where one human drives two parallel agent workstreams.
-- First adoption of the baby-phi model ("what's the smallest thing I can get running?").
+- First adoption of the phi model ("what's the smallest thing I can get running?").
 
 **Scenarios this layout does NOT handle** and that require upgrading to a larger layout:
 - Multiple simultaneous sponsors or co-owners (see `06`, `07`).

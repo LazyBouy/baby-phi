@@ -135,7 +135,7 @@ phi-core's blueprint already models (`system_prompt`, `thinking_level`,
 the single source of truth. This matches
 [`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
 which classifies phi-core's `AgentProfile` as a **Node** mapping to
-baby-phi's `AgentProfile`. M4's "Agent Profile Editor" page will edit
+phi's `AgentProfile`. M4's "Agent Profile Editor" page will edit
 both the governance fields and the blueprint directly.
 
 **ToolDefinition vs `phi_core::AgentTool`.** The scaffolded

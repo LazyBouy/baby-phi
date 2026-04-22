@@ -15,7 +15,7 @@
 //!    phi-core-wrapped fields are identical to each phi-core type's
 //!    `Default::default()`. This is the "phi-core is the single
 //!    source of truth" contract — bumping phi-core automatically
-//!    bumps baby-phi's factory without a migration.
+//!    bumps phi's factory without a migration.
 //!
 //! 3. **Version is monotonic under put.** Repeatedly calling
 //!    `put_platform_defaults` with bumped versions produces a row
@@ -81,6 +81,7 @@ proptest! {
                     kind: AgentKind::Human,
                     display_name: format!("agent-{i}"),
                     owning_org: None,
+                    role: None,
                     created_at: Utc::now(),
                 };
                 repo.create_agent(&a).await.unwrap();

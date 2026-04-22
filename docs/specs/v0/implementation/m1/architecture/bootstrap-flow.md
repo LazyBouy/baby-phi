@@ -2,7 +2,7 @@
 
 # System Bootstrap flow (s01)
 
-P5 ships the atomic bootstrap flow: `baby-phi-server bootstrap-init`
+P5 ships the atomic bootstrap flow: `phi-server bootstrap-init`
 generates the single-use credential; the claim handler materialises the
 System Bootstrap Template adoption as a regular Auth Request in
 `Approved` state and issues the `[allocate]`-on-`system:root` Grant that
@@ -25,7 +25,7 @@ roots every subsequent authority chain in the system.
 ║                    Install-time (run ONCE per install)               ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-    $ baby-phi-server bootstrap-init
+    $ phi-server bootstrap-init
     ┌──────────────────────────────────────────┐
     │  rand::OsRng → 32 raw bytes              │
     │  base64url-no-pad encode                 │
@@ -151,10 +151,10 @@ mutation happens.
 - The HTTP handler itself (`POST /api/v0/bootstrap/claim`,
   `GET /api/v0/bootstrap/status`). P6 will translate `ClaimOutcome` /
   `ClaimError` → axum responses, set the session cookie on success,
-  and emit the Prometheus counter `baby_phi_bootstrap_claims_total`.
+  and emit the Prometheus counter `phi_bootstrap_claims_total`.
 - The Prometheus metric. The observability spec in
   `requirements/system/s01-bootstrap-template-adoption.md` names
-  `baby_phi_bootstrap_claims_total{result=success|invalid|expired|already_consumed}`;
+  `phi_bootstrap_claims_total{result=success|invalid|expired|already_consumed}`;
   the counter landing alongside the handler is cleaner than threading
   a metrics sink through `execute_claim`.
 

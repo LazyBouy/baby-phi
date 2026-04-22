@@ -45,7 +45,7 @@ pub enum FailedStep {
 }
 
 impl FailedStep {
-    /// The metric label form used in `baby_phi_permission_check_duration_seconds`.
+    /// The metric label form used in `phi_permission_check_duration_seconds`.
     pub fn as_metric_label(self) -> &'static str {
         match self {
             FailedStep::Catalogue => "0",

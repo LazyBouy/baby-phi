@@ -7,7 +7,7 @@ Accepted — 2026-04-19 (M0).
 
 ## Context
 
-baby-phi needs to be operable by humans (administrators, agent leads) and scriptable by automation (CI, fleet management, SDK users). Early platform projects often punt this choice: build one surface first, add others later. That leaves whichever audience wasn't chosen as the first-class target with a degraded experience for months.
+phi needs to be operable by humans (administrators, agent leads) and scriptable by automation (CI, fleet management, SDK users). Early platform projects often punt this choice: build one surface first, add others later. That leaves whichever audience wasn't chosen as the first-class target with a degraded experience for months.
 
 The audit journey through the 14 admin pages + 5 agent self-service surfaces + 6 system flows includes operations that are natural for humans (approving an Auth Request, reviewing an org dashboard) and operations that are natural for scripts (reconciling a fleet of agents, CI-provisioning a tenant).
 
@@ -15,8 +15,8 @@ The audit journey through the 14 admin pages + 5 agent self-service surfaces + 6
 
 **Ship three surfaces from M0 onward, all consuming the same REST API:**
 
-1. **Rust CLI** (`cli` crate, binary `baby-phi`) — the scriptable surface.
-2. **Rust HTTP API** (`server` crate, binary `baby-phi-server`) — the single source of truth for platform state; all reads and writes flow through it.
+1. **Rust CLI** (`cli` crate, binary `phi`) — the scriptable surface.
+2. **Rust HTTP API** (`server` crate, binary `phi-server`) — the single source of truth for platform state; all reads and writes flow through it.
 3. **Next.js 14 web UI** (`modules/web/`) — the human surface.
 
 The API is the **only** source of truth. The CLI and web UI are both clients of the API; neither reaches into the database directly.
@@ -38,7 +38,7 @@ The API is the **only** source of truth. The CLI and web UI are both clients of 
 
 ## Alternatives considered
 
-- **Web UI first, CLI later.** Standard for consumer SaaS. Rejected because baby-phi's early adopters are platform teams who expect `cli` + scripts to be first-class. A web-only MVP would block the audience we're building for.
+- **Web UI first, CLI later.** Standard for consumer SaaS. Rejected because phi's early adopters are platform teams who expect `cli` + scripts to be first-class. A web-only MVP would block the audience we're building for.
 - **CLI first, web UI later.** Common for dev-tools startups. Rejected because the fresh-install journey includes human-facing approvals (Auth Requests, consent ceremonies) that are painful in a CLI. We need the web UI ready when those ceremonies appear (M3+).
 - **gRPC-first with optional REST gateway.** Attractive for internal-service workloads. Rejected for v0.1: browser clients need REST (or GraphQL), the public-API contract needs to be inspectable with `curl`, and we have no near-term need for bidirectional streaming.
 - **One Rust binary that serves both API + CLI in-process.** The CLI would short-circuit the HTTP layer and call domain functions directly. Rejected because it creates a "special" code path the web UI can't use, and integration tests can't easily exercise both paths symmetrically.

@@ -7,13 +7,13 @@ Accepted — 2026-04-19 (M0).
 
 ## Context
 
-baby-phi's domain model is a typed graph (nodes + edges from [`../../../concepts/ontology.md`](../../../concepts/ontology.md)) with document-shaped payloads on nodes (e.g. agent profiles carry nested phi-core structs) and time-series audit events. v0.1 needed an embedded-friendly graph-capable database that could scale from a single-machine deploy to a clustered one without rewriting queries.
+phi's domain model is a typed graph (nodes + edges from [`../../../concepts/ontology.md`](../../../concepts/ontology.md)) with document-shaped payloads on nodes (e.g. agent profiles carry nested phi-core structs) and time-series audit events. v0.1 needed an embedded-friendly graph-capable database that could scale from a single-machine deploy to a clustered one without rewriting queries.
 
 The two finalists under "embedded graph DB" in the build plan were **SurrealDB** and **Memgraph**.
 
 ## Decision
 
-**Use SurrealDB with the RocksDB backend, embedded in the `baby-phi-server` process.**
+**Use SurrealDB with the RocksDB backend, embedded in the `phi-server` process.**
 
 See the build plan's comparison table at [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../../plan/build/36d0c6c5-build-plan-v01.md) §"Storage choice: SurrealDB vs Memgraph" for the full matrix.
 
@@ -38,7 +38,7 @@ See the build plan's comparison table at [`../../../plan/build/36d0c6c5-build-pl
 ## Alternatives considered
 
 - **Memgraph.** Stronger graph analytics (PageRank, community detection) out of the box. v0 does not need those — the traversal patterns we need ("walk DESCENDS_FROM to root", "list grants matching a selector") are trivial in SurrealQL. Operational overhead of a second process tips the balance to SurrealDB.
-- **SQLite** (the build plan's original default before the decision to go graph-native). Rejected because the graph model is first-class in baby-phi's concept docs; encoding edges as join tables would drag query complexity into the domain layer and obscure the ontology.
+- **SQLite** (the build plan's original default before the decision to go graph-native). Rejected because the graph model is first-class in phi's concept docs; encoding edges as join tables would drag query complexity into the domain layer and obscure the ontology.
 - **Postgres + Apache AGE extension.** Mature substrate, graph-capable via AGE. Rejected for v0.1: operational complexity of Postgres + AGE exceeds SurrealDB's embedded-single-binary story, and AGE is a Cypher wrapper so we'd still pay a query-language learning cost.
 - **Neo4j.** License constraints (GPLv3 community edition or commercial) complicate redistribution. Server-only, similar ergonomics to Memgraph.
 

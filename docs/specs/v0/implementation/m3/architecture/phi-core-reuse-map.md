@@ -4,7 +4,7 @@
 
 **Status: [EXISTS]** — durable publication of plan §1.5.
 
-Legend: ✅ direct reuse • 🔌 wrap (baby-phi field holds phi-core type) • 🚫 no phi-core counterpart.
+Legend: ✅ direct reuse • 🔌 wrap (phi field holds phi-core type) • 🚫 no phi-core counterpart.
 
 ## Page 06 — Org Creation Wizard (M3/P4)
 
@@ -22,10 +22,10 @@ Legend: ✅ direct reuse • 🔌 wrap (baby-phi field holds phi-core type) • 
 
 | Surface | phi-core type | M3 use | Mode |
 |---|---|---|---|
-| `consent_policy`, `audit_class_default`, `authority_templates_enabled`, `vision`, `mission`, `system_agents`, `default_model_provider` | (none) | Pure baby-phi governance | 🚫 |
+| `consent_policy`, `audit_class_default`, `authority_templates_enabled`, `vision`, `mission`, `system_agents`, `default_model_provider` | (none) | Pure phi governance | 🚫 |
 | Inbox / Outbox for CEO | (none) | `Composite::InboxObject` / `OutboxObject` — M1 domain | 🚫 |
-| Authority Template A/B/C/D constructors | (none) | `domain::templates::{a,b,c,d}` — baby-phi's governance plane | 🚫 |
-| Token budget pool | (none) | `TokenBudgetPool` composite in `composites_m3.rs` — baby-phi's economic-resource model | 🚫 |
+| Authority Template A/B/C/D constructors | (none) | `domain::templates::{a,b,c,d}` — phi's governance plane | 🚫 |
+| Token budget pool | (none) | `TokenBudgetPool` composite in `composites_m3.rs` — phi's economic-resource model | 🚫 |
 | `HasLead` edge variant | (none) | New in M3/P1; M5 wires Template A's trigger | 🚫 |
 
 ## Page 07 — Org Dashboard (M3/P5)
@@ -43,7 +43,7 @@ Legend: ✅ direct reuse • 🔌 wrap (baby-phi field holds phi-core type) • 
    - Acceptance test `acceptance_orgs_dashboard::dashboard_wire_json_excludes_phi_core_fields` (walks the real wire JSON recursively).
    - Web test `modules/web/__tests__/orgs-dashboard.test.ts::DashboardSummaryWire contains no phi-core-wrapping keys`.
 3. The dashboard handler + orchestrator deliberately **strip** `Organization.defaults_snapshot` when projecting into the dashboard response; full-snapshot drill-down remains available via `GET /orgs/:id` (show.rs). Rationale documented in `org-dashboard.md §phi-core leverage`.
-4. New repo methods (`get_token_budget_pool_for_org`, `count_alerted_events_for_org_since`) are pure baby-phi — `TokenBudgetPool` is a baby-phi composite, audit events are orthogonal per `baby-phi/CLAUDE.md`.
+4. New repo methods (`get_token_budget_pool_for_org`, `count_alerted_events_for_org_since`) are pure phi — `TokenBudgetPool` is a phi composite, audit events are orthogonal per `phi/CLAUDE.md`.
 
 ## CLI / Seal (M3/P4–P6)
 
@@ -78,7 +78,7 @@ Summarised here; full 4-reason argument lives in
 ## Enforcement
 
 `scripts/check-phi-core-reuse.sh` (hard-gated in CI since M2/P3)
-forbids parallel baby-phi redeclarations of phi-core types. Every
+forbids parallel phi redeclarations of phi-core types. Every
 M3 phase's close audit re-verifies. Full four-tier enforcement model
 documented in [`phi-core-leverage-checklist.md`](phi-core-leverage-checklist.md)
 §"Enforcement — four-tier model".

@@ -1,4 +1,4 @@
-//! `baby-phi mcp-server {list,add,patch-tenants,archive}` subcommands.
+//! `phi mcp-server {list,add,patch-tenants,archive}` subcommands.
 //!
 //! phi-core leverage:
 //! - The `--endpoint` value is phi-core's `McpClient::connect_stdio` /
@@ -6,7 +6,7 @@
 //!   or `http[s]://…`). The CLI never reinterprets it — the server's
 //!   health-probe is the only code that parses the scheme.
 //! - phi-core does not ship a "platform binding" wrapper around MCP;
-//!   baby-phi's `ExternalService` composite carries platform-governance
+//!   phi's `ExternalService` composite carries platform-governance
 //!   fields (tenants_allowed, secret_ref, status) around phi-core's
 //!   transport config.
 
@@ -113,14 +113,14 @@ pub async fn run(server_url_override: Option<String>, cmd: McpServerCommand) -> 
     let base = match resolve_base_url(server_url_override) {
         Ok(u) => u,
         Err(e) => {
-            eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+            eprintln!("phi: failed to resolve server URL: {e:#}");
             return EXIT_INTERNAL;
         }
     };
     let client = match build_authed_client() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("baby-phi: {e}");
+            eprintln!("phi: {e}");
             return EXIT_PRECONDITION_FAILED;
         }
     };
@@ -240,7 +240,7 @@ async fn list(client: &reqwest::Client, base: &str, include_archived: bool, json
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -251,7 +251,7 @@ async fn list(client: &reqwest::Client, base: &str, include_archived: bool, json
     let body: ListWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode list response: {e}");
+            eprintln!("phi: failed to decode list response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -264,7 +264,7 @@ async fn list(client: &reqwest::Client, base: &str, include_archived: bool, json
     }
     if body.servers.is_empty() {
         println!(
-            "(no MCP servers registered — run `baby-phi mcp-server add \\\n    --display-name <NAME> --endpoint <ENDPOINT>` to register one)"
+            "(no MCP servers registered — run `phi mcp-server add \\\n    --display-name <NAME> --endpoint <ENDPOINT>` to register one)"
         );
         return EXIT_OK;
     }
@@ -295,7 +295,7 @@ async fn add(
     let tenants_json = match parse_tenants_spec(tenants_allowed) {
         Ok(v) => v,
         Err(msg) => {
-            eprintln!("baby-phi: {msg}");
+            eprintln!("phi: {msg}");
             return EXIT_REJECTED;
         }
     };
@@ -310,7 +310,7 @@ async fn add(
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -321,7 +321,7 @@ async fn add(
     let body: AddWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode add response: {e}");
+            eprintln!("phi: failed to decode add response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -341,7 +341,7 @@ async fn patch_tenants(
 ) -> i32 {
     if !confirm_cascade {
         eprintln!(
-            "baby-phi: --confirm-cascade is required for patch-tenants\n\
+            "phi: --confirm-cascade is required for patch-tenants\n\
              (a narrowing PATCH revokes every grant descending from an AR\n\
              requested by a now-excluded org; pass the flag to acknowledge)"
         );
@@ -350,7 +350,7 @@ async fn patch_tenants(
     let tenants_json = match parse_tenants_spec(tenants_allowed) {
         Ok(v) => v,
         Err(msg) => {
-            eprintln!("baby-phi: {msg}");
+            eprintln!("phi: {msg}");
             return EXIT_REJECTED;
         }
     };
@@ -361,7 +361,7 @@ async fn patch_tenants(
     let res = match client.patch(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -372,7 +372,7 @@ async fn patch_tenants(
     let body: PatchWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode patch response: {e}");
+            eprintln!("phi: failed to decode patch response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -406,7 +406,7 @@ async fn archive(client: &reqwest::Client, base: &str, id: &str) -> i32 {
     let res = match client.post(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -417,7 +417,7 @@ async fn archive(client: &reqwest::Client, base: &str, id: &str) -> i32 {
     let body: ArchiveWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode archive response: {e}");
+            eprintln!("phi: failed to decode archive response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -456,14 +456,14 @@ fn build_authed_client() -> Result<reqwest::Client> {
         Ok(s) => s,
         Err(session_store::SessionStoreError::NotFound { .. }) => {
             anyhow::bail!(
-                "no saved session at {} — run `baby-phi bootstrap claim --credential <…>` first",
+                "no saved session at {} — run `phi bootstrap claim --credential <…>` first",
                 path.display()
             );
         }
         Err(e) => anyhow::bail!("failed to load saved session: {e}"),
     };
     let mut headers = HeaderMap::new();
-    let cookie = format!("baby_phi_session={}", session.cookie_value);
+    let cookie = format!("phi_kernel_session={}", session.cookie_value);
     headers.insert(
         COOKIE,
         HeaderValue::from_str(&cookie).context("cookie value is not a valid header")?,
@@ -501,7 +501,7 @@ fn resolve_base_url(override_url: Option<String>) -> Result<String> {
 async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -> i32 {
     match res.json::<ApiErrorWire>().await {
         Ok(err) => {
-            eprintln!("baby-phi: rejected ({}): {}", err.code, err.message);
+            eprintln!("phi: rejected ({}): {}", err.code, err.message);
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {
@@ -509,7 +509,7 @@ async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -
             }
         }
         Err(e) => {
-            eprintln!("baby-phi: HTTP {} with no error body: {e}", status.as_u16());
+            eprintln!("phi: HTTP {} with no error body: {e}", status.as_u16());
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {

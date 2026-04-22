@@ -26,13 +26,13 @@ surface.
 
 ```bash
 # 1. Authenticate (one-time; reuses the cookie saved by `bootstrap claim`).
-baby-phi login status     # confirms a saved session exists
+phi login status     # confirms a saved session exists
 
 # 2. Pipe the plaintext on stdin (preferred — no on-disk copy).
-printf 'sk-ant-…' | baby-phi secret add --slug anthropic-api-key --material-file -
+printf 'sk-ant-…' | phi secret add --slug anthropic-api-key --material-file -
 
 # Or, if the material is already on disk with mode 0600:
-baby-phi secret add --slug anthropic-api-key --material-file ./api-key.txt
+phi secret add --slug anthropic-api-key --material-file ./api-key.txt
 ```
 
 The command prints the new `secret_id`, the auto-approved AR id, and
@@ -52,12 +52,12 @@ Navigate to **Credentials Vault** in the admin sidebar:
 ## Listing
 
 ```bash
-baby-phi secret list
+phi secret list
 # slug                                      sensitive       rotated     custodian
 # anthropic-api-key                         sensitive       (never)     <uuid>
 # …
 
-baby-phi secret list --json   # JSON shape for piping into jq
+phi secret list --json   # JSON shape for piping into jq
 ```
 
 The web table shows the same columns. Plaintext never appears.
@@ -65,7 +65,7 @@ The web table shows the same columns. Plaintext never appears.
 ## Rotating
 
 ```bash
-printf 'new-plaintext' | baby-phi secret rotate \
+printf 'new-plaintext' | phi secret rotate \
     --slug anthropic-api-key --material-file -
 ```
 
@@ -78,7 +78,7 @@ Reveal is always audited. The CLI refuses to print plaintext unless
 the operator explicitly opts in with `--accept-audit`:
 
 ```bash
-baby-phi secret reveal --slug anthropic-api-key \
+phi secret reveal --slug anthropic-api-key \
     --purpose "rotate-downstream" --accept-audit
 # secret revealed (audit_event_id = <uuid>); plaintext on stdout:
 # sk-ant-…
@@ -91,7 +91,7 @@ baby-phi secret reveal --slug anthropic-api-key \
   `purpose=reveal` — the human purpose shows up in the diff for the
   reviewer.
 - Plaintext is streamed to stdout; the audit annotation goes to
-  stderr so pipes stay clean: `baby-phi secret reveal … | downstream-tool`.
+  stderr so pipes stay clean: `phi secret reveal … | downstream-tool`.
 
 The web UI runs a 3-state flow — **idle** → **confirming** →
 **revealed** — with a 30-second countdown after which the plaintext
@@ -100,7 +100,7 @@ is auto-discarded from the browser state.
 ## Reassigning custody
 
 ```bash
-baby-phi secret reassign --slug anthropic-api-key \
+phi secret reassign --slug anthropic-api-key \
     --new-custodian 00000000-0000-0000-0000-000000000042
 ```
 

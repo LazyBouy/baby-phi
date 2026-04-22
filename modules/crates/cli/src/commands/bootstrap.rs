@@ -1,4 +1,4 @@
-//! `baby-phi bootstrap {status,claim}` HTTP clients.
+//! `phi bootstrap {status,claim}` HTTP clients.
 //!
 //! Thin wrappers around `reqwest` that hit the P6 endpoints, pretty-print
 //! the result, and map HTTP status + error codes to CLI exit codes:
@@ -77,7 +77,7 @@ pub async fn run(server_url_override: Option<String>, cmd: BootstrapCommand) -> 
     let base = match resolve_base_url(server_url_override) {
         Ok(u) => u,
         Err(e) => {
-            eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+            eprintln!("phi: failed to resolve server URL: {e:#}");
             return EXIT_INTERNAL;
         }
     };
@@ -130,27 +130,27 @@ fn strip_trailing_slash(mut u: String) -> String {
     u
 }
 
-// ---- `baby-phi bootstrap status` -------------------------------------------
+// ---- `phi bootstrap status` -------------------------------------------
 
 async fn status(base: &str) -> i32 {
     let url = format!("{base}/api/v0/bootstrap/status");
     let client = match reqwest::Client::builder().build() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("baby-phi: failed to build HTTP client: {e}");
+            eprintln!("phi: failed to build HTTP client: {e}");
             return EXIT_INTERNAL;
         }
     };
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
     let status = res.status();
     if !status.is_success() {
-        eprintln!("baby-phi: unexpected status {status} from {url}");
+        eprintln!("phi: unexpected status {status} from {url}");
         return if status.is_server_error() {
             EXIT_INTERNAL
         } else {
@@ -160,7 +160,7 @@ async fn status(base: &str) -> i32 {
     let body: StatusWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode status body: {e}");
+            eprintln!("phi: failed to decode status body: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -172,14 +172,14 @@ async fn status(base: &str) -> i32 {
         StatusWire::Unclaimed { .. } => {
             println!("platform admin NOT yet claimed");
             println!(
-                "  next step: run `baby-phi bootstrap claim --credential bphi-bootstrap-… \\\n    --display-name '…' --channel-kind slack --channel-handle @you`"
+                "  next step: run `phi bootstrap claim --credential bphi-bootstrap-… \\\n    --display-name '…' --channel-kind slack --channel-handle @you`"
             );
         }
     }
     EXIT_OK
 }
 
-// ---- `baby-phi bootstrap claim` --------------------------------------------
+// ---- `phi bootstrap claim` --------------------------------------------
 
 async fn claim(
     base: &str,
@@ -200,14 +200,14 @@ async fn claim(
     let client = match reqwest::Client::builder().build() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("baby-phi: failed to build HTTP client: {e}");
+            eprintln!("phi: failed to build HTTP client: {e}");
             return EXIT_INTERNAL;
         }
     };
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -221,7 +221,7 @@ async fn claim(
         let success: ClaimSuccess = match res.json().await {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("baby-phi: failed to decode claim response: {e}");
+                eprintln!("phi: failed to decode claim response: {e}");
                 return EXIT_INTERNAL;
             }
         };
@@ -236,7 +236,7 @@ async fn claim(
         );
         println!("  audit_event_id:            {}", success.audit_event_id);
 
-        // Save the session cookie so subsequent `baby-phi secret …`
+        // Save the session cookie so subsequent `phi secret …`
         // invocations (M2/P4) don't need to re-prompt for the bootstrap
         // credential (it's single-use anyway). See decision D14 in the
         // M2 plan.
@@ -247,14 +247,12 @@ async fn claim(
                     println!("  session saved to:          {}", path.display());
                 }
                 Err(e) => {
-                    eprintln!("baby-phi: warning — claim succeeded but session save failed: {e}");
-                    eprintln!(
-                        "  subsequent `baby-phi secret …` invocations will be unauthenticated."
-                    );
+                    eprintln!("phi: warning — claim succeeded but session save failed: {e}");
+                    eprintln!("  subsequent `phi secret …` invocations will be unauthenticated.");
                 }
             }
         } else {
-            eprintln!("baby-phi: warning — claim response carried no session cookie; subsequent commands will need manual auth");
+            eprintln!("phi: warning — claim response carried no session cookie; subsequent commands will need manual auth");
         }
 
         println!();
@@ -268,7 +266,7 @@ async fn claim(
     let code_num = status.as_u16();
     match res.json::<ApiError>().await {
         Ok(err) => {
-            eprintln!("baby-phi: claim rejected ({}): {}", err.code, err.message);
+            eprintln!("phi: claim rejected ({}): {}", err.code, err.message);
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {
@@ -276,7 +274,7 @@ async fn claim(
             }
         }
         Err(e) => {
-            eprintln!("baby-phi: claim failed with HTTP {code_num} and no error body: {e}");
+            eprintln!("phi: claim failed with HTTP {code_num} and no error body: {e}");
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {
@@ -291,7 +289,7 @@ async fn claim(
 fn extract_session_cookie(headers: &reqwest::header::HeaderMap) -> Option<String> {
     for value in headers.get_all(reqwest::header::SET_COOKIE) {
         let raw = value.to_str().ok()?;
-        if let Some(rest) = raw.split("baby_phi_session=").nth(1) {
+        if let Some(rest) = raw.split("phi_kernel_session=").nth(1) {
             if let Some(cookie) = rest.split(';').next() {
                 return Some(cookie.to_string());
             }
@@ -345,7 +343,7 @@ mod tests {
         headers.append(
             reqwest::header::SET_COOKIE,
             reqwest::header::HeaderValue::from_static(
-                "baby_phi_session=abc.def.ghi; Path=/; HttpOnly",
+                "phi_kernel_session=abc.def.ghi; Path=/; HttpOnly",
             ),
         );
         assert_eq!(

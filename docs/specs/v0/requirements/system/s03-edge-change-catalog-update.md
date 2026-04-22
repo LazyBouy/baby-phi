@@ -41,7 +41,7 @@ Graph mutation events on any of: `MEMBER_OF`, `HAS_AGENT`, `HAS_LEAD`, `HAS_PROF
 
 ## Observability
 
-- Metrics: `baby_phi_agent_catalog_queue_depth`, `baby_phi_agent_catalog_update_duration_seconds`, `baby_phi_agent_catalog_lag_seconds` (time between triggering event and catalogue update).
+- Metrics: `phi_agent_catalog_queue_depth`, `phi_agent_catalog_update_duration_seconds`, `phi_agent_catalog_lag_seconds` (time between triggering event and catalogue update).
 - Audit events: `AgentCatalogUpdated`, `AgentCatalogUpdateFailed`.
 
 ## Cross-References

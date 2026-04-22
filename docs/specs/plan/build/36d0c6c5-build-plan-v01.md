@@ -1,11 +1,11 @@
-# Build Plan: baby-phi v0.1
+# Build Plan: phi v0.1
 
 > **Legend:**
 > - `[PLAN: new]` — part of this fresh build plan
 > - `[DOCS: ⏳ pending]` — not yet executed
 > - `[DOCS: n/a]` — reference/meta section
 
-> **⚠ Production target.** baby-phi v0.1 will be deployed **for real client projects in production**, not as a demo or internal tool. Every milestone below therefore pays its share of production-readiness work (auth, TLS, backup, observability, deployment packaging, runbooks) — this is not a "build it, then harden it later" plan. Milestone **M7b** is a dedicated hardening pass that verifies the previous milestones produced production-grade artefacts; it is a quality gate, not a fix-up phase.
+> **⚠ Production target.** phi v0.1 will be deployed **for real client projects in production**, not as a demo or internal tool. Every milestone below therefore pays its share of production-readiness work (auth, TLS, backup, observability, deployment packaging, runbooks) — this is not a "build it, then harden it later" plan. Milestone **M7b** is a dedicated hardening pass that verifies the previous milestones produced production-grade artefacts; it is a quality gate, not a fix-up phase.
 
 ## Context  `[PLAN: new]` `[DOCS: n/a]`
 
@@ -15,7 +15,7 @@ Concept docs (94% calibrated) and 321 requirements across the fresh-install admi
 - **Spine-first hybrid sequencing.** Permission Check engine + graph storage + System Bootstrap flow + Auth Request state machine land first (the load-bearing spine). Then the 14 admin pages + 5 agent-self-service surfaces land as vertical slices in fresh-install journey order (Phase 1→9).
 - **Embedded graph DB:** **SurrealDB** (Rust-native, embeddable, graph-capable, supports RocksDB backend). Replaces the SQLite default from `coordination.md`; the concept doc's "v0 default, revisitable" language covers the change.
 
-Archive location for this and future build plans: `baby-phi/docs/specs/plan/build/`.
+Archive location for this and future build plans: `phi/docs/specs/plan/build/`.
 
 ## Decisions Captured  `[PLAN: new]` `[DOCS: see Impl column]`
 
@@ -24,14 +24,14 @@ Archive location for this and future build plans: `baby-phi/docs/specs/plan/buil
 | **Surfaces** | API (Rust/axum) + CLI (Rust/clap) + Web UI (Next.js 14 with SSR). Same REST contracts for both clients. | ⏳ |
 | **Sequencing** | Spine-first hybrid. M1 is spine. M2–M5 are journey phases 1–9 as vertical slices. M6 is agent self-service. M7 is system flows + NFRs. M8 is acceptance + polish. | ⏳ |
 | **Storage** | SurrealDB embedded (RocksDB backend). Replaces the SQLite recommendation in `coordination.md`; that doc's "v0 default, revisitable" tag authorised the change. See §Storage choice: SurrealDB vs Memgraph below for the rationale. | ⏳ |
-| **Workspace layout** | Cargo workspace: `phi-core` (existing), `baby-phi` (existing binary, becomes the CLI), plus three new crates: `baby-phi-domain` (graph model + Permission Check engine + state machines), `baby-phi-server` (axum HTTP layer), `baby-phi-store` (SurrealDB adapter + repository traits). Next.js frontend lives in `baby-phi/web/` with its own package.json. | ⏳ |
+| **Workspace layout** | Cargo workspace: `phi-core` (existing), `phi` (existing binary, becomes the CLI), plus three new crates: `phi-domain` (graph model + Permission Check engine + state machines), `phi-server` (axum HTTP layer), `phi-store` (SurrealDB adapter + repository traits). Next.js frontend lives in `phi/web/` with its own package.json. | ⏳ |
 | **Testing layers** | Unit: property-based on Permission Check + state machines. Acceptance: the 15 reference layouts become fixture builders; every admin-page Section 11 scenario becomes an integration test. NFR: performance + security invariant tests under `tests/nfr/`. | ⏳ |
 | **Observability baseline** | Structured JSON logs; Prometheus-format `/metrics` endpoint; audit event emitter writes to SurrealDB and to a shadow append-only log for recoverability. Per `nfr-observability.md`. | ⏳ |
 | **CI/CD** | GitHub Actions: fmt + clippy + unit + acceptance + NFR smoke. Release builds tag binaries. | ⏳ |
 
 ## phi-core leverage — standing commitments  `[PLAN: new]` `[DOCS: [EXISTS] — see checklist]`
 
-phi-core is the source-of-truth library; baby-phi is a consumer. Every overlapping surface reuses phi-core directly or wraps it — never re-implements (per [`baby-phi/CLAUDE.md §phi-core Leverage`](../../../../../CLAUDE.md)). **Every milestone's detailed planning session MUST apply the four-tier enforcement model below** — treating the CI grep linter as sufficient is explicitly rejected as it cannot catch miss-leverage.
+phi-core is the source-of-truth library; phi is a consumer. Every overlapping surface reuses phi-core directly or wraps it — never re-implements (per [`phi/CLAUDE.md §phi-core Leverage`](../../../../../CLAUDE.md)). **Every milestone's detailed planning session MUST apply the four-tier enforcement model below** — treating the CI grep linter as sufficient is explicitly rejected as it cannot catch miss-leverage.
 
 | Tier | Mechanism | Catches | Applies |
 |---|---|---|---|
@@ -47,7 +47,7 @@ phi-core is the source-of-truth library; baby-phi is a consumer. Every overlappi
 
 **Known unaddressed gaps** (candidates for future CI hardening; see checklist for details):
 - No PR-level phi-core gate (a checklist in the PR template) — candidate for M7b.
-- No automated miss-leverage detection (grep for baby-phi structs whose field-set mirrors a phi-core type) — candidate for M6+.
+- No automated miss-leverage detection (grep for phi structs whose field-set mirrors a phi-core type) — candidate for M6+.
 
 M3 Backstory: P3's plan labelled leverage as "None" on reductive reasoning; user pushback at the P2→P3 handoff surfaced the slip. Root cause was single-question audit ("does this phase leverage phi-core?"); structural fix was the Q1/Q2/Q3 split. Documented so M4+ planners don't repeat the pattern.
 
@@ -58,7 +58,7 @@ Every item below is an explicit deliverable mapped to a milestone. None are "we'
 | Concern | Commitment | Milestone |
 |---------|------------|-----------|
 | **Authentication (beyond bootstrap)** | Real human login — OAuth 2.0 (PKCE) against configurable IdP (Google/Microsoft/Okta) + local-password fallback for dev. MFA supported when the IdP provides it. Session tokens are server-signed cookies (SSR-friendly) with sliding expiry. LLM-agent authentication uses short-lived machine tokens minted by the platform admin. | M3 (first non-bootstrap users exist) |
-| **Transport security (TLS)** | TLS 1.3 everywhere. Production deployment uses a reverse proxy (nginx/Caddy) terminating TLS; baby-phi-server also supports native TLS via `axum-rustls` for simple deploys. Automatic cert renewal via Let's Encrypt where applicable. No plaintext HTTP served in production. | M0 (server skeleton) |
+| **Transport security (TLS)** | TLS 1.3 everywhere. Production deployment uses a reverse proxy (nginx/Caddy) terminating TLS; phi-server also supports native TLS via `axum-rustls` for simple deploys. Automatic cert renewal via Let's Encrypt where applicable. No plaintext HTTP served in production. | M0 (server skeleton) |
 | **At-rest encryption** | SurrealDB data files encrypted at rest. v0.1 uses AES-256 with a master key loaded from the credentials vault OR environment-injected via the deployment's secret manager (Kubernetes Secrets, AWS Secrets Manager, etc.). Secret/credential entries in the vault are additionally wrapped with per-entry keys for defence in depth. | M1 (spine) + M7b (hardening verification) |
 | **Backup & restore** | Automated daily `surreal export` dumps to off-site storage (S3/GCS) with 30-day retention. Point-in-time recovery up to 24h via WAL-shipping. **Tested restore drill** as part of M7b — not just "it's configured." Documented runbook. | M7 (tooling) + M7b (drill) |
 | **Rate limiting + abuse** | Per-endpoint rate limits (tower-governor or equivalent). Per-tenant quotas. Request size caps. Per-principal concurrent-session caps already enforced by `parallelize` + Permission Check — extended here to per-IP/per-token rate limiting on the public API surface. | M7b |
@@ -67,11 +67,11 @@ Every item below is an explicit deliverable mapped to a milestone. None are "we'
 | **Health checks** | Separate `/healthz/live` (process alive) and `/healthz/ready` (DB reachable, migrations applied, dependencies healthy). Used by orchestrators for rolling deploys. | M0 (skeleton) + M7b (production-grade semantics) |
 | **Deployment packaging** | Dockerfile (multi-stage, non-root user, minimal base). Docker Compose for local dev. Kubernetes manifests (Deployment + Service + PersistentVolumeClaim + ConfigMap + Secret) shipped as reference. Helm chart is a v0.2 conversation. | M0 (Dockerfile) + M7b (k8s manifests, compose) |
 | **Configuration management** | All runtime config via env vars + a layered config file (dev / staging / prod). Secrets NEVER in config files; always injected via environment. 12-factor-compatible. | M0 |
-| **Schema migrations** | Versioned SurrealDB schema with forward-only migrations (`baby-phi-domain::migrations`). Every migration tested in CI against a representative dataset. Migration runs on startup; failed migrations refuse to serve (fail-safe). | M1 (first migration) + ongoing |
+| **Schema migrations** | Versioned SurrealDB schema with forward-only migrations (`phi-domain::migrations`). Every migration tested in CI against a representative dataset. Migration runs on startup; failed migrations refuse to serve (fail-safe). | M1 (first migration) + ongoing |
 | **Release process** | SemVer. `CHANGELOG.md` updated per release. Staging env runs the main branch continuously; production pinned to tagged releases. Rollback strategy: the previous N Docker images retained, schema migrations reversible where possible or accompanied by compensating migrations. | M8 + ongoing |
 | **Security scanning** | `cargo audit` in CI (RustSec advisories). `cargo deny` for licence / supply-chain gates. `npm audit` on the web tree. Dependabot enabled. SAST via `cargo clippy -W clippy::pedantic` on critical crates. | M0 (CI gates) + M7b (full scan) |
 | **Load testing** | `tests/nfr/load/` uses a k6 or goose script against the NFR-performance targets (100 Permission Checks/s sustained, etc.). Run in staging pre-release. | M7b |
-| **Chaos testing** | Basic failure-injection suite: kill DB mid-session, simulate DB-full, simulate network partition between baby-phi-server and the embedded DB (when we move to standalone-server tier). Covers SurrealDB backup/restore and retries. | M7b |
+| **Chaos testing** | Basic failure-injection suite: kill DB mid-session, simulate DB-full, simulate network partition between phi-server and the embedded DB (when we move to standalone-server tier). Covers SurrealDB backup/restore and retries. | M7b |
 | **GDPR / data-subject rights** | `DELETE /api/v0/agents/{id}?right_to_erasure=true` removes user-owned content respecting Auth Request retention (some audit records legally must survive erasure; the API returns a report of what was erased vs retained with legal justification). | M7b |
 | **Runbook** | `docs/ops/runbook.md` covers: deploy, upgrade, rollback, backup, restore, incident response, known issues + workarounds. Written *during* M7b, not after. | M7b |
 | **Architecture diagrams** | Sequence diagrams for bootstrap, org creation, session launch, memory extraction. Component diagram of the three-crate workspace. Published in `docs/architecture/`. | M7b |
@@ -102,12 +102,12 @@ Not in v0.1 — explicit follow-on work:
 ## Architecture sketch  `[PLAN: new]` `[DOCS: n/a]`
 
 ```
-baby-phi/ (workspace root)
+phi/ (workspace root)
 ├── phi-core/                       # existing library; agent loop, providers, tools
-├── baby-phi-domain/   (NEW)        # graph model + Permission Check + state machines
-├── baby-phi-store/    (NEW)        # SurrealDB adapter, repository traits
-├── baby-phi-server/   (NEW)        # axum HTTP API, endpoint handlers
-├── baby-phi/          (existing)   # CLI binary, clap subcommands hitting the API
+├── phi-domain/   (NEW)        # graph model + Permission Check + state machines
+├── phi-store/    (NEW)        # SurrealDB adapter, repository traits
+├── phi-server/   (NEW)        # axum HTTP API, endpoint handlers
+├── phi/          (existing)   # CLI binary, clap subcommands hitting the API
 ├── web/               (NEW)        # Next.js 14 + App Router + SSR
 ├── docs/specs/                     # existing concepts + requirements (source of truth)
 ├── tests/                          # acceptance + NFR integration tests
@@ -116,8 +116,8 @@ baby-phi/ (workspace root)
 
 **Dependency flow (strict, downward only):**
 ```
-baby-phi (CLI)   ─┐
-baby-phi-server ─┼─▶ baby-phi-domain ─▶ baby-phi-store ─▶ SurrealDB
+phi (CLI)   ─┐
+phi-server ─┼─▶ phi-domain ─▶ phi-store ─▶ SurrealDB
 web (Next.js)   ─┘                      (uses phi-core for agent/session types)
 ```
 
@@ -130,7 +130,7 @@ Both were on the table under "embedded graph DB." A compact comparison plus why 
 | Dimension | **SurrealDB** | **Memgraph** |
 |-----------|----------------|----------------|
 | **Embeddability** | Runs embedded in-process via the `surrealdb` Rust crate. Can also run as a separate server when needed. | Runs as a separate server process (C++ binary). No first-class embedded story for Rust. |
-| **Language** | Written in Rust. Zero-FFI integration into `baby-phi-store`. | Written in C++. Rust client crates talk over Bolt protocol (network hop even for local dev). |
+| **Language** | Written in Rust. Zero-FFI integration into `phi-store`. | Written in C++. Rust client crates talk over Bolt protocol (network hop even for local dev). |
 | **Query language** | SurrealQL — SQL-flavoured with native graph traversal (`SELECT ... FROM ->edge->node`, `RELATE`). | Cypher (Neo4j-compatible). |
 | **Data model** | Multi-model: document fields on nodes + graph edges + time-series. Natural fit for our hybrid ontology (AgentProfile has nested structs; audit events are time-series; grants + edges are graph). | Graph-native only. Document-like fields encoded as property maps. |
 | **Backend storage** | In-memory, RocksDB (embedded), or TiKV (distributed). RocksDB is the v0 pick. | In-memory primary with disk snapshots; not configurable the same way. |
@@ -138,13 +138,13 @@ Both were on the table under "embedded graph DB." A compact comparison plus why 
 | **Graph analytics (PageRank, community detection, centrality)** | Basic; more work needed for advanced algorithms. | Strong out of the box. |
 | **Operational overhead** | One binary, one process, zero external dependencies. | Requires a separate process; container or system service needed even for local dev. |
 
-### Why SurrealDB wins for baby-phi v0.1
+### Why SurrealDB wins for phi v0.1
 
-1. **Embedded = simpler ops.** SurrealDB loads into `baby-phi-server`'s process directly. Memgraph would force a second process even for local dev, turning docker-compose from optional into mandatory.
+1. **Embedded = simpler ops.** SurrealDB loads into `phi-server`'s process directly. Memgraph would force a second process even for local dev, turning docker-compose from optional into mandatory.
 2. **Rust-native, zero FFI.** `surrealdb = "2.x"` in `Cargo.toml` is the whole integration — no Bolt protocol, no network hop, no serialization tax.
-3. **Multi-model matches the ontology.** The baby-phi data model is genuinely hybrid: Agent nodes carry nested phi-core structs (`AgentProfile`, `ModelConfig`, `ExecutionLimits`) — that's document shape — plus participate in edges (`MEMBER_OF`, `HAS_LEAD`, `DESCENDS_FROM`) — that's graph shape. Audit events are time-series. Memgraph would force us to encode the document parts as property maps and build a separate time-series store; SurrealDB handles all three natively.
+3. **Multi-model matches the ontology.** The phi data model is genuinely hybrid: Agent nodes carry nested phi-core structs (`AgentProfile`, `ModelConfig`, `ExecutionLimits`) — that's document shape — plus participate in edges (`MEMBER_OF`, `HAS_LEAD`, `DESCENDS_FROM`) — that's graph shape. Audit events are time-series. Memgraph would force us to encode the document parts as property maps and build a separate time-series store; SurrealDB handles all three natively.
 4. **Future migration path is open.** SurrealQL is close enough to SQL that migrating to any SQL-native store is mostly query rewrites. Migrating OUT of Memgraph/Cypher would be a larger effort.
-5. **v0 scale doesn't need Memgraph's strengths.** Graph analytics (PageRank, centrality, community detection) are Memgraph's standout features. baby-phi v0 doesn't need them — the graph traversal we need is "walk `DESCENDS_FROM` to the root," "list grants that match this selector," "find all sessions tagged `X`" — all trivial in SurrealQL.
+5. **v0 scale doesn't need Memgraph's strengths.** Graph analytics (PageRank, centrality, community detection) are Memgraph's standout features. phi v0 doesn't need them — the graph traversal we need is "walk `DESCENDS_FROM` to the root," "list grants that match this selector," "find all sessions tagged `X`" — all trivial in SurrealQL.
 
 ### Tradeoffs (honest)
 
@@ -154,7 +154,7 @@ Both were on the table under "embedded graph DB." A compact comparison plus why 
 
 ### If this choice turns out wrong
 
-The `baby-phi-store` crate is the sole adapter. Swapping SurrealDB for Memgraph (or any other store) is a one-crate rewrite plus query-language migration. The domain crate is storage-agnostic — it talks to a `Repository` trait, not to SurrealDB directly. This is a deliberate safety valve.
+The `phi-store` crate is the sole adapter. Swapping SurrealDB for Memgraph (or any other store) is a one-crate rewrite plus query-language migration. The domain crate is storage-agnostic — it talks to a `Repository` trait, not to SurrealDB directly. This is a deliberate safety valve.
 
 ### Scaling path — from embedded to distributed
 
@@ -162,10 +162,10 @@ The `baby-phi-store` crate is the sole adapter. Swapping SurrealDB for Memgraph 
 
 | Tier | When | How | Query code change? |
 |------|------|-----|--------------------|
-| **Embedded + RocksDB** (v0.1) | Single-tenant, ~100k nodes / ~1M edges / ≤100 concurrent sessions. baby-phi-server + DB in one process. | `Surreal::new::<RocksDb>("data/baby-phi.db")`. Comfortable up to hundreds of GB of data on a single machine. | — |
-| **Standalone SurrealDB server** | baby-phi-server needs to scale horizontally, or you want to separate DB lifecycle from app lifecycle. | Run `surreal start --bind 0.0.0.0:8000 file:data/baby-phi.db`; switch the client to `Surreal::new::<Client>("ws://host:8000")`. | **None.** Same SurrealQL. |
+| **Embedded + RocksDB** (v0.1) | Single-tenant, ~100k nodes / ~1M edges / ≤100 concurrent sessions. phi-server + DB in one process. | `Surreal::new::<RocksDb>("data/phi.db")`. Comfortable up to hundreds of GB of data on a single machine. | — |
+| **Standalone SurrealDB server** | phi-server needs to scale horizontally, or you want to separate DB lifecycle from app lifecycle. | Run `surreal start --bind 0.0.0.0:8000 file:data/phi.db`; switch the client to `Surreal::new::<Client>("ws://host:8000")`. | **None.** Same SurrealQL. |
 | **SurrealDB cluster with TiKV** | Multi-region, HA, or data size outgrows a single node. | Swap RocksDB for TiKV backend; deploy SurrealDB cluster. | **None.** Same SurrealQL. |
-| **Leave SurrealDB entirely** | SurrealDB itself is the bottleneck or wrong tool. | Rewrite `baby-phi-store` crate to target a different DB (Postgres, Neo4j, Memgraph, etc.). Domain crate unchanged. | Full query rewrite. Mitigated by the Repository trait. |
+| **Leave SurrealDB entirely** | SurrealDB itself is the bottleneck or wrong tool. | Rewrite `phi-store` crate to target a different DB (Postgres, Neo4j, Memgraph, etc.). Domain crate unchanged. | Full query rewrite. Mitigated by the Repository trait. |
 
 ### Data migration — between SurrealDB instances
 
@@ -184,16 +184,16 @@ These are SurrealDB's current weaknesses. They are not blockers for v0.1 but are
 - **Query optimizer is less mature.** For complex multi-hop traversals, expect to hand-tune queries. Mitigated in v0 because our traversal patterns are shallow (authority chains typically ≤6 hops).
 - **TiKV backend is newer** than the RocksDB embedded backend. If the scaling path pushes you to TiKV, expect more operational investment than the Postgres-cluster equivalent.
 
-### Practical implication for baby-phi
+### Practical implication for phi
 
-For v0.1 the embedded tier is the right choice — low operational overhead, single-binary deploys, fast local dev. The **migration commitment** we're making: if baby-phi usage grows past the embedded tier, we move to the standalone-server tier first (zero query code change, day of ops work). Only if SurrealDB itself is the wrong tool do we exercise the Repository-trait safety valve. That's a spectrum from "free" to "bounded effort" at every step, which is what you want in a v0 storage choice.
+For v0.1 the embedded tier is the right choice — low operational overhead, single-binary deploys, fast local dev. The **migration commitment** we're making: if phi usage grows past the embedded tier, we move to the standalone-server tier first (zero query code change, day of ops work). Only if SurrealDB itself is the wrong tool do we exercise the Repository-trait safety valve. That's a spectrum from "free" to "bounded effort" at every step, which is what you want in a v0 storage choice.
 
 ## Milestones (build order)  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
 ### M0 — Project scaffolding (≈1 week)
 
-- **First action: archive this plan verbatim** to `baby-phi/docs/specs/plan/build/<random>-build-plan-v01.md` (8-hex-char token). Creates the `plan/build/` folder if it doesn't exist. Matches the convention used for prior plans (`plan/d95fac8f-…`, `plan/54b1b2cb-…`, `plan/requirements/e2781622-…`).
-- Cargo workspace set up with 4 new crates (`baby-phi-domain`, `baby-phi-store`, `baby-phi-server`, `web/`).
+- **First action: archive this plan verbatim** to `phi/docs/specs/plan/build/<random>-build-plan-v01.md` (8-hex-char token). Creates the `plan/build/` folder if it doesn't exist. Matches the convention used for prior plans (`plan/d95fac8f-…`, `plan/54b1b2cb-…`, `plan/requirements/e2781622-…`).
+- Cargo workspace set up with 4 new crates (`phi-domain`, `phi-store`, `phi-server`, `web/`).
 - SurrealDB embedded (via `surrealdb` Rust crate), RocksDB backend, healthcheck endpoint.
 - `/metrics` skeleton via `axum-prometheus` or equivalent.
 - Next.js 14 scaffold with App Router + SSR, Tailwind set up, auth placeholder (cookie + session stub; real auth comes with M1 bootstrap).
@@ -205,10 +205,10 @@ For v0.1 the embedded tier is the right choice — low operational overhead, sin
 **Goal:** every subsequent milestone builds on a rock-solid Permission Check + Auth Request engine.
 
 - **Graph model:** Rust types for all 9 fundamentals + 8 composites + 37 nodes + 66 edges from `concepts/ontology.md` (count corrected from the earlier "31 + 56+" approximation during M1 pre-audit). SurrealDB schema (tables + indices).
-- **Permission Check engine** in `baby-phi-domain` — the 6-step formal algorithm from `permissions/04`. Property-based tests over randomly-generated grant sets.
+- **Permission Check engine** in `phi-domain` — the 6-step formal algorithm from `permissions/04`. Property-based tests over randomly-generated grant sets.
 - **Auth Request state machine** per `permissions/02` — atomic per-slot transitions, per-resource aggregation, forward-only revocation. Property tests over the state diagram.
 - **System Bootstrap flow (s01):** bootstrap credential generation at install, single-use consumption, platform admin materialisation.
-- **First user-visible endpoint:** `POST /api/v0/bootstrap/claim` (admin page 01, R-ADMIN-01-W1). CLI: `baby-phi bootstrap claim`. Web UI: Phase 1 page.
+- **First user-visible endpoint:** `POST /api/v0/bootstrap/claim` (admin page 01, R-ADMIN-01-W1). CLI: `phi bootstrap claim`. Web UI: Phase 1 page.
 - **First acceptance test:** fresh install → claim → platform admin exists with the `[allocate]` on `system:root` grant, traceable to the Bootstrap Adoption Auth Request.
 
 ### M2 — Platform setup, Phase 2 (≈2 weeks)
@@ -254,7 +254,7 @@ These items were deliberately **deferred** at M3/P5 close (org dashboard). They 
 
 **Why these belong at M4, not later**: M4 is the first milestone to introduce Project persistence + agent-role differentiation + `HAS_LEAD` edge writes + wider audit-log grant delegation. Waiting would leave the M3 dashboard with stubbed counters (safe but misleading) for longer than necessary, and creates drift between the requirements doc (`admin/07`) and the shipped surface.
 
-**phi-core leverage implications for M4 detailed planning**: all six carryovers are **baby-phi-native** (governance-plane extensions: role enums, project shapes, grant walks, dashboard projections). None introduce new phi-core transit. The existing `DashboardSummary` wire-shape strip (no `defaults_snapshot`) continues to hold; M4 should re-run the [leverage checklist](../../v0/implementation/m3/architecture/phi-core-leverage-checklist.md) Q1/Q2/Q3 walk against each added deliverable and specifically assert that the `AgentRole` enum, `Project` struct, and `ProjectShape` discriminator have no phi-core counterpart (confirmed — phi-core has no HR/role concept and no project/OKR primitive). Positive-grep at M4 close: `grep -En '^use phi_core::' server/src/platform/orgs/dashboard.rs` stays at **0 lines** after the M4 rewrite.
+**phi-core leverage implications for M4 detailed planning**: all six carryovers are **phi-native** (governance-plane extensions: role enums, project shapes, grant walks, dashboard projections). None introduce new phi-core transit. The existing `DashboardSummary` wire-shape strip (no `defaults_snapshot`) continues to hold; M4 should re-run the [leverage checklist](../../v0/implementation/m3/architecture/phi-core-leverage-checklist.md) Q1/Q2/Q3 walk against each added deliverable and specifically assert that the `AgentRole` enum, `Project` struct, and `ProjectShape` discriminator have no phi-core counterpart (confirmed — phi-core has no HR/role concept and no project/OKR primitive). Positive-grep at M4 close: `grep -En '^use phi_core::' server/src/platform/orgs/dashboard.rs` stays at **0 lines** after the M4 rewrite.
 
 ### M5 — Template adoption, system agents config, first session — Phase 7–9 (≈2 weeks)
 
@@ -276,6 +276,14 @@ These items were deliberately **deferred** at M3/P4 close (org creation). They f
 **Why these belong at M5, not later**: both are blocking for session launch (page 14). `C-M5-1` is required because M5's first-session path will fire adoption-driven grants via `provenance_template`, which today dangles. `C-M5-2` is required because the session launcher must resolve "which model config does this agent invoke?" — without the edge, the resolution path is a string id lookup, which is the exact two-source-of-truth problem the phi-core reuse mandate wants to avoid.
 
 **phi-core leverage implications for M5 detailed planning**: both carryovers bear on transit of `phi_core::ModelConfig` (via `ModelRuntime.config`). The M5 plan's `### phi-core leverage` subsections (Q1/Q2/Q3 per the M3 [leverage checklist](../../v0/implementation/m3/architecture/phi-core-leverage-checklist.md)) must explicitly walk these when the session-launch handler's payload is defined.
+
+#### Carryovers from M4 — must-pick-up at M5 detailed planning
+
+These items are **deferred from M4** (closed at M4/P0 planning after user decisions pinned them explicitly). They fall naturally into M5's session-launch scope; pinning them here so the M5 detailed planning session picks them up rather than re-discovering them during execution. Mirrors the shape of the C-M5-1/2 entries above.
+
+- **C-M5-3 — `phi_core::session::Session` / `LoopRecord` / `Turn` persistence.** M4 ships admin page 11 (project detail) with a "Recent sessions" panel that renders **empty** because phi has no persisted `Session` surface yet. M4's dashboard also has session-adjacent tiles (alerted-events-24h, pending-AR-count) that function today, but a proper project-level session feed is session-persistence-gated. M5 wires: (a) phi's governance `Session` node wrapping `phi_core::session::model::{Session, LoopRecord, Turn}`; (b) SurrealDB tables `session`, `loop_record`, `turn` with serde-embedding of phi-core's three types; (c) `RUNS_IN` edge from `Session` to `Project` so page 11's panel populates; (d) session-launch handler that materialises the Session at launch + `SessionRecorder` that persists loop records + turns post-execution. **Files affected at M5:** `domain/src/model/nodes.rs::Session` (new wrap), `store/migrations/0005_*.surql` (three new tables + RUNS_IN relation), `domain/src/repository.rs` (list_sessions_in_project, get_session_trace, etc.), `server/src/platform/sessions/launch.rs` (new), `server/src/platform/projects/detail.rs` (extend "Recent sessions" panel read). **phi-core leverage implications**: this is M5's phi-core-heaviest surface — three direct imports (`Session`, `LoopRecord`, `Turn`) wrapped at the domain node level, identical pattern to M3's `OrganizationDefaultsSnapshot` wrap of four phi-core types. The M5 plan's §phi-core leverage subsection must enumerate the wraps + positive close-audit greps. See M4 plan §"What M4 does NOT ship" + `m4/architecture/project-detail.md`.
+
+- **C-M5-4 — `AgentTool` per-agent binding at session-start time.** M4 deliberately does NOT expose a "tools this agent can use" field on page 09 (agent profile editor) — tools are runtime (bound at session-start), not profile (which is static configuration). M5 wires: (a) a resolver that reads the agent's `AgentProfile.blueprint` and returns the `Vec<phi_core::types::tool::AgentTool>` the session should invoke with; (b) optional per-agent override pattern parallel to M4's `agent_execution_limits` (deferred unless demand surfaces); (c) `GET /api/v0/sessions/:id/tools` surface so operators can inspect what tools a running session has. Scope **excludes** MCP tool registration (that's M2/P6 platform territory, already shipped) — M5's work is resolver + session-start hook only. **Files affected at M5:** `server/src/platform/sessions/launch.rs` (tool resolver), optionally `domain/src/model/composites_m5.rs::AgentToolOverride` if per-agent override is approved, session-launch acceptance tests. **phi-core leverage implications**: direct import `use phi_core::types::tool::AgentTool`; no wrap needed (phi-core's type is the authoritative shape). Consult the leverage-checklist Q3 walk — `AgentTool` was rejected at M4 per C-M5-4 deferral; at M5 it becomes Q1-direct. See M4 plan §"What M4 does NOT ship" + `m4/architecture/agent-profile-editor.md` §phi-core leverage.
 
 ### M6 — Agent self-service surfaces (≈2 weeks)
 
@@ -340,6 +348,12 @@ These items were deliberately **deferred** at M3/P4 close (org creation). They f
 - Docker image built, signed, pushed.
 - Git tag `v0.1.0`.
 
+#### Carryovers from M4 — must-pick-up at M8 detailed planning
+
+Deferred from M4 per user decision at M4/P0 planning close. Pinned here so the M8 detailed planning session picks it up rather than re-discovering during execution. Mirrors the shape of the M3→M5 and M4→M5 carryover entries elsewhere in this file.
+
+- **C-M8-1 — `phi project create --from-layout <ref>` + 3–5 project-layout YAML fixtures.** M4 ships `phi project create` with explicit flags only (`--org-id`, `--name`, `--shape`, `--lead-agent-id`, `--member-ids`, OKRs via JSON, etc.). Reference project layouts (`projects/01-flat-single-project.md` through `projects/05-*.md`) exist as concept docs; M4 does NOT ship CLI fixture consumption or the YAML files themselves because project shapes are per-scenario (limited fixture reuse vs M3's org layouts). At M8 — the acceptance + polish milestone — "The 15 reference layouts become fixture builders used across the test suite" (see Release work above); this commitment formalises the project-side of that work. **Files affected at M8:** `cli/fixtures/project_layouts/*.yaml` (3–5 new YAMLs matching `projects/01` through `projects/05` concept docs), `cli/src/commands/project.rs::create_impl` (add `--from-layout <path>` branch using the same YAML→JSON translator pattern as `org create --from-layout`), `cli/tests/project_help.rs::all_project_layouts_parse` (fixture-fidelity test parallel to M3's `all_three_reference_layouts_parse`), plus acceptance-suite additions that drive each layout through the real POST path. **phi-core leverage implications**: none new — the layout YAMLs carry the same shape as the explicit-flag CLI payload (Project + lead + members + OKRs), none of which wrap phi-core types at M4 scope. If M5+ adds per-agent `ExecutionLimits` override or per-agent `AgentTool` overrides to project-creation, C-M8-1's fixtures must evolve to carry those fields; note the dependency here.
+
 **Total estimate: 17–22 weeks (≈4–5 months).** The M7b hardening milestone added 2–3 weeks vs the original plan; that time is what makes the build production-ready rather than demo-ready.
 
 ## Cross-cutting strategy  `[PLAN: new]` `[DOCS: ⏳ pending]`
@@ -369,27 +383,27 @@ These items were deliberately **deferred** at M3/P4 close (org creation). They f
 
 ### Concept doc alignment
 
-Per `baby-phi/CLAUDE.md`: docs must reflect code. During each milestone, if implementation surfaces a concept-doc gap or contradiction, fix both the code and the doc in the same commit. Update `Last verified` headers.
+Per `phi/CLAUDE.md`: docs must reflect code. During each milestone, if implementation surfaces a concept-doc gap or contradiction, fix both the code and the doc in the same commit. Update `Last verified` headers.
 
 ## Critical Files (new)  `[PLAN: new]` `[DOCS: n/a — reference list]`
 
 | Path | Purpose |
 |------|---------|
-| `baby-phi/Cargo.toml` (modified) | Workspace declaration — add 3 crates |
-| `baby-phi/baby-phi-domain/` | Graph model, Permission Check, state machines |
-| `baby-phi/baby-phi-store/` | SurrealDB adapter |
-| `baby-phi/baby-phi-server/` | axum HTTP handlers |
-| `baby-phi/web/` | Next.js 14 frontend |
-| `baby-phi/tests/acceptance/` | Layout-driven integration tests |
-| `baby-phi/tests/nfr/` | Performance + security NFR tests |
-| `baby-phi/.github/workflows/` | CI gates |
-| `baby-phi/docs/specs/plan/build/<random>-build-plan-v01.md` | Archived copy of this plan |
+| `phi/Cargo.toml` (modified) | Workspace declaration — add 3 crates |
+| `phi/phi-domain/` | Graph model, Permission Check, state machines |
+| `phi/phi-store/` | SurrealDB adapter |
+| `phi/phi-server/` | axum HTTP handlers |
+| `phi/web/` | Next.js 14 frontend |
+| `phi/tests/acceptance/` | Layout-driven integration tests |
+| `phi/tests/nfr/` | Performance + security NFR tests |
+| `phi/.github/workflows/` | CI gates |
+| `phi/docs/specs/plan/build/<random>-build-plan-v01.md` | Archived copy of this plan |
 
 ## Files to reuse from phi-core
 
 - `phi-core::AgentProfile`, `phi-core::ModelConfig`, `phi-core::ExecutionLimits` — surfaces in admin/09 agent profile editor payloads, in domain model, and in SurrealDB schema for Agent nodes.
-- `phi-core::Session`, `phi-core::LoopRecord`, `phi-core::Turn`, `phi-core::Message` — session execution history; baby-phi wraps with org/project context.
-- `phi-core::agent_loop()` + `phi-core::agent_loop_continue()` — session execution; baby-phi calls these during first-session-launch (admin/14).
+- `phi-core::Session`, `phi-core::LoopRecord`, `phi-core::Turn`, `phi-core::Message` — session execution history; phi wraps with org/project context.
+- `phi-core::agent_loop()` + `phi-core::agent_loop_continue()` — session execution; phi calls these during first-session-launch (admin/14).
 - `phi-core::AgentEvent` stream — the source event stream that s02/s03/s04/s05/s06 flows subscribe to.
 
 ## Execution discipline per milestone  `[PLAN: new]` `[DOCS: ⏳ pending]`
@@ -399,7 +413,7 @@ Each milestone (M0–M8) is multi-session work. The plan archive step is the fir
 1. Set up a scoped TODO list covering the milestone's admin pages + system flows + tests.
 2. Build domain + store changes first, then server handlers, then CLI, then web UI page.
 3. Land per-page acceptance tests before moving to the next page.
-4. Update docs (if implementation surfaces a concept gap, fix both code and doc in the same commit per `baby-phi/CLAUDE.md`).
+4. Update docs (if implementation surfaces a concept gap, fix both code and doc in the same commit per `phi/CLAUDE.md`).
 5. Tag milestone completion with a git tag (`v0.1-m0`, `v0.1-m1`, …).
 
 ## Verification  `[PLAN: new]` `[DOCS: ⏳ pending]`
@@ -422,4 +436,4 @@ Picked up during build; none block start:
 
 - Auth for admin sessions: cookie-based SSR session, JWT, or OAuth? Decide in M0 alongside Next.js scaffold.
 - Next.js deployment target: Vercel (hosted) or self-hosted Node? Decide in M8 pre-release.
-- Local-dev experience: docker-compose with SurrealDB + baby-phi-server + Next.js dev server? Or native-run scripts?
+- Local-dev experience: docker-compose with SurrealDB + phi-server + Next.js dev server? Or native-run scripts?

@@ -46,7 +46,7 @@ Any of:
 
 ## Observability
 
-- Metrics: `baby_phi_auth_request_state_transitions_total{from, to}`, `baby_phi_auth_request_approval_latency_seconds`, `baby_phi_auth_request_timeout_expirations_total`, `baby_phi_grant_materialisations_total`, `baby_phi_revocation_cascades_total`.
+- Metrics: `phi_auth_request_state_transitions_total{from, to}`, `phi_auth_request_approval_latency_seconds`, `phi_auth_request_timeout_expirations_total`, `phi_grant_materialisations_total`, `phi_revocation_cascades_total`.
 - Audit events as listed in R-SYS-s04-6.
 
 ## Cross-References

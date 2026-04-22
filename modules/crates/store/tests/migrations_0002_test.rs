@@ -12,7 +12,7 @@ use tempfile::tempdir;
 #[tokio::test]
 async fn template_kind_column_accepts_every_template_kind_variant() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 
@@ -38,7 +38,7 @@ async fn template_kind_column_accepts_every_template_kind_variant() {
 #[tokio::test]
 async fn template_kind_assert_rejects_unknown_values() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 
@@ -59,7 +59,7 @@ async fn template_kind_assert_rejects_unknown_values() {
 #[tokio::test]
 async fn model_runtime_table_accepts_a_well_shaped_row() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 
@@ -85,7 +85,7 @@ async fn model_runtime_table_accepts_a_well_shaped_row() {
 #[tokio::test]
 async fn model_runtime_status_assert_rejects_unknown() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 
@@ -108,7 +108,7 @@ async fn model_runtime_status_assert_rejects_unknown() {
 #[tokio::test]
 async fn platform_defaults_singleton_accepts_first_insert() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 
@@ -135,7 +135,7 @@ async fn platform_defaults_singleton_accepts_first_insert() {
 #[tokio::test]
 async fn platform_defaults_singleton_unique_index_rejects_second_row() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 
@@ -181,7 +181,7 @@ async fn platform_defaults_singleton_unique_index_rejects_second_row() {
 #[tokio::test]
 async fn mcp_server_new_columns_roundtrip() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 

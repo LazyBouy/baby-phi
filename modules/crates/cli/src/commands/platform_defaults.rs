@@ -1,4 +1,4 @@
-//! `baby-phi platform-defaults {get,put,factory}` subcommands.
+//! `phi platform-defaults {get,put,factory}` subcommands.
 //!
 //! phi-core leverage:
 //! - The wire struct is `PlatformDefaults` (via the `domain` crate)
@@ -96,14 +96,14 @@ pub async fn run(server_url_override: Option<String>, cmd: PlatformDefaultsComma
             let base = match resolve_base_url(server_url_override) {
                 Ok(u) => u,
                 Err(e) => {
-                    eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+                    eprintln!("phi: failed to resolve server URL: {e:#}");
                     return EXIT_INTERNAL;
                 }
             };
             let client = match build_authed_client() {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("baby-phi: {e}");
+                    eprintln!("phi: {e}");
                     return EXIT_PRECONDITION_FAILED;
                 }
             };
@@ -117,14 +117,14 @@ pub async fn run(server_url_override: Option<String>, cmd: PlatformDefaultsComma
             let base = match resolve_base_url(server_url_override) {
                 Ok(u) => u,
                 Err(e) => {
-                    eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+                    eprintln!("phi: failed to resolve server URL: {e:#}");
                     return EXIT_INTERNAL;
                 }
             };
             let client = match build_authed_client() {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("baby-phi: {e}");
+                    eprintln!("phi: {e}");
                     return EXIT_PRECONDITION_FAILED;
                 }
             };
@@ -175,7 +175,7 @@ fn factory(format: FormatArg) -> i32 {
     let value = match serde_json::to_value(&factory) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("baby-phi: failed to serialise factory defaults: {e}");
+            eprintln!("phi: failed to serialise factory defaults: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -192,7 +192,7 @@ async fn get(
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -203,7 +203,7 @@ async fn get(
     let body: GetWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode get response: {e}");
+            eprintln!("phi: failed to decode get response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -241,21 +241,21 @@ async fn put(
         FormatArg::Json => match serde_json::from_str(raw.trim()) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("baby-phi: invalid JSON for PlatformDefaults: {e}");
+                eprintln!("phi: invalid JSON for PlatformDefaults: {e}");
                 return EXIT_REJECTED;
             }
         },
         FormatArg::Yaml => match serde_yaml::from_str(&raw) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("baby-phi: invalid YAML for PlatformDefaults: {e}");
+                eprintln!("phi: invalid YAML for PlatformDefaults: {e}");
                 return EXIT_REJECTED;
             }
         },
         FormatArg::Toml => match toml::from_str(&raw) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("baby-phi: invalid TOML for PlatformDefaults: {e}");
+                eprintln!("phi: invalid TOML for PlatformDefaults: {e}");
                 return EXIT_REJECTED;
             }
         },
@@ -267,7 +267,7 @@ async fn put(
     let defaults_json = match serde_json::to_value(&defaults) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("baby-phi: failed to serialise defaults for wire: {e}");
+            eprintln!("phi: failed to serialise defaults for wire: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -281,7 +281,7 @@ async fn put(
     let res = match client.put(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -292,7 +292,7 @@ async fn put(
     let body: PutWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode put response: {e}");
+            eprintln!("phi: failed to decode put response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -312,13 +312,13 @@ fn read_file_or_stdin(path: &Path) -> Result<String, i32> {
         let mut buf = String::new();
         use std::io::Read;
         if let Err(e) = std::io::stdin().read_to_string(&mut buf) {
-            eprintln!("baby-phi: failed to read from stdin: {e}");
+            eprintln!("phi: failed to read from stdin: {e}");
             return Err(EXIT_INTERNAL);
         }
         Ok(buf)
     } else {
         std::fs::read_to_string(path).map_err(|e| {
-            eprintln!("baby-phi: failed to read {}: {e}", path.display());
+            eprintln!("phi: failed to read {}: {e}", path.display());
             EXIT_PRECONDITION_FAILED
         })
     }
@@ -343,14 +343,14 @@ fn print_value(value: &serde_json::Value, format: FormatArg) -> i32 {
         FormatArg::Yaml => match serde_yaml::to_string(value) {
             Ok(s) => print!("{s}"),
             Err(e) => {
-                eprintln!("baby-phi: failed to serialise as YAML: {e}");
+                eprintln!("phi: failed to serialise as YAML: {e}");
                 return EXIT_INTERNAL;
             }
         },
         FormatArg::Toml => match toml::to_string_pretty(value) {
             Ok(s) => print!("{s}"),
             Err(e) => {
-                eprintln!("baby-phi: failed to serialise as TOML: {e}");
+                eprintln!("phi: failed to serialise as TOML: {e}");
                 return EXIT_INTERNAL;
             }
         },
@@ -364,14 +364,14 @@ fn build_authed_client() -> Result<reqwest::Client> {
         Ok(s) => s,
         Err(session_store::SessionStoreError::NotFound { .. }) => {
             anyhow::bail!(
-                "no saved session at {} — run `baby-phi bootstrap claim --credential <…>` first",
+                "no saved session at {} — run `phi bootstrap claim --credential <…>` first",
                 path.display()
             );
         }
         Err(e) => anyhow::bail!("failed to load saved session: {e}"),
     };
     let mut headers = HeaderMap::new();
-    let cookie = format!("baby_phi_session={}", session.cookie_value);
+    let cookie = format!("phi_kernel_session={}", session.cookie_value);
     headers.insert(
         COOKIE,
         HeaderValue::from_str(&cookie).context("cookie value is not a valid header")?,
@@ -409,7 +409,7 @@ fn resolve_base_url(override_url: Option<String>) -> Result<String> {
 async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -> i32 {
     match res.json::<ApiErrorWire>().await {
         Ok(err) => {
-            eprintln!("baby-phi: rejected ({}): {}", err.code, err.message);
+            eprintln!("phi: rejected ({}): {}", err.code, err.message);
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {
@@ -417,7 +417,7 @@ async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -
             }
         }
         Err(e) => {
-            eprintln!("baby-phi: HTTP {} with no error body: {e}", status.as_u16());
+            eprintln!("phi: HTTP {} with no error body: {e}", status.as_u16());
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {

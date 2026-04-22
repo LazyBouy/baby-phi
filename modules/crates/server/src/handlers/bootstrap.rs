@@ -4,12 +4,12 @@
 //!   exists. Unauthenticated.
 //! - `POST /api/v0/bootstrap/claim`  — consume the single-use bootstrap
 //!   credential and materialise the platform admin. Unauthenticated on
-//!   the request, but sets the signed `baby_phi_session` cookie on success.
+//!   the request, but sets the signed `phi_kernel_session` cookie on success.
 //!
 //! Business logic lives in [`crate::bootstrap::execute_claim`]; this
 //! module is the thin HTTP shim that does content-type negotiation,
 //! maps [`ClaimRejection`] → HTTP status, attaches the session cookie,
-//! and records the `baby_phi_bootstrap_claims_total{result}` counter.
+//! and records the `phi_bootstrap_claims_total{result}` counter.
 
 use axum::{
     extract::State,
@@ -32,7 +32,7 @@ use crate::state::AppState;
 /// Counter name. Labelled by `result` ∈ {success, invalid, already_consumed,
 /// already_claimed, validation, internal}. Wired via the `metrics` facade
 /// crate so it shows up on `/metrics` via `axum-prometheus`.
-pub const CLAIMS_COUNTER: &str = "baby_phi_bootstrap_claims_total";
+pub const CLAIMS_COUNTER: &str = "phi_bootstrap_claims_total";
 
 // ---- GET /api/v0/bootstrap/status -----------------------------------------
 

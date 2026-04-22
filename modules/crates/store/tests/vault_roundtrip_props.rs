@@ -17,8 +17,8 @@
 //! mocks — this is an integration test for the crypto layer as viewed
 //! by the M2 credentials-vault handlers.
 //!
-//! Note: the real baby-phi deployment reads the master key from
-//! `BABY_PHI_MASTER_KEY`. These tests build the key from arbitrary 32
+//! Note: the real phi deployment reads the master key from
+//! `PHI_MASTER_KEY`. These tests build the key from arbitrary 32
 //! bytes via [`MasterKey::from_bytes`] so they don't touch env state.
 
 use proptest::prelude::*;

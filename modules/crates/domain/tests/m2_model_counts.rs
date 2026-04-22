@@ -63,7 +63,7 @@ fn every_m2_composite_type_is_publicly_exported() {
 #[test]
 fn model_runtime_uses_phi_core_model_config_field() {
     // Wrap verification — if this field's type ever silently becomes
-    // a baby-phi-native ModelConfig clone, the D16 mandate is broken.
+    // a phi-native ModelConfig clone, the D16 mandate is broken.
     // We assert via a factory construction: the field accepts exactly
     // phi-core's ModelConfig.
     let cfg = phi_core::provider::model::ModelConfig::anthropic(

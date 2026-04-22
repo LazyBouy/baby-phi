@@ -7,14 +7,14 @@ Accepted — 2026-04-19 (M0; restructured mid-M0 after initial flat layout).
 
 ## Context
 
-M0's initial scaffolding placed each workspace member at the baby-phi repo root:
+M0's initial scaffolding placed each workspace member at the phi repo root:
 
 ```
-baby-phi/
-├── baby-phi-cli/
-├── baby-phi-domain/
-├── baby-phi-store/
-├── baby-phi-server/
+phi/
+├── phi-cli/
+├── phi-domain/
+├── phi-store/
+├── phi-server/
 ├── web/
 ├── Cargo.toml
 └── …
@@ -32,7 +32,7 @@ The user asked for a two-level group:
 **Group buildable modules under `modules/`, with Rust crates under `modules/crates/` and the Next.js app under `modules/web/`.**
 
 ```
-baby-phi/
+phi/
 ├── modules/
 │   ├── crates/
 │   │   ├── cli/
@@ -61,14 +61,14 @@ The workspace manifest at [`Cargo.toml`](../../../../../../Cargo.toml) declares 
 ### Negative
 
 - **Slightly deeper paths.** `modules/crates/server/src/router.rs` instead of `server/src/router.rs`. File navigation adds two hops; editor fuzzy-find offsets this cost almost entirely.
-- **Migration cost.** Rearranging mid-M0 required updating Cargo.toml member paths, every crate's internal deps, Rust import names (from `baby_phi_X` to `X`), Dockerfile, docker-compose, CI workflows, spec-drift script, CLAUDE.md, and the web rewrite path. Cost paid; not recurring.
-- **Cargo path strings** in the workspace manifest are longer (`"modules/crates/cli"` vs `"baby-phi-cli"`).
+- **Migration cost.** Rearranging mid-M0 required updating Cargo.toml member paths, every crate's internal deps, Rust import names (from `phi_X` to `X`), Dockerfile, docker-compose, CI workflows, spec-drift script, CLAUDE.md, and the web rewrite path. Cost paid; not recurring.
+- **Cargo path strings** in the workspace manifest are longer (`"modules/crates/cli"` vs `"phi-cli"`).
 
 ## Alternatives considered
 
 - **Flat at repo root.** Initial shape. Rejected because it visually crowds the root as the project grows.
 - **`modules/cli/`, `modules/domain/`, …, `modules/web/` flat** (no `crates/` subfolder). Rejected because it erases the Rust-vs-not boundary and makes it harder to iterate over just the Rust members (e.g. the spec-drift script would need to whitelist each Rust dir).
-- **`crates/`, `apps/`, `libs/` — Nx-style multi-folder.** Rejected as premature differentiation. baby-phi has one kind of Rust code (workspace crate) and one web app; a three-folder split would be cargo-culting. Revisit if the mix grows.
+- **`crates/`, `apps/`, `libs/` — Nx-style multi-folder.** Rejected as premature differentiation. phi has one kind of Rust code (workspace crate) and one web app; a three-folder split would be cargo-culting. Revisit if the mix grows.
 - **Per-surface git submodules** (CLI, server, web as separate repos). Rejected because the domain types are shared and cross-repo refactors are painful. A single repo with clear boundaries beats per-surface repos at this size.
 
 ## Follow-up work

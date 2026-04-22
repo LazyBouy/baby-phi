@@ -1,4 +1,4 @@
-//! baby-phi domain layer.
+//! phi domain layer.
 //!
 //! This crate is storage-agnostic. It defines:
 //!
@@ -17,6 +17,7 @@
 
 pub mod audit;
 pub mod auth_requests;
+pub mod events;
 pub mod model;
 pub mod permissions;
 pub mod repository;

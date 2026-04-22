@@ -18,10 +18,10 @@ Separately, introduce a **measurement-calibration step** at the end: run 2–3 i
 
 ## History — where prior work is recorded  `[PLAN: new]` `[DOCS: n/a]`
 
-- **Phases A–D archive:** `baby-phi/docs/specs/plan/d95fac8f-ownership-auth-request.md`
-- **Phase F archive:** `baby-phi/docs/specs/plan/54b1b2cb-split-and-gap-closure.md`
+- **Phases A–D archive:** `phi/docs/specs/plan/d95fac8f-ownership-auth-request.md`
+- **Phase F archive:** `phi/docs/specs/plan/54b1b2cb-split-and-gap-closure.md`
 - **Phase E execution:** recoverable via `git log` on `permissions.md`, `ontology.md`, `agent.md` around 2026-04-15
-- **Current spec state:** `baby-phi/docs/specs/v0/concepts/` — the authoritative record
+- **Current spec state:** `phi/docs/specs/v0/concepts/` — the authoritative record
 
 This plan does not re-explain prior history.
 
@@ -41,18 +41,18 @@ This plan does not re-explain prior history.
 
 ### G0: Archive this plan  `[PLAN: new]` `[DOCS: ⏳]`
 
-As first action after approval: copy this plan verbatim to `baby-phi/docs/specs/plan/<random>-push-to-95.md` with `<random>` an 8-hex-char token. Matches the existing archive convention (`d95fac8f-*`, `54b1b2cb-*`).
+As first action after approval: copy this plan verbatim to `phi/docs/specs/plan/<random>-push-to-95.md` with `<random>` an 8-hex-char token. Matches the existing archive convention (`d95fac8f-*`, `54b1b2cb-*`).
 
 ### G1: Identity node row in `ontology.md` node table  `[PLAN: new]` `[DOCS: ⏳]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/ontology.md`
+**File:** `phi/docs/specs/v0/concepts/ontology.md`
 
 **Where:** §Core Identity table (near the top; currently lists Agent, AgentProfile, User).
 
 **Change:** Add one row:
 
 ```
-| **Identity** | `agent_id` | *baby-phi concept* | Emergent self — materialized node with `self_description` (NL), `lived`/`witnessed` (structs), and `embedding` (vector). Updated reactively on session end, memory extraction, skill change, rating. See [agent.md § Identity Node Content](agent.md#identity-node-content--provisional-direction). LLM Agents only; Human Agents have no Identity. |
+| **Identity** | `agent_id` | *phi concept* | Emergent self — materialized node with `self_description` (NL), `lived`/`witnessed` (structs), and `embedding` (vector). Updated reactively on session end, memory extraction, skill change, rating. See [agent.md § Identity Node Content](agent.md#identity-node-content--provisional-direction). LLM Agents only; Human Agents have no Identity. |
 ```
 
 Increment node count from 28 to 29.
@@ -80,7 +80,7 @@ Increment node count from 28 to 29.
 
 ### G3: `ResourceSlot` + `ApproverSlot` in `ontology.md` Value Objects  `[PLAN: new]` `[DOCS: ⏳]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/ontology.md`
+**File:** `phi/docs/specs/v0/concepts/ontology.md`
 
 **Where:** §Value Objects bullet list.
 
@@ -104,7 +104,7 @@ Increment node count from 28 to 29.
 
 ### G5: Skills × Grants composition paragraph  `[PLAN: new]` `[DOCS: ⏳]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/agent.md`
+**File:** `phi/docs/specs/v0/concepts/agent.md`
 
 **Where:** §Power (Tools, MCP, Skills) — strengthen the "Blindspots" paragraph.
 
@@ -223,7 +223,7 @@ After the pseudocode, add a short **"Worked Trace"** section that runs the `carg
 
 ### H3: Review Market's status  `[PLAN: new]` `[DOCS: ⏳]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/organization.md`
+**File:** `phi/docs/specs/v0/concepts/organization.md`
 
 **Where:** §Market (Future Concept — Placeholder).
 
@@ -257,17 +257,17 @@ Only if Phase I fires. Same three-reviewer protocol. Target ≥95% median.
 
 | File | Edit(s) |
 |------|---------|
-| `baby-phi/docs/specs/plan/<random>-push-to-95.md` (NEW) | G0 — archive this plan |
-| `baby-phi/docs/specs/v0/concepts/ontology.md` | G1 (Identity row), G3 (ResourceSlot/ApproverSlot) |
-| `baby-phi/docs/specs/v0/concepts/permissions/06-multi-scope-consent.md` | G2 (Consent × Co-Owner reconciliation) |
-| `baby-phi/docs/specs/v0/concepts/permissions/02-auth-request.md` | G4 (escalation path) |
-| `baby-phi/docs/specs/v0/concepts/agent.md` | G5 (Skills × Grants) |
-| `baby-phi/docs/specs/v0/concepts/permissions/03-action-vocabulary.md` | G6 (Conservative Over-Declaration), H2 cross-link |
-| `baby-phi/docs/specs/v0/concepts/permissions/08-worked-example.md` | G6 (cross-link) |
-| `baby-phi/docs/specs/v0/concepts/permissions/README.md` | G7 (Core Insight clarification), H2 map update |
-| `baby-phi/docs/specs/v0/concepts/permissions/04-manifest-and-resolution.md` | H1 (pseudocode) |
-| `baby-phi/docs/specs/v0/concepts/permissions/09-selector-grammar.md` (NEW) | H2 |
-| `baby-phi/docs/specs/v0/concepts/organization.md` | H3 (status line) or Phase I (full spec) |
+| `phi/docs/specs/plan/<random>-push-to-95.md` (NEW) | G0 — archive this plan |
+| `phi/docs/specs/v0/concepts/ontology.md` | G1 (Identity row), G3 (ResourceSlot/ApproverSlot) |
+| `phi/docs/specs/v0/concepts/permissions/06-multi-scope-consent.md` | G2 (Consent × Co-Owner reconciliation) |
+| `phi/docs/specs/v0/concepts/permissions/02-auth-request.md` | G4 (escalation path) |
+| `phi/docs/specs/v0/concepts/agent.md` | G5 (Skills × Grants) |
+| `phi/docs/specs/v0/concepts/permissions/03-action-vocabulary.md` | G6 (Conservative Over-Declaration), H2 cross-link |
+| `phi/docs/specs/v0/concepts/permissions/08-worked-example.md` | G6 (cross-link) |
+| `phi/docs/specs/v0/concepts/permissions/README.md` | G7 (Core Insight clarification), H2 map update |
+| `phi/docs/specs/v0/concepts/permissions/04-manifest-and-resolution.md` | H1 (pseudocode) |
+| `phi/docs/specs/v0/concepts/permissions/09-selector-grammar.md` (NEW) | H2 |
+| `phi/docs/specs/v0/concepts/organization.md` | H3 (status line) or Phase I (full spec) |
 
 ## Projected Confidence  `[PLAN: new]` `[DOCS: n/a — projection]`
 

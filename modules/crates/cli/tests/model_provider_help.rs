@@ -1,16 +1,13 @@
-//! Smoke tests for the `baby-phi model-provider …` clap surface.
+//! Smoke tests for the `phi model-provider …` clap surface.
 
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_baby-phi")
+    env!("CARGO_BIN_EXE_phi")
 }
 
 fn run_help(args: &[&str]) -> String {
-    let out = Command::new(bin())
-        .args(args)
-        .output()
-        .expect("run baby-phi");
+    let out = Command::new(bin()).args(args).output().expect("run phi");
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -26,7 +23,7 @@ fn model_provider_group_lists_four_subcommands() {
     for expected in ["list", "add", "archive", "list-kinds"] {
         assert!(
             help.contains(expected),
-            "`baby-phi model-provider --help` must mention `{expected}`; got:\n{help}"
+            "`phi model-provider --help` must mention `{expected}`; got:\n{help}"
         );
     }
 }

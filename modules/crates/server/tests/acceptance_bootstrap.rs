@@ -1,7 +1,7 @@
 //! Acceptance tests for the S01 bootstrap flow.
 //!
 //! These are the **E2E** tier of the test pyramid: the real
-//! `baby-phi-server` axum app, the real embedded SurrealDB store, and
+//! `phi-server` axum app, the real embedded SurrealDB store, and
 //! real HTTP over the loopback interface. Contracted in the plan at
 //! Part 8 rows C4 / C5 / C9 / C10 / C11 / C13.
 //!
@@ -20,7 +20,7 @@
 //!    `BOOTSTRAP_ALREADY_CONSUMED`.
 //! 4. **Second claim after success** — 409 `PLATFORM_ADMIN_CLAIMED`.
 //! 5. **/metrics surface** — Prometheus scrape exposes the
-//!    `baby_phi_bootstrap_claims_total` counter after a successful
+//!    `phi_bootstrap_claims_total` counter after a successful
 //!    claim.
 
 mod acceptance_common;
@@ -69,7 +69,7 @@ async fn fresh_install_happy_claim() {
         .get("set-cookie")
         .map(|v| v.to_str().unwrap().to_string())
         .expect("Set-Cookie header");
-    assert!(set_cookie.starts_with("baby_phi_session="));
+    assert!(set_cookie.starts_with("phi_kernel_session="));
 
     let claim: Value = r.json().await.unwrap();
     let admin_id = claim["human_agent_id"].as_str().unwrap().to_string();
@@ -300,8 +300,8 @@ async fn metrics_endpoint_exposes_bootstrap_claims_counter() {
     assert_eq!(r.status(), 200);
     let body = r.text().await.unwrap();
     assert!(
-        body.contains("baby_phi_bootstrap_claims_total"),
-        "expected baby_phi_bootstrap_claims_total in /metrics output:\n{body}"
+        body.contains("phi_bootstrap_claims_total"),
+        "expected phi_bootstrap_claims_total in /metrics output:\n{body}"
     );
     assert!(
         body.contains("result=\"success\""),

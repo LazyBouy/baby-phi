@@ -4,11 +4,11 @@
 //! Ontology source of truth: `docs/specs/v0/concepts/organization.md` +
 //! `docs/specs/v0/concepts/permissions/01-resource-ontology.md`.
 //!
-//! phi-core leverage (mandatory per `baby-phi/CLAUDE.md`): every
+//! phi-core leverage (mandatory per `phi/CLAUDE.md`): every
 //! phi-core-overlapping field on [`OrganizationDefaultsSnapshot`] is a
 //! direct wrap — `ExecutionLimits`, `AgentProfile`, `ContextConfig`,
 //! `RetryConfig` — identical pattern to M2/P7's
-//! [`crate::model::composites_m2::PlatformDefaults`]. The baby-phi-only
+//! [`crate::model::composites_m2::PlatformDefaults`]. The phi-only
 //! types here ([`ConsentPolicy`], [`TokenBudgetPool`]) are governance
 //! primitives phi-core has no counterpart for.
 
@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use super::ids::{NodeId, OrgId};
 
 // ============================================================================
-// ConsentPolicy — baby-phi-only governance primitive.
+// ConsentPolicy — phi-only governance primitive.
 // ============================================================================
 
 /// Org-level consent policy governing how an org's members authorise
@@ -37,7 +37,7 @@ use super::ids::{NodeId, OrgId};
 ///   privacy-focused orgs.
 ///
 /// **phi-core leverage**: none — phi-core has no governance-consent
-/// concept. This is a baby-phi-only primitive.
+/// concept. This is a phi-only primitive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConsentPolicy {
@@ -68,7 +68,7 @@ impl ConsentPolicy {
 }
 
 // ============================================================================
-// OrganizationDefaultsSnapshot — four phi-core wraps + two baby-phi fields.
+// OrganizationDefaultsSnapshot — four phi-core wraps + two phi fields.
 // ============================================================================
 
 /// A per-org snapshot of the platform's default agent-loop + governance
@@ -76,9 +76,9 @@ impl ConsentPolicy {
 /// updated. Embedded as a field on the [`crate::model::Organization`]
 /// node (per M3 plan D1 — no sibling composite).
 ///
-/// Four fields wrap phi-core types directly (no parallel baby-phi
+/// Four fields wrap phi-core types directly (no parallel phi
 /// structs) so phi-core evolution flows through the snapshot without a
-/// migration. The two baby-phi-only fields ([`default_retention_days`]
+/// migration. The two phi-only fields ([`default_retention_days`]
 /// and [`default_alert_channels`]) carry platform-governance concerns
 /// phi-core does not model.
 ///
@@ -131,11 +131,11 @@ impl OrganizationDefaultsSnapshot {
 }
 
 // ============================================================================
-// TokenBudgetPool — baby-phi-only economic-resource primitive.
+// TokenBudgetPool — phi-only economic-resource primitive.
 // ============================================================================
 
 /// Per-org token budget pool — tracks cumulative agent-loop token
-/// consumption against an allocation ceiling. Pure baby-phi: phi-core
+/// consumption against an allocation ceiling. Pure phi: phi-core
 /// has no budget-accounting container.
 ///
 /// Lifecycle: created at M3/P4 org-creation time with
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn organization_defaults_snapshot_wraps_phi_core_types() {
         // Proves the four phi-core wraps compose + serde round-trip
-        // without a parallel baby-phi layer.
+        // without a parallel phi layer.
         let snap = OrganizationDefaultsSnapshot {
             execution_limits: phi_core::context::execution::ExecutionLimits::default(),
             default_agent_profile: phi_core::agents::profile::AgentProfile::default(),

@@ -47,5 +47,5 @@ See:
 
 ## phi-core leverage
 
-None — templates are baby-phi's governance primitive; phi-core has
+None — templates are phi's governance primitive; phi-core has
 no permissions / auth-request / grant surface to reuse.

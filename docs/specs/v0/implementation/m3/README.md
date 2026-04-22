@@ -52,7 +52,7 @@ the per-phase process discipline lives in the checklist.
 M2/P7's pattern), materialised as per-agent blueprint instances at P3
 (first production uses of `phi_core::AgentProfile.clone()`), reused
 again at P4 via the wizard orchestrator. P2, P5, and P6 sit entirely
-on baby-phi's governance plane (templates, auth requests, audit
+on phi's governance plane (templates, auth requests, audit
 events, dashboard aggregate reads, cross-page tests, CI, docs) —
 legitimate phi-core-free surfaces per CLAUDE.md §Orthogonal surfaces.
 P5 additionally *strips* `Organization.defaults_snapshot` from the

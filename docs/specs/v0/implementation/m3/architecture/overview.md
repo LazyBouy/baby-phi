@@ -29,6 +29,6 @@ See:
 | Handler infra | handler_support shim | `emit_audit_batch` helper + `spawn_claimed_with_org` fixture | [PLANNED M3/P3] |
 | Pages | 02/03/04/05 (platform) | + 06 (org wizard) + 07 (org dashboard) | [PLANNED M3/P4-P5] |
 | Web | Single-form admin pages | Multi-step wizard primitives (StepShell, StepNav, DraftContext, ReviewDiff) | [PLANNED M3/P1-P4] |
-| CLI | bootstrap / secret / model-provider / mcp-server / platform-defaults / completion | + `baby-phi org {create,list,show,dashboard}` | [PLANNED M3/P1-P5] |
+| CLI | bootstrap / secret / model-provider / mcp-server / platform-defaults / completion | + `phi org {create,list,show,dashboard}` | [PLANNED M3/P1-P5] |
 
 Fleshed out at M3/P6 close with the shipped-code cross-reference table.

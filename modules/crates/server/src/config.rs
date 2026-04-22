@@ -3,8 +3,8 @@
 //! Precedence (lowest → highest):
 //! 1. `config/default.toml`        — committed, non-secret defaults
 //! 2. `config/{profile}.toml`      — per-environment tweaks (dev/staging/prod)
-//! 3. Environment variables prefixed `BABY_PHI_` (double-underscore splits
-//!    nested keys, e.g. `BABY_PHI_SERVER__PORT=8080`).
+//! 3. Environment variables prefixed `PHI_` (double-underscore splits
+//!    nested keys, e.g. `PHI_SERVER__PORT=8080`).
 //!
 //! Secrets **never** live in files. They must be env-injected in production.
 
@@ -47,7 +47,7 @@ pub struct StorageConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct TelemetryConfig {
-    /// `tracing` env-filter directive (e.g. "info,baby_phi=debug").
+    /// `tracing` env-filter directive (e.g. "info,phi=debug").
     pub log_filter: String,
     /// Emit structured JSON logs (production) vs pretty logs (dev).
     pub json_logs: bool,
@@ -61,13 +61,13 @@ pub struct TelemetryConfig {
 /// lands in M3 — see [ADR-0015] (placeholder) and the admin journey plan.
 ///
 /// The secret must be at least 32 bytes. In production it MUST come from
-/// `BABY_PHI_SESSION__SECRET`; committed `config/*.toml` holds only a dev
+/// `PHI_SESSION__SECRET`; committed `config/*.toml` holds only a dev
 /// default (see `config/dev.toml`).
 #[derive(Debug, Clone, Deserialize)]
 pub struct SessionConfig {
-    /// HS256 signing key for the `baby_phi_session` cookie.
+    /// HS256 signing key for the `phi_kernel_session` cookie.
     pub secret: String,
-    /// Cookie name. Defaults to `baby_phi_session`.
+    /// Cookie name. Defaults to `phi_kernel_session`.
     #[serde(default = "default_cookie_name")]
     pub cookie_name: String,
     /// Token lifetime in seconds. Defaults to 12 hours.
@@ -81,7 +81,7 @@ pub struct SessionConfig {
 }
 
 fn default_cookie_name() -> String {
-    "baby_phi_session".to_string()
+    "phi_kernel_session".to_string()
 }
 
 fn default_ttl_seconds() -> u64 {
@@ -94,15 +94,15 @@ fn default_secure() -> bool {
 
 impl ServerConfig {
     /// Load config from `config/default.toml` + `config/{profile}.toml` +
-    /// `BABY_PHI_*` env vars. Profile defaults to "dev" if unset.
+    /// `PHI_*` env vars. Profile defaults to "dev" if unset.
     pub fn load() -> Result<Self, config::ConfigError> {
-        let profile = std::env::var("BABY_PHI_PROFILE").unwrap_or_else(|_| "dev".to_string());
+        let profile = std::env::var("PHI_PROFILE").unwrap_or_else(|_| "dev".to_string());
 
         config::Config::builder()
             .add_source(config::File::with_name("config/default").required(true))
             .add_source(config::File::with_name(&format!("config/{profile}")).required(false))
             .add_source(
-                config::Environment::with_prefix("BABY_PHI")
+                config::Environment::with_prefix("PHI")
                     .separator("__")
                     .try_parsing(true),
             )

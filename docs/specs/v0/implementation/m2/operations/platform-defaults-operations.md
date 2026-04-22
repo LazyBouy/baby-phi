@@ -19,7 +19,7 @@ This runbook is for the platform admin who edits the singleton
 ### CLI
 
 ```
-baby-phi platform-defaults get [--include-factory] [--format json|yaml|toml]
+phi platform-defaults get [--include-factory] [--format json|yaml|toml]
 ```
 
 Default format is JSON (the server wire format). YAML and TOML are
@@ -67,7 +67,7 @@ Unauthenticated → 401 `UNAUTHENTICATED`.
 ### CLI
 
 ```
-baby-phi platform-defaults put --file <PATH> --if-version <N> [--format yaml|json|toml]
+phi platform-defaults put --file <PATH> --if-version <N> [--format yaml|json|toml]
 ```
 
 `--if-version` is **required** — it carries the version the operator
@@ -81,7 +81,7 @@ deserialises into `PlatformDefaults` through `serde_yaml` / `toml` /
 ### Web
 
 Edit the form in-place and click "Save (if_version=N)". The form
-renders each baby-phi-native field (retention, alert channels) as a
+renders each phi-native field (retention, alert channels) as a
 first-class control and each phi-core section as a JSON textarea —
 so new phi-core fields flow through without requiring a web-tier
 change.
@@ -128,7 +128,7 @@ mismatch:
 
 Recovery:
 
-1. **Read the current row** (`baby-phi platform-defaults get --format
+1. **Read the current row** (`phi platform-defaults get --format
    json`).
 2. **Compare against your intended change.** The other admin's write
    may have already applied part of what you wanted; re-plan only
@@ -145,7 +145,7 @@ To reset:
 
 ### Option A — one section at a time
 
-1. Run `baby-phi platform-defaults get --include-factory --format
+1. Run `phi platform-defaults get --include-factory --format
    yaml`.
 2. Copy the section you want to reset from the `factory.…` tree
    into your local file.
@@ -153,11 +153,11 @@ To reset:
 
 ### Option B — full reset
 
-1. Run `baby-phi platform-defaults factory --format json > reset.json`.
-2. Edit `reset.json` if you want to keep the baby-phi-native
+1. Run `phi platform-defaults factory --format json > reset.json`.
+2. Edit `reset.json` if you want to keep the phi-native
    `default_retention_days` or `default_alert_channels` at their
    current values.
-3. `baby-phi platform-defaults put --file reset.json --if-version
+3. `phi platform-defaults put --file reset.json --if-version
    <current>`.
 
 The audit event carries the full diff so reviewers see exactly
@@ -200,7 +200,7 @@ anything outside these bounds is almost certainly a typo.
 ## 7. phi-core leverage reminder
 
 - Four of the six substantive fields wrap phi-core types directly —
-  no parallel baby-phi struct, no migration when phi-core evolves.
+  no parallel phi struct, no migration when phi-core evolves.
 - The factory baseline is built from each phi-core type's
   `Default::default()` — a phi-core bump propagates automatically.
 - YAML / TOML import/export in the CLI uses `serde_yaml` / `toml`

@@ -24,8 +24,8 @@
 //!
 //! ## phi-core leverage
 //!
-//! None — audit events are baby-phi's governance write log (see
-//! `baby-phi/CLAUDE.md` §Orthogonal surfaces). `phi_core::AgentEvent`
+//! None — audit events are phi's governance write log (see
+//! `phi/CLAUDE.md` §Orthogonal surfaces). `phi_core::AgentEvent`
 //! is an agent-loop telemetry stream, not a hash-chained audit trail
 //! — conflating the two is an orthogonal-surface mistake.
 

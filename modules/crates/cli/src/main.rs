@@ -1,17 +1,17 @@
-//! `baby-phi` CLI — operator-facing subcommands for the baby-phi platform.
+//! `phi` CLI — operator-facing subcommands for the phi platform.
 //!
 //! M1 ships two subcommand groups:
 //!
-//! - `baby-phi bootstrap {status,claim}` — exercises the
+//! - `phi bootstrap {status,claim}` — exercises the
 //!   `/api/v0/bootstrap/*` HTTP surface the server lands in P6.
-//! - `baby-phi agent demo` — runs the legacy phi-core agent-loop demo
+//! - `phi agent demo` — runs the legacy phi-core agent-loop demo
 //!   that shipped pre-M1; preserved as a subcommand so we don't regress
 //!   the prototype while M2+ adds real agent-management subcommands.
 //!
 //! Configuration precedence for the server URL:
 //!
 //!   1. `--server-url <URL>` flag
-//!   2. `BABY_PHI_API_URL` environment variable
+//!   2. `PHI_API_URL` environment variable
 //!   3. `{scheme}://{server.host}:{server.port}` from `ServerConfig::load()`
 //!      (the same layered TOML stack the server uses; see
 //!      [`server::config`]).
@@ -25,16 +25,16 @@ pub mod session_store;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "baby-phi",
+    name = "phi",
     version,
-    about = "baby-phi platform CLI",
-    long_about = "baby-phi platform CLI. M1/P7 wires `bootstrap` subcommands + \
+    about = "phi platform CLI",
+    long_about = "phi platform CLI. M1/P7 wires `bootstrap` subcommands + \
 preserves the phi-core agent-loop demo under `agent demo`."
 )]
 pub struct Cli {
     /// Override the server base URL. If unset, falls back to
-    /// `BABY_PHI_API_URL`, then to the layered `ServerConfig::load()`.
-    #[arg(long, env = "BABY_PHI_API_URL", global = true)]
+    /// `PHI_API_URL`, then to the layered `ServerConfig::load()`.
+    #[arg(long, env = "PHI_API_URL", global = true)]
     server_url: Option<String>,
 
     #[command(subcommand)]
@@ -95,6 +95,13 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::org::OrgCommand,
     },
+    /// Project subcommands (M4). `create` ships at M4/P6;
+    /// `list`/`show`/`update-okrs` ship at M4/P7. The clap surface
+    /// is scaffolded at M4/P1 so shell completions name them today.
+    Project {
+        #[command(subcommand)]
+        cmd: commands::project::ProjectCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -105,7 +112,7 @@ enum BootstrapCommand {
     /// credential + human identity.
     Claim {
         /// The `bphi-bootstrap-…` credential printed by
-        /// `baby-phi-server bootstrap-init`.
+        /// `phi-server bootstrap-init`.
         #[arg(long)]
         credential: String,
         /// Display name for the new platform admin.
@@ -121,12 +128,88 @@ enum BootstrapCommand {
 }
 
 #[derive(Debug, Subcommand)]
-enum AgentCommand {
+pub enum AgentCommand {
     /// Run the phi-core demo agent loop against the legacy `config.toml`.
     Demo {
         /// Optional prompt override (defaults to the marketing-email
         /// prompt that shipped pre-M1).
         prompt: Option<String>,
+    },
+    /// List agents in an org. **[M4/P4]**
+    List {
+        #[arg(long = "org-id")]
+        org_id: String,
+        /// Optional role filter (`executive` / `admin` / `member` /
+        /// `intern` / `contract` / `system`).
+        #[arg(long)]
+        role: Option<String>,
+        /// Optional text search over display_name.
+        #[arg(long)]
+        search: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show a single agent by id. **[M4/P4]**
+    Show {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Create an agent (Human or LLM). **[M4/P5]**
+    Create {
+        #[arg(long = "org-id")]
+        org_id: String,
+        #[arg(long)]
+        name: String,
+        /// `human` or `llm`.
+        #[arg(long)]
+        kind: String,
+        /// Role per 6-variant enum (enforces `is_valid_for(kind)`
+        /// server-side).
+        #[arg(long)]
+        role: String,
+        /// Model-config id for LLM agents (required when `kind=llm`).
+        #[arg(long = "model-id")]
+        model_id: Option<String>,
+        /// System-prompt override for the agent's blueprint.
+        #[arg(long = "system-prompt")]
+        system_prompt: Option<String>,
+        /// Concurrent-session cap (default 1).
+        #[arg(long, default_value_t = 1)]
+        parallelize: u32,
+        /// Optional ExecutionLimits override overrides — absent =
+        /// inherit from org snapshot (ADR-0023); present = override
+        /// (ADR-0027).
+        #[arg(long = "override-max-turns")]
+        override_max_turns: Option<usize>,
+        #[arg(long = "override-max-tokens")]
+        override_max_tokens: Option<usize>,
+        #[arg(long = "override-max-duration-secs")]
+        override_max_duration_secs: Option<u64>,
+        #[arg(long = "override-max-cost")]
+        override_max_cost: Option<f64>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Update an agent profile (diff-producing). **[M4/P5]**
+    Update {
+        #[arg(long)]
+        id: String,
+        /// JSON patch body matching the `PATCH
+        /// /api/v0/agents/:id/profile` contract.
+        #[arg(long = "patch-json")]
+        patch_json: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Revert an agent's ExecutionLimits to the org snapshot
+    /// (DELETE the agent_execution_limits override row). **[M4/P5]**
+    RevertLimits {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -152,7 +235,7 @@ async fn main() {
     let cli = Cli::parse();
     let code = match cli.command {
         Command::Bootstrap { cmd } => commands::bootstrap::run(cli.server_url, cmd).await,
-        Command::Agent { cmd } => commands::agent::run(cmd).await,
+        Command::Agent { cmd } => commands::agent::run(cli.server_url, cmd).await,
         Command::Login { cmd } => commands::login::run(cmd).await,
         Command::Secret { cmd } => commands::secrets::run(cli.server_url, cmd).await,
         Command::ModelProvider { cmd } => commands::model_provider::run(cli.server_url, cmd).await,
@@ -162,6 +245,7 @@ async fn main() {
         }
         Command::Completion { shell } => commands::completion::run(shell),
         Command::Org { cmd } => commands::org::run(cli.server_url, cmd).await,
+        Command::Project { cmd } => commands::project::run(cli.server_url, cmd).await,
     };
     std::process::exit(code);
 }

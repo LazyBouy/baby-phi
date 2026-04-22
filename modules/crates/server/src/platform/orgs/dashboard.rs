@@ -27,7 +27,7 @@
 //!   (D11: dashboard rows at M3 link to the audit log, not session
 //!   traces). `phi_core::Usage` — the token budget is a
 //!   governance-level economic resource, not per-loop usage.
-//!   `phi_core::AgentEvent` — orthogonal surface per `baby-phi/CLAUDE.md`
+//!   `phi_core::AgentEvent` — orthogonal surface per `phi/CLAUDE.md`
 //!   (governance audit log ≠ agent-loop telemetry stream).
 //!   `phi_core::context::*` + `phi_core::provider::*` — live only on
 //!   `defaults_snapshot`, which the dashboard deliberately strips.
@@ -488,6 +488,7 @@ mod tests {
             kind,
             display_name: "test".into(),
             owning_org: Some(OrgId::new()),
+            role: None,
             created_at,
         }
     }

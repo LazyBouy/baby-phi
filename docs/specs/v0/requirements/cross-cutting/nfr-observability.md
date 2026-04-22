@@ -23,13 +23,13 @@
 - **R-NFR-observability-8:** The system SHALL expose metrics in a Prometheus-compatible format (or equivalent scrapeable interface). At minimum, metrics listed in each system flow file's Observability section SHALL be present.
 - **R-NFR-observability-9:** Every API endpoint SHALL export per-endpoint latency histograms (p50 / p95 / p99) and request-count counters keyed by status code.
 - **R-NFR-observability-10:** Domain metrics SHALL include at minimum:
-  - `baby_phi_permission_check_duration_seconds{result=allowed|denied|pending, failed_step=N?}`
-  - `baby_phi_grants_active{org_id}`
-  - `baby_phi_auth_requests_pending{org_id}`
-  - `baby_phi_sessions_active{org_id}`
-  - `baby_phi_token_budget_usage_ratio{org_id}`
-  - `baby_phi_memory_extraction_queue_depth{org_id}`
-  - `baby_phi_agent_catalog_heartbeat_lag_seconds{org_id}`.
+  - `phi_permission_check_duration_seconds{result=allowed|denied|pending, failed_step=N?}`
+  - `phi_grants_active{org_id}`
+  - `phi_auth_requests_pending{org_id}`
+  - `phi_kernel_sessions_active{org_id}`
+  - `phi_token_budget_usage_ratio{org_id}`
+  - `phi_memory_extraction_queue_depth{org_id}`
+  - `phi_agent_catalog_heartbeat_lag_seconds{org_id}`.
 
 ## Logs
 

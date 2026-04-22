@@ -1,7 +1,7 @@
-//! End-to-end test for `baby-phi bootstrap {status,claim}`.
+//! End-to-end test for `phi bootstrap {status,claim}`.
 //!
 //! Boots an axum server in-process against `InMemoryRepository`, spawns
-//! the built `baby-phi` binary (path via `CARGO_BIN_EXE_baby-phi`), and
+//! the built `phi` binary (path via `CARGO_BIN_EXE_phi`), and
 //! asserts exit code + stdout shape for every subcommand.
 
 use std::net::{SocketAddr, TcpListener};
@@ -35,6 +35,7 @@ async fn spawn_server(credentials: &[&str]) -> (String, tokio::task::JoinHandle<
         session: SessionKey::for_tests(TEST_SECRET),
         audit: Arc::new(domain::audit::NoopAuditEmitter),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
+        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
     });
     let port = free_port();
     let addr: SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
@@ -51,7 +52,7 @@ async fn spawn_server(credentials: &[&str]) -> (String, tokio::task::JoinHandle<
 }
 
 fn cli_bin() -> String {
-    env!("CARGO_BIN_EXE_baby-phi").to_string()
+    env!("CARGO_BIN_EXE_phi").to_string()
 }
 
 fn run_cli(args: &[&str]) -> (i32, String, String) {
@@ -61,7 +62,7 @@ fn run_cli(args: &[&str]) -> (i32, String, String) {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .expect("spawn baby-phi");
+        .expect("spawn phi");
     let code = out.status.code().unwrap_or(-1);
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
@@ -80,7 +81,7 @@ async fn status_reports_unclaimed_on_fresh_install() {
         "unexpected stdout: {stdout}"
     );
     assert!(
-        stdout.contains("baby-phi bootstrap claim"),
+        stdout.contains("phi bootstrap claim"),
         "expected guidance, got: {stdout}"
     );
 }
@@ -261,7 +262,7 @@ async fn agent_demo_without_config_exits_non_zero() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .expect("spawn baby-phi");
+        .expect("spawn phi");
     assert_ne!(out.status.code().unwrap_or(-1), 0);
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(

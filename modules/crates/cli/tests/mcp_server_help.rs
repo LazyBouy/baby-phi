@@ -1,16 +1,13 @@
-//! Smoke tests for the `baby-phi mcp-server …` clap surface.
+//! Smoke tests for the `phi mcp-server …` clap surface.
 
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_baby-phi")
+    env!("CARGO_BIN_EXE_phi")
 }
 
 fn run_help(args: &[&str]) -> String {
-    let out = Command::new(bin())
-        .args(args)
-        .output()
-        .expect("run baby-phi");
+    let out = Command::new(bin()).args(args).output().expect("run phi");
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -26,7 +23,7 @@ fn mcp_server_group_lists_four_subcommands() {
     for expected in ["list", "add", "patch-tenants", "archive"] {
         assert!(
             help.contains(expected),
-            "`baby-phi mcp-server --help` must mention `{expected}`; got:\n{help}"
+            "`phi mcp-server --help` must mention `{expected}`; got:\n{help}"
         );
     }
 }

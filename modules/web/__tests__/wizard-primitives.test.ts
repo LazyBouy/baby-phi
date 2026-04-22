@@ -52,7 +52,7 @@ test("ReviewDiff — different values are marked changed", () => {
 // exports. Full hook + React rendering lives in the P4 wizard
 // tests; here we assert the invariants any wizard step depends on.
 
-test("DraftContext — draft keys are namespaced under baby-phi.wizard.", () => {
+test("DraftContext — draft keys are namespaced under phi.wizard.", () => {
   // The DRAFT_KEY_PREFIX is private to the module; the behavioural
   // contract is that two wizards using the same short key-name don't
   // collide because a global prefix wraps both writes. We can't

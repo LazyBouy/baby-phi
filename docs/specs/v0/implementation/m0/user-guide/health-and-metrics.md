@@ -2,7 +2,7 @@
 
 # User guide — health and metrics
 
-`baby-phi-server` exposes three observability endpoints in M0. Liveness and readiness are distinct on purpose; metrics is Prometheus-format text.
+`phi-server` exposes three observability endpoints in M0. Liveness and readiness are distinct on purpose; metrics is Prometheus-format text.
 
 See also the architecture details at [`../architecture/server-topology.md`](../architecture/server-topology.md) and [`../architecture/telemetry-and-metrics.md`](../architecture/telemetry-and-metrics.md).
 
@@ -97,10 +97,10 @@ axum_http_requests_pending 0
 ```yaml
 # prometheus.yml snippet
 scrape_configs:
-  - job_name: baby-phi
+  - job_name: phi
     scrape_interval: 30s
     static_configs:
-      - targets: ['<baby-phi-host>:8080']
+      - targets: ['<phi-host>:8080']
     metrics_path: /metrics
 ```
 
@@ -118,9 +118,9 @@ scrape_configs:
 
 The recommended production posture has a reverse proxy in front. `/metrics` is internal — do **not** expose it to the public internet. Scraping config for an nginx + Prometheus setup:
 
-- `nginx` serves `https://baby-phi.example.com/` publicly, proxying to `baby-phi-server:8080`.
+- `nginx` serves `https://phi.example.com/` publicly, proxying to `phi-server:8080`.
 - `/metrics` is blocked from public ingress via `location /metrics { allow 10.0.0.0/8; deny all; }`.
-- Prometheus scrapes directly against `http://baby-phi-server-internal:8080/metrics` on the internal network.
+- Prometheus scrapes directly against `http://phi-server-internal:8080/metrics` on the internal network.
 
 Alternative: expose `/metrics` on a second, metrics-only port bound to the internal network — `[PLANNED M7b]`.
 

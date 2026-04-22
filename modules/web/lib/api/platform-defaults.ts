@@ -9,7 +9,7 @@
 // (`version`, `updated_at`, `default_retention_days`, alert channels) so
 // the form can render a dedicated control for each.
 
-const API_BASE = process.env.BABY_PHI_API_URL ?? "http://127.0.0.1:8080";
+const API_BASE = process.env.PHI_API_URL ?? "http://127.0.0.1:8080";
 const PATH = "/api/v0/platform/defaults";
 
 // ---- Wire shapes -----------------------------------------------------------

@@ -1,4 +1,6 @@
-//! The 67 edge types the v0 ontology defines.
+//! The 69 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
+//! `HAS_SUBPROJECT` + `HAS_CONFIG` per the project-node edge table in
+//! `concepts/project.md §Project Edges`).
 //!
 //! Edges are modelled as a single tagged enum [`Edge`]. Each variant's payload
 //! carries the edge's ID and the IDs of its `from` and `to` nodes. Where the
@@ -7,7 +9,7 @@
 //! target; `HOLDS_GRANT` from Agent/Project/Org; `PROVIDES_TOOL` from
 //! McpServer/OpenApiSpec; `OWNED_BY` both as Agent→User and generic
 //! Resource→Principal), we model each source/target type pair as a distinct
-//! variant — this is what gets the count to 67.
+//! variant — this is what gets the count to 69.
 //!
 //! Source of truth: `docs/specs/v0/concepts/ontology.md` §Edge Types.
 
@@ -20,7 +22,7 @@ use super::ids::{
 
 /// Every edge type in the v0 ontology.
 ///
-/// Count: **67** (invariant asserted in [`tests`]).
+/// Count: **69** (invariant asserted in [`tests`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "edge")]
 pub enum Edge {
@@ -267,6 +269,23 @@ pub enum Edge {
         from: ProjectId,
         to: NodeId,
     },
+    /// Project P → Project Q: Q is a sub-project of P. M4/P1 adds the
+    /// variant so M4/P6's `apply_project_creation` can name it when an
+    /// operator nests a child project under an existing parent.
+    HasSubproject {
+        id: EdgeId,
+        from: ProjectId,
+        to: ProjectId,
+    },
+    /// Project P → AgentConfig C: the project-level root configuration
+    /// document governing agents that run within P. M4/P1 adds the
+    /// variant; first production writes land at M5 (session-launch)
+    /// when agent-config resolution extends to project scope.
+    HasConfig {
+        id: EdgeId,
+        from: ProjectId,
+        to: NodeId,
+    },
     BelongsTo {
         id: EdgeId,
         from: ProjectId,
@@ -442,6 +461,8 @@ impl Edge {
             Edge::HasAgent { .. } => "HAS_AGENT",
             Edge::HasLead { .. } => "HAS_LEAD",
             Edge::HasTask { .. } => "HAS_TASK",
+            Edge::HasSubproject { .. } => "HAS_SUBPROJECT",
+            Edge::HasConfig { .. } => "HAS_CONFIG",
             Edge::BelongsTo { .. } => "BELONGS_TO",
             Edge::AssignedTo { .. } => "ASSIGNED_TO",
             Edge::HasBid { .. } => "HAS_BID",
@@ -472,9 +493,9 @@ impl Edge {
 
 /// Every edge kind name, in the same order as the concept doc's tables.
 ///
-/// Used by tests to assert the 67 count. Strings here mirror
-/// [`Edge::name`] outputs for the same variant order.
-pub const EDGE_KIND_NAMES: [&str; 67] = [
+/// Used by tests to assert the 69 count (67 at M3 close + 2 added at M4/P1).
+/// Strings here mirror [`Edge::name`] outputs for the same variant order.
+pub const EDGE_KIND_NAMES: [&str; 69] = [
     "HAS_PROFILE",
     "USES_MODEL",
     "HAS_TOOL",
@@ -521,6 +542,8 @@ pub const EDGE_KIND_NAMES: [&str; 67] = [
     "HAS_AGENT",
     "HAS_LEAD",
     "HAS_TASK",
+    "HAS_SUBPROJECT",
+    "HAS_CONFIG",
     "BELONGS_TO",
     "ASSIGNED_TO",
     "HAS_BID",
@@ -603,14 +626,14 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn edge_kind_names_is_exactly_67() {
-        assert_eq!(EDGE_KIND_NAMES.len(), 67);
+    fn edge_kind_names_is_exactly_69() {
+        assert_eq!(EDGE_KIND_NAMES.len(), 69);
     }
 
     #[test]
     fn edge_kind_names_are_distinct() {
         let set: HashSet<_> = EDGE_KIND_NAMES.iter().collect();
-        assert_eq!(set.len(), 67);
+        assert_eq!(set.len(), 69);
     }
 
     #[test]

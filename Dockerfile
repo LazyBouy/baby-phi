@@ -1,4 +1,4 @@
-# Multi-stage image for baby-phi-server.
+# Multi-stage image for phi-server.
 # - builder: compiles the Rust workspace in release mode
 # - runtime: minimal debian-slim with a non-root user
 #
@@ -22,22 +22,22 @@ FROM debian:${DEBIAN_VERSION}-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates tini \
   && rm -rf /var/lib/apt/lists/* \
-  && groupadd --system --gid 10001 babyphi \
-  && useradd  --system --uid 10001 --gid babyphi --home-dir /var/lib/baby-phi babyphi \
-  && mkdir -p /var/lib/baby-phi/data /etc/baby-phi \
-  && chown -R babyphi:babyphi /var/lib/baby-phi /etc/baby-phi
+  && groupadd --system --gid 10001 phi \
+  && useradd  --system --uid 10001 --gid phi --home-dir /var/lib/phi phi \
+  && mkdir -p /var/lib/phi/data /etc/phi \
+  && chown -R phi:phi /var/lib/phi /etc/phi
 
-COPY --from=builder /build/baby-phi/target/release/baby-phi-server /usr/local/bin/baby-phi-server
-COPY baby-phi/config/default.toml /etc/baby-phi/config/default.toml
-COPY baby-phi/config/prod.toml    /etc/baby-phi/config/prod.toml
+COPY --from=builder /build/baby-phi/target/release/phi-server /usr/local/bin/phi-server
+COPY baby-phi/config/default.toml /etc/phi/config/default.toml
+COPY baby-phi/config/prod.toml    /etc/phi/config/prod.toml
 
-ENV BABY_PHI_PROFILE=prod \
-    BABY_PHI_STORAGE__DATA_DIR=/var/lib/baby-phi/data
-WORKDIR /etc/baby-phi
-USER babyphi:babyphi
+ENV PHI_PROFILE=prod \
+    PHI_STORAGE__DATA_DIR=/var/lib/phi/data
+WORKDIR /etc/phi
+USER phi:phi
 EXPOSE 8080
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/healthz/ready >/dev/null 2>&1 || exit 1
 
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/baby-phi-server"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/phi-server"]

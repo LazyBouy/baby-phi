@@ -19,9 +19,9 @@ This plan closes both pieces. The split lands first (F1–F4) because the subseq
 
 ## History — where prior work is recorded  `[PLAN: new]` `[DOCS: n/a]`
 
-- **Phases A–D full detail:** archived at `baby-phi/docs/specs/plan/d95fac8f-ownership-auth-request.md` (86 KB, 1101 lines, verbatim snapshot as of Phase D start).
+- **Phases A–D full detail:** archived at `phi/docs/specs/plan/d95fac8f-ownership-auth-request.md` (86 KB, 1101 lines, verbatim snapshot as of Phase D start).
 - **Phase E execution (TransferRecord demotion, `transfer` action, embedding model scope, `audit_class` composition rule):** recoverable from `git log` / `git diff` on `permissions.md`, `ontology.md`, `agent.md` around 2026-04-15.
-- **Current spec state:** `baby-phi/docs/specs/v0/concepts/` — the authoritative record of the built system. Read the files there to see what the model actually is; read the archive above to see how the design decisions got there.
+- **Current spec state:** `phi/docs/specs/v0/concepts/` — the authoritative record of the built system. Read the files there to see what the model actually is; read the archive above to see how the design decisions got there.
 
 This plan does **not** re-explain any of that history. It starts from the present state of the docs and describes only what to change next.
 
@@ -29,7 +29,7 @@ This plan does **not** re-explain any of that history. It starts from the presen
 
 | Topic | Decision | Impl Status |
 |-------|----------|-------------|
-| **Split target** | `baby-phi/docs/specs/v0/concepts/permissions/` folder replaces the single file. Nine files: `README.md` index + eight thematic content files (`01-`..`08-` numbered prefixes to reflect reading order). | ⏳ pending (F1) |
+| **Split target** | `phi/docs/specs/v0/concepts/permissions/` folder replaces the single file. Nine files: `README.md` index + eight thematic content files (`01-`..`08-` numbered prefixes to reflect reading order). | ⏳ pending (F1) |
 | **Old file disposition** | Delete `permissions.md` after cross-file references are rewritten. No stub — a stub would rot as the split evolves. | ⏳ pending (F4) |
 | **Anchor preservation** | Keep existing `### Heading` anchors; intra-file anchors remain `#anchor`, cross-file become `filename.md#anchor`. | ⏳ pending (F2) |
 | **coordination.md policy** | Replace the 8 bare open questions with **tentative v0 answers**, each flagged "v0 default, revisitable." Implementers get a concrete starting point, not a placeholder. | ⏳ pending (F8) |
@@ -75,13 +75,13 @@ Before any other action, capture the plan file state as it existed **just before
 
 - The Phase A–D archive (`d95fac8f-ownership-auth-request.md`) is preserved and untouched.
 - Phase E execution detail is recoverable from `git log` / `git diff` on the three concept files touched (`permissions.md`, `ontology.md`, `agent.md`).
-- The Phase F draft (content of this plan) is **this file itself**; once execution begins, archive a verbatim copy of this plan as `baby-phi/docs/specs/plan/<random>-split-and-gap-closure.md` with `<random>` an 8-hex-char token, following the same convention as the d95fac8f archive.
+- The Phase F draft (content of this plan) is **this file itself**; once execution begins, archive a verbatim copy of this plan as `phi/docs/specs/plan/<random>-split-and-gap-closure.md` with `<random>` an 8-hex-char token, following the same convention as the d95fac8f archive.
 
 F0 is executed as the **first action after plan approval**, before F1.
 
 ### F1: Create `permissions/` folder and 9 new files  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-1. Create directory `baby-phi/docs/specs/v0/concepts/permissions/`.
+1. Create directory `phi/docs/specs/v0/concepts/permissions/`.
 2. Create each file from the current `permissions.md` using the line-range map above. Each file starts with:
    ```
    <!-- Status: CONCEPTUAL -->
@@ -107,7 +107,7 @@ Keep a mapping table in-commit for future traceability.
 
 ### F4: Delete `permissions.md`  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-After F1–F3 land and F12's grep verification passes, delete the monolith. Pre-delete check: `grep -r "concepts/permissions.md" baby-phi/` returns zero hits.
+After F1–F3 land and F12's grep verification passes, delete the monolith. Pre-delete check: `grep -r "concepts/permissions.md" phi/` returns zero hits.
 
 ### F5: Co-Ownership × Multi-Scope worked example  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
@@ -162,7 +162,7 @@ manifest:
 
 ### F8: coordination.md tentative v0 answers  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/coordination.md`
+**File:** `phi/docs/specs/v0/concepts/coordination.md`
 
 **Where:** §Open Design Questions.
 
@@ -183,7 +183,7 @@ Each row flagged "v0 default, revisitable."
 
 ### F9: Lock in Value field rolling window  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/token-economy.md`
+**File:** `phi/docs/specs/v0/concepts/token-economy.md`
 
 **Where:** §Value section's open question.
 
@@ -193,7 +193,7 @@ Each row flagged "v0 default, revisitable."
 
 ### F10: Schema Registry extension permission  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/ontology.md`
+**File:** `phi/docs/specs/v0/concepts/ontology.md`
 
 **Where:** §Schema Registry (Meta-Graph), after the "Enables" bullet list.
 
@@ -207,7 +207,7 @@ Each row flagged "v0 default, revisitable."
 
 ### F11: Witnessed Experience concurrent update cadence  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/agent.md`
+**File:** `phi/docs/specs/v0/concepts/agent.md`
 
 **Where:** §Witnessed Experience Is Mediated by Extraction.
 
@@ -225,25 +225,25 @@ Each row flagged "v0 default, revisitable."
 
 ### F13: Independent Confidence Re-Evaluation  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
-After F1–F12 land, launch an Explore subagent with no anchoring to prior scores (72 / 88 / 96 / 73). Scope: all files under `baby-phi/docs/specs/v0/concepts/` including the split `permissions/` folder. Exclusions unchanged (Permission Check pseudocode, selector grammar, Market spec). Deliverables: fresh confidence %, per-area ratings, any new gaps introduced by the split. Reconcile against the ≥85% projection below.
+After F1–F12 land, launch an Explore subagent with no anchoring to prior scores (72 / 88 / 96 / 73). Scope: all files under `phi/docs/specs/v0/concepts/` including the split `permissions/` folder. Exclusions unchanged (Permission Check pseudocode, selector grammar, Market spec). Deliverables: fresh confidence %, per-area ratings, any new gaps introduced by the split. Reconcile against the ≥85% projection below.
 
 ## Critical Files  `[PLAN: new]` `[DOCS: n/a — reference list]`
 
 | File | Edit(s) |
 |------|---------|
-| `baby-phi/docs/specs/plan/<random>-split-and-gap-closure.md` (NEW) | F0 (archive this plan) |
-| `baby-phi/docs/specs/v0/concepts/permissions/` (NEW folder, 9 files) | F1, F2 |
-| `baby-phi/docs/specs/v0/concepts/permissions/06-multi-scope-consent.md` | F5 |
-| `baby-phi/docs/specs/v0/concepts/permissions/07-templates-and-tools.md` | F6, F7 |
-| `baby-phi/docs/specs/v0/concepts/permissions.md` | F4 (delete after F1–F3 verify) |
-| `baby-phi/docs/specs/v0/concepts/ontology.md` | F3 (links), F10 (Schema Registry extension) |
-| `baby-phi/docs/specs/v0/concepts/agent.md` | F3 (links), F11 (Witnessed Experience concurrency) |
-| `baby-phi/docs/specs/v0/concepts/organization.md` | F3 (links) |
-| `baby-phi/docs/specs/v0/concepts/project.md` | F3 (links) |
-| `baby-phi/docs/specs/v0/concepts/coordination.md` | F3 (links), F8 (tentative answers) |
-| `baby-phi/docs/specs/v0/concepts/human-agent.md` | F3 (links) |
-| `baby-phi/docs/specs/v0/concepts/token-economy.md` | F9 (Value window) |
-| `baby-phi/docs/specs/v0/concepts/README.md` | F3 (links) |
+| `phi/docs/specs/plan/<random>-split-and-gap-closure.md` (NEW) | F0 (archive this plan) |
+| `phi/docs/specs/v0/concepts/permissions/` (NEW folder, 9 files) | F1, F2 |
+| `phi/docs/specs/v0/concepts/permissions/06-multi-scope-consent.md` | F5 |
+| `phi/docs/specs/v0/concepts/permissions/07-templates-and-tools.md` | F6, F7 |
+| `phi/docs/specs/v0/concepts/permissions.md` | F4 (delete after F1–F3 verify) |
+| `phi/docs/specs/v0/concepts/ontology.md` | F3 (links), F10 (Schema Registry extension) |
+| `phi/docs/specs/v0/concepts/agent.md` | F3 (links), F11 (Witnessed Experience concurrency) |
+| `phi/docs/specs/v0/concepts/organization.md` | F3 (links) |
+| `phi/docs/specs/v0/concepts/project.md` | F3 (links) |
+| `phi/docs/specs/v0/concepts/coordination.md` | F3 (links), F8 (tentative answers) |
+| `phi/docs/specs/v0/concepts/human-agent.md` | F3 (links) |
+| `phi/docs/specs/v0/concepts/token-economy.md` | F9 (Value window) |
+| `phi/docs/specs/v0/concepts/README.md` | F3 (links) |
 
 ## Projected Confidence  `[PLAN: new]` `[DOCS: n/a — projection]`
 

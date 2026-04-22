@@ -114,7 +114,7 @@ jobs:
             -- --test-threads 1
 
   phi-core-reuse:
-    # Advisory lint — grep for baby-phi-local redeclarations of phi-core
+    # Advisory lint — grep for phi-local redeclarations of phi-core
     # types. Flipped to hard gate in M2/P3 close per plan §D16.
     runs-on: ubuntu-latest
     defaults:

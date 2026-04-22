@@ -160,6 +160,7 @@ pub async fn execute_claim(
         kind: AgentKind::Human,
         display_name: input.display_name.trim().to_string(),
         owning_org: None,
+        role: None,
         created_at: now,
     };
     let channel = Channel {

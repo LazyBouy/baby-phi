@@ -6,7 +6,7 @@
 
 Every M2 admin write (pages 02–05) follows the same shape: the platform
 admin is simultaneously the **requestor** and the **approver** of the
-write. Template E is baby-phi's name for that pattern, modelled as a
+write. Template E is phi's name for that pattern, modelled as a
 pure helper in the domain layer and consumed by every page-04+ handler.
 
 ## Why not drive the 9-state machine?
@@ -118,7 +118,7 @@ for the M7b tracking note.
 - [ADR-0016 — Template E, self-interested auto-approve](../decisions/0016-template-e-self-interested-auto-approve.md)
 - [`../../m1/architecture/auth-request-state-machine.md`](../../m1/architecture/auth-request-state-machine.md)
   — the 9-state machine Template E bypasses by construction.
-- [phi-core-reuse-map](phi-core-reuse-map.md) — Template E is baby-phi-only
+- [phi-core-reuse-map](phi-core-reuse-map.md) — Template E is phi-only
   (no phi-core counterpart; permission-system concern).
 
 [1]: ../../../../../../modules/crates/domain/src/auth_requests/transitions.rs

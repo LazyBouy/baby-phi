@@ -3,7 +3,7 @@
 //! ## phi-core leverage
 //!
 //! Q1 **none**, Q2 **none**, Q3 **none** — the return type is
-//! `Vec<OrganizationSummary>` with baby-phi-native governance fields
+//! `Vec<OrganizationSummary>` with phi-native governance fields
 //! only (`id`, `display_name`, `consent_policy`,
 //! `authority_templates_enabled`, member count). Per the leverage
 //! checklist §5, the summary payload **deliberately omits** the

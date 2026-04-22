@@ -9,7 +9,7 @@ use tempfile::tempdir;
 #[tokio::test]
 async fn seal_persist_read_open_roundtrip() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
 

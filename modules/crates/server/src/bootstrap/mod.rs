@@ -3,7 +3,7 @@
 //! Two sub-modules:
 //!
 //! - [`init`] — generates and persists a single-use bootstrap credential
-//!   on a fresh install (`baby-phi-server bootstrap-init`). The plaintext
+//!   on a fresh install (`phi-server bootstrap-init`). The plaintext
 //!   is printed to stdout once; the hash (argon2id) is stored in the
 //!   `bootstrap_credentials` table.
 //! - [`claim`] — the atomic s01 flow invoked by

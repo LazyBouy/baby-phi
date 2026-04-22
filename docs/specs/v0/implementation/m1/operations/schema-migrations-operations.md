@@ -16,7 +16,7 @@ sorted by filename, and applies any that are not yet recorded in the
 `_migrations` meta-table. Applied migrations land inside a single
 SurrealDB transaction per file — partial application is impossible.
 
-The sequence on `baby-phi-server` start-up:
+The sequence on `phi-server` start-up:
 
 1. `open_embedded(data_dir, ns, db)` opens the embedded RocksDB
    store at `data_dir`.
@@ -29,7 +29,7 @@ The sequence on `baby-phi-server` start-up:
 4. Success → a row `{ version, applied_at }` is inserted into
    `_migrations`.
 5. Failure → the transaction rolls back, the server returns
-   `StoreError::Migration`, and `baby-phi-server` aborts with a
+   `StoreError::Migration`, and `phi-server` aborts with a
    non-zero exit code.
 
 This is the **startup gate** from the plan — a broken migration
@@ -43,11 +43,11 @@ There is no dedicated admin command in M1; operators query the
 
 ```bash
 # Assuming the server is NOT running (RocksDB is single-writer).
-/root/rust-env/cargo/bin/cargo run -q -p server --bin baby-phi-server -- \
+/root/rust-env/cargo/bin/cargo run -q -p server --bin phi-server -- \
   bootstrap-init   # any subcommand that opens the store will first run migrations
 ```
 
-A dedicated `baby-phi admin migrations status` subcommand lands in M2+
+A dedicated `phi admin migrations status` subcommand lands in M2+
 as part of the `admin/` surface work.
 
 ## Adding a new migration
@@ -90,7 +90,7 @@ never a rewrite of an applied-and-committed migration.
 
 ## What M1 does NOT ship (deferred to M7b)
 
-- **Dry-run mode.** A `baby-phi admin migrations dry-run` command
+- **Dry-run mode.** A `phi admin migrations dry-run` command
   that loads the `.surql` file into an in-memory store and reports
   what it would do. Planned in M7b production-hardening.
 - **Schema diffing.** A tool that diffs the running schema against

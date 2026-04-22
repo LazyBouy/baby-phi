@@ -50,6 +50,11 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "org_creation",
         sql: include_str!("../migrations/0003_org_creation.surql"),
     },
+    Migration {
+        version: 4,
+        slug: "agents_projects",
+        sql: include_str!("../migrations/0004_agents_projects.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

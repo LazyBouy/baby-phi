@@ -25,7 +25,7 @@ use store::SurrealStore;
 
 async fn fresh_store() -> (SurrealStore, tempfile::TempDir) {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
     (store, dir)

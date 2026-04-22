@@ -1,4 +1,4 @@
-//! The graph model — every type that populates the baby-phi ontology.
+//! The graph model — every type that populates the phi ontology.
 //!
 //! Sub-modules:
 //! - [`ids`] — strongly-typed `Uuid` newtypes for every entity.
@@ -13,6 +13,7 @@
 pub mod composites;
 pub mod composites_m2;
 pub mod composites_m3;
+pub mod composites_m4;
 pub mod edges;
 pub mod fundamentals;
 pub mod ids;
@@ -25,6 +26,10 @@ pub use composites_m2::{
     RuntimeStatus, SecretCredential, SecretRef, TenantSet,
 };
 pub use composites_m3::{ConsentPolicy, OrganizationDefaultsSnapshot, TokenBudgetPool};
+pub use composites_m4::{
+    AgentExecutionLimitsOverride, KeyResult, KeyResultStatus, MeasurementType, Objective,
+    ObjectiveStatus, OkrValue, ResourceBoundaries,
+};
 pub use edges::{Edge, EDGE_KIND_NAMES};
 pub use fundamentals::Fundamental;
 pub use ids::{
@@ -32,10 +37,10 @@ pub use ids::{
     ModelProviderId, NodeId, OrgId, ProjectId, SecretId, SessionId, TemplateId, UserId,
 };
 pub use nodes::{
-    Agent, AgentKind, AgentProfile, ApproverSlot, ApproverSlotState, AuthRequest, AuthRequestState,
-    Channel, ChannelKind, Consent, Grant, InboxObject, Memory, NodeKind, Organization,
-    OutboxObject, PrincipalRef, ResourceRef, ResourceSlot, ResourceSlotState, Template,
-    TemplateKind, ToolAuthorityManifest, User,
+    Agent, AgentKind, AgentProfile, AgentRole, ApproverSlot, ApproverSlotState, AuthRequest,
+    AuthRequestState, Channel, ChannelKind, Consent, Grant, InboxObject, Memory, NodeKind,
+    Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ProjectStatus, ResourceRef,
+    ResourceSlot, ResourceSlotState, Template, TemplateKind, ToolAuthorityManifest, User,
 };
 pub use principal_resource::{Principal, Resource};
 
@@ -62,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn ontology_has_sixty_seven_edge_kinds() {
-        assert_eq!(EDGE_KIND_NAMES.len(), 67);
+    fn ontology_has_sixty_nine_edge_kinds() {
+        assert_eq!(EDGE_KIND_NAMES.len(), 69);
     }
 }

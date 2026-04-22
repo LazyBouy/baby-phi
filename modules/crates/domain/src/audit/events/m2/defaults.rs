@@ -19,7 +19,7 @@
 //! `serde_json::to_value(PlatformDefaults)` directly. Because every
 //! phi-core-overlapping field is wrapped via `phi_core::...` types
 //! (single source of truth), the wire diff always matches phi-core's
-//! canonical serde shape — no baby-phi transcoding involved.
+//! canonical serde shape — no phi transcoding involved.
 
 use chrono::{DateTime, Utc};
 
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn phi_core_nested_fields_round_trip_in_diff() {
         // Mutating a phi-core nested field (execution_limits.max_turns)
-        // must surface in the diff without any baby-phi-side
+        // must surface in the diff without any phi-side
         // transcoding — this verifies the "phi-core serde is the
         // single source of truth" invariant.
         let now = Utc::now();

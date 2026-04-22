@@ -36,7 +36,7 @@ fn client_authed_as(subject_agent_id: &str) -> reqwest::Client {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::COOKIE,
-        reqwest::header::HeaderValue::from_str(&format!("baby_phi_session={jwt}"))
+        reqwest::header::HeaderValue::from_str(&format!("phi_kernel_session={jwt}"))
             .expect("cookie header"),
     );
     reqwest::Client::builder()

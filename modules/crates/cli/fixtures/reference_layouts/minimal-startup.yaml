@@ -4,7 +4,7 @@
 # per plan §G18). Models the smallest operator-interesting org:
 # implicit consent, single human CEO, one adopted authority template.
 #
-# Consumed by `baby-phi org create --from-layout <this>.yaml` — the
+# Consumed by `phi org create --from-layout <this>.yaml` — the
 # CLI deserialises this file, re-encodes as JSON, and POSTs to
 # `/api/v0/orgs` verbatim. Every field here maps 1:1 to the
 # `CreateOrgRequest` wire shape in

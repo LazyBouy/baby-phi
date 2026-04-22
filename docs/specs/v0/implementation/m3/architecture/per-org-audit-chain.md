@@ -81,10 +81,10 @@ inherits this discipline from M3's `apply_org_creation` pattern.
 
 ## phi-core leverage
 
-None — per-org audit is baby-phi governance infrastructure. Phi-core
+None — per-org audit is phi governance infrastructure. Phi-core
 has no audit-trail surface (its [`AgentEvent`](../../../../../../../phi-core/src/types/event.rs)
 enum is execution telemetry, not a hash-chained write log; see the
-orthogonal-surfaces note in [baby-phi/CLAUDE.md](../../../../../../CLAUDE.md)).
+orthogonal-surfaces note in [phi/CLAUDE.md](../../../../../../CLAUDE.md)).
 The Q3 candidate-rejection walk for this surface is the one-liner
 "Not applicable — governance plane, not runtime plane."
 

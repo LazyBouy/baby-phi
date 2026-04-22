@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 0001_initial.surql
 --
--- Initial SurrealDB schema for baby-phi v0.1 / milestone M1.
+-- Initial SurrealDB schema for phi v0.1 / milestone M1.
 --
 -- Landscape:
 --   * 5 utility tables  — migrations meta, bootstrap credentials, secrets
@@ -48,7 +48,7 @@ DEFINE FIELD consumed_at  ON bootstrap_credentials TYPE option<string>;
 DEFINE INDEX bootstrap_credentials_digest ON bootstrap_credentials FIELDS digest UNIQUE;
 
 -- Secrets vault. Every row's `value_ciphertext` is AES-GCM-sealed by the
--- `store::crypto` layer using the master key from `BABY_PHI_MASTER_KEY`.
+-- `store::crypto` layer using the master key from `PHI_MASTER_KEY`.
 -- Plaintext never touches disk.
 --
 -- Ciphertext + nonce are stored as base64 (standard, no-padding) strings
@@ -120,7 +120,7 @@ DEFINE INDEX agent_owning_org ON agent FIELDS owning_org;
 
 -- AgentProfile wraps phi-core's AgentProfile (per concepts/phi-core-mapping.md).
 -- `blueprint` is the full phi-core struct serialized as a flexible object
--- so SurrealDB doesn't strip fields as phi-core evolves. baby-phi-only
+-- so SurrealDB doesn't strip fields as phi-core evolves. phi-only
 -- governance fields (`agent_id`, `parallelize`) sit alongside the wrap.
 DEFINE TABLE agent_profile SCHEMAFULL;
 DEFINE FIELD agent_id      ON agent_profile TYPE string;

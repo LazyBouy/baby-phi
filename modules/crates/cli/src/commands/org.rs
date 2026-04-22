@@ -1,4 +1,4 @@
-//! `baby-phi org {create, list, show, dashboard}` subcommands.
+//! `phi org {create, list, show, dashboard}` subcommands.
 //!
 //! Create / list / show wired at M3/P4; dashboard wired at M3/P5.
 //!
@@ -159,14 +159,14 @@ pub async fn run(server_url_override: Option<String>, cmd: OrgCommand) -> i32 {
     let base = match resolve_base_url(server_url_override) {
         Ok(u) => u,
         Err(e) => {
-            eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+            eprintln!("phi: failed to resolve server URL: {e:#}");
             return EXIT_INTERNAL;
         }
     };
     let client = match build_authed_client() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("baby-phi: {e}");
+            eprintln!("phi: {e}");
             return EXIT_PRECONDITION_FAILED;
         }
     };
@@ -245,27 +245,25 @@ async fn create_impl(client: &reqwest::Client, base: &str, cmd: OrgCommand) -> i
         Some(path) => match load_layout(&path) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("baby-phi: failed to load layout: {e:#}");
+                eprintln!("phi: failed to load layout: {e:#}");
                 return EXIT_INTERNAL;
             }
         },
         None => {
             let Some(name) = name else {
-                eprintln!("baby-phi: --name is required (or use --from-layout)");
+                eprintln!("phi: --name is required (or use --from-layout)");
                 return EXIT_PRECONDITION_FAILED;
             };
             let Some(ceo_display_name) = ceo_display_name else {
-                eprintln!("baby-phi: --ceo-display-name is required (or use --from-layout)");
+                eprintln!("phi: --ceo-display-name is required (or use --from-layout)");
                 return EXIT_PRECONDITION_FAILED;
             };
             let Some(ceo_channel_handle) = ceo_channel_handle else {
-                eprintln!("baby-phi: --ceo-channel-handle is required (or use --from-layout)");
+                eprintln!("phi: --ceo-channel-handle is required (or use --from-layout)");
                 return EXIT_PRECONDITION_FAILED;
             };
             let Some(initial_token_allocation) = initial_token_allocation else {
-                eprintln!(
-                    "baby-phi: --initial-token-allocation is required (or use --from-layout)"
-                );
+                eprintln!("phi: --initial-token-allocation is required (or use --from-layout)");
                 return EXIT_PRECONDITION_FAILED;
             };
             let templates: Vec<String> = templates_enabled
@@ -295,7 +293,7 @@ async fn create_impl(client: &reqwest::Client, base: &str, cmd: OrgCommand) -> i
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: POST {url} failed: {e}");
+            eprintln!("phi: POST {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -306,7 +304,7 @@ async fn create_impl(client: &reqwest::Client, base: &str, cmd: OrgCommand) -> i
     let created: CreateResponseWire = match res.json().await {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("baby-phi: decode response: {e}");
+            eprintln!("phi: decode response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -343,7 +341,7 @@ async fn list_impl(client: &reqwest::Client, base: &str, json: bool) -> i32 {
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: GET {url} failed: {e}");
+            eprintln!("phi: GET {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -354,7 +352,7 @@ async fn list_impl(client: &reqwest::Client, base: &str, json: bool) -> i32 {
     let body: ListResponseWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: decode response: {e}");
+            eprintln!("phi: decode response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -389,7 +387,7 @@ async fn show_impl(client: &reqwest::Client, base: &str, id: &str, json: bool) -
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: GET {url} failed: {e}");
+            eprintln!("phi: GET {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -400,7 +398,7 @@ async fn show_impl(client: &reqwest::Client, base: &str, id: &str, json: bool) -
     let body: serde_json::Value = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: decode response: {e}");
+            eprintln!("phi: decode response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -428,7 +426,7 @@ async fn dashboard_impl(client: &reqwest::Client, base: &str, id: &str, json: bo
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: GET {url} failed: {e}");
+            eprintln!("phi: GET {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -439,7 +437,7 @@ async fn dashboard_impl(client: &reqwest::Client, base: &str, id: &str, json: bo
     let body: serde_json::Value = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: decode response: {e}");
+            eprintln!("phi: decode response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -546,14 +544,14 @@ fn build_authed_client() -> Result<reqwest::Client> {
         Ok(s) => s,
         Err(session_store::SessionStoreError::NotFound { .. }) => {
             anyhow::bail!(
-                "no saved session at {} — run `baby-phi bootstrap claim --credential <…>` first",
+                "no saved session at {} — run `phi bootstrap claim --credential <…>` first",
                 path.display()
             );
         }
         Err(e) => anyhow::bail!("failed to load saved session: {e}"),
     };
     let mut headers = HeaderMap::new();
-    let cookie = format!("baby_phi_session={}", session.cookie_value);
+    let cookie = format!("phi_kernel_session={}", session.cookie_value);
     headers.insert(
         COOKIE,
         HeaderValue::from_str(&cookie).context("cookie value is not a valid header")?,
@@ -591,11 +589,11 @@ fn resolve_base_url(override_url: Option<String>) -> Result<String> {
 async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -> i32 {
     match res.json::<ApiErrorWire>().await {
         Ok(err) => {
-            eprintln!("baby-phi: rejected ({}): {}", err.code, err.message);
+            eprintln!("phi: rejected ({}): {}", err.code, err.message);
             EXIT_REJECTED
         }
         Err(_) => {
-            eprintln!("baby-phi: rejected (HTTP {}) — non-JSON body", status);
+            eprintln!("phi: rejected (HTTP {}) — non-JSON body", status);
             EXIT_REJECTED
         }
     }

@@ -8,12 +8,12 @@ New subcommands landing per-phase:
 
 | Subcommand | Phase |
 |---|---|
-| `baby-phi login` | P1 scaffold; wired in P4 |
-| `baby-phi secret {list,add,rotate,reveal,reassign}` | P4 |
-| `baby-phi model-provider {list,add,archive}` | P5 |
-| `baby-phi mcp-server {list,add,patch,archive}` | P6 |
-| `baby-phi platform-defaults {get,set,import,export}` | P7 |
-| `baby-phi completion <shell>` | P8 |
+| `phi login` | P1 scaffold; wired in P4 |
+| `phi secret {list,add,rotate,reveal,reassign}` | P4 |
+| `phi model-provider {list,add,archive}` | P5 |
+| `phi mcp-server {list,add,patch,archive}` | P6 |
+| `phi platform-defaults {get,set,import,export}` | P7 |
+| `phi completion <shell>` | P8 |
 
 See also: [`../../m1/user-guide/cli-usage.md`](../../m1/user-guide/cli-usage.md)
 — the M1 subcommands that still work unchanged.

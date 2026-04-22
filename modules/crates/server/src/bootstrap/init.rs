@@ -1,4 +1,4 @@
-//! `baby-phi-server bootstrap-init` — one-shot credential generation.
+//! `phi-server bootstrap-init` — one-shot credential generation.
 //!
 //! Called by the install process on a fresh data dir. Generates 32
 //! random bytes, encodes them URL-safe-base64, prepends

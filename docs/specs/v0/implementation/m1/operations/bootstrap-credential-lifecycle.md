@@ -13,7 +13,7 @@ and the recovery paths when things go wrong.
 On a fresh data directory, run:
 
 ```bash
-baby-phi-server bootstrap-init
+phi-server bootstrap-init
 ```
 
 What happens under the hood
@@ -43,16 +43,16 @@ memory dump of the running server.
 The admin is responsible for capturing the plaintext. The recommended
 flow:
 
-1. Run `baby-phi-server bootstrap-init` at a real terminal (not in a
+1. Run `phi-server bootstrap-init` at a real terminal (not in a
    CI log, not in a shared tmux session).
 2. Copy the `bphi-bootstrap-…` line into a password manager entry
-   named something like "baby-phi platform admin bootstrap — <date>".
+   named something like "phi platform admin bootstrap — <date>".
 3. Close the terminal.
 4. Use the captured plaintext at first login (CLI / web / HTTP) to
    claim the admin role.
 
 Stdout-only delivery is a deliberate anti-footgun design
-([ADR-0011 §Delivery](../decisions/0011-bootstrap-credential-single-use.md#delivery--stdout-once-on-baby-phi-server-bootstrap-init))
+([ADR-0011 §Delivery](../decisions/0011-bootstrap-credential-single-use.md#delivery--stdout-once-on-phi-server-bootstrap-init))
 — there is no operationally-valuable way to keep the plaintext on
 disk between install-time and claim-time.
 
@@ -85,7 +85,7 @@ Recovery:
   because the platform hasn't done anything yet — no orgs, no
   agents, no data.
 - **Manual DB override** is out of scope for M1. M7b may ship
-  a `baby-phi admin regenerate-bootstrap-credential` flow.
+  a `phi admin regenerate-bootstrap-credential` flow.
 
 ### Suspect the plaintext leaked (e.g. committed to a terminal recording)
 
@@ -129,7 +129,7 @@ dir.
 
 ## What M1 does NOT ship (deferred to M2+ / M7b)
 
-- In-band rotation (`baby-phi admin rotate-bootstrap-credential`).
+- In-band rotation (`phi admin rotate-bootstrap-credential`).
 - Expiry on unconsumed credentials.
 - Transfer-of-admin workflow.
 - Break-glass admin recovery without reinstall.

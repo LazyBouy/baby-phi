@@ -13,7 +13,7 @@ The resource ontology has **two tiers**:
 
 Fundamentals group into three flavors: physical/operational, data access, and identity.
 
-| Class | Flavor | What It Covers | baby-phi Mapping |
+| Class | Flavor | What It Covers | phi Mapping |
 |-------|--------|----------------|-------------------|
 | `filesystem_object` | Physical/operational | Files, directories, paths on disk | Agent workspace, skill files, env files |
 | `process_exec_object` | Physical/operational | Spawning processes, running binaries/scripts | BashTool, script execution |
@@ -90,9 +90,9 @@ This section makes ownership explicit and first-class. Every Grant will (as of t
 
 ### Ownership Philosophy — Rust-Style
 
-baby-phi adopts a Rust-style ownership philosophy for resources, with three distinct modes:
+phi adopts a Rust-style ownership philosophy for resources, with three distinct modes:
 
-| Mode | Rust parallel | baby-phi parallel |
+| Mode | Rust parallel | phi parallel |
 |------|---------------|-------------------|
 | **Creation** | `let x = Value::new()` — creator is the initial owner | When a resource comes into existence, the creator's context determines the initial owner (agent's `current_project`, `current_organization`, or the agent itself for personal resources). |
 | **Transfer** | `let y = x;` — move semantics; `x` is no longer valid | Ownership transfers from one principal to another. The old owner's authority on the resource disappears; the new owner inherits. Used for lead handoffs, project-to-project transfer, etc. One-time, exclusive. |

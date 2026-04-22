@@ -9,8 +9,8 @@ Accepted — 2026-04-19 (M0).
 
 [ADR-0001](0001-surrealdb-over-memgraph.md) chose SurrealDB as the database. Separately, we need to decide **how** to deploy it for v0.1:
 
-- **Embedded** — SurrealDB runs as a Rust library inside `baby-phi-server`'s process, using the RocksDB backend to write an on-disk file tree.
-- **Sidecar** — SurrealDB runs as a separate process (standalone server mode), and `baby-phi-server` connects over a WebSocket or HTTP client.
+- **Embedded** — SurrealDB runs as a Rust library inside `phi-server`'s process, using the RocksDB backend to write an on-disk file tree.
+- **Sidecar** — SurrealDB runs as a separate process (standalone server mode), and `phi-server` connects over a WebSocket or HTTP client.
 
 This decision is separate from the database choice itself because SurrealDB supports both modes with the same query language; only the connection setup differs.
 
@@ -21,8 +21,8 @@ This decision is separate from the database choice itself because SurrealDB supp
 v0.1 `config/default.toml`:
 ```toml
 [storage]
-data_dir = "data/baby-phi.db"
-namespace = "baby-phi"
+data_dir = "data/phi.db"
+namespace = "phi"
 database = "v0"
 ```
 
@@ -42,7 +42,7 @@ Surreal::new::<RocksDb>(path).await?;
 
 ### Negative
 
-- **Cannot scale `baby-phi-server` horizontally.** Multiple server processes would each own a private RocksDB file; they'd be isolated databases. Horizontal scaling requires moving to standalone or TiKV.
+- **Cannot scale `phi-server` horizontally.** Multiple server processes would each own a private RocksDB file; they'd be isolated databases. Horizontal scaling requires moving to standalone or TiKV.
 - **Single point of failure.** Process crash = DB unavailable until restart. For v0.1's target (single-tenant, one org, internal use) this is acceptable; HA is a v0.2+ concern.
 - **Resource contention.** The server process and the DB share CPU, memory, and the same event loop for I/O. For v0's load (~50 agents, ~10 projects, ≤100 concurrent sessions) this is fine; comfortable ceiling per build-plan §"Scaling path" is ~100k nodes / 1M edges.
 - **Harder to pin DB version separately.** The embedded crate version is locked to the server build. Upgrading SurrealDB requires re-compiling and re-deploying the server.
@@ -60,8 +60,8 @@ All three tiers share the same SurrealQL and the same `Repository` trait impleme
 
 | Tier | When | Connection | Ops cost |
 |---|---|---|---|
-| **Embedded + RocksDB** (v0.1) | Single-tenant, ~50 agents, ~10 projects, ≤100 concurrent sessions | `Surreal::new::<RocksDb>("data/baby-phi.db")` | Zero extra infra. |
-| **Standalone SurrealDB server** | Need horizontal `baby-phi-server` scale, or independent DB lifecycle | `surreal start --bind 0.0.0.0:8000 file:…` + `Surreal::new::<Client>("ws://host:8000")` | One extra process/container. Day of ops work. |
+| **Embedded + RocksDB** (v0.1) | Single-tenant, ~50 agents, ~10 projects, ≤100 concurrent sessions | `Surreal::new::<RocksDb>("data/phi.db")` | Zero extra infra. |
+| **Standalone SurrealDB server** | Need horizontal `phi-server` scale, or independent DB lifecycle | `surreal start --bind 0.0.0.0:8000 file:…` + `Surreal::new::<Client>("ws://host:8000")` | One extra process/container. Day of ops work. |
 | **SurrealDB cluster with TiKV** | Multi-region, HA, >100 GB data | TiKV cluster backs SurrealDB | Standard distributed-system ops. |
 
 The build plan at [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../../plan/build/36d0c6c5-build-plan-v01.md) §"Scaling path" documents each tier's tradeoffs in more depth.

@@ -1,16 +1,13 @@
-//! Smoke tests for the `baby-phi platform-defaults …` clap surface.
+//! Smoke tests for the `phi platform-defaults …` clap surface.
 
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_baby-phi")
+    env!("CARGO_BIN_EXE_phi")
 }
 
 fn run_help(args: &[&str]) -> String {
-    let out = Command::new(bin())
-        .args(args)
-        .output()
-        .expect("run baby-phi");
+    let out = Command::new(bin()).args(args).output().expect("run phi");
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -26,7 +23,7 @@ fn platform_defaults_group_lists_three_subcommands() {
     for expected in ["get", "put", "factory"] {
         assert!(
             help.contains(expected),
-            "`baby-phi platform-defaults --help` must mention `{expected}`; got:\n{help}"
+            "`phi platform-defaults --help` must mention `{expected}`; got:\n{help}"
         );
     }
 }
@@ -65,7 +62,7 @@ fn factory_command_runs_offline() {
     let out = Command::new(bin())
         .args(["platform-defaults", "factory", "--format", "json"])
         .output()
-        .expect("run baby-phi");
+        .expect("run phi");
     assert!(
         out.status.success(),
         "factory exit was non-zero: {}",

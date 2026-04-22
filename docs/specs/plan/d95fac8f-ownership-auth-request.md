@@ -11,7 +11,7 @@
 
 ## Context  `[PLAN: unchanged]` `[DOCS: n/a]`
 
-The current [permissions.md](/root/projects/phi/baby-phi/docs/specs/v0/concepts/permissions.md) has a real gap that emerged during review: **provenance is a string, and the authority chain behind every grant is implicit.** A grant like "agent X can read /workspace/project-a/**" currently has no structural account of who owned those files or what gave the grantor authority to issue the grant. Revocation cascades, audit trails, and accountability are all hand-wavy.
+The current [permissions.md](/root/projects/phi/phi/docs/specs/v0/concepts/permissions.md) has a real gap that emerged during review: **provenance is a string, and the authority chain behind every grant is implicit.** A grant like "agent X can read /workspace/project-a/**" currently has no structural account of who owned those files or what gave the grantor authority to issue the grant. Revocation cascades, audit trails, and accountability are all hand-wavy.
 
 The fix is to make ownership and the grant-creation workflow first-class, while preserving everything we've already decided. The model gains:
 
@@ -48,13 +48,13 @@ This is a **conceptual deepening, not a replacement**. The two-tier resource ont
 ## Scope of Change  `[PLAN: unchanged]` `[DOCS: n/a]`
 
 **Primary file (all Phase A and C edits + B1):**
-- `/root/projects/phi/baby-phi/docs/specs/v0/concepts/permissions.md`
+- `/root/projects/phi/phi/docs/specs/v0/concepts/permissions.md`
 
 **Secondary files (terminology propagation, Phase B2):**
-- `/root/projects/phi/baby-phi/docs/specs/v0/concepts/agent.md`
-- `/root/projects/phi/baby-phi/docs/specs/v0/concepts/organization.md`
-- `/root/projects/phi/baby-phi/docs/specs/v0/concepts/project.md`
-- `/root/projects/phi/baby-phi/docs/specs/v0/concepts/ontology.md`
+- `/root/projects/phi/phi/docs/specs/v0/concepts/agent.md`
+- `/root/projects/phi/phi/docs/specs/v0/concepts/organization.md`
+- `/root/projects/phi/phi/docs/specs/v0/concepts/project.md`
+- `/root/projects/phi/phi/docs/specs/v0/concepts/ontology.md`
 - Any other concept file referencing `HAS_PERMISSION` / `GRANTS_PERMISSION` or "permission" in the 5-tuple sense
 
 ## Edit Plan (phased)  `[PLAN: unchanged]` `[DOCS: n/a]`
@@ -742,11 +742,11 @@ These are minor additions to the Authoring Guide and the publish-time validator 
 
 | File | Scope of change |
 |------|-----------------|
-| `baby-phi/docs/specs/v0/concepts/permissions.md` | Primary — all Phase A, B1, C edits |
-| `baby-phi/docs/specs/v0/concepts/agent.md` | B2 terminology migration |
-| `baby-phi/docs/specs/v0/concepts/organization.md` | B2 terminology migration |
-| `baby-phi/docs/specs/v0/concepts/project.md` | B2 terminology migration |
-| `baby-phi/docs/specs/v0/concepts/ontology.md` | B2 terminology migration (edge names in Governance Wiring table) |
+| `phi/docs/specs/v0/concepts/permissions.md` | Primary — all Phase A, B1, C edits |
+| `phi/docs/specs/v0/concepts/agent.md` | B2 terminology migration |
+| `phi/docs/specs/v0/concepts/organization.md` | B2 terminology migration |
+| `phi/docs/specs/v0/concepts/project.md` | B2 terminology migration |
+| `phi/docs/specs/v0/concepts/ontology.md` | B2 terminology migration (edge names in Governance Wiring table) |
 
 Other concept files (human-agent.md, coordination.md, token-economy.md, phi-core-mapping.md) will need a quick scan for `HAS_PERMISSION` / `GRANTS_PERMISSION` references. If none exist, no changes needed.
 
@@ -951,8 +951,8 @@ ontology.md lists `ToolDefinition` (line 45) and `ToolImplementation` (line 46).
 Before touching any concept file, archive a verbatim copy of this plan into the repo so the decision trail is version-controlled alongside the specs.
 
 **Files:**
-- Create directory: `/root/projects/phi/baby-phi/docs/specs/plan/` (if it doesn't exist)
-- Write file: `/root/projects/phi/baby-phi/docs/specs/plan/<random>-ownership-auth-request.md`
+- Create directory: `/root/projects/phi/phi/docs/specs/plan/` (if it doesn't exist)
+- Write file: `/root/projects/phi/phi/docs/specs/plan/<random>-ownership-auth-request.md`
 
 **Naming rule:** `<random>-ownership-auth-request.md`, where `<random>` is a short randomly-generated token (e.g., an 8-character hex string, or a short word-pair like `sharded-stearns`). The fixed tail `ownership-auth-request.md` is invariant so future plan archives in the same folder can be sorted by topic.
 
@@ -960,7 +960,7 @@ Before touching any concept file, archive a verbatim copy of this plan into the 
 
 **Why archive here rather than only keeping it in `~/.claude/plans/`:**
 - `~/.claude/plans/` is Claude-Code-local; a teammate cloning the repo would not see it.
-- `baby-phi/docs/specs/plan/` is under the project's version control, so the plan travels with the code and can be referenced from commit messages, PRs, and future specs.
+- `phi/docs/specs/plan/` is under the project's version control, so the plan travels with the code and can be referenced from commit messages, PRs, and future specs.
 - Putting it under `specs/plan/` (rather than `specs/v0/concepts/`) keeps it out of the "living concept docs" namespace — this is process history, not part of the spec proper.
 
 **No cross-references, no bumps to other files** as part of D0. It is purely a snapshot action.
@@ -1081,7 +1081,7 @@ Add `ToolAuthorityManifest` to the Capability node table with a cross-reference 
 
 | File | Edit(s) |
 |------|---------|
-| `baby-phi/docs/specs/plan/<random>-ownership-auth-request.md` (NEW) | D0 (create) |
+| `phi/docs/specs/plan/<random>-ownership-auth-request.md` (NEW) | D0 (create) |
 | permissions.md | D1, D4, D5, D7 |
 | ontology.md | D2, D3, D7 |
 | agent.md | D6, D7 |

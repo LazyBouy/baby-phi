@@ -2,7 +2,7 @@
 
 # User guide — docker-compose
 
-`docker compose up --build` boots the full baby-phi stack — HTTP server + Next.js dev server — in containers. Great when you want to exercise the production-like topology locally without installing a full Rust toolchain.
+`docker compose up --build` boots the full phi stack — HTTP server + Next.js dev server — in containers. Great when you want to exercise the production-like topology locally without installing a full Rust toolchain.
 
 ## Prerequisites
 
@@ -16,12 +16,12 @@ From [`docker-compose.yml`](../../../../../../docker-compose.yml):
 
 | Service | Image | Ports | Notes |
 |---|---|---|---|
-| `server` | built from `Dockerfile` | `8080:8080` | Runs `baby-phi-server` with `BABY_PHI_PROFILE=dev`. Mounts named volume `baby-phi-data` at `/var/lib/baby-phi/data`. |
+| `server` | built from `Dockerfile` | `8080:8080` | Runs `phi-server` with `PHI_PROFILE=dev`. Mounts named volume `phi-data` at `/var/lib/phi/data`. |
 | `web` | `node:22-bookworm-slim` | `3000:3000` | Bind-mounts `./modules/web` and runs `npm install && npm run dev`. For **local dev only** — hot-reloads on file changes. |
 
 ## Boot
 
-From the workspace root (`baby-phi/`):
+From the workspace root (`phi/`):
 
 ```bash
 docker compose up --build
@@ -31,7 +31,7 @@ First run:
 
 - The `server` image builds — ~8–10 minutes for the Rust release build (LTO enabled, single codegen unit).
 - The `web` service downloads Node 22 (~50 MB) and runs `npm install` into a volume.
-- Both come up; server logs "baby-phi-server listening", web logs "Ready in …".
+- Both come up; server logs "phi-server listening", web logs "Ready in …".
 
 Subsequent boots reuse the built `server` image and the `web` node_modules volume — restart in ~10 s.
 
@@ -56,7 +56,7 @@ docker compose down -v              # also delete volumes (wipes DB)
 
 ## Volume story
 
-- `baby-phi-data` (named volume) — SurrealDB's RocksDB file tree. Survives `docker compose down`; wiped with `down -v`.
+- `phi-data` (named volume) — SurrealDB's RocksDB file tree. Survives `docker compose down`; wiped with `down -v`.
 - `web-node-modules` (named volume) — `node_modules` for the web dev server. Avoids rebuilding every boot; wiped with `down -v`.
 - `./modules/web` — bind-mounted read-write into the web container. Code changes on the host trigger Next.js hot-reload inside the container.
 
@@ -68,32 +68,32 @@ To change a server config field, set it in `docker-compose.yml` or pass via an e
 services:
   server:
     environment:
-      BABY_PHI_PROFILE: dev
-      BABY_PHI_SERVER__PORT: "9090"
-      BABY_PHI_TELEMETRY__LOG_FILTER: "info,server=trace"
+      PHI_PROFILE: dev
+      PHI_SERVER__PORT: "9090"
+      PHI_TELEMETRY__LOG_FILTER: "info,server=trace"
 ```
 
 Or:
 
 ```bash
-BABY_PHI_SERVER__PORT=9090 docker compose up --build
+PHI_SERVER__PORT=9090 docker compose up --build
 ```
 
 ## Pointing the web at a different server
 
-Compose's `depends_on: server` + internal Docker network lets the web service reach the server at `http://server:8080`. This is hard-coded in `docker-compose.yml` via `BABY_PHI_API_URL: http://server:8080`.
+Compose's `depends_on: server` + internal Docker network lets the web service reach the server at `http://server:8080`. This is hard-coded in `docker-compose.yml` via `PHI_API_URL: http://server:8080`.
 
 If you want the web to hit a server running on the host (not in compose), override:
 
 ```bash
-BABY_PHI_API_URL=http://host.docker.internal:8080 docker compose up web
+PHI_API_URL=http://host.docker.internal:8080 docker compose up web
 ```
 
 ## When compose is the right tool
 
 - Demoing the full stack without a Rust toolchain installed.
 - Reproducing an environment for a bug report ("does it repro in the compose stack?").
-- Running a team member's baby-phi server while you work on the web UI.
+- Running a team member's phi server while you work on the web UI.
 
 ## When it isn't
 

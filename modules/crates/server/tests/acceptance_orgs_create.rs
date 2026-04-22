@@ -160,7 +160,7 @@ async fn create_happy_path_returns_201_and_full_receipt() {
 async fn create_then_show_returns_defaults_snapshot_with_phi_core_fields() {
     // Positive phi-core transit assertion: after creation, GET /orgs/:id
     // must return `organization.defaults_snapshot` with the 4 phi-core
-    // wrapped fields populated. A baby-phi redeclaration would lose
+    // wrapped fields populated. A phi redeclaration would lose
     // fields or serialise them under different keys.
     let admin = spawn_claimed(false).await;
     let res = post_orgs(&admin, happy_body()).await;
@@ -368,7 +368,7 @@ async fn show_unknown_org_is_404() {
 // Reference-layout E2E fidelity (M3/P6 — covers page 06 §11 Scenario 2).
 // Pulls the three fixture YAMLs through the real HTTP path and asserts the
 // shipped org matches the layout's prescribed shape (templates, consent,
-// token budget). The layouts are the same ones `baby-phi org create
+// token budget). The layouts are the same ones `phi org create
 // --from-layout <ref>` consumes; these tests are the E2E companion to the
 // CLI-level fixture-parse test in `cli/tests/org_help.rs` +
 // `cli::commands::org::tests::all_three_reference_layouts_parse`.

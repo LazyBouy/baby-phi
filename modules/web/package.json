@@ -1,8 +1,8 @@
 {
-  "name": "baby-phi-web",
+  "name": "phi-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Human-facing web UI for the baby-phi agent management platform.",
+  "description": "Human-facing web UI for the phi agent management platform.",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

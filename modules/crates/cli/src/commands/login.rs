@@ -1,9 +1,9 @@
-//! `baby-phi login` subcommand — M2/P1 scaffold.
+//! `phi login` subcommand — M2/P1 scaffold.
 //!
 //! The real login flow lands in M2/P4 when the credentials-vault
 //! vertical is stood up. For M2/P1 this subcommand only validates that
 //! a saved session exists (or doesn't) and points operators at the
-//! still-working `baby-phi bootstrap claim` path for first-time login.
+//! still-working `phi bootstrap claim` path for first-time login.
 //!
 //! Why ship it now?
 //!   1. Reserves the `login` subcommand name so tests and docs can
@@ -11,7 +11,7 @@
 //!   2. Wires [`session_store`](crate::session_store) into the main
 //!      binary so its test coverage runs on every `cargo test`.
 //!   3. Gives shell-scripted operators a deterministic pre-check
-//!      (`baby-phi login status`) to run before other M2 subcommands.
+//!      (`phi login status`) to run before other M2 subcommands.
 
 use crate::exit::{EXIT_OK, EXIT_PRECONDITION_FAILED};
 use crate::session_store;
@@ -38,7 +38,7 @@ fn status() -> i32 {
     let path = match session_store::default_session_path() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("baby-phi login status: {e}");
+            eprintln!("phi login status: {e}");
             return EXIT_PRECONDITION_FAILED;
         }
     };
@@ -55,14 +55,14 @@ fn status() -> i32 {
         Err(session_store::SessionStoreError::NotFound { .. }) => {
             println!(
                 "no saved session at {}. First-time login: run \
-                 `baby-phi bootstrap claim --credential <…>`. \
+                 `phi bootstrap claim --credential <…>`. \
                  (M2/P4 will add credential-based re-login.)",
                 path.display()
             );
             EXIT_PRECONDITION_FAILED
         }
         Err(e) => {
-            eprintln!("baby-phi login status: {e}");
+            eprintln!("phi login status: {e}");
             EXIT_PRECONDITION_FAILED
         }
     }
@@ -72,7 +72,7 @@ fn logout() -> i32 {
     let path = match session_store::default_session_path() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("baby-phi login logout: {e}");
+            eprintln!("phi login logout: {e}");
             return EXIT_PRECONDITION_FAILED;
         }
     };
@@ -82,7 +82,7 @@ fn logout() -> i32 {
             EXIT_OK
         }
         Err(e) => {
-            eprintln!("baby-phi login logout: {e}");
+            eprintln!("phi login logout: {e}");
             EXIT_PRECONDITION_FAILED
         }
     }

@@ -77,7 +77,7 @@ Three fixtures ship at `modules/crates/cli/fixtures/reference_layouts/`:
 - `regulated-enterprise.yaml` — 4 adopted templates (A/B/C/D),
   per-session consent, alerted audit default, 50M token budget.
 
-Consumed via `baby-phi org create --from-layout <path>`. The CLI
+Consumed via `phi org create --from-layout <path>`. The CLI
 deserialises YAML → JSON and POSTs verbatim. Full 10-layout parity
 lands with M8 per plan §G18.
 
@@ -89,7 +89,7 @@ Operators inspecting the audit diff or
 (`execution_limits.max_turns`, `retry_config.max_retries`, etc.)
 verbatim. The M3 dashboard's drill-down renders these under a
 collapsed `<details>` panel. Future phi-core schema evolution does
-not require a baby-phi migration because the SurrealDB
+not require a phi migration because the SurrealDB
 `defaults_snapshot` column is `FLEXIBLE TYPE object`.
 
 ## References

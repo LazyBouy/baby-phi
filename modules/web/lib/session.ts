@@ -1,6 +1,6 @@
 // Server-component session helper (requires `next/headers`).
 //
-// Reads the `baby_phi_session` cookie and delegates to
+// Reads the `phi_kernel_session` cookie and delegates to
 // [`verifySessionToken`](./session-verify.ts). Split from the pure
 // verify helper so unit tests can exercise verification without
 // standing up a Next.js runtime.
@@ -19,13 +19,13 @@ export { verifySessionToken } from "./session-verify";
 
 const DEV_DEFAULT_SECRET = "dev-only-placeholder-override-via-env-var-32b";
 const COOKIE_NAME =
-  process.env.BABY_PHI_SESSION_COOKIE_NAME ?? "baby_phi_session";
+  process.env.PHI_SESSION_COOKIE_NAME ?? "phi_kernel_session";
 
 function getSecret(): Uint8Array {
-  const raw = process.env.BABY_PHI_SESSION_SECRET ?? DEV_DEFAULT_SECRET;
+  const raw = process.env.PHI_SESSION_SECRET ?? DEV_DEFAULT_SECRET;
   if (raw.length < 32) {
     throw new Error(
-      `BABY_PHI_SESSION_SECRET must be at least 32 bytes (got ${raw.length})`,
+      `PHI_SESSION_SECRET must be at least 32 bytes (got ${raw.length})`,
     );
   }
   return new TextEncoder().encode(raw);

@@ -20,7 +20,7 @@ is theatre. Full-DB encryption is scheduled for M7b.
 ## The master key
 
 The server reads a single master key from the
-`BABY_PHI_MASTER_KEY` environment variable. It must be a 32-byte
+`PHI_MASTER_KEY` environment variable. It must be a 32-byte
 value (256 bits), base64-encoded without padding. Generate one with:
 
 ```bash
@@ -29,7 +29,7 @@ head -c 32 /dev/urandom | base64 -w0 | tr '+/' '-_' | tr -d '='
 
 The key is loaded once at startup. The server refuses to start if:
 
-- `BABY_PHI_MASTER_KEY` is unset **and** any code path touches the
+- `PHI_MASTER_KEY` is unset **and** any code path touches the
   `secrets_vault` table, OR
 - The decoded key is not exactly 32 bytes.
 
@@ -51,7 +51,7 @@ needs to be rotated, the operator's options are:
    back. This is an admin-only recovery path; M1 doesn't ship
    tooling for it.
 
-Planned for M7b: a dedicated `baby-phi admin rotate-master-key
+Planned for M7b: a dedicated `phi admin rotate-master-key
 --old <key> --new <key>` subcommand that walks every encrypted row
 in a single transaction.
 
@@ -80,7 +80,7 @@ Recommended operator flow:
 
 - `data_dir` → standard disk snapshot, shipped to object storage
   nightly.
-- `BABY_PHI_MASTER_KEY` → operator password manager + a
+- `PHI_MASTER_KEY` → operator password manager + a
   break-glass hard copy in a physical safe. **Never** commit it
   to Git, never put it in a Dockerfile, never write it to an env
   file on disk.

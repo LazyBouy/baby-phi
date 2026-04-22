@@ -55,7 +55,7 @@ fn client_for(agent_id: &str) -> reqwest::Client {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::COOKIE,
-        reqwest::header::HeaderValue::from_str(&format!("baby_phi_session={jwt}")).unwrap(),
+        reqwest::header::HeaderValue::from_str(&format!("phi_kernel_session={jwt}")).unwrap(),
     );
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))

@@ -18,19 +18,20 @@ use chrono::{DateTime, Utc};
 use crate::audit::AuditEvent;
 use crate::model::ids::{
     AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
-    OrgId, SecretId,
+    OrgId, ProjectId, SecretId,
 };
 use crate::model::nodes::{
-    Agent, AgentKind, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
-    Organization, OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
+    Agent, AgentKind, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
+    Memory, Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ResourceRef, Template,
+    ToolAuthorityManifest, User,
 };
 use crate::model::{
-    Composite, ExternalService, ModelRuntime, PlatformDefaults, SecretCredential, SecretRef,
-    TenantSet,
+    AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime, PlatformDefaults,
+    SecretCredential, SecretRef, TenantSet,
 };
 use crate::repository::{
-    BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, Repository, RepositoryError,
-    RepositoryResult, SealedBlob, TenantRevocation,
+    BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, ProjectShapeCounts, Repository,
+    RepositoryError, RepositoryResult, SealedBlob, TenantRevocation,
 };
 
 #[derive(Default)]
@@ -61,6 +62,22 @@ struct State {
     platform_defaults: Option<PlatformDefaults>,
     // M3/P3 additions.
     token_budget_pools: HashMap<NodeId, crate::model::composites_m3::TokenBudgetPool>,
+    // M4/P1 additions — Project node + Project lead edges + per-agent
+    // ExecutionLimits override rows. `has_lead_edges` gains production
+    // writers at M4/P3's `apply_project_creation`; until then the vec
+    // stays empty and `list_projects_led_by_agent` returns empty.
+    projects: HashMap<ProjectId, Project>,
+    /// `HAS_LEAD` edges (project → lead agent). Kept as a (project,
+    /// lead) Vec rather than a HashMap because an agent may lead
+    /// multiple projects.
+    has_lead_edges: Vec<(ProjectId, AgentId)>,
+    /// `BELONGS_TO` edges (project → owning org). Shape A projects
+    /// have exactly one entry; Shape B projects have two entries
+    /// (one per co-owner).
+    project_belongs_to_edges: Vec<(ProjectId, OrgId)>,
+    /// Per-agent `ExecutionLimits` override rows, keyed by owning
+    /// agent (1:1 per migration 0004's UNIQUE index).
+    agent_execution_limits: HashMap<AgentId, AgentExecutionLimitsOverride>,
 }
 
 #[derive(Clone)]
@@ -126,6 +143,43 @@ impl InMemoryRepository {
         self.state
             .lock()
             .map_err(|e| RepositoryError::Backend(format!("in-memory lock poisoned: {e}")))
+    }
+
+    // ---- M4/P2 test-only seed helpers ---------------------------------
+    //
+    // The M4/P2 Repository trait ships only READ methods for Project +
+    // the `HAS_LEAD` / `BELONGS_TO` edges. Write surfaces land at M4/P3
+    // via the `apply_project_creation` compound tx — which doesn't
+    // exist yet. These helpers let unit tests exercise the populated
+    // branches of the new readers without waiting for P3.
+    //
+    // Gated on `#[cfg(any(test, feature = "in-memory-repo"))]` already
+    // via the module, so the release binary gets none of this.
+
+    /// Seed a Project row + its `BELONGS_TO` edges into the in-memory
+    /// state. `owning_orgs` is a single-org slice for Shape A and a
+    /// two-org slice for Shape B.
+    pub fn test_seed_project(&self, project: Project, owning_orgs: &[OrgId]) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("in-memory lock poisoned in test helper");
+        let pid = project.id;
+        state.projects.insert(pid, project);
+        for org in owning_orgs {
+            state.project_belongs_to_edges.push((pid, *org));
+        }
+    }
+
+    /// Seed a `HAS_LEAD` edge from project to lead agent. Appends
+    /// rather than replacing — callers that model "lead changes"
+    /// should clear the existing edge first.
+    pub fn test_seed_project_lead(&self, project: ProjectId, lead: AgentId) {
+        let mut state = self
+            .state
+            .lock()
+            .expect("in-memory lock poisoned in test helper");
+        state.has_lead_edges.push((project, lead));
     }
 }
 
@@ -802,15 +856,161 @@ impl Repository for InMemoryRepository {
         Ok(state.organizations.values().cloned().collect())
     }
 
-    async fn list_projects_in_org(
+    async fn list_projects_in_org(&self, org: OrgId) -> RepositoryResult<Vec<Project>> {
+        // M4/P1 fleshes the Project struct; M4/P3's compound tx adds
+        // production writers. Until then `state.projects` stays empty
+        // and this method returns `vec![]` — which matches the
+        // pre-M4 behaviour the dashboard already handles.
+        let state = self.lock()?;
+        let project_ids: std::collections::HashSet<ProjectId> = state
+            .project_belongs_to_edges
+            .iter()
+            .filter(|(_, owning)| *owning == org)
+            .map(|(pid, _)| *pid)
+            .collect();
+        Ok(state
+            .projects
+            .values()
+            .filter(|p| project_ids.contains(&p.id))
+            .cloned()
+            .collect())
+    }
+
+    // ---- M4/P2 surface --------------------------------------------
+
+    async fn list_agents_in_org_by_role(
         &self,
-        _org: OrgId,
-    ) -> RepositoryResult<Vec<crate::model::ids::ProjectId>> {
-        // v0 has no `Project` struct + no projects table — M4 will wire
-        // them. Returning an empty Vec today lets the dashboard panel
-        // render a "0 projects" count without special-casing
-        // unimplemented-method handling on the caller side.
-        Ok(vec![])
+        org: OrgId,
+        role: Option<AgentRole>,
+    ) -> RepositoryResult<Vec<Agent>> {
+        let state = self.lock()?;
+        Ok(state
+            .agents
+            .values()
+            .filter(|a| a.owning_org == Some(org))
+            .filter(|a| match role {
+                None => true,
+                Some(target) => a.role == Some(target),
+            })
+            .cloned()
+            .collect())
+    }
+
+    async fn get_project(&self, id: ProjectId) -> RepositoryResult<Option<Project>> {
+        let state = self.lock()?;
+        Ok(state.projects.get(&id).cloned())
+    }
+
+    async fn list_projects_by_shape_in_org(
+        &self,
+        org: OrgId,
+        shape: ProjectShape,
+    ) -> RepositoryResult<Vec<Project>> {
+        let state = self.lock()?;
+        let project_ids: std::collections::HashSet<ProjectId> = state
+            .project_belongs_to_edges
+            .iter()
+            .filter(|(_, owning)| *owning == org)
+            .map(|(pid, _)| *pid)
+            .collect();
+        Ok(state
+            .projects
+            .values()
+            .filter(|p| project_ids.contains(&p.id) && p.shape == shape)
+            .cloned()
+            .collect())
+    }
+
+    async fn count_projects_by_shape_in_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<ProjectShapeCounts> {
+        let state = self.lock()?;
+        let project_ids: std::collections::HashSet<ProjectId> = state
+            .project_belongs_to_edges
+            .iter()
+            .filter(|(_, owning)| *owning == org)
+            .map(|(pid, _)| *pid)
+            .collect();
+        let mut counts = ProjectShapeCounts::default();
+        for p in state.projects.values() {
+            if !project_ids.contains(&p.id) {
+                continue;
+            }
+            match p.shape {
+                ProjectShape::A => counts.shape_a = counts.shape_a.saturating_add(1),
+                ProjectShape::B => counts.shape_b = counts.shape_b.saturating_add(1),
+            }
+        }
+        Ok(counts)
+    }
+
+    async fn list_projects_led_by_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Project>> {
+        let state = self.lock()?;
+        let project_ids: std::collections::HashSet<ProjectId> = state
+            .has_lead_edges
+            .iter()
+            .filter(|(_, lead)| *lead == agent)
+            .map(|(pid, _)| *pid)
+            .collect();
+        Ok(state
+            .projects
+            .values()
+            .filter(|p| project_ids.contains(&p.id))
+            .cloned()
+            .collect())
+    }
+
+    async fn get_agent_execution_limits_override(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentExecutionLimitsOverride>> {
+        let state = self.lock()?;
+        Ok(state.agent_execution_limits.get(&agent).cloned())
+    }
+
+    async fn set_agent_execution_limits_override(
+        &self,
+        row: &AgentExecutionLimitsOverride,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        // The domain-layer invariant (`≤ org snapshot`) is NOT enforced
+        // here — that belongs to the handler so violations surface as a
+        // stable 400 code rather than a backend error. The UNIQUE index
+        // at storage is simulated by HashMap overwrite semantics.
+        state
+            .agent_execution_limits
+            .insert(row.owning_agent, row.clone());
+        Ok(())
+    }
+
+    async fn clear_agent_execution_limits_override(&self, agent: AgentId) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        state.agent_execution_limits.remove(&agent);
+        Ok(())
+    }
+
+    async fn resolve_effective_execution_limits(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<phi_core::context::execution::ExecutionLimits>> {
+        let state = self.lock()?;
+        if let Some(row) = state.agent_execution_limits.get(&agent) {
+            return Ok(Some(row.limits.clone()));
+        }
+        let Some(a) = state.agents.get(&agent) else {
+            return Ok(None);
+        };
+        let Some(org_id) = a.owning_org else {
+            return Ok(None);
+        };
+        let Some(org) = state.organizations.get(&org_id) else {
+            return Ok(None);
+        };
+        Ok(org
+            .defaults_snapshot
+            .as_ref()
+            .map(|snap| snap.execution_limits.clone()))
     }
 
     async fn list_active_auth_requests_for_org(
@@ -1042,6 +1242,198 @@ impl Repository for InMemoryRepository {
             system_agent_profile_ids,
             token_budget_pool_id: payload.token_budget_pool.id,
             adoption_auth_request_ids: adoption_ar_ids,
+        })
+    }
+
+    async fn apply_project_creation(
+        &self,
+        payload: &crate::repository::ProjectCreationPayload,
+    ) -> RepositoryResult<crate::repository::ProjectCreationReceipt> {
+        let mut state = self.lock()?;
+        let pid = payload.project.id;
+
+        // ---- pre-flight validation ------------------------------
+        if state.projects.contains_key(&pid) {
+            return Err(RepositoryError::Conflict(format!(
+                "project already exists: {pid}"
+            )));
+        }
+        use crate::model::nodes::ProjectShape;
+        match payload.project.shape {
+            ProjectShape::A => {
+                if payload.owning_orgs.len() != 1 {
+                    return Err(RepositoryError::InvalidArgument(
+                        "shape_a requires exactly 1 owning org".into(),
+                    ));
+                }
+            }
+            ProjectShape::B => {
+                if payload.owning_orgs.len() != 2 {
+                    return Err(RepositoryError::InvalidArgument(
+                        "shape_b requires exactly 2 owning orgs".into(),
+                    ));
+                }
+            }
+        }
+        for org in &payload.owning_orgs {
+            if !state.organizations.contains_key(org) {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "owning org not found: {org}"
+                )));
+            }
+        }
+        if !state.agents.contains_key(&payload.lead_agent_id) {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "lead agent not found: {}",
+                payload.lead_agent_id
+            )));
+        }
+        for m in &payload.member_agent_ids {
+            if !state.agents.contains_key(m) {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "member agent not found: {m}"
+                )));
+            }
+        }
+        for s in &payload.sponsor_agent_ids {
+            if !state.agents.contains_key(s) {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "sponsor agent not found: {s}"
+                )));
+            }
+        }
+
+        // ---- commit --------------------------------------------
+        state.projects.insert(pid, payload.project.clone());
+        for org in &payload.owning_orgs {
+            state.project_belongs_to_edges.push((pid, *org));
+        }
+        state.has_lead_edges.push((pid, payload.lead_agent_id));
+        // `HAS_AGENT` / `HAS_SPONSOR` edges are tracked structurally
+        // via the project row; in-memory repo does not (yet) carry a
+        // dedicated Vec for them. Surface-level reads live on the
+        // SurrealDB impl in P4+. At M4/P3 the in-memory impl's scope
+        // is proving the compound-tx ordering + rollback semantics.
+        for (uri, kind) in &payload.catalogue_entries {
+            state
+                .catalogue
+                .push((Some(payload.owning_orgs[0]), uri.clone(), kind.clone()));
+        }
+
+        Ok(crate::repository::ProjectCreationReceipt {
+            project_id: pid,
+            owning_org_ids: payload.owning_orgs.clone(),
+            lead_agent_id: payload.lead_agent_id,
+            has_lead_edge_id: EdgeId::new(),
+        })
+    }
+
+    async fn apply_agent_creation(
+        &self,
+        payload: &crate::repository::AgentCreationPayload,
+    ) -> RepositoryResult<crate::repository::AgentCreationReceipt> {
+        let mut state = self.lock()?;
+        let aid = payload.agent.id;
+
+        // ---- pre-flight validation ------------------------------
+        if state.agents.contains_key(&aid) {
+            return Err(RepositoryError::Conflict(format!(
+                "agent already exists: {aid}"
+            )));
+        }
+        let Some(org_id) = payload.agent.owning_org else {
+            return Err(RepositoryError::InvalidArgument(
+                "agent.owning_org must be Some".into(),
+            ));
+        };
+        if !state.organizations.contains_key(&org_id) {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "owning org not found: {org_id}"
+            )));
+        }
+        if let Some(role) = payload.agent.role {
+            if !role.is_valid_for(payload.agent.kind) {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "role {:?} invalid for kind {:?}",
+                    role, payload.agent.kind
+                )));
+            }
+        }
+        for g in &payload.default_grants {
+            match &g.holder {
+                crate::model::nodes::PrincipalRef::Agent(a) if *a == aid => {}
+                _ => {
+                    return Err(RepositoryError::InvalidArgument(
+                        "default_grants[n].holder must be Agent(payload.agent.id)".into(),
+                    ));
+                }
+            }
+        }
+        if let Some(ref ovr) = payload.initial_execution_limits_override {
+            if ovr.owning_agent != aid {
+                return Err(RepositoryError::InvalidArgument(
+                    "initial_execution_limits_override.owning_agent must match payload.agent.id"
+                        .into(),
+                ));
+            }
+        }
+        if payload.inbox.agent_id != aid {
+            return Err(RepositoryError::InvalidArgument(
+                "inbox.agent_id must match payload.agent.id".into(),
+            ));
+        }
+        if payload.outbox.agent_id != aid {
+            return Err(RepositoryError::InvalidArgument(
+                "outbox.agent_id must match payload.agent.id".into(),
+            ));
+        }
+        if let Some(ref p) = payload.profile {
+            if p.agent_id != aid {
+                return Err(RepositoryError::InvalidArgument(
+                    "profile.agent_id must match payload.agent.id".into(),
+                ));
+            }
+        }
+
+        // ---- commit --------------------------------------------
+        state.agents.insert(aid, payload.agent.clone());
+        state
+            .inboxes
+            .insert(payload.inbox.id, payload.inbox.clone());
+        state
+            .outboxes
+            .insert(payload.outbox.id, payload.outbox.clone());
+        let profile_id = payload.profile.as_ref().map(|p| {
+            state.agent_profiles.insert(p.id, p.clone());
+            p.id
+        });
+        let mut default_grant_ids = Vec::with_capacity(payload.default_grants.len());
+        for g in &payload.default_grants {
+            state.grants.insert(g.id, g.clone());
+            default_grant_ids.push(g.id);
+        }
+        let execution_limits_override_id =
+            payload
+                .initial_execution_limits_override
+                .as_ref()
+                .map(|ovr| {
+                    state.agent_execution_limits.insert(aid, ovr.clone());
+                    ovr.id
+                });
+        for (uri, kind) in &payload.catalogue_entries {
+            state
+                .catalogue
+                .push((Some(org_id), uri.clone(), kind.clone()));
+        }
+
+        Ok(crate::repository::AgentCreationReceipt {
+            agent_id: aid,
+            owning_org_id: org_id,
+            inbox_id: payload.inbox.id,
+            outbox_id: payload.outbox.id,
+            profile_id,
+            default_grant_ids,
+            execution_limits_override_id,
         })
     }
 }

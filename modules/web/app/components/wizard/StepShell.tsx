@@ -6,7 +6,7 @@
 // progress indicator, and error-alert placement so per-step code stays
 // focused on the domain payload.
 //
-// This is baby-phi-native web UX — phi-core has no web tier.
+// This is phi-native web UX — phi-core has no web tier.
 
 "use client";
 

@@ -16,7 +16,7 @@
 //! phi-core leverage: the stored `endpoint` string is the verbatim
 //! argument phi-core's [`McpClient::connect_stdio`] / `connect_http`
 //! accepts — at invoke time, handlers parse it and hand it to the
-//! phi-core constructor without any baby-phi-local reinterpretation.
+//! phi-core constructor without any phi-local reinterpretation.
 
 use std::sync::Arc;
 

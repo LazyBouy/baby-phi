@@ -13,8 +13,8 @@
 //!   by `list_tools()`.
 //! - phi-core has no health-probe abstraction (§1.5 🚫); the tiny
 //!   timeout+retry wrapper in [`health_probe`] is the only
-//!   baby-phi-native MCP code.
-//! - The `ExternalService` composite itself is baby-phi-only (phi-core
+//!   phi-native MCP code.
+//! - The `ExternalService` composite itself is phi-only (phi-core
 //!   has no "persisted MCP binding" container — it only ships the
 //!   client).
 //!

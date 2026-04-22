@@ -7,34 +7,34 @@
 
 ## Context  `[STATUS: n/a]`
 
-M0 (project scaffolding) is implementation-complete and CI-green: workspace restructured under `baby-phi/modules/{crates,web}`, SurrealDB embedded (RocksDB) adapter wired, health + metrics endpoints live, Next.js 14 scaffold in place, three CI workflows set up. Before starting M1 (Permission Check spine) we want two things:
+M0 (project scaffolding) is implementation-complete and CI-green: workspace restructured under `phi/modules/{crates,web}`, SurrealDB embedded (RocksDB) adapter wired, health + metrics endpoints live, Next.js 14 scaffold in place, three CI workflows set up. Before starting M1 (Permission Check spine) we want two things:
 
-1. **An independent accuracy check** of what M0 actually shipped vs what the archived build plan committed to (`baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md`).
-2. **Detailed M0 documentation** under a new tree `baby-phi/docs/specs/v0/implementation/m0/`, organised into `architecture/`, `user-guide/`, `operations/`, and `decisions/` (ADRs) subfolders.
+1. **An independent accuracy check** of what M0 actually shipped vs what the archived build plan committed to (`phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md`).
+2. **Detailed M0 documentation** under a new tree `phi/docs/specs/v0/implementation/m0/`, organised into `architecture/`, `user-guide/`, `operations/`, and `decisions/` (ADRs) subfolders.
 
 The audit result (below) says M0 is structurally solid but has one HIGH-severity production-readiness gap that should be closed *before* docs are written — so the docs reflect a correct M0, not one with TODO markers throughout.
 
-The *overall v0.1 build plan* (M0→M8) still lives in its archive at `baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md`. This plan file supersedes that one only for the next block of work (audit + docs); M1+ planning will be picked up separately.
+The *overall v0.1 build plan* (M0→M8) still lives in its archive at `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md`. This plan file supersedes that one only for the next block of work (audit + docs); M1+ planning will be picked up separately.
 
-**Archive location for this plan:** `baby-phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md` (new subfolder; matches the sibling convention used by `plan/build/` and `plan/requirements/`). The first execution step (Part 7 step 0) is to copy this plan file verbatim to that path so the audit + doc plan is preserved alongside the other archived plans.
+**Archive location for this plan:** `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md` (new subfolder; matches the sibling convention used by `plan/build/` and `plan/requirements/`). The first execution step (Part 7 step 0) is to copy this plan file verbatim to that path so the audit + doc plan is preserved alongside the other archived plans.
 
 ---
 
 ## Part 1 — Accuracy audit of M0  `[STATUS: ✓ done]`
 
-An independent Explore-agent audit compared the current state of `baby-phi/` against the archived build plan's §M0 bullets + the M0-tagged rows in §Production-readiness commitments.
+An independent Explore-agent audit compared the current state of `phi/` against the archived build plan's §M0 bullets + the M0-tagged rows in §Production-readiness commitments.
 
 ### Section scores
 
 | Area | Verdict | Evidence (file path) |
 |---|---|---|
 | Workspace layout (`modules/crates/{cli,domain,store,server}` + `modules/web`) | ✓ | `Cargo.toml` members array; member Cargo.tomls |
-| Package names (terse) + binary names (prefixed) | ✓ | `modules/crates/cli/Cargo.toml` (`name="cli"`, `[[bin]] name="baby-phi"`); `modules/crates/server/Cargo.toml` |
+| Package names (terse) + binary names (prefixed) | ✓ | `modules/crates/cli/Cargo.toml` (`name="cli"`, `[[bin]] name="phi"`); `modules/crates/server/Cargo.toml` |
 | Rust imports updated to short names | ✓ | `modules/crates/server/src/{main,state}.rs`, `modules/crates/store/src/lib.rs` |
 | Health endpoints (`/healthz/{live,ready}`) split + storage probe | ✓ | `modules/crates/server/src/health.rs` |
 | `/metrics` via axum-prometheus, production-only wiring | ✓ | `modules/crates/server/src/router.rs` (`build_router` vs `with_prometheus`) |
 | SurrealDB embedded RocksDB adapter + `Repository::ping` | ✓ | `modules/crates/store/src/lib.rs` |
-| 12-factor layered config (default + dev/staging/prod) + `BABY_PHI_*` env overrides | ✓ | `config/*.toml`, `modules/crates/server/src/config.rs` |
+| 12-factor layered config (default + dev/staging/prod) + `PHI_*` env overrides | ✓ | `config/*.toml`, `modules/crates/server/src/config.rs` |
 | Next.js 14 App Router + SSR + Tailwind + `/api/v0/*` proxy + auth stub | ✓ | `modules/web/**` |
 | Dockerfile multi-stage + non-root user (uid 10001) + tini + HEALTHCHECK | ✓ | `Dockerfile` |
 | docker-compose.yml referencing `modules/web` | ✓ | `docker-compose.yml` |
@@ -44,7 +44,7 @@ An independent Explore-agent audit compared the current state of `baby-phi/` aga
 | `deny.toml` policy (advisories, bans, licences, sources) | ✓ | `deny.toml` |
 | `RUSTFLAGS=-Dwarnings` enforced in CI | ✓ | `.github/workflows/rust.yml` |
 | Build plan archived verbatim | ✓ | `docs/specs/plan/build/36d0c6c5-build-plan-v01.md` |
-| `CLAUDE.md` reflects new layout | ✓ | `baby-phi/CLAUDE.md` |
+| `CLAUDE.md` reflects new layout | ✓ | `phi/CLAUDE.md` |
 | **TLS support surface** (axum-rustls crate + listener path) | **✗** | `TlsConfig` struct exists in `modules/crates/server/src/config.rs` but no `axum-rustls` dep in Cargo.toml and no listener path in `main.rs` |
 | `modules/web/package-lock.json` committed | ✗ | File not present; CI `npm ci` reproducibility at risk |
 | `.env.example` for developer onboarding | ✗ | Absent |
@@ -70,7 +70,7 @@ An independent Explore-agent audit compared the current state of `baby-phi/` aga
 Close every gap identified in Part 1 **before** writing any documentation. Sequencing chosen so the docs describe a correct M0, not a partial one.
 
 ### R1 — Wire native TLS via `axum-rustls`  `[HIGH]`
-1. Add `axum-server = { version = "0.7", features = ["tls-rustls"] }` to `baby-phi/Cargo.toml` `[workspace.dependencies]` and to `modules/crates/server/Cargo.toml`. (`axum-server` is the canonical crate; `axum-rustls` in the original plan was shorthand.)
+1. Add `axum-server = { version = "0.7", features = ["tls-rustls"] }` to `phi/Cargo.toml` `[workspace.dependencies]` and to `modules/crates/server/Cargo.toml`. (`axum-server` is the canonical crate; `axum-rustls` in the original plan was shorthand.)
 2. In `modules/crates/server/src/main.rs`:
    - If `cfg.server.tls` is `Some(tls)`: bind via `axum_server::tls_rustls::RustlsConfig::from_pem_file(tls.cert_path, tls.key_path)` and serve with `axum_server::bind_rustls`.
    - Otherwise: existing `axum::serve(TcpListener, app)` path (HTTP).
@@ -79,24 +79,24 @@ Close every gap identified in Part 1 **before** writing any documentation. Seque
 5. Update workspace build + clippy + test verification (R5 below).
 
 ### R2 — Generate + commit `modules/web/package-lock.json`  `[MEDIUM]`
-1. From `baby-phi/modules/web/` run `npm install` (produces `package-lock.json` and `node_modules/`).
+1. From `phi/modules/web/` run `npm install` (produces `package-lock.json` and `node_modules/`).
 2. Commit only `package-lock.json`; `node_modules/` is already gitignored.
-3. Confirm `web.yml`'s `cache-dependency-path: baby-phi/modules/web/package-lock.json` resolves (it does, path is already correct).
+3. Confirm `web.yml`'s `cache-dependency-path: phi/modules/web/package-lock.json` resolves (it does, path is already correct).
 
 ### R3 — Add `.env.example`  `[LOW]`
-1. Create `baby-phi/.env.example` with commented placeholders for:
+1. Create `phi/.env.example` with commented placeholders for:
    - `OPENROUTER_API_KEY=` (consumed by the CLI demo via existing `.env` flow).
-   - `BABY_PHI_PROFILE=dev` (selects the overlay in `config/`).
-   - `BABY_PHI_API_URL=http://127.0.0.1:8080` (consumed by the Next.js web app).
+   - `PHI_PROFILE=dev` (selects the overlay in `config/`).
+   - `PHI_API_URL=http://127.0.0.1:8080` (consumed by the Next.js web app).
    - Placeholders for future secrets — labelled `[M3]`, `[M7b]` — so developers see the future shape early.
 2. Confirm `.env` (the real file) is still git-ignored — existing `.gitignore` has the rule.
 
 ### R4 — Add `docs/ops/runbook.md` stub  `[LOW]`
-1. Create `baby-phi/docs/ops/runbook.md` as an explicit placeholder: the full runbook is an M7b deliverable; M0 ships a title, a "not yet populated — see build plan M7b" note, and a table of contents of the sections that will fill in (deploy, upgrade, rollback, backup, restore, 5 common incidents, known issues).
+1. Create `phi/docs/ops/runbook.md` as an explicit placeholder: the full runbook is an M7b deliverable; M0 ships a title, a "not yet populated — see build plan M7b" note, and a table of contents of the sections that will fill in (deploy, upgrade, rollback, backup, restore, 5 common incidents, known issues).
 2. This is a 20-line file. Its purpose is a future-anchor link so onboarding can link to it without a 404.
 
 ### R5 — Re-verify green after remediation
-1. `cd baby-phi && /root/rust-env/cargo/bin/cargo fmt --all -- --check`
+1. `cd phi && /root/rust-env/cargo/bin/cargo fmt --all -- --check`
 2. `RUSTFLAGS="-Dwarnings" /root/rust-env/cargo/bin/cargo clippy --workspace --all-targets`
 3. `/root/rust-env/cargo/bin/cargo test --workspace`
 4. `cd modules/web && npm ci && npm run lint && npm run typecheck && npm run build`
@@ -107,7 +107,7 @@ Pass criteria: all four green. Expected outcome: M0 confidence rises from 75 % t
 
 ## Part 3 — Documentation structure  `[STATUS: ⏳ pending]`
 
-Root: `baby-phi/docs/specs/v0/implementation/m0/`
+Root: `phi/docs/specs/v0/implementation/m0/`
 
 ```
 implementation/m0/
@@ -175,20 +175,20 @@ implementation/m0/
 
 #### `architecture/configuration.md`
 - Precedence (default → profile → env).
-- Env-var naming: `BABY_PHI_<SECTION>__<FIELD>`.
+- Env-var naming: `PHI_<SECTION>__<FIELD>`.
 - Secrets boundary (never in files, always env).
 - Full schema reference with field-by-field description.
 
 #### `architecture/telemetry-and-metrics.md`
 - `tracing` subscriber setup (pretty for dev, JSON for prod).
-- `EnvFilter` + `BABY_PHI_TELEMETRY__LOG_FILTER`.
+- `EnvFilter` + `PHI_TELEMETRY__LOG_FILTER`.
 - `axum-prometheus` wiring + the "one global recorder per process" caveat.
 - What metrics exist today (HTTP request histogram from `axum-prometheus`) and what will be added in M7 (custom `permission_check_latency_seconds`, etc.) — clearly tagged `[PLANNED M7]`.
 
 #### `architecture/web-topology.md`
 - App Router layout (`app/layout.tsx`, `app/page.tsx`).
 - SSR-first, `dynamic = "force-dynamic"` on the health page.
-- API proxy via `next.config.mjs` rewrites (`/api/v0/*` → `BABY_PHI_API_URL`).
+- API proxy via `next.config.mjs` rewrites (`/api/v0/*` → `PHI_API_URL`).
 - Auth placeholder contract (`lib/session.ts`) — what will be filled in at M3/M7b.
 
 #### `user-guide/getting-started.md`
@@ -204,12 +204,12 @@ implementation/m0/
 
 #### `user-guide/running-locally.md`
 - CLI demo: `.env` + `cargo run -p cli` + `config.toml`.
-- Server: `BABY_PHI_PROFILE=dev cargo run -p server` → `curl http://127.0.0.1:8080/healthz/live`.
+- Server: `PHI_PROFILE=dev cargo run -p server` → `curl http://127.0.0.1:8080/healthz/live`.
 - Web: `cd modules/web && npm install && npm run dev` → http://localhost:3000.
 
 #### `user-guide/docker-compose.md`
 - `docker-compose up --build` → both services up.
-- Volume persistence (`baby-phi-data`).
+- Volume persistence (`phi-data`).
 - Rebuild on code change (images vs bind mounts).
 
 #### `user-guide/health-and-metrics.md`
@@ -220,14 +220,14 @@ implementation/m0/
 #### `user-guide/troubleshooting.md`
 - `error: rustc X is not supported by … constant_time_eq` → rustup update stable.
 - `libclang not found` → `apt install libclang-dev clang` + `LIBCLANG_PATH=/usr/lib/llvm-18/lib`.
-- "Port 8080 in use" → change `BABY_PHI_SERVER__PORT`.
+- "Port 8080 in use" → change `PHI_SERVER__PORT`.
 - "axum-prometheus panics on second test" → use `build_router` not `with_prometheus` in tests (reference ADR-0005).
 
 #### `operations/deployment-docker.md`
 - Dockerfile walk-through, stage-by-stage.
 - Non-root user, tini init, healthcheck.
 - Expected runtime env vars.
-- Volume mount contract (`/var/lib/baby-phi/data`).
+- Volume mount contract (`/var/lib/phi/data`).
 
 #### `operations/configuration-profiles.md`
 - `dev` / `staging` / `prod` semantics.
@@ -267,12 +267,12 @@ Positive + negative trade-offs.
 Bulleted with a sentence each.
 ```
 
-- **0001 SurrealDB over Memgraph** — adapt the comparison table + "why SurrealDB wins" from the build plan; reference `baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` for full rationale.
+- **0001 SurrealDB over Memgraph** — adapt the comparison table + "why SurrealDB wins" from the build plan; reference `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` for full rationale.
 - **0002 Three parallel surfaces** — CLI + HTTP API + web. Why the API is the single source of truth both clients consume.
 - **0003 `modules/crates/` + `modules/web/` layout** — why this split, why not flat crate dirs at workspace root.
 - **0004 Terse package names** — `cli`, `domain`, `store`, `server`; binary names keep the product prefix.
 - **0005 Metrics layer separation** — `build_router` vs `with_prometheus`; the axum-prometheus global-recorder caveat.
-- **0006 12-factor layered config** — TOML for defaults, env for secrets, profile selection via `BABY_PHI_PROFILE`.
+- **0006 12-factor layered config** — TOML for defaults, env for secrets, profile selection via `PHI_PROFILE`.
 - **0007 Embedded vs sidecar database** — embedded RocksDB for v0.1; scaling path to standalone server / TiKV cluster documented.
 
 ---
@@ -293,23 +293,23 @@ Applied to every page under `docs/specs/v0/implementation/m0/`:
 ## Part 5 — Critical files (reference)  `[STATUS: n/a]`
 
 Will be modified:
-- `baby-phi/Cargo.toml`  (R1 — add axum-server workspace dep)
-- `baby-phi/modules/crates/server/Cargo.toml`  (R1 — pull axum-server into server crate)
-- `baby-phi/modules/crates/server/src/main.rs`  (R1 — branch on `cfg.server.tls`)
-- `baby-phi/config/prod.toml`  (R1 — reverse-proxy comment)
+- `phi/Cargo.toml`  (R1 — add axum-server workspace dep)
+- `phi/modules/crates/server/Cargo.toml`  (R1 — pull axum-server into server crate)
+- `phi/modules/crates/server/src/main.rs`  (R1 — branch on `cfg.server.tls`)
+- `phi/config/prod.toml`  (R1 — reverse-proxy comment)
 
 Will be created:
-- `baby-phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md`  (archive of this plan; new `review-and-docs/` subfolder)
-- `baby-phi/modules/web/package-lock.json`  (R2)
-- `baby-phi/.env.example`  (R3)
-- `baby-phi/docs/ops/runbook.md`  (R4 — stub)
-- `baby-phi/tests/fixtures/tls/{cert,key}.pem`  (R1 — self-signed fixtures for TLS smoke test)
-- `baby-phi/modules/crates/server/tests/tls_test.rs`  (R1 — TLS integration smoke)
-- `baby-phi/docs/specs/v0/implementation/m0/README.md`
-- `baby-phi/docs/specs/v0/implementation/m0/architecture/*.md`  (7 files)
-- `baby-phi/docs/specs/v0/implementation/m0/user-guide/*.md`  (6 files)
-- `baby-phi/docs/specs/v0/implementation/m0/operations/*.md`  (5 files)
-- `baby-phi/docs/specs/v0/implementation/m0/decisions/*.md`  (7 ADRs)
+- `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md`  (archive of this plan; new `review-and-docs/` subfolder)
+- `phi/modules/web/package-lock.json`  (R2)
+- `phi/.env.example`  (R3)
+- `phi/docs/ops/runbook.md`  (R4 — stub)
+- `phi/tests/fixtures/tls/{cert,key}.pem`  (R1 — self-signed fixtures for TLS smoke test)
+- `phi/modules/crates/server/tests/tls_test.rs`  (R1 — TLS integration smoke)
+- `phi/docs/specs/v0/implementation/m0/README.md`
+- `phi/docs/specs/v0/implementation/m0/architecture/*.md`  (7 files)
+- `phi/docs/specs/v0/implementation/m0/user-guide/*.md`  (6 files)
+- `phi/docs/specs/v0/implementation/m0/operations/*.md`  (5 files)
+- `phi/docs/specs/v0/implementation/m0/decisions/*.md`  (7 ADRs)
 
 Total new files: ~30. Per-page length target: 60–200 lines. Total doc additions: ~4–5k lines.
 
@@ -329,7 +329,7 @@ Before declaring this plan's work complete, verify:
 
 ## Part 7 — Execution order  `[STATUS: ⏳ pending]`
 
-0. **Archive this plan** — create `baby-phi/docs/specs/plan/review-and-docs/` (new subfolder) and copy this plan verbatim to `baby-phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md`. Mirrors the pattern used for the v0.1 build plan (`plan/build/36d0c6c5-…`) and the requirements plan (`plan/requirements/e2781622-…`). (~2 min.)
+0. **Archive this plan** — create `phi/docs/specs/plan/review-and-docs/` (new subfolder) and copy this plan verbatim to `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md`. Mirrors the pattern used for the v0.1 build plan (`plan/build/36d0c6c5-…`) and the requirements plan (`plan/requirements/e2781622-…`). (~2 min.)
 1. **R1** — axum-server + TLS wiring + smoke test (~45 min).
 2. **R2** — `npm install` in modules/web, commit lockfile (~5 min).
 3. **R3** — `.env.example` (~5 min).
@@ -344,7 +344,7 @@ Before declaring this plan's work complete, verify:
 
 ## What stays unchanged  `[STATUS: n/a]`
 
-- The overall v0.1 build plan at `baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` is not edited by this work — it remains the source of truth for M0–M8 intent.
+- The overall v0.1 build plan at `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` is not edited by this work — it remains the source of truth for M0–M8 intent.
 - Concept + requirement specs under `docs/specs/v0/concepts/` + `docs/specs/v0/requirements/` are untouched.
-- `baby-phi/CLAUDE.md` already reflects the M0-post-restructure layout; it will be cross-linked from the new `implementation/m0/README.md` but not rewritten.
+- `phi/CLAUDE.md` already reflects the M0-post-restructure layout; it will be cross-linked from the new `implementation/m0/README.md` but not rewritten.
 - M1 planning is a separate conversation that picks up once this plan's work lands.

@@ -177,6 +177,12 @@ pub struct Agent {
     /// Optional owning org once membership is established (None for fresh
     /// platform-admin at bootstrap time).
     pub owning_org: Option<OrgId>,
+    /// Governance role within the owning org. `None` for pre-M4 agents
+    /// deserialised from storage (treated as "Unclassified" by the
+    /// dashboard roll-up). Enforced by `AgentRole::is_valid_for(kind)` at
+    /// agent-creation + edit time.
+    #[serde(default)]
+    pub role: Option<AgentRole>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -189,15 +195,77 @@ pub enum AgentKind {
     Llm,
 }
 
+/// An Agent's governance role within an org. Applies to both Human and LLM
+/// agents via the `is_valid_for(kind)` rule. Source of truth for the 6-variant
+/// enumeration: `docs/specs/v0/concepts/agent.md §Agent Roles`.
+///
+/// **Human-only roles** (must satisfy `kind == AgentKind::Human`):
+/// - [`AgentRole::Executive`] — top-tier governance authority (e.g. CEO).
+/// - [`AgentRole::Admin`] — operational governance (create/edit agents,
+///   manage projects, adopt templates).
+/// - [`AgentRole::Member`] — ordinary human participant; project contributor.
+///
+/// **LLM-only roles** (must satisfy `kind == AgentKind::Llm`):
+/// - [`AgentRole::Intern`] — new worker agent, pre-token-economy.
+/// - [`AgentRole::Contract`] — promoted agent, full token-economy participant.
+/// - [`AgentRole::System`] — platform-provisioned system agent (read-only on
+///   page 09; lifecycle managed by platform).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentRole {
+    Executive,
+    Admin,
+    Member,
+    Intern,
+    Contract,
+    System,
+}
+
+impl AgentRole {
+    /// Every variant in a stable order (Human-side first, LLM-side second).
+    pub const ALL: [AgentRole; 6] = [
+        AgentRole::Executive,
+        AgentRole::Admin,
+        AgentRole::Member,
+        AgentRole::Intern,
+        AgentRole::Contract,
+        AgentRole::System,
+    ];
+
+    /// Canonical string form — matches `#[serde(rename_all = "snake_case")]`.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AgentRole::Executive => "executive",
+            AgentRole::Admin => "admin",
+            AgentRole::Member => "member",
+            AgentRole::Intern => "intern",
+            AgentRole::Contract => "contract",
+            AgentRole::System => "system",
+        }
+    }
+
+    /// Validation rule enforced at agent-creation time + edit time.
+    ///
+    /// Rejects Human agents carrying LLM roles and vice versa. Enforced by
+    /// the server handler (page 09 create/edit) with stable code
+    /// `AGENT_ROLE_INVALID_FOR_KIND` on violation.
+    pub fn is_valid_for(self, kind: AgentKind) -> bool {
+        match self {
+            AgentRole::Executive | AgentRole::Admin | AgentRole::Member => kind == AgentKind::Human,
+            AgentRole::Intern | AgentRole::Contract | AgentRole::System => kind == AgentKind::Llm,
+        }
+    }
+}
+
 /// Blueprint — who an agent IS.
 ///
 /// Per [`concepts/phi-core-mapping.md`](../../../../../docs/specs/v0/concepts/phi-core-mapping.md)
-/// baby-phi's `AgentProfile` node maps to phi-core's `AgentProfile` type.
+/// phi's `AgentProfile` node maps to phi-core's `AgentProfile` type.
 /// Rather than duplicating phi-core's field set, this struct **wraps**
 /// [`phi_core::agents::profile::AgentProfile`] as `blueprint` and adds
-/// only the baby-phi-specific governance fields on top.
+/// only the phi-specific governance fields on top.
 ///
-/// Fields defined here (baby-phi-only):
+/// Fields defined here (phi-only):
 /// - `id` — graph-node identity.
 /// - `agent_id` — owning Agent node.
 /// - `parallelize` — concurrent session cap (enforced at session-start);
@@ -215,7 +283,7 @@ pub struct AgentProfile {
     pub id: NodeId,
     pub agent_id: AgentId,
     /// Concurrent session cap (default 1); enforced at session-start time.
-    /// baby-phi-specific governance field — not on `phi_core::AgentProfile`.
+    /// phi-specific governance field — not on `phi_core::AgentProfile`.
     pub parallelize: u32,
     /// The phi-core execution blueprint. Source of truth for
     /// `system_prompt`, `thinking_level`, `skills`, etc.
@@ -247,7 +315,7 @@ pub struct Organization {
     pub id: OrgId,
     pub display_name: String,
     /// Operator-facing org vision statement (optional; supplied by
-    /// the M3 org-creation wizard, step 1). Purely baby-phi —
+    /// the M3 org-creation wizard, step 1). Purely phi —
     /// phi-core has no org-governance concept.
     #[serde(default)]
     pub vision: Option<String>,
@@ -300,6 +368,113 @@ impl Organization {
     }
     fn default_audit_class() -> crate::audit::AuditClass {
         crate::audit::AuditClass::Logged
+    }
+}
+
+/// Project node — M4's first-class container for work.
+///
+/// Source of truth: [`docs/specs/v0/concepts/project.md`] §Properties. M4
+/// materialises the full struct (M1–M3 kept it scaffolded as id-only).
+///
+/// **phi-core leverage**: none — Project is a pure phi governance
+/// composite. phi-core has no Project / OKR / planning concept (see
+/// Part 1.5 of the M4 plan §Q3 rejections).
+///
+/// OKRs + resource boundaries are **embedded value objects** (not sibling
+/// nodes) — see [`crate::model::composites_m4`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Project {
+    pub id: ProjectId,
+    pub name: String,
+    pub description: String,
+    /// Optional one-line goal. Complementary to `objectives` — a project
+    /// may have a `goal` (framing) *and* OKRs (measurement).
+    #[serde(default)]
+    pub goal: Option<String>,
+    pub status: ProjectStatus,
+    pub shape: ProjectShape,
+    /// Total tokens allocated for this project (complementary to the
+    /// org-level [`crate::model::TokenBudgetPool`]).
+    #[serde(default)]
+    pub token_budget: Option<u64>,
+    /// Running total of tokens consumed across all sessions attributed
+    /// to this project. Invariant: `tokens_spent <= token_budget` when
+    /// `token_budget.is_some()`. Enforced at session-end time (M5+).
+    #[serde(default)]
+    pub tokens_spent: u64,
+    #[serde(default)]
+    pub objectives: Vec<crate::model::composites_m4::Objective>,
+    #[serde(default)]
+    pub key_results: Vec<crate::model::composites_m4::KeyResult>,
+    /// Subset of the owning org's `resources_catalogue` that this project
+    /// operates within. Narrows the grantable resource set for
+    /// project-scoped grants.
+    #[serde(default)]
+    pub resource_boundaries: Option<crate::model::composites_m4::ResourceBoundaries>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// The 4-state project lifecycle per `concepts/project.md §Project Status`.
+///
+/// Transitions:
+/// ```text
+/// Planned ──▶ InProgress ──▶ Finished
+///                │   ▲
+///                ▼   │
+///              OnHold
+/// ```
+/// Every transition carries a reason (surfaced via an audit event; not
+/// embedded on the variant to keep the enum serde-flat).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectStatus {
+    Planned,
+    InProgress,
+    OnHold,
+    Finished,
+}
+
+impl ProjectStatus {
+    pub const ALL: [ProjectStatus; 4] = [
+        ProjectStatus::Planned,
+        ProjectStatus::InProgress,
+        ProjectStatus::OnHold,
+        ProjectStatus::Finished,
+    ];
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ProjectStatus::Planned => "planned",
+            ProjectStatus::InProgress => "in_progress",
+            ProjectStatus::OnHold => "on_hold",
+            ProjectStatus::Finished => "finished",
+        }
+    }
+}
+
+/// Project governance shape — Shape A (single-org, immediate materialisation)
+/// vs Shape B (co-owned by two orgs, two-approver Auth Request flow).
+///
+/// Wire-form: `"shape_a"` / `"shape_b"` — pins the dashboard's
+/// `ProjectsSummary.shape_a` / `.shape_b` counter field names (M3 carryover
+/// C-M4-3). Alternative names (`single_org` / `co_owned`) rejected at plan
+/// close (D2) to avoid a downstream rename.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ProjectShape {
+    #[serde(rename = "shape_a")]
+    A,
+    #[serde(rename = "shape_b")]
+    B,
+}
+
+impl ProjectShape {
+    pub const ALL: [ProjectShape; 2] = [ProjectShape::A, ProjectShape::B];
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ProjectShape::A => "shape_a",
+            ProjectShape::B => "shape_b",
+        }
     }
 }
 
@@ -705,11 +880,8 @@ scaffold_node!(
     CachePolicy,
     NodeId
 );
-scaffold_node!(
-    /// Container for work with goal, agents, governance. [PLANNED M4].
-    Project,
-    ProjectId
-);
+// Project is a full M4 node (not a scaffold) — defined below.
+
 scaffold_node!(
     /// Biddable unit of work. [PLANNED M4].
     Task,
@@ -769,5 +941,100 @@ mod tests {
             let back: NodeKind = serde_json::from_str(&j).expect("deserialize");
             assert_eq!(back, k);
         }
+    }
+
+    // ---- M4: AgentRole ----------------------------------------------------
+
+    #[test]
+    fn agent_role_all_has_six_variants() {
+        assert_eq!(AgentRole::ALL.len(), 6);
+    }
+
+    #[test]
+    fn agent_role_serde_roundtrip() {
+        for r in AgentRole::ALL {
+            let j = serde_json::to_string(&r).expect("serialize");
+            let back: AgentRole = serde_json::from_str(&j).expect("deserialize");
+            assert_eq!(back, r);
+        }
+    }
+
+    #[test]
+    fn agent_role_wire_names_match_as_str() {
+        // `as_str()` must render the same wire-form as serde — the
+        // migration 0004 ASSERT clause uses serde's snake_case form.
+        for r in AgentRole::ALL {
+            let serde_form = serde_json::to_value(r)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_string))
+                .expect("AgentRole serialises as JSON string");
+            assert_eq!(r.as_str(), serde_form);
+        }
+    }
+
+    #[test]
+    fn agent_role_human_variants_reject_llm_kind() {
+        for r in [AgentRole::Executive, AgentRole::Admin, AgentRole::Member] {
+            assert!(r.is_valid_for(AgentKind::Human), "{:?} Human", r);
+            assert!(!r.is_valid_for(AgentKind::Llm), "{:?} Llm", r);
+        }
+    }
+
+    #[test]
+    fn agent_role_llm_variants_reject_human_kind() {
+        for r in [AgentRole::Intern, AgentRole::Contract, AgentRole::System] {
+            assert!(r.is_valid_for(AgentKind::Llm), "{:?} Llm", r);
+            assert!(!r.is_valid_for(AgentKind::Human), "{:?} Human", r);
+        }
+    }
+
+    // ---- M4: ProjectStatus + ProjectShape ---------------------------------
+
+    #[test]
+    fn project_status_all_has_four_variants_and_roundtrips() {
+        assert_eq!(ProjectStatus::ALL.len(), 4);
+        for s in ProjectStatus::ALL {
+            let j = serde_json::to_string(&s).expect("serialize");
+            let back: ProjectStatus = serde_json::from_str(&j).expect("deserialize");
+            assert_eq!(back, s);
+        }
+    }
+
+    #[test]
+    fn project_shape_serialises_with_shape_prefix() {
+        // Dashboard's `ProjectsSummary.shape_a` / `.shape_b` field names
+        // depend on this wire form (M3 carryover C-M4-3).
+        assert_eq!(
+            serde_json::to_value(ProjectShape::A).unwrap(),
+            serde_json::Value::String("shape_a".into())
+        );
+        assert_eq!(
+            serde_json::to_value(ProjectShape::B).unwrap(),
+            serde_json::Value::String("shape_b".into())
+        );
+    }
+
+    #[test]
+    fn project_shape_roundtrips() {
+        for s in ProjectShape::ALL {
+            let j = serde_json::to_string(&s).expect("serialize");
+            let back: ProjectShape = serde_json::from_str(&j).expect("deserialize");
+            assert_eq!(back, s);
+        }
+    }
+
+    #[test]
+    fn agent_role_field_defaults_to_none_for_pre_m4_rows() {
+        // Deserialising an Agent row written before M4 (no `role` column)
+        // must round-trip with `role = None` via `#[serde(default)]`.
+        let pre_m4 = r#"{
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "human",
+            "display_name": "legacy admin",
+            "owning_org": null,
+            "created_at": "2026-01-01T00:00:00Z"
+        }"#;
+        let agent: Agent = serde_json::from_str(pre_m4).expect("deserialize pre-M4 row");
+        assert_eq!(agent.role, None);
     }
 }

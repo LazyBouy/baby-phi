@@ -5,7 +5,7 @@
 **Status: [EXISTS]** — landed in M3/P1 per [ADR-0020](../decisions/0020-organization-defaults-embedded.md).
 
 Each org's governance snapshot (execution limits / agent blueprint /
-context config / retry config + baby-phi retention + alert channels)
+context config / retry config + phi retention + alert channels)
 is a field on the Organization node, NOT a sibling composite. This
 page publishes the rationale for grep-ability; the ADR holds the
 Accepted decision.
@@ -27,7 +27,7 @@ props` proptest; M3 re-verifies it by using the same proptest
 
 ## phi-core leverage
 
-Four phi-core types wrapped directly (no parallel baby-phi layer);
+Four phi-core types wrapped directly (no parallel phi layer);
 same pattern as M2/P7's `PlatformDefaults`:
 
 - `phi_core::context::execution::ExecutionLimits`

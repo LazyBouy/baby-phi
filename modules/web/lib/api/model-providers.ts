@@ -5,7 +5,7 @@
 // the web tier never has to know about per-provider field layouts —
 // it ships whatever JSON shape the operator typed/pasted.
 
-const API_BASE = process.env.BABY_PHI_API_URL ?? "http://127.0.0.1:8080";
+const API_BASE = process.env.PHI_API_URL ?? "http://127.0.0.1:8080";
 const BASE_PATH = "/api/v0/platform/model-providers";
 const KINDS_PATH = "/api/v0/platform/provider-kinds";
 

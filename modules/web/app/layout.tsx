@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "baby-phi",
+  title: "phi",
   description: "Agent management platform",
 };
 

@@ -12,7 +12,7 @@ covers mechanics.
 
 - Cipher: **AES-256-GCM** (`aes_gcm::Aes256Gcm`).
 - Key size: **32 bytes**, base64-encoded in the
-  `BABY_PHI_MASTER_KEY` env var.
+  `PHI_MASTER_KEY` env var.
 - Nonce: **12 bytes**, freshly sampled from the OS RNG (`rand::rng()`) per
   seal. Stored base64 next to the ciphertext.
 - Authentication: GCM's built-in tag — tampering with either the ciphertext
@@ -21,7 +21,7 @@ covers mechanics.
 ## Key loading
 
 [`MasterKey::from_env`](../../../../../../modules/crates/store/src/crypto.rs)
-reads `BABY_PHI_MASTER_KEY`. Errors:
+reads `PHI_MASTER_KEY`. Errors:
 
 | Error | Cause |
 |---|---|

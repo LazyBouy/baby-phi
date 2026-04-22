@@ -1,11 +1,11 @@
-// Server-side API client for the baby-phi HTTP surface.
+// Server-side API client for the phi HTTP surface.
 //
-// `API_BASE` is read from `BABY_PHI_API_URL` (same env var the CLI uses)
+// `API_BASE` is read from `PHI_API_URL` (same env var the CLI uses)
 // or falls back to localhost:8080. All functions here run server-side
 // (in Next.js Server Components or Server Actions); they never ship to
 // the browser.
 
-const API_BASE = process.env.BABY_PHI_API_URL ?? "http://127.0.0.1:8080";
+const API_BASE = process.env.PHI_API_URL ?? "http://127.0.0.1:8080";
 
 // ---- Health probes (M0) ----------------------------------------------------
 
@@ -136,12 +136,12 @@ export function parseClaimSuccess(body: ClaimSuccessWire): ClaimSuccess {
 
 /**
  * Extract the JWT value from a `Set-Cookie` header for the
- * `baby_phi_session` cookie. Returns `null` when the header is absent
+ * `phi_kernel_session` cookie. Returns `null` when the header is absent
  * or doesn't carry that cookie.
  */
 export function extractSessionJwt(
   setCookie: string | null,
-  cookieName: string = "baby_phi_session",
+  cookieName: string = "phi_kernel_session",
 ): string | null {
   if (!setCookie) return null;
   const escaped = cookieName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

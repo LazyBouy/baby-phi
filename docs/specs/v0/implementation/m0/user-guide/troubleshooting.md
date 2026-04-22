@@ -51,7 +51,7 @@ sudo apt-get install -y cmake pkg-config
 
 ### `could not find 'Cargo.toml' in '…' or any parent directory`
 
-You're running `cargo` outside the workspace root. `cd /root/projects/phi/baby-phi/` and retry.
+You're running `cargo` outside the workspace root. `cd /root/projects/phi/phi/` and retry.
 
 ### Clippy passes locally but fails in CI
 
@@ -85,10 +85,10 @@ Fix:
 
 ```bash
 # Check lockfile
-ls -la data/baby-phi-dev.db/LOCK 2>/dev/null
+ls -la data/phi-dev.db/LOCK 2>/dev/null
 
 # Nuclear option: wipe dev data
-rm -rf data/baby-phi-dev.db
+rm -rf data/phi-dev.db
 ```
 
 ### `Address already in use (os error 98)` on server boot
@@ -96,7 +96,7 @@ rm -rf data/baby-phi-dev.db
 Another service is bound to port 8080. Change ports:
 
 ```bash
-BABY_PHI_SERVER__PORT=8081 /root/rust-env/cargo/bin/cargo run -p server
+PHI_SERVER__PORT=8081 /root/rust-env/cargo/bin/cargo run -p server
 ```
 
 Or find the offender:
@@ -110,7 +110,7 @@ sudo lsof -i :8080
 The metrics recorder is process-global. You hit this if:
 
 - You're running a test that calls `with_prometheus` instead of `build_router`. Use `build_router` in tests — see [`../decisions/0005-metrics-layer-separation.md`](../decisions/0005-metrics-layer-separation.md).
-- Another baby-phi-server is running in the same process (shouldn't be possible in practice — `#[tokio::main]` owns the process).
+- Another phi-server is running in the same process (shouldn't be possible in practice — `#[tokio::main]` owns the process).
 
 ### `Failed to build metrics recorder` during `cargo test`
 
@@ -130,12 +130,12 @@ This is done once per process. The TLS integration test at [`modules/crates/serv
 
 ### `failed to load cert: …`
 
-`BABY_PHI_SERVER__TLS__CERT_PATH` or `…KEY_PATH` points to a file that doesn't exist, isn't PEM-encoded, or is unreadable by the server process. Check permissions:
+`PHI_SERVER__TLS__CERT_PATH` or `…KEY_PATH` points to a file that doesn't exist, isn't PEM-encoded, or is unreadable by the server process. Check permissions:
 
 ```bash
-ls -la $BABY_PHI_SERVER__TLS__CERT_PATH $BABY_PHI_SERVER__TLS__KEY_PATH
-head -1 $BABY_PHI_SERVER__TLS__CERT_PATH   # should start with "-----BEGIN CERTIFICATE-----"
-head -1 $BABY_PHI_SERVER__TLS__KEY_PATH    # should start with "-----BEGIN PRIVATE KEY-----" or similar
+ls -la $PHI_SERVER__TLS__CERT_PATH $PHI_SERVER__TLS__KEY_PATH
+head -1 $PHI_SERVER__TLS__CERT_PATH   # should start with "-----BEGIN CERTIFICATE-----"
+head -1 $PHI_SERVER__TLS__KEY_PATH    # should start with "-----BEGIN PRIVATE KEY-----" or similar
 ```
 
 ## Web / Next.js
@@ -173,7 +173,7 @@ Release build with LTO is CPU + RAM-intensive. For local iterations:
 
 ### `docker compose up` fails with "permission denied" on volume
 
-Named volumes inherit the uid the container runs as — `babyphi` uid 10001 in our case. If you previously ran the container as root and left state behind, `docker compose down -v` to reset.
+Named volumes inherit the uid the container runs as — `phi` uid 10001 in our case. If you previously ran the container as root and left state behind, `docker compose down -v` to reset.
 
 ### `wget: command not found` during healthcheck
 
@@ -181,16 +181,16 @@ The Dockerfile healthcheck assumes `wget` is available in `debian:bookworm-slim`
 
 ## Git submodules
 
-### `git status` shows `modified: baby-phi (new commits)`
+### `git status` shows `modified: phi (new commits)`
 
-You committed inside the baby-phi submodule but haven't updated the outer `phi` repo's pointer. From the outer repo:
+You committed inside the phi submodule but haven't updated the outer `phi` repo's pointer. From the outer repo:
 
 ```bash
-git add baby-phi
-git commit -m "Update baby-phi submodule to <short sha>"
+git add phi
+git commit -m "Update phi submodule to <short sha>"
 ```
 
-### `fatal: No url found for submodule path 'baby-phi' in .gitmodules`
+### `fatal: No url found for submodule path 'phi' in .gitmodules`
 
 `.gitmodules` is missing or the checkout is incomplete. From the outer repo:
 
@@ -201,5 +201,5 @@ git submodule update --init --recursive
 ## Still stuck?
 
 - Re-run [getting-started.md](getting-started.md) from a clean clone to isolate whether it's environment-specific.
-- Check the server's `tracing` output at `BABY_PHI_TELEMETRY__LOG_FILTER=trace`.
-- Open an issue in the baby-phi repo; attach the failing command + log tail.
+- Check the server's `tracing` output at `PHI_TELEMETRY__LOG_FILTER=trace`.
+- Open an issue in the phi repo; attach the failing command + log tail.

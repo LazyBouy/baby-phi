@@ -39,6 +39,7 @@ async fn cookie_on_success_is_signed_with_app_secret() {
         session: session_key(),
         audit: Arc::new(domain::audit::NoopAuditEmitter),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
+        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
     });
 
     let body = serde_json::json!({
@@ -69,7 +70,7 @@ async fn cookie_on_success_is_signed_with_app_secret() {
         .unwrap()
         .to_string();
 
-    assert!(set_cookie.starts_with("baby_phi_session="));
+    assert!(set_cookie.starts_with("phi_kernel_session="));
     assert!(set_cookie.contains("HttpOnly"));
     assert!(set_cookie.contains("SameSite=Lax"));
 
@@ -78,7 +79,7 @@ async fn cookie_on_success_is_signed_with_app_secret() {
     let expected_sub = json["human_agent_id"].as_str().unwrap().to_string();
 
     let token = set_cookie
-        .split("baby_phi_session=")
+        .split("phi_kernel_session=")
         .nth(1)
         .unwrap()
         .split(';')
@@ -98,6 +99,7 @@ async fn cookie_from_a_different_secret_does_not_verify() {
         session: session_key(),
         audit: Arc::new(domain::audit::NoopAuditEmitter),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
+        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
     });
 
     let body = serde_json::json!({
@@ -121,7 +123,7 @@ async fn cookie_from_a_different_secret_does_not_verify() {
 
     let cookie = res.headers().get("set-cookie").unwrap().to_str().unwrap();
     let token = cookie
-        .split("baby_phi_session=")
+        .split("phi_kernel_session=")
         .nth(1)
         .unwrap()
         .split(';')
@@ -140,6 +142,7 @@ async fn status_endpoint_does_not_set_cookie() {
         session: session_key(),
         audit: Arc::new(domain::audit::NoopAuditEmitter),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
+        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
     });
     let res = app
         .oneshot(

@@ -39,7 +39,7 @@ gets the same cookie-jar behaviour as the real binary.
 
 P6 ships a minimal signed-cookie session; OAuth lands in M3.
 
-- **Cookie name** — `baby_phi_session` (configurable via `session.cookie_name`).
+- **Cookie name** — `phi_kernel_session` (configurable via `session.cookie_name`).
 - **Content** — HS256 JWT with claims `{ sub, iat, exp }`. `sub` is the
   admin's `agent_id` (UUID string); `exp` is `iat + session.ttl_seconds`
   (default 12h).
@@ -49,7 +49,7 @@ P6 ships a minimal signed-cookie session; OAuth lands in M3.
 - **Signing key** — `session.secret` from config. Must be ≥ 32 bytes —
   [`SessionKey::from_config`](../../../../../../modules/crates/server/src/session.rs)
   rejects anything shorter at startup. In production the secret comes from
-  `BABY_PHI_SESSION__SECRET`; `config/default.toml` carries a dev-only
+  `PHI_SESSION__SECRET`; `config/default.toml` carries a dev-only
   placeholder that is **never** shipped.
 - **Revocation** — none in M1; the TTL is the only defence. Server-side
   session rows + `POST /sessions/{id}/revoke` are the M3 follow-up.
@@ -64,11 +64,11 @@ coexist at M5 when session-launch lands: a human hits an endpoint
 carrying their `SessionClaims` cookie (HTTP identity), the endpoint
 invokes `phi_core::agent_loop(...)` which emits an `AgentEvent` stream
 that a `SessionRecorder` materialises as a `phi_core::Session` record
-(execution trace), and baby-phi persists that record alongside
+(execution trace), and phi persists that record alongside
 provenance fields (org, project, actor) for later audit correlation.
 Same word, different layers; the concept-doc mapping at
 [`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
-classifies phi-core's `Session` as a **Node** mapping to baby-phi's
+classifies phi-core's `Session` as a **Node** mapping to phi's
 `Session` graph concept — distinct from the HTTP session layer this
 section covers.
 
@@ -98,7 +98,7 @@ is a platform-state observation, not a credential-state one.
 P6 registers one new counter via the `metrics` facade crate:
 
 ```
-baby_phi_bootstrap_claims_total{result="success|invalid|already_consumed|already_claimed|validation|internal"}
+phi_bootstrap_claims_total{result="success|invalid|already_consumed|already_claimed|validation|internal"}
 ```
 
 Defined in [`handlers::bootstrap::CLAIMS_COUNTER`](../../../../../../modules/crates/server/src/handlers/bootstrap.rs).

@@ -72,7 +72,7 @@ impl SecretRow {
 
 /// Wire shape for `model_runtime`. The embedded `config` column is a
 /// flexible object so phi-core's `ModelConfig` field evolution does not
-/// force a baby-phi migration.
+/// force a phi migration.
 #[derive(Debug, Serialize, Deserialize)]
 struct ModelRuntimeRow {
     config: serde_json::Value,

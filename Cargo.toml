@@ -11,7 +11,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/LazyBouy/baby-phi"
+repository = "https://github.com/LazyBouy/phi"
 
 [workspace.dependencies]
 phi-core = { path = "../phi-core" }

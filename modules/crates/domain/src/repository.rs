@@ -26,12 +26,13 @@ use crate::model::ids::{
     OrgId, ProjectId, SecretId,
 };
 use crate::model::nodes::{
-    Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
-    OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
+    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
+    Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ResourceRef, Template,
+    ToolAuthorityManifest, User,
 };
 use crate::model::{
-    Composite, ExternalService, ModelRuntime, PlatformDefaults, Principal, Resource,
-    SecretCredential, SecretRef, TenantSet,
+    AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime, PlatformDefaults,
+    Principal, Resource, SecretCredential, SecretRef, TenantSet,
 };
 
 // ----------------------------------------------------------------------------
@@ -51,6 +52,24 @@ pub enum RepositoryError {
 }
 
 pub type RepositoryResult<T> = Result<T, RepositoryError>;
+
+// ----------------------------------------------------------------------------
+// ProjectShapeCounts — returned by count_projects_by_shape_in_org.
+// ----------------------------------------------------------------------------
+
+/// Project-shape bucketed counts for one org. Powers the M4/P8
+/// dashboard rewrite's `ProjectsSummary.shape_a` + `.shape_b` tiles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ProjectShapeCounts {
+    pub shape_a: u32,
+    pub shape_b: u32,
+}
+
+impl ProjectShapeCounts {
+    pub fn total(self) -> u32 {
+        self.shape_a.saturating_add(self.shape_b)
+    }
+}
 
 // ----------------------------------------------------------------------------
 // Sealed-material envelope — domain-side projection of the crypto layer's
@@ -197,6 +216,121 @@ pub struct OrgCreationReceipt {
     /// `OrgCreationPayload.adoption_auth_requests` (so the caller can
     /// pair each with its companion audit event).
     pub adoption_auth_request_ids: Vec<AuthRequestId>,
+}
+
+// ----------------------------------------------------------------------------
+// M4/P3 — compound-tx payloads for project + agent creation.
+// ----------------------------------------------------------------------------
+
+/// Full payload for [`Repository::apply_project_creation`].
+///
+/// **Shape A** (single-org, immediate): caller supplies one element in
+/// `owning_orgs`; the compound tx materialises the project + edges in
+/// a single BEGIN/COMMIT. Shape B's pending-approval submit (pre
+/// materialisation) uses `Repository::create_auth_request` + an
+/// AR-builder directly — this payload is for the **materialisation**
+/// step, which runs identically for Shape A's happy path and Shape
+/// B's both-approve outcome. In both cases, `owning_orgs` carries
+/// every co-owner (1 for A; 2 for B).
+///
+/// Every referenced principal (lead, members, sponsors, co-owners)
+/// must already exist as an Agent / Organization row — the compound
+/// tx does not create them. The caller should invoke
+/// `apply_agent_creation` first for any net-new lead/member agents.
+///
+/// ## phi-core leverage
+///
+/// None — Project is a pure phi governance composite; the
+/// payload carries no phi-core types.
+#[derive(Debug, Clone)]
+pub struct ProjectCreationPayload {
+    /// The new Project row. `id`, `name`, `shape`, `status`, `created_at`
+    /// must be set by the orchestrator before calling.
+    pub project: crate::model::nodes::Project,
+    /// Owning orgs — exactly 1 for Shape A, exactly 2 for Shape B. The
+    /// in-memory + SurrealDB impls emit one `BELONGS_TO` edge per entry.
+    pub owning_orgs: Vec<OrgId>,
+    /// The designated project lead. An existing Agent whose
+    /// `owning_org` must match one of `owning_orgs`. A `HAS_LEAD` edge
+    /// is emitted from the project to this agent; the caller typically
+    /// pairs the compound tx with a post-commit domain event on the
+    /// bus so Template A's fire-listener issues the lead grant.
+    pub lead_agent_id: AgentId,
+    /// Additional agents on the project (`HAS_AGENT` edges). May be
+    /// empty.
+    pub member_agent_ids: Vec<AgentId>,
+    /// Optional sponsor agents (`HAS_SPONSOR` edges). Typically the
+    /// CEO of the owning org.
+    pub sponsor_agent_ids: Vec<AgentId>,
+    /// Catalogue seeds for project-scoped grants. Must include at
+    /// minimum `project:<id>`.
+    pub catalogue_entries: Vec<(String, String)>,
+}
+
+/// Ids the caller (M4/P6 handler) needs after a successful
+/// [`Repository::apply_project_creation`] commit — to emit the
+/// `platform.project.created` audit event, the `HasLeadEdgeCreated`
+/// domain event (so Template A fires), and to build the HTTP
+/// response.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectCreationReceipt {
+    pub project_id: ProjectId,
+    /// Owning-org ids, in the same order the caller supplied them.
+    pub owning_org_ids: Vec<OrgId>,
+    pub lead_agent_id: AgentId,
+    /// `HAS_LEAD` edge id — included so the caller can trace the
+    /// domain event back to its source edge at incident time.
+    pub has_lead_edge_id: EdgeId,
+}
+
+/// Full payload for [`Repository::apply_agent_creation`].
+///
+/// Atomic write: Agent + inbox + outbox + optional profile + optional
+/// initial `ExecutionLimits` override + default grants + the edge set
+/// (`HAS_INBOX`, `HAS_OUTBOX`, `MEMBER_OF`, optional `HAS_PROFILE`).
+///
+/// ## phi-core leverage
+///
+/// `initial_execution_limits_override` carries
+/// `phi_core::context::execution::ExecutionLimits` via the M4/P1
+/// wrap. `profile.blueprint` carries `phi_core::AgentProfile` via the
+/// existing wrap. Both transit without re-declaration.
+#[derive(Debug, Clone)]
+pub struct AgentCreationPayload {
+    /// The new Agent row. `owning_org` must be `Some(_)`.
+    pub agent: crate::model::nodes::Agent,
+    pub inbox: crate::model::nodes::InboxObject,
+    pub outbox: crate::model::nodes::OutboxObject,
+    /// Optional profile. Required for LLM-kind agents in typical
+    /// flows; pre-M4 style also lets Humans carry one for
+    /// consistency.
+    pub profile: Option<crate::model::nodes::AgentProfile>,
+    /// Default grants issued at creation time — e.g. `read` on its
+    /// own inbox. The orchestrator assembles these per-role.
+    pub default_grants: Vec<crate::model::nodes::Grant>,
+    /// Optional per-agent `ExecutionLimits` override row. Absent =
+    /// inherit from the org snapshot per ADR-0023; present = ADR-0027
+    /// opt-in override path. Must satisfy
+    /// [`AgentExecutionLimitsOverride::is_bounded_by`] against the
+    /// owning org's snapshot before calling — the compound tx does
+    /// not re-check.
+    pub initial_execution_limits_override: Option<AgentExecutionLimitsOverride>,
+    /// Catalogue seeds (e.g. the new inbox/outbox URIs under the
+    /// owning org).
+    pub catalogue_entries: Vec<(String, String)>,
+}
+
+/// Ids the caller needs after a successful
+/// [`Repository::apply_agent_creation`] commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentCreationReceipt {
+    pub agent_id: AgentId,
+    pub owning_org_id: OrgId,
+    pub inbox_id: NodeId,
+    pub outbox_id: NodeId,
+    pub profile_id: Option<NodeId>,
+    pub default_grant_ids: Vec<GrantId>,
+    pub execution_limits_override_id: Option<NodeId>,
 }
 
 // ----------------------------------------------------------------------------
@@ -434,7 +568,7 @@ pub trait Repository: Send + Sync + 'static {
     /// Upsert a model-runtime row. The embedded
     /// [`phi_core::provider::model::ModelConfig`] is stored as a
     /// flexible object so phi-core's field evolution does not force a
-    /// baby-phi migration.
+    /// phi migration.
     async fn put_model_provider(&self, provider: &ModelRuntime) -> RepositoryResult<()>;
 
     /// List model-runtime rows. When `include_archived` is `false`,
@@ -552,14 +686,118 @@ pub trait Repository: Send + Sync + 'static {
     /// volume demands.
     async fn list_all_orgs(&self) -> RepositoryResult<Vec<Organization>>;
 
-    /// List every Project belonging to `org`. **M3 note**: v0's
-    /// `Project` surface is minimal (no dedicated struct yet; M4
-    /// fleshes it). Today the method returns `Vec<ProjectId>` so
-    /// the M3/P5 dashboard's `ProjectsSummary` panel can render a
-    /// count even before projects are persisted. When M4 adds the
-    /// Project struct + persistence, the return type will migrate
-    /// to `Vec<Project>` in a coordinated change.
-    async fn list_projects_in_org(&self, org: OrgId) -> RepositoryResult<Vec<ProjectId>>;
+    /// List every Project belonging to `org`. **M4/P2 note**: return
+    /// type migrated from `Vec<ProjectId>` to `Vec<Project>` alongside
+    /// the full [`Project`] struct landing at M4/P1. Dashboard
+    /// call-sites (M3/P5) used only `.len()` so the change is
+    /// mechanical at the call-site level.
+    ///
+    /// Belongs-to semantics: an entry is included if **any** of its
+    /// `BELONGS_TO` edges targets `org`. Shape A projects have a
+    /// single edge (to the owning org); Shape B projects have two
+    /// edges (one per co-owner) so they appear in the list for both
+    /// co-owning orgs.
+    async fn list_projects_in_org(&self, org: OrgId) -> RepositoryResult<Vec<Project>>;
+
+    // ---- M4/P2 surface -------------------------------------------------
+    //
+    // Six project-centric + four agent-centric reads land here; the
+    // first six feed page 08 + 11 business logic at P4–P7, the last
+    // four wrap the new per-agent `ExecutionLimits` override path
+    // per ADR-0027. The trait-level docs capture the contract; the
+    // in-memory + SurrealDB impls share it verbatim.
+
+    /// List every Agent whose `owning_org == Some(org)`, optionally
+    /// filtered by governance role. `None` returns everyone; passing
+    /// `Some(AgentRole::X)` returns only agents whose `role ==
+    /// Some(X)`. Agents with `role == None` (pre-M4 rows) match only
+    /// when the filter is `None`.
+    ///
+    /// Used by page 08 (agent roster list) role-chip filters + by the
+    /// M4/P8 dashboard rewrite's `AgentsSummary.{executive, admin,
+    /// member, intern, contract, system, unclassified}` counters.
+    async fn list_agents_in_org_by_role(
+        &self,
+        org: OrgId,
+        role: Option<AgentRole>,
+    ) -> RepositoryResult<Vec<Agent>>;
+
+    /// Fetch a single Project by id. Returns `Ok(None)` when the
+    /// project row is absent (matches the "optional-find" convention
+    /// used by [`Repository::get_agent`] / [`Repository::get_organization`]).
+    /// Used by page 11 (project detail) handler + M4/P3's compound-tx
+    /// rollback verification.
+    async fn get_project(&self, id: ProjectId) -> RepositoryResult<Option<Project>>;
+
+    /// List every Project in `org` matching `shape`. Narrowing
+    /// variant of [`Repository::list_projects_in_org`] — handlers use
+    /// this when rendering shape-specific panels (e.g. the dashboard
+    /// lists Shape A vs Shape B counts separately).
+    async fn list_projects_by_shape_in_org(
+        &self,
+        org: OrgId,
+        shape: ProjectShape,
+    ) -> RepositoryResult<Vec<Project>>;
+
+    /// Count every Project in `org` split by [`ProjectShape`].
+    ///
+    /// Powers the M4/P8 dashboard rewrite's `ProjectsSummary.shape_a`
+    /// + `.shape_b` counters (M3 carryover C-M4-3). Cheap — the impl
+    /// pushes the count into the backend rather than materialising
+    /// the row set in Rust.
+    async fn count_projects_by_shape_in_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<ProjectShapeCounts>;
+
+    /// List every Project that `agent` is the designated lead of
+    /// (`HAS_LEAD` edge from Project → Agent). Used by the dashboard
+    /// viewer-role resolution (`ProjectLead` path) + by page 11's
+    /// "projects I lead" panel.
+    ///
+    /// **M4/P2 note**: the `HAS_LEAD` edge has no production writers
+    /// until M4/P3's `apply_project_creation` compound tx. This
+    /// method returns `Vec::new()` for every agent until then; the
+    /// trait surface exists now so P4 handlers can wire the call
+    /// site.
+    async fn list_projects_led_by_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Project>>;
+
+    /// Look up the opt-in per-agent `ExecutionLimits` override row
+    /// for `agent`. Returns `Ok(None)` when the agent inherits from
+    /// the org snapshot (ADR-0023 default path).
+    async fn get_agent_execution_limits_override(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentExecutionLimitsOverride>>;
+
+    /// Persist (create-or-replace) the per-agent override. Enforces
+    /// the UNIQUE `owning_agent` index at the storage layer; callers
+    /// are responsible for bounds-checking against the owning org's
+    /// snapshot before invoking (see
+    /// [`AgentExecutionLimitsOverride::is_bounded_by`]).
+    async fn set_agent_execution_limits_override(
+        &self,
+        row: &AgentExecutionLimitsOverride,
+    ) -> RepositoryResult<()>;
+
+    /// Idempotent DELETE of an agent's override row. Succeeds whether
+    /// or not a row exists.
+    async fn clear_agent_execution_limits_override(&self, agent: AgentId) -> RepositoryResult<()>;
+
+    /// Resolve the effective `ExecutionLimits` for `agent`:
+    /// 1. If a per-agent override row exists → that row's `limits`.
+    /// 2. Else if the agent has an `owning_org` whose
+    ///    `defaults_snapshot.execution_limits` is set → that value.
+    /// 3. Else `None` (the agent has neither override nor org
+    ///    snapshot — unusual; caller should treat as "use
+    ///    `phi_core::ExecutionLimits::default()`").
+    ///
+    /// Single entry point every caller should use — prevents the
+    /// "two sources of truth" drift ADR-0027 warns about.
+    async fn resolve_effective_execution_limits(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<phi_core::context::execution::ExecutionLimits>>;
 
     /// List every non-terminal Auth Request requested by a principal
     /// belonging to `org`. "Non-terminal" = state ∈ {Draft, Pending,
@@ -657,6 +895,67 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         payload: &OrgCreationPayload,
     ) -> RepositoryResult<OrgCreationReceipt>;
+
+    // ---- M4/P3 — Project + Agent creation compound txns ---------------
+
+    /// Commit the full M4 project-creation write in one atomic
+    /// transaction (Shape A immediate, Shape B post-both-approve).
+    ///
+    /// On `Ok`, the following are durable:
+    /// - The Project row.
+    /// - One `BELONGS_TO` edge per entry in `payload.owning_orgs`.
+    /// - `HAS_LEAD` edge (project → lead agent).
+    /// - Zero or more `HAS_AGENT` edges (project → member agents).
+    /// - Zero or more `HAS_SPONSOR` edges (project → sponsor agents).
+    /// - One `HAS_PROJECT` edge per owning org (so the dashboard's
+    ///   project count picks it up via the existing org-scoped read).
+    /// - Catalogue seeds.
+    ///
+    /// On `Err(_)`, no partial state survives.
+    ///
+    /// **Post-commit**: the caller should emit
+    /// `DomainEvent::HasLeadEdgeCreated { project, lead, ... }` on the
+    /// event bus so Template A's fire-listener issues the lead grant.
+    /// The compound tx intentionally does NOT emit — fail-safe
+    /// semantics per ADR-0028 (commit durable before emit).
+    ///
+    /// Pre-conditions (caller's responsibility):
+    /// - `payload.owning_orgs.len() == 1` (Shape A) or `== 2` (Shape B).
+    /// - Every referenced Agent / Org row exists.
+    /// - `payload.project.shape` matches the arity of `owning_orgs`.
+    async fn apply_project_creation(
+        &self,
+        payload: &ProjectCreationPayload,
+    ) -> RepositoryResult<ProjectCreationReceipt>;
+
+    /// Commit the full M4 agent-creation write in one atomic
+    /// transaction (pages 09 create mode + post-bootstrap CEO
+    /// creation).
+    ///
+    /// On `Ok`, the following are durable:
+    /// - The Agent row.
+    /// - Inbox + Outbox rows.
+    /// - Optional AgentProfile row.
+    /// - Optional `agent_execution_limits` override row.
+    /// - N default grants.
+    /// - Edges: `HAS_INBOX`, `HAS_OUTBOX`, `MEMBER_OF` to owning org,
+    ///   optional `HAS_PROFILE`.
+    /// - Catalogue seeds.
+    ///
+    /// On `Err(_)`, no partial state survives.
+    ///
+    /// Pre-conditions (caller's responsibility):
+    /// - `payload.agent.owning_org == Some(<existing org id>)`.
+    /// - `payload.agent.role.is_valid_for(payload.agent.kind)` if `role`
+    ///   is set.
+    /// - Every default grant's `holder == PrincipalRef::Agent(payload.agent.id)`
+    ///   (defensive — the handler assembles grants for the new agent).
+    /// - If `initial_execution_limits_override` is present,
+    ///   `is_bounded_by(org.defaults_snapshot.execution_limits)`.
+    async fn apply_agent_creation(
+        &self,
+        payload: &AgentCreationPayload,
+    ) -> RepositoryResult<AgentCreationReceipt>;
 }
 
 /// One cascade hit recorded by [`Repository::narrow_mcp_tenants`] —

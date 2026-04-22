@@ -67,7 +67,7 @@ unknown fields are rejected by Serde's default behaviour.
 ```http
 HTTP/1.1 201 Created
 Content-Type: application/json
-Set-Cookie: baby_phi_session=<jwt>; HttpOnly; SameSite=Lax; Path=/; Expires=…; Secure
+Set-Cookie: phi_kernel_session=<jwt>; HttpOnly; SameSite=Lax; Path=/; Expires=…; Secure
 
 {
   "human_agent_id": "…",
@@ -142,7 +142,7 @@ unauthenticated callers).
 
 ## Session cookie
 
-Every `201 Created` response carries a `Set-Cookie: baby_phi_session=…`
+Every `201 Created` response carries a `Set-Cookie: phi_kernel_session=…`
 header. The cookie's value is an HS256 JWT signed with
 `session.secret`:
 

@@ -28,7 +28,7 @@ Requirements driving the envelope design:
 Per-entry seal-with-fresh-nonce + **one** platform-wide master key.
 
 - Master key: 32 bytes, AES-256-GCM. Loaded from
-  `BABY_PHI_MASTER_KEY` at server start. Deliberately `!Serialize`
+  `PHI_MASTER_KEY` at server start. Deliberately `!Serialize`
   (see [`store::crypto::MasterKey`][1]) so it can't accidentally land
   in logs or JSON payloads.
 - Per-entry envelope: `(ciphertext, nonce)` — both base64-encoded,

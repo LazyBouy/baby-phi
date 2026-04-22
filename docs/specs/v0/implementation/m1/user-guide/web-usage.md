@@ -3,7 +3,7 @@
 # Web UI — `/bootstrap` walkthrough
 
 The M1/P8 web surface exposes a single human-facing route:
-`/bootstrap`. It's the SSR twin of the `baby-phi bootstrap
+`/bootstrap`. It's the SSR twin of the `phi bootstrap
 {status,claim}` CLI subcommands and the `POST /api/v0/bootstrap/claim`
 HTTP endpoint — but aimed at an admin who prefers a browser to a
 terminal.
@@ -11,12 +11,12 @@ terminal.
 ## Prerequisites
 
 1. The Rust server is running and reachable at
-   `BABY_PHI_API_URL` (default `http://127.0.0.1:8080`).
-2. You've run `baby-phi-server bootstrap-init` and copied the
+   `PHI_API_URL` (default `http://127.0.0.1:8080`).
+2. You've run `phi-server bootstrap-init` and copied the
    `bphi-bootstrap-…` credential printed to stdout.
-3. `BABY_PHI_SESSION_SECRET` is set to the same value on both the
+3. `PHI_SESSION_SECRET` is set to the same value on both the
    Rust server and the Next.js web process. Both default to the dev
-   placeholder so `npm run dev` + `baby-phi-server` works out of the
+   placeholder so `npm run dev` + `phi-server` works out of the
    box — but change it before shipping.
 
 ## Happy path
@@ -49,7 +49,7 @@ terminal.
    >     grant_id:         <uuid>
    >     audit_event_id:   <uuid>
 
-   A signed `baby_phi_session` cookie (HS256 JWT, HttpOnly,
+   A signed `phi_kernel_session` cookie (HS256 JWT, HttpOnly,
    SameSite=Lax) is set on the same response. Your browser will send
    it on every follow-up request; M2+ routes will read it.
 
@@ -74,10 +74,10 @@ No form is shown. The ← Back to home link returns to `/`.
 | Inline alert | When | Recovery |
 |---|---|---|
 | *Invalid input: credential must not be empty* | You submitted the form with an empty field. | Fill it and resubmit. |
-| *BOOTSTRAP_INVALID (403): bootstrap credential is not recognised* | Typo in the credential, or this install has no stored credential. | Re-check the plaintext; or run `baby-phi-server bootstrap-init` on a fresh data dir if you've truly lost it. |
+| *BOOTSTRAP_INVALID (403): bootstrap credential is not recognised* | Typo in the credential, or this install has no stored credential. | Re-check the plaintext; or run `phi-server bootstrap-init` on a fresh data dir if you've truly lost it. |
 | *BOOTSTRAP_ALREADY_CONSUMED (403): bootstrap credential has already been consumed* | A previous claim succeeded, was rolled back at the app layer, but the credential was consumed. Shouldn't happen in the normal flow. | Contact an admin (manual override is out of scope for M1). |
 | *PLATFORM_ADMIN_CLAIMED (409): a platform admin has already been claimed* | An admin already exists — the form shouldn't have rendered; if you saw this, you beat another admin to the claim. | Navigate away; use the existing admin's credentials. |
-| *Request failed: …* | Transport error (server down, DNS, TLS mismatch). | Check `baby-phi-server` is up and `BABY_PHI_API_URL` is correct. |
+| *Request failed: …* | Transport error (server down, DNS, TLS mismatch). | Check `phi-server` is up and `PHI_API_URL` is correct. |
 
 The page also shows a full-page **Cannot reach the server** view if
 the SSR status probe fails before render — no form to submit through.
@@ -89,7 +89,7 @@ After a successful claim:
 - `GET /api/v0/bootstrap/status` now reports
   `{ claimed: true, admin_agent_id: "…" }`. Revisiting `/bootstrap`
   lands on the "already claimed" view.
-- The `baby_phi_session` cookie lets M2+ pages identify you. Until M2
+- The `phi_kernel_session` cookie lets M2+ pages identify you. Until M2
   lands, visiting `/` shows the same home page as before the claim;
   no redirect is wired yet.
 - Every future grant traces back to your `bootstrap_auth_request_id`
@@ -99,7 +99,7 @@ After a successful claim:
 
 - [http-api-reference.md](http-api-reference.md) — the HTTP endpoints
   the form wraps, including stable error codes.
-- [cli-usage.md](cli-usage.md) — the same flow via `baby-phi bootstrap
+- [cli-usage.md](cli-usage.md) — the same flow via `phi bootstrap
   claim`, for terminal users.
 - [first-bootstrap.md](first-bootstrap.md) — end-to-end install-to-claim
   walkthrough.

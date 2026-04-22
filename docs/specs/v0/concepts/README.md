@@ -1,4 +1,4 @@
-# baby-phi v0 — Concept Documents
+# phi v0 — Concept Documents
 
 > Each file expands one concept from [brainstorm.md](../brainstorm.md).
 > Status: All concepts are `CONCEPTUAL` — ideas, not specs.

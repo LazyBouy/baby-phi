@@ -8,7 +8,7 @@
 //! phi-core leverage (mandatory per `CLAUDE.md`):
 //! - The persisted `ModelRuntime.config` field IS
 //!   [`phi_core::provider::model::ModelConfig`] directly — no parallel
-//!   baby-phi shape. The wire POST body deserialises into `ModelConfig`;
+//!   phi shape. The wire POST body deserialises into `ModelConfig`;
 //!   the server only adds platform-governance fields (`secret_ref`,
 //!   `tenants_allowed`, `status`).
 //! - Provider-kind enumeration (`/api/v0/platform/provider-kinds`)

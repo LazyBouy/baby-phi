@@ -35,6 +35,7 @@ use crate::{handlers, health, state::AppState};
 /// - `GET   /api/v0/orgs`                                     (M3/P4)
 /// - `GET   /api/v0/orgs/:id`                                 (M3/P4)
 /// - `GET   /api/v0/orgs/:id/dashboard`                       (M3/P5)
+/// - `GET   /api/v0/orgs/:org_id/agents`                      (M4/P4)
 ///
 /// The `CookieManagerLayer` is applied once here so every handler that
 /// pulls `Cookies` from the extractor gets a working jar.
@@ -93,7 +94,8 @@ pub fn build_router(state: AppState) -> Router {
             get(handlers::orgs::list).post(handlers::orgs::create),
         )
         .route("/orgs/:id", get(handlers::orgs::show))
-        .route("/orgs/:id/dashboard", get(handlers::orgs::dashboard));
+        .route("/orgs/:id/dashboard", get(handlers::orgs::dashboard))
+        .route("/orgs/:org_id/agents", get(handlers::agents::list));
 
     Router::new()
         .route("/healthz/live", get(health::live))

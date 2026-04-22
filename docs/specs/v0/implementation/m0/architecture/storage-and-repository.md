@@ -82,7 +82,7 @@ impl Repository for SurrealStore {
 
 ## Why embedded
 
-v0.1 ships SurrealDB **in the same process** as `baby-phi-server`. No sidecar DB container, no network hop. The RocksDB backend writes an on-disk file tree under `storage.data_dir` (default `data/baby-phi.db`, prod `/var/lib/baby-phi/data`).
+v0.1 ships SurrealDB **in the same process** as `phi-server`. No sidecar DB container, no network hop. The RocksDB backend writes an on-disk file tree under `storage.data_dir` (default `data/phi.db`, prod `/var/lib/phi/data`).
 
 Benefits:
 - One binary, one process, one volume to back up.
@@ -97,7 +97,7 @@ Embedded is the v0.1 default, **not** a dead end. The connection string is the o
 
 | Tier | When | Connection | Query-code change? |
 |---|---|---|---|
-| **Embedded + RocksDB** (v0.1) | Single-node, ≤100k nodes / ≤1M edges / ≤100 concurrent sessions | `Surreal::new::<RocksDb>("data/baby-phi.db")` | — |
+| **Embedded + RocksDB** (v0.1) | Single-node, ≤100k nodes / ≤1M edges / ≤100 concurrent sessions | `Surreal::new::<RocksDb>("data/phi.db")` | — |
 | **Standalone SurrealDB server** | Need to scale server horizontally or separate DB lifecycle | `Surreal::new::<Client>("ws://host:8000")` | **None.** Same SurrealQL. |
 | **SurrealDB cluster with TiKV** | Multi-region, HA, or >100 GB data | TiKV backend + clustered SurrealDB | **None.** |
 | **Swap database entirely** | SurrealDB itself is wrong tool | Rewrite `store` crate to a different DB | Full query rewrite. Domain trait unchanged. |

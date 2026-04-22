@@ -62,11 +62,11 @@ npm --version    # 10.x or 11.x
 
 ## Clone the repository
 
-The baby-phi workspace is a git submodule inside `phi`. Clone with submodules:
+The phi workspace is a git submodule inside `phi`. Clone with submodules:
 
 ```bash
 git clone --recurse-submodules https://github.com/LazyBouy/phi.git
-cd phi/baby-phi    # the workspace root for all cargo commands
+cd phi/phi    # the workspace root for all cargo commands
 ```
 
 If you already cloned without submodules:
@@ -84,7 +84,7 @@ First run takes ~5–6 minutes (downloads + compiles ~500 crates). Subsequent bu
 
 Expected output tail:
 ```
-Compiling server v0.1.0 (/root/projects/phi/baby-phi/modules/crates/server)
+Compiling server v0.1.0 (/root/projects/phi/phi/modules/crates/server)
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 5m 59s
 ```
 
@@ -135,7 +135,7 @@ Route (app)                              Size     First Load JS
 ## Copy `.env.example` to `.env`
 
 ```bash
-cd /root/projects/phi/baby-phi    # back to workspace root
+cd /root/projects/phi/phi    # back to workspace root
 cp .env.example .env
 ```
 

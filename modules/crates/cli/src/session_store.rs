@@ -9,14 +9,14 @@
 //! platform's standard XDG config directory.
 //!
 //! Location precedence (matches the XDG Base Directory spec):
-//!   1. `$XDG_CONFIG_HOME/baby-phi/session`
-//!   2. `~/.config/baby-phi/session`  (fallback when `$XDG_CONFIG_HOME` is unset)
+//!   1. `$XDG_CONFIG_HOME/phi/session`
+//!   2. `~/.config/phi/session`  (fallback when `$XDG_CONFIG_HOME` is unset)
 //!
 //! M2 ships only a single-slot store (one session per `$HOME`). OAuth
 //! lands in M3 + that milestone upgrades this to a keyring-backed
 //! storage per decision D14 of the M2 plan.
 //!
-//! Only baby-phi Unix targets are wired for the `0600` permission
+//! Only phi Unix targets are wired for the `0600` permission
 //! check; on non-Unix (Windows) the file is written with the
 //! platform's default perms and a warning is emitted. The CLI is not
 //! expected to be installed on Windows in M2.
@@ -48,7 +48,7 @@ pub struct SavedSession {
 pub enum SessionStoreError {
     #[error("could not resolve session-store path: {0}")]
     PathResolution(String),
-    #[error("no saved session found at {path} — run `baby-phi login` first")]
+    #[error("no saved session found at {path} — run `phi login` first")]
     NotFound { path: PathBuf },
     #[error("failed to read session file at {path}: {source}")]
     Read { path: PathBuf, source: io::Error },
@@ -58,20 +58,20 @@ pub enum SessionStoreError {
     Malformed { path: PathBuf, reason: String },
 }
 
-/// Resolve `$XDG_CONFIG_HOME/baby-phi/session` (or the fallback). Does
+/// Resolve `$XDG_CONFIG_HOME/phi/session` (or the fallback). Does
 /// NOT create the parent directory; callers must call `save()` to do
 /// that at write time.
 pub fn default_session_path() -> Result<PathBuf, SessionStoreError> {
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
         let mut p = PathBuf::from(xdg);
-        p.push("baby-phi");
+        p.push("phi");
         p.push("session");
         return Ok(p);
     }
     if let Some(home) = std::env::var_os("HOME") {
         let mut p = PathBuf::from(home);
         p.push(".config");
-        p.push("baby-phi");
+        p.push("phi");
         p.push("session");
         return Ok(p);
     }

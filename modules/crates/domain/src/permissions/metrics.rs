@@ -8,7 +8,7 @@
 //! - Tests pass [`NoopMetrics`].
 //! - P6's server code will implement this trait over a
 //!   `prometheus::HistogramVec` with labels `{result, failed_step}`, which
-//!   is the histogram named `baby_phi_permission_check_duration_seconds`
+//!   is the histogram named `phi_permission_check_duration_seconds`
 //!   (commitment C10 in the M1 plan).
 
 use std::time::Duration;

@@ -68,7 +68,7 @@ Delegated to [s04-auth-request-state-transitions.md R-SYS-s04-4](s04-auth-reques
 
 ## Observability
 
-- Metrics: `baby_phi_retention_archive_total`, `baby_phi_secret_rotation_reminders_sent`, `baby_phi_agent_catalog_heartbeat_lag_seconds`, `baby_phi_token_budget_usage_ratio`, `baby_phi_auth_request_timeout_expirations_total`.
+- Metrics: `phi_retention_archive_total`, `phi_secret_rotation_reminders_sent`, `phi_agent_catalog_heartbeat_lag_seconds`, `phi_token_budget_usage_ratio`, `phi_auth_request_timeout_expirations_total`.
 - Audit events: `AuthRequestArchived`, `AuthRequestDeletedPerRetentionPolicy`, `SecretRotationOverdue`, `AgentCatalogAgentUnresponsive`, `TokenBudgetThresholdCrossed`.
 
 ## Cross-References

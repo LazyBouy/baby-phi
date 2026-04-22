@@ -5,7 +5,7 @@
 // Called by `<form action={submitClaim}>`. Validates the form,
 // invokes the M1/P6 claim API, and — on success — forwards the
 // `Set-Cookie` header the server returned so the browser carries
-// the `baby_phi_session` cookie on future requests.
+// the `phi_kernel_session` cookie on future requests.
 
 import { cookies } from "next/headers";
 
@@ -29,7 +29,7 @@ export type ClaimActionState =
   | { kind: "error"; message: string };
 
 const COOKIE_NAME =
-  process.env.BABY_PHI_SESSION_COOKIE_NAME ?? "baby_phi_session";
+  process.env.PHI_SESSION_COOKIE_NAME ?? "phi_kernel_session";
 
 function parseChannelKind(raw: FormDataEntryValue | null): ChannelKind | null {
   if (raw === "slack" || raw === "email" || raw === "web") {

@@ -11,7 +11,7 @@ key, rotation policy, reveal audit trail, custody reassignment, and the
 ## Master key
 
 The vault's AES-256-GCM master key lives in the
-`BABY_PHI_MASTER_KEY` environment variable as a 32-byte, standard-alphabet
+`PHI_MASTER_KEY` environment variable as a 32-byte, standard-alphabet
 base64 string (no padding). The server refuses to start if the env var
 is missing or malformed — see [`store::crypto::MasterKey::from_env`][1].
 
@@ -19,7 +19,7 @@ Generation (one-off, deploy-time):
 
 ```bash
 openssl rand -base64 32 | tr -d '=' > master-key.b64
-export BABY_PHI_MASTER_KEY="$(cat master-key.b64)"
+export PHI_MASTER_KEY="$(cat master-key.b64)"
 ```
 
 Storage guidance:
@@ -39,7 +39,7 @@ Rotation replaces the sealed material on an existing row and bumps
 `last_rotated_at`. The slug + custodian are unchanged. Rotation is
 triggered by:
 
-- **Operator intent** — `baby-phi secret rotate --slug <…>
+- **Operator intent** — `phi secret rotate --slug <…>
   --material-file <…>` or the web UI equivalent (plan §P4).
 - **Incident response** — whenever a plaintext may have been exposed
   (shared pair-programming session, ticket with a leaked value, lost
@@ -99,7 +99,7 @@ other agent holds a grant that lets them rotate the secret.
 2. Verify the reassignment via the list endpoint (the
    `custodian_id` field reflects the new owner).
 3. If the new custodian also needs to rotate the material, run
-   `baby-phi secret rotate` next — two sequential audit events will
+   `phi secret rotate` next — two sequential audit events will
    land (`vault.secret.custody_reassigned` then
    `vault.secret.rotated`).
 
@@ -127,9 +127,9 @@ transition window.
 
 | Symptom | Likely cause | Recovery |
 |---|---|---|
-| Server refuses to start with `master key missing` | `BABY_PHI_MASTER_KEY` unset | Source `.env` / export the key / check the systemd unit env |
+| Server refuses to start with `master key missing` | `PHI_MASTER_KEY` unset | Source `.env` / export the key / check the systemd unit env |
 | `VAULT_CRYPTO_FAILED` on reveal | Ciphertext tampered, wrong key, or DB corruption | Check the key matches what was used at seal time; run the integrity-sweep tool (M7b) |
-| `SECRET_NOT_FOUND` | Slug typo or the row was never added | Verify via `baby-phi secret list`; slug is case-sensitive, lowercase-only |
+| `SECRET_NOT_FOUND` | Slug typo or the row was never added | Verify via `phi secret list`; slug is case-sensitive, lowercase-only |
 | `SECRET_SLUG_IN_USE` on add | The slug already exists | Choose a new slug or rotate the existing entry |
 | `CONSTRAINT_VIOLATION` on reveal | Engine's `purpose=reveal` constraint denied | Normal reveal-flow always asserts this — a denial here indicates a misconfigured grant; check the `descends_from` chain |
 

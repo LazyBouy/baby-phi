@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Graph model, Permission Check engine, Auth Request state machine, and system-flow state machines for baby-phi."
+description = "Graph model, Permission Check engine, Auth Request state machine, and system-flow state machines for phi."
 
 [dependencies]
 phi-core = { workspace = true }

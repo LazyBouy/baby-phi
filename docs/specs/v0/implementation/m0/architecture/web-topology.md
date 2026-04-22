@@ -2,7 +2,7 @@
 
 # Architecture — web topology
 
-The Next.js 14 web UI is a separate process that talks to `baby-phi-server` over HTTP. It shares no compile-time artefacts with the Rust workspace — the integration contract is the REST API (M1+) plus the `/healthz/*` endpoints already live in M0.
+The Next.js 14 web UI is a separate process that talks to `phi-server` over HTTP. It shares no compile-time artefacts with the Rust workspace — the integration contract is the REST API (M1+) plus the `/healthz/*` endpoints already live in M0.
 
 ## File map
 
@@ -53,16 +53,16 @@ At [`next.config.mjs`](../../../../../../modules/web/next.config.mjs):
 
 ```js
 async rewrites() {
-    const api = process.env.BABY_PHI_API_URL || "http://127.0.0.1:8080";
+    const api = process.env.PHI_API_URL || "http://127.0.0.1:8080";
     return [{ source: "/api/v0/:path*", destination: `${api}/api/v0/:path*` }];
 }
 ```
 
-This is a **Next.js proxy rewrite**: requests the browser makes to `/api/v0/...` are forwarded server-side (or at the edge) to `BABY_PHI_API_URL`. Benefits:
+This is a **Next.js proxy rewrite**: requests the browser makes to `/api/v0/...` are forwarded server-side (or at the edge) to `PHI_API_URL`. Benefits:
 
 - **Browser-side** requests avoid CORS — the browser talks to the same origin as the web app.
 - **Server-side** (SSR) code can also use relative `/api/v0/...` paths; they resolve through Next.js.
-- In dev, `BABY_PHI_API_URL=http://127.0.0.1:8080` (default); in prod, it's injected via env (typically `http://baby-phi-server:8080` inside a pod / compose network).
+- In dev, `PHI_API_URL=http://127.0.0.1:8080` (default); in prod, it's injected via env (typically `http://phi-server:8080` inside a pod / compose network).
 
 `getHealth()` in [`lib/api.ts`](../../../../../../modules/web/lib/api.ts) currently hits `/healthz/live` and `/healthz/ready` directly (not through `/api/v0/*`) because those endpoints aren't versioned; the proxy rewrite is set up for the *future* REST API that lands in M1+.
 
@@ -70,7 +70,7 @@ This is a **Next.js proxy rewrite**: requests the browser makes to `/api/v0/...`
 
 `next.config.mjs` sets `output: "standalone"`. At build time, Next.js produces a minimal `.next/standalone` directory containing exactly the files needed to run the server, plus a `server.js` entrypoint. This makes the web Dockerfile (M3+) trivial: copy `.next/standalone` and `public/`, run `node server.js`.
 
-M0 does not yet ship a web Dockerfile — that lands with M3 when the web UI gets its first real page. The server Dockerfile at the repo root is for `baby-phi-server` only.
+M0 does not yet ship a web Dockerfile — that lands with M3 when the web UI gets its first real page. The server Dockerfile at the repo root is for `phi-server` only.
 
 ## Auth contract — placeholder
 
@@ -96,7 +96,7 @@ export async function getSession(): Promise<Session> {
 M0 returns `{ authenticated: false }` unconditionally. In M3, this will:
 
 1. Read the server-signed, HttpOnly session cookie.
-2. Validate the cookie against `baby-phi-server`'s `/api/v0/auth/session` endpoint (SSR-side so the client never sees the signing key).
+2. Validate the cookie against `phi-server`'s `/api/v0/auth/session` endpoint (SSR-side so the client never sees the signing key).
 3. Cache the result for the request duration via React's `cache()`.
 
 Every downstream page that needs auth imports this module — when M3 lands, the contract does not change, only the implementation.

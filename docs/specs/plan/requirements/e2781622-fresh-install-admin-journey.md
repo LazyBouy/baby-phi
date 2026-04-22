@@ -8,7 +8,7 @@
 
 The concept is ready (~88–92% calibrated). The next step is to derive **requirements** from the concept — commitments the implementation must meet, phrased so that "is this met?" is answerable with an observable check.
 
-We use **admin-UI-first framing, anchored on the fresh-install journey**. An admin who has just installed baby-phi moves through a fixed sequence of pages to go from zero to "an agent can productively run a session." That sequence is also the **bootstrap dependency chain**: you can't configure agents before an org exists; you can't create an org before the platform admin has claimed the System Bootstrap Template adoption. Derived requirements therefore order themselves.
+We use **admin-UI-first framing, anchored on the fresh-install journey**. An admin who has just installed phi moves through a fixed sequence of pages to go from zero to "an agent can productively run a session." That sequence is also the **bootstrap dependency chain**: you can't configure agents before an org exists; you can't create an org before the platform admin has claimed the System Bootstrap Template adoption. Derived requirements therefore order themselves.
 
 Self-service and system-agent behaviours are **admin-configured**. An admin page sets up what agents are and what reactive handlers do; the runtime contract is captured in a parallel `system/` folder. **Agent self-service surfaces** (inbox/outbox, consent, auth-request tracking, profile) are part of this plan — admins configure what they *are*, agents interact with them through their own pages/tool surfaces.
 
@@ -23,15 +23,15 @@ Throughout the plan, when a page says "the admin performs X," read it as "the Hu
 
 This also means **admin-facing pages and agent-self-service pages are used by the same entities**: a Human Agent acting as org admin uses admin pages for that role **and** agent-self-service pages (inbox, Auth Requests filed on their behalf, etc.) for their participation as an Agent in the system. Rendering differs — a Human Agent's inbox delivers via their `Channel` (Slack/email), an LLM Agent's inbox is a programmatic surface — but the underlying inbox composite is the same.
 
-**Archive location:** new subfolder `baby-phi/docs/specs/plan/requirements/`. Going forward, requirements plans live there; concept plans stay at the existing flat `plan/` level.
+**Archive location:** new subfolder `phi/docs/specs/plan/requirements/`. Going forward, requirements plans live there; concept plans stay at the existing flat `plan/` level.
 
 ## History — where prior plans are recorded  `[PLAN: new]` `[DOCS: n/a]`
 
-- Phase A–D archive: `baby-phi/docs/specs/plan/d95fac8f-ownership-auth-request.md`
-- Phase F archive: `baby-phi/docs/specs/plan/54b1b2cb-split-and-gap-closure.md`
-- Phase G/H archive: `baby-phi/docs/specs/plan/b30cb86b-push-to-95.md`
-- Org/project layouts archive: `baby-phi/docs/specs/plan/b99b0bdd-org-project-layouts.md`
-- **This plan will archive to:** `baby-phi/docs/specs/plan/requirements/<random>-fresh-install-admin-journey.md`
+- Phase A–D archive: `phi/docs/specs/plan/d95fac8f-ownership-auth-request.md`
+- Phase F archive: `phi/docs/specs/plan/54b1b2cb-split-and-gap-closure.md`
+- Phase G/H archive: `phi/docs/specs/plan/b30cb86b-push-to-95.md`
+- Org/project layouts archive: `phi/docs/specs/plan/b99b0bdd-org-project-layouts.md`
+- **This plan will archive to:** `phi/docs/specs/plan/requirements/<random>-fresh-install-admin-journey.md`
 
 ## Decisions Captured  `[PLAN: new]` `[DOCS: see Impl column]`
 
@@ -48,7 +48,7 @@ This also means **admin-facing pages and agent-self-service pages are used by th
 ## Output Folder Structure  `[PLAN: new]` `[DOCS: ⏳ pending]`
 
 ```
-baby-phi/docs/specs/v0/requirements/
+phi/docs/specs/v0/requirements/
   README.md                                ← framing + folder map + NFR definition + requirement-ID convention
   _template/
     admin-page-template.md                 ← the 10-section template every admin/agent page follows
@@ -289,7 +289,7 @@ GET  /api/v0/orgs/{org_id}/_catalog-agent-status
 
 ### R0: Archive this plan  `[PLAN: new]` `[DOCS: ⏳]`
 
-First action after approval. Create the `baby-phi/docs/specs/plan/requirements/` folder if it doesn't exist. Copy this plan verbatim to `baby-phi/docs/specs/plan/requirements/<random>-fresh-install-admin-journey.md` (8-hex-char token, matching convention).
+First action after approval. Create the `phi/docs/specs/plan/requirements/` folder if it doesn't exist. Copy this plan verbatim to `phi/docs/specs/plan/requirements/<random>-fresh-install-admin-journey.md` (8-hex-char token, matching convention).
 
 ### R1: Create `v0/requirements/` folder + top-level README  `[PLAN: new]` `[DOCS: ⏳]`
 
@@ -414,7 +414,7 @@ Each file: purpose, trigger, preconditions, behaviour (pseudocode where load-bea
 
 1. **Structural check** — all 15 admin files + 5 agent-self-service pages + 6 system files + 4 NFRs + traceability matrix + section READMEs + template exist.
 2. **Template conformance** — every admin and agent-self-service page has all 10 template sections populated (or explicit "N/A — see X" for any section that genuinely doesn't apply).
-3. **Requirement ID uniqueness** — `grep -rE 'R-(ADMIN|AGENT|SYS|NFR)-' baby-phi/docs/specs/v0/requirements/` returns no duplicate IDs.
+3. **Requirement ID uniqueness** — `grep -rE 'R-(ADMIN|AGENT|SYS|NFR)-' phi/docs/specs/v0/requirements/` returns no duplicate IDs.
 4. **Concept coverage** — for each major section heading across `agent.md`, `organization.md`, `project.md`, `permissions/01`–`permissions/07`, `system-agents.md`, `token-economy.md`, and `coordination.md § Design Decisions`, at least one requirement cites it in its Cross-References section.
 5. **Scenario grounding** — every admin page's Acceptance Scenarios reference at least one of the 10 org layouts or 5 project layouts.
 6. **Cross-reference resolution** — every `](..)` link in requirement files resolves.
@@ -423,18 +423,18 @@ Each file: purpose, trigger, preconditions, behaviour (pseudocode where load-bea
 
 | File | Edit(s) |
 |------|---------|
-| `baby-phi/docs/specs/plan/requirements/` (NEW folder) | R0 — archive this plan here |
-| `baby-phi/docs/specs/plan/requirements/<random>-fresh-install-admin-journey.md` (NEW) | R0 |
-| `baby-phi/docs/specs/v0/requirements/` (NEW folder) | R1–R15 |
-| `baby-phi/docs/specs/v0/requirements/README.md` | R1 |
-| `baby-phi/docs/specs/v0/requirements/_template/admin-page-template.md` | R2 |
-| `baby-phi/docs/specs/v0/requirements/admin/00-..14-` (15 files) | R3–R12 |
-| `baby-phi/docs/specs/v0/requirements/agent-self-service/README.md` + a01–a05 | R13 |
-| `baby-phi/docs/specs/v0/requirements/system/README.md` + s01–s06 | R14 |
-| `baby-phi/docs/specs/v0/requirements/cross-cutting/` (5 files + README) | R15 |
-| `baby-phi/docs/specs/v0/concepts/README.md` | R16 (cross-link) |
-| `baby-phi/docs/specs/v0/organizations/README.md` | R16 (cross-link) |
-| `baby-phi/docs/specs/v0/projects/README.md` | R16 (cross-link) |
+| `phi/docs/specs/plan/requirements/` (NEW folder) | R0 — archive this plan here |
+| `phi/docs/specs/plan/requirements/<random>-fresh-install-admin-journey.md` (NEW) | R0 |
+| `phi/docs/specs/v0/requirements/` (NEW folder) | R1–R15 |
+| `phi/docs/specs/v0/requirements/README.md` | R1 |
+| `phi/docs/specs/v0/requirements/_template/admin-page-template.md` | R2 |
+| `phi/docs/specs/v0/requirements/admin/00-..14-` (15 files) | R3–R12 |
+| `phi/docs/specs/v0/requirements/agent-self-service/README.md` + a01–a05 | R13 |
+| `phi/docs/specs/v0/requirements/system/README.md` + s01–s06 | R14 |
+| `phi/docs/specs/v0/requirements/cross-cutting/` (5 files + README) | R15 |
+| `phi/docs/specs/v0/concepts/README.md` | R16 (cross-link) |
+| `phi/docs/specs/v0/organizations/README.md` | R16 (cross-link) |
+| `phi/docs/specs/v0/projects/README.md` | R16 (cross-link) |
 
 ## Projected Outcome  `[PLAN: new]` `[DOCS: n/a — projection]`
 

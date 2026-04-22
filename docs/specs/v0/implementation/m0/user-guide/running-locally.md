@@ -4,20 +4,20 @@
 
 Three things can run locally in M0: the HTTP server, the CLI demo, and the web UI dev server. They're independent — you can run any combination.
 
-## HTTP server (`baby-phi-server`)
+## HTTP server (`phi-server`)
 
 ### Default (dev profile, plaintext, loopback)
 
 ```bash
-cd /root/projects/phi/baby-phi
-BABY_PHI_PROFILE=dev /root/rust-env/cargo/bin/cargo run -p server
+cd /root/projects/phi/phi
+PHI_PROFILE=dev /root/rust-env/cargo/bin/cargo run -p server
 ```
 
 Expected log (pretty-formatted because dev profile sets `json_logs = false`):
 
 ```
-INFO  opening SurrealDB, data_dir=data/baby-phi-dev.db, namespace=baby-phi, database=v0
-INFO  baby-phi-server listening (plaintext HTTP — terminate TLS at reverse proxy in prod), addr=127.0.0.1:8080
+INFO  opening SurrealDB, data_dir=data/phi-dev.db, namespace=phi, database=v0
+INFO  phi-server listening (plaintext HTTP — terminate TLS at reverse proxy in prod), addr=127.0.0.1:8080
 ```
 
 Probe it from another terminal:
@@ -35,20 +35,20 @@ curl http://127.0.0.1:8080/metrics | head
 # …
 ```
 
-Press `Ctrl+C` to stop. SurrealDB's RocksDB files persist under `data/baby-phi-dev.db/` — safe to delete between runs.
+Press `Ctrl+C` to stop. SurrealDB's RocksDB files persist under `data/phi-dev.db/` — safe to delete between runs.
 
 ### Staging / prod profile
 
 ```bash
-BABY_PHI_PROFILE=prod /root/rust-env/cargo/bin/cargo run -p server
+PHI_PROFILE=prod /root/rust-env/cargo/bin/cargo run -p server
 ```
 
-Prod profile binds `0.0.0.0:8080`, writes JSON logs, uses `/var/lib/baby-phi/data` (you may need to `mkdir -p /var/lib/baby-phi/data && chown $USER`). See [`../operations/configuration-profiles.md`](../operations/configuration-profiles.md).
+Prod profile binds `0.0.0.0:8080`, writes JSON logs, uses `/var/lib/phi/data` (you may need to `mkdir -p /var/lib/phi/data && chown $USER`). See [`../operations/configuration-profiles.md`](../operations/configuration-profiles.md).
 
 ### Overriding ports
 
 ```bash
-BABY_PHI_SERVER__PORT=9090 /root/rust-env/cargo/bin/cargo run -p server
+PHI_SERVER__PORT=9090 /root/rust-env/cargo/bin/cargo run -p server
 ```
 
 ### Native TLS (self-signed, for local testing)
@@ -61,8 +61,8 @@ openssl req -x509 -nodes \
     -newkey rsa:2048 -days 3650
 
 # Point the server at it
-BABY_PHI_SERVER__TLS__CERT_PATH=$PWD/cert.pem \
-BABY_PHI_SERVER__TLS__KEY_PATH=$PWD/key.pem \
+PHI_SERVER__TLS__CERT_PATH=$PWD/cert.pem \
+PHI_SERVER__TLS__KEY_PATH=$PWD/key.pem \
 /root/rust-env/cargo/bin/cargo run -p server
 
 # Probe
@@ -71,7 +71,7 @@ curl -k https://127.0.0.1:8080/healthz/live
 
 For production TLS guidance, see [`../operations/tls-and-transport-security.md`](../operations/tls-and-transport-security.md).
 
-## CLI demo (`baby-phi`)
+## CLI demo (`phi`)
 
 The M0 CLI is the legacy phi-core demo — it runs a single agent loop against an OpenRouter model. Clap-based subcommands hitting the HTTP API arrive in M1+.
 
@@ -81,7 +81,7 @@ cp .env.example .env
 # Edit .env and fill in OPENROUTER_API_KEY
 
 # Run
-cd /root/projects/phi/baby-phi
+cd /root/projects/phi/phi
 set -a && source .env && set +a
 /root/rust-env/cargo/bin/cargo run -p cli
 ```
@@ -89,7 +89,7 @@ set -a && source .env && set +a
 Optional: pass a custom prompt as the first argument.
 
 ```bash
-/root/rust-env/cargo/bin/cargo run -p cli -- "Write a one-paragraph release note for baby-phi v0.1."
+/root/rust-env/cargo/bin/cargo run -p cli -- "Write a one-paragraph release note for phi v0.1."
 ```
 
 Output streams to stdout; the completed session is saved under `workspace/session/` per the config at [`config.toml`](../../../../../../config.toml).
@@ -97,7 +97,7 @@ Output streams to stdout; the completed session is saved under `workspace/sessio
 ## Web UI (Next.js dev server)
 
 ```bash
-cd /root/projects/phi/baby-phi/modules/web
+cd /root/projects/phi/phi/modules/web
 npm install         # first time only; idempotent
 npm run dev
 ```
@@ -109,7 +109,7 @@ If the server isn't running, the web page will still render, but the health prob
 ### Pointing the web UI at a different server
 
 ```bash
-BABY_PHI_API_URL=http://192.168.1.50:8080 npm run dev
+PHI_API_URL=http://192.168.1.50:8080 npm run dev
 ```
 
 The URL is read at request time by [`lib/api.ts`](../../../../../../modules/web/lib/api.ts) and by [`next.config.mjs`](../../../../../../modules/web/next.config.mjs)'s rewrite.
@@ -120,7 +120,7 @@ Open three terminals and run each command above. Each listens on its own port:
 
 | Surface | Default port |
 |---|---|
-| `baby-phi-server` | 8080 |
+| `phi-server` | 8080 |
 | `modules/web` dev server | 3000 |
 | CLI demo | no listener; agent loop streams to stdout |
 
@@ -136,7 +136,7 @@ Alternatively, use `docker compose up --build` for a containerized version — s
 
 ```bash
 # Wipe the dev SurrealDB
-rm -rf data/baby-phi-dev.db
+rm -rf data/phi-dev.db
 
 # Wipe the CLI session history
 rm -rf workspace/session

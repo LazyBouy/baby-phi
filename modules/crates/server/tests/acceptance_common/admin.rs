@@ -28,10 +28,10 @@ pub struct ClaimedAdmin {
     pub acc: Acceptance,
     /// The human admin's agent_id (UUID string).
     pub agent_id: String,
-    /// The raw `baby_phi_session` cookie value (the JWT). Useful for
+    /// The raw `phi_kernel_session` cookie value (the JWT). Useful for
     /// tests that want to sign a forged cookie variant.
     pub session_cookie: String,
-    /// reqwest client preconfigured with `Cookie: baby_phi_session=<jwt>`
+    /// reqwest client preconfigured with `Cookie: phi_kernel_session=<jwt>`
     /// on every request.
     pub authed_client: reqwest::Client,
 }
@@ -83,9 +83,9 @@ pub async fn spawn_claimed(with_metrics: bool) -> ClaimedAdmin {
         .expect("set-cookie value is ASCII")
         .to_string();
     let session_cookie = set_cookie
-        .split("baby_phi_session=")
+        .split("phi_kernel_session=")
         .nth(1)
-        .expect("baby_phi_session= prefix present")
+        .expect("phi_kernel_session= prefix present")
         .split(';')
         .next()
         .expect("cookie value present")
@@ -103,7 +103,7 @@ pub async fn spawn_claimed(with_metrics: bool) -> ClaimedAdmin {
     let mut default_headers = HeaderMap::new();
     default_headers.insert(
         COOKIE,
-        HeaderValue::from_str(&format!("baby_phi_session={session_cookie}"))
+        HeaderValue::from_str(&format!("phi_kernel_session={session_cookie}"))
             .expect("cookie value is a valid header"),
     );
     let authed_client = reqwest::Client::builder()
@@ -177,6 +177,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         kind: AgentKind::Human,
         display_name: "CEO".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     let ceo_channel = Channel {
@@ -216,6 +217,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         kind: AgentKind::Llm,
         display_name: "memory-extractor".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     let sys1_agent = Agent {
@@ -223,6 +225,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         kind: AgentKind::Llm,
         display_name: "agent-catalog".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     let sys0_blueprint = phi_core::agents::profile::AgentProfile {
@@ -299,5 +302,168 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         org_id,
         ceo_agent_id,
         system_agents: sys_ids,
+    }
+}
+
+// ============================================================================
+// M4/P3 — `spawn_claimed_with_org_and_project` fixture
+// ============================================================================
+
+/// Bundle returned by [`spawn_claimed_with_org_and_project`]. Extends
+/// [`ClaimedOrg`] with a materialised Shape A project + its
+/// lead/member agents + (if Template A's fire-listener ran) the
+/// issued lead grant id.
+pub struct ClaimedProject {
+    pub claimed_org: ClaimedOrg,
+    pub project_id: domain::model::ids::ProjectId,
+    pub project_lead: domain::model::ids::AgentId,
+    pub project_member: domain::model::ids::AgentId,
+    /// Present iff the server's `TemplateAFireListener` observed the
+    /// `HasLeadEdgeCreated` event and persisted the grant. For the
+    /// in-memory acceptance stack (no event emission by the fixture)
+    /// this starts `None`; P6 wizard handlers that drive the full
+    /// orchestration populate it.
+    pub template_a_grant_id: Option<domain::model::ids::GrantId>,
+}
+
+impl ClaimedProject {
+    pub fn url(&self, path: &str) -> String {
+        self.claimed_org.url(path)
+    }
+    pub fn org_id(&self) -> domain::model::ids::OrgId {
+        self.claimed_org.org_id
+    }
+}
+
+/// Extend [`spawn_claimed_with_org`] with a minimal Shape A project
+/// materialised via `apply_project_creation`. Two LLM agents are
+/// spawned via `apply_agent_creation` (one lead + one member) so the
+/// project's `HAS_LEAD` + `HAS_AGENT` edges have valid referents.
+///
+/// **M4/P3 scope**: this fixture does NOT emit the
+/// `HasLeadEdgeCreated` domain event (the server orchestrator does
+/// that at P6). Tests wanting to exercise the listener path construct
+/// the event + emit directly on `admin.acc.state.event_bus`.
+pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedProject {
+    use chrono::Utc;
+    use domain::model::composites_m4::ResourceBoundaries;
+    use domain::model::ids::{AgentId, NodeId, ProjectId};
+    use domain::model::nodes::{
+        Agent, AgentKind, AgentRole, InboxObject, OutboxObject, Project, ProjectShape,
+        ProjectStatus,
+    };
+    use domain::repository::{AgentCreationPayload, ProjectCreationPayload, Repository};
+
+    let claimed_org = spawn_claimed_with_org(with_metrics).await;
+    let org_id = claimed_org.org_id;
+    let now = Utc::now();
+
+    // Lead + member agents (LLM-kind so the AgentRole::Intern check
+    // passes).
+    let lead_agent = Agent {
+        id: AgentId::new(),
+        kind: AgentKind::Llm,
+        display_name: "project-lead".into(),
+        owning_org: Some(org_id),
+        role: Some(AgentRole::Intern),
+        created_at: now,
+    };
+    let lead_inbox = InboxObject {
+        id: NodeId::new(),
+        agent_id: lead_agent.id,
+        created_at: now,
+    };
+    let lead_outbox = OutboxObject {
+        id: NodeId::new(),
+        agent_id: lead_agent.id,
+        created_at: now,
+    };
+    claimed_org
+        .admin
+        .acc
+        .store
+        .apply_agent_creation(&AgentCreationPayload {
+            agent: lead_agent.clone(),
+            inbox: lead_inbox,
+            outbox: lead_outbox,
+            profile: None,
+            default_grants: vec![],
+            initial_execution_limits_override: None,
+            catalogue_entries: vec![],
+        })
+        .await
+        .expect("spawn_claimed_with_org_and_project: create lead agent");
+
+    let member_agent = Agent {
+        id: AgentId::new(),
+        kind: AgentKind::Llm,
+        display_name: "project-member".into(),
+        owning_org: Some(org_id),
+        role: Some(AgentRole::Intern),
+        created_at: now,
+    };
+    let member_inbox = InboxObject {
+        id: NodeId::new(),
+        agent_id: member_agent.id,
+        created_at: now,
+    };
+    let member_outbox = OutboxObject {
+        id: NodeId::new(),
+        agent_id: member_agent.id,
+        created_at: now,
+    };
+    claimed_org
+        .admin
+        .acc
+        .store
+        .apply_agent_creation(&AgentCreationPayload {
+            agent: member_agent.clone(),
+            inbox: member_inbox,
+            outbox: member_outbox,
+            profile: None,
+            default_grants: vec![],
+            initial_execution_limits_override: None,
+            catalogue_entries: vec![],
+        })
+        .await
+        .expect("spawn_claimed_with_org_and_project: create member agent");
+
+    let project = Project {
+        id: ProjectId::new(),
+        name: "Fixture Project".into(),
+        description: "Atlas-class memory benchmark".into(),
+        goal: None,
+        status: ProjectStatus::Planned,
+        shape: ProjectShape::A,
+        token_budget: None,
+        tokens_spent: 0,
+        objectives: vec![],
+        key_results: vec![],
+        resource_boundaries: Some(ResourceBoundaries::default()),
+        created_at: now,
+    };
+    let project_id = project.id;
+
+    claimed_org
+        .admin
+        .acc
+        .store
+        .apply_project_creation(&ProjectCreationPayload {
+            project,
+            owning_orgs: vec![org_id],
+            lead_agent_id: lead_agent.id,
+            member_agent_ids: vec![member_agent.id],
+            sponsor_agent_ids: vec![claimed_org.ceo_agent_id],
+            catalogue_entries: vec![(format!("project:{}", project_id), "project".into())],
+        })
+        .await
+        .expect("spawn_claimed_with_org_and_project: apply_project_creation");
+
+    ClaimedProject {
+        claimed_org,
+        project_id,
+        project_lead: lead_agent.id,
+        project_member: member_agent.id,
+        template_a_grant_id: None,
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! phi-core leverage (§1.5): `McpClient::connect_stdio`,
 //! `McpClient::connect_http`, `McpClient::list_tools()` are the single
-//! source of truth for MCP transport. baby-phi adds only a
+//! source of truth for MCP transport. phi adds only a
 //! timeout+retry envelope (phi-core has no probe abstraction of its
 //! own; §1.5 🚫 — this is the only hand-rolled MCP code in M2).
 //!
@@ -15,7 +15,7 @@
 //! transport-argument convention:
 //!
 //! - `stdio:///path/to/server [arg1 arg2 …]` — the `stdio:///` prefix
-//!   is a baby-phi convention to disambiguate from HTTP URLs; after
+//!   is a phi convention to disambiguate from HTTP URLs; after
 //!   stripping the prefix, the remainder is whitespace-split to
 //!   `(command, args)` and passed to [`McpClient::connect_stdio`].
 //! - `http://…` / `https://…` — passed verbatim to

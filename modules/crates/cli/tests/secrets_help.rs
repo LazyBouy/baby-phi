@@ -1,24 +1,21 @@
-//! Smoke tests for the `baby-phi secret …` clap surface.
+//! Smoke tests for the `phi secret …` clap surface.
 //!
 //! Drives the real binary via `std::process::Command` — rejects any
 //! typo that breaks `--help` parsing, without exercising the HTTP path
 //! (covered by `server/tests/acceptance_secrets.rs`).
 //!
-//! The binary path is discovered via `CARGO_BIN_EXE_baby-phi`, which
+//! The binary path is discovered via `CARGO_BIN_EXE_phi`, which
 //! Cargo sets automatically for integration tests against the `cli`
 //! package's `[[bin]]`.
 
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_baby-phi")
+    env!("CARGO_BIN_EXE_phi")
 }
 
 fn run_help(args: &[&str]) -> String {
-    let out = Command::new(bin())
-        .args(args)
-        .output()
-        .expect("run baby-phi");
+    let out = Command::new(bin()).args(args).output().expect("run phi");
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -34,7 +31,7 @@ fn secret_group_lists_five_subcommands() {
     for expected in ["list", "add", "rotate", "reveal", "reassign"] {
         assert!(
             help.contains(expected),
-            "`baby-phi secret --help` must mention `{expected}` subcommand; got:\n{help}"
+            "`phi secret --help` must mention `{expected}` subcommand; got:\n{help}"
         );
     }
 }

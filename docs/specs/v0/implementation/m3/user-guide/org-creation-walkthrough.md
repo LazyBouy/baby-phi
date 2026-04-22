@@ -6,6 +6,6 @@
 
 End-to-end 8-step walkthrough of the org creation wizard (CLI + Web).
 Fleshed out at P4 close with the shipped handler + YAML reference-
-layout seeding (`baby-phi org create --from-layout minimal-startup`).
+layout seeding (`phi org create --from-layout minimal-startup`).
 
 See [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) §P4 for the plan.

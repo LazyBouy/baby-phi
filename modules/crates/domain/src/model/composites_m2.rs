@@ -22,7 +22,7 @@ use super::ids::{AgentId, McpServerId, ModelProviderId, OrgId, SecretId};
 // ============================================================================
 
 /// Which LLM API protocol a `ModelRuntime` speaks. Re-exports phi-core's
-/// single source of truth so baby-phi never defines a parallel enum.
+/// single source of truth so phi never defines a parallel enum.
 pub type ProviderKind = phi_core::provider::model::ApiProtocol;
 
 // ============================================================================
@@ -141,7 +141,7 @@ impl From<String> for SecretRef {
 /// Every field that overlaps with phi-core (API protocol, base URL,
 /// API-key placeholder, cost / cache config, thinking level, headers,
 /// compat flags) lives on `config` — the embedded phi-core struct is
-/// the single source of truth. baby-phi only adds platform-governance
+/// the single source of truth. phi only adds platform-governance
 /// fields (`secret_ref`, `tenants_allowed`, `status`, timestamps).
 ///
 /// At invocation time (M5+), handlers resolve `secret_ref` against the
@@ -168,7 +168,7 @@ pub struct ModelRuntime {
 }
 
 /// An `external_service_object` composite instance — MCP server, OpenAPI
-/// spec, webhook, etc. Pure baby-phi: phi-core has no equivalent
+/// spec, webhook, etc. Pure phi: phi-core has no equivalent
 /// container. The live `McpClient` (phi-core's) is instantiated **on
 /// demand** from this record at probe/invocation time; never stored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,7 +188,7 @@ pub struct ExternalService {
 }
 
 /// A `secret_credential` composite-instance catalogue entry in the vault.
-/// Pure baby-phi — phi-core does not ship a secrets vault.
+/// Pure phi — phi-core does not ship a secrets vault.
 ///
 /// The sealed bytes live in the `secrets_vault` SurrealDB table; this
 /// struct is the domain-layer "catalogue" entry pointing at that row.
@@ -216,7 +216,7 @@ pub struct SecretCredential {
 ///
 /// Every phi-core-overlapping field is a direct wrap — `ExecutionLimits`,
 /// `AgentProfile`, `ContextConfig`, `RetryConfig` all imported directly
-/// from phi-core. The baby-phi-only fields (retention, alert channels)
+/// from phi-core. The phi-only fields (retention, alert channels)
 /// are platform-governance additions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlatformDefaults {
@@ -251,8 +251,8 @@ impl PlatformDefaults {
     /// install starts from.
     ///
     /// Every phi-core-overlapping field is the phi-core `::default()`
-    /// — so bumping phi-core automatically bumps baby-phi's factory
-    /// without a migration. The only baby-phi-native fields
+    /// — so bumping phi-core automatically bumps phi's factory
+    /// without a migration. The only phi-native fields
     /// (`default_retention_days`, `default_alert_channels`) get
     /// conservative starters: 30 days retention + no channels
     /// configured.

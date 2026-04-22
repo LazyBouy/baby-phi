@@ -4,13 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "HTTP API for baby-phi (axum)."
+description = "HTTP API for phi (axum)."
 
 [lib]
 path = "src/lib.rs"
 
 [[bin]]
-name = "baby-phi-server"
+name = "phi-server"
 path = "src/main.rs"
 
 [dependencies]

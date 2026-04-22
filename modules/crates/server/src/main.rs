@@ -3,13 +3,14 @@ use std::sync::Arc;
 
 use axum_server::tls_rustls::RustlsConfig;
 use clap::{Parser, Subcommand};
+use domain::events::EventBus;
 use server::bootstrap::generate_bootstrap_credential;
 use server::{build_router, telemetry, with_prometheus, AppState, ServerConfig, SessionKey};
 use store::SurrealStore;
 
-/// baby-phi-server — platform HTTP surface + one-shot bootstrap-init.
+/// phi-server — platform HTTP surface + one-shot bootstrap-init.
 #[derive(Debug, Parser)]
-#[command(name = "baby-phi-server", version, about)]
+#[command(name = "phi-server", version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -85,12 +86,30 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let session = SessionKey::from_config(&cfg.session)?;
     let master_key = Arc::new(store::crypto::MasterKey::from_env()?);
     let repo: Arc<dyn domain::Repository> = Arc::new(store);
-    let audit = Arc::new(store::SurrealAuditEmitter::new(repo.clone()));
+    let audit: Arc<dyn domain::audit::AuditEmitter> =
+        Arc::new(store::SurrealAuditEmitter::new(repo.clone()));
+    // M4/P3: in-process event bus + Template A fire-listener. The
+    // listener subscribes once; every `apply_project_creation` commit
+    // emits `HasLeadEdgeCreated` on the bus → listener issues the lead
+    // grant via the pure-fn + persists it.
+    let event_bus = Arc::new(domain::events::InProcessEventBus::new());
+    let template_a_listener = Arc::new(domain::events::TemplateAFireListener::new(
+        repo.clone(),
+        audit.clone(),
+        Arc::new(server::platform::projects::RepoAdoptionArResolver::new(
+            repo.clone(),
+        )),
+        Arc::new(server::platform::projects::RepoActorResolver::new(
+            repo.clone(),
+        )),
+    ));
+    event_bus.subscribe(template_a_listener);
     let state = AppState {
         repo,
         session,
         audit,
         master_key,
+        event_bus,
     };
     let app = with_prometheus(build_router(state));
 
@@ -102,7 +121,7 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
                 %addr,
                 cert = %tls.cert_path.display(),
                 key  = %tls.key_path.display(),
-                "baby-phi-server listening (TLS)",
+                "phi-server listening (TLS)",
             );
             let rustls = RustlsConfig::from_pem_file(&tls.cert_path, &tls.key_path).await?;
             axum_server::bind_rustls(addr, rustls)
@@ -112,7 +131,7 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         None => {
             tracing::info!(
                 %addr,
-                "baby-phi-server listening (plaintext HTTP — terminate TLS at reverse proxy in prod)",
+                "phi-server listening (plaintext HTTP — terminate TLS at reverse proxy in prod)",
             );
             let listener = tokio::net::TcpListener::bind(&addr).await?;
             axum::serve(listener, app).await?;

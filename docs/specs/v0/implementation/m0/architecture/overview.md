@@ -2,23 +2,23 @@
 
 # Architecture — overview
 
-M0 establishes the load-bearing shape of the baby-phi platform. Everything in M1+ plugs into this skeleton; nothing in M0 yet implements a user-visible platform feature.
+M0 establishes the load-bearing shape of the phi platform. Everything in M1+ plugs into this skeleton; nothing in M0 yet implements a user-visible platform feature.
 
 ## System map
 
 ```
                     ┌──────────────────┐     ┌──────────────────┐
-                    │  CLI  (baby-phi) │     │  Web (Next.js 14)│
+                    │  CLI  (phi) │     │  Web (Next.js 14)│
                     │  modules/crates/ │     │  modules/web/    │
                     │  cli             │     │                  │
                     └────────┬─────────┘     └────────┬─────────┘
                              │                        │
                              │ HTTP/JSON              │ HTTP/JSON (SSR-proxied via
                              │                        │  next.config.mjs rewrites
-                             │                        │  /api/v0/* → BABY_PHI_API_URL)
+                             │                        │  /api/v0/* → PHI_API_URL)
                              ▼                        ▼
                     ┌───────────────────────────────────────────┐
-                    │       HTTP API (axum, baby-phi-server)    │
+                    │       HTTP API (axum, phi-server)    │
                     │       modules/crates/server               │
                     │                                           │
                     │  /healthz/live   /healthz/ready           │
@@ -79,7 +79,7 @@ Concrete, code-backed:
 - Native TLS via `axum-server` when `[server.tls]` is set; plaintext otherwise.
 - Next.js 14 App Router + SSR + a health-probe page.
 - Structured logs via `tracing` (JSON in prod, pretty in dev).
-- 12-factor layered config: `config/default.toml` → `config/<profile>.toml` → `BABY_PHI_*` env.
+- 12-factor layered config: `config/default.toml` → `config/<profile>.toml` → `PHI_*` env.
 
 ## What does NOT exist yet in M0
 

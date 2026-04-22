@@ -11,7 +11,7 @@ M1 (Permission Check spine) shipped at 100 % confidence: 36-method Repository, p
 
 **M2 is the first milestone where handlers actually call the Permission Check engine** (bootstrap bypassed it) and emit audit events through a real `AuditEmitter`. It also introduces the "Template E Auth Request, auto-approved by the self-interested platform admin" pattern that every non-bootstrap write uses. Admin pages 02 (Model Providers), 03 (MCP Servers), 04 (Credentials Vault), 05 (Platform Defaults) all ship behind the existing session cookie.
 
-The build-plan M2 entry is ~5 lines ([build plan §M2](../../projects/phi/baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version. Every contract is pinned up-front, the first non-bootstrap code paths for Permission Check + audit-emit land as reusable infrastructure (not per-page reinvention), docs co-land per phase, and a per-page vertical-slice shape keeps each commit reviewable.
+The build-plan M2 entry is ~5 lines ([build plan §M2](../../projects/phi/phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version. Every contract is pinned up-front, the first non-bootstrap code paths for Permission Check + audit-emit land as reusable infrastructure (not per-page reinvention), docs co-land per phase, and a per-page vertical-slice shape keeps each commit reviewable.
 
 **What M1 taught us (applied preventively to M2):**
 
@@ -20,7 +20,7 @@ The build-plan M2 entry is ~5 lines ([build plan §M2](../../projects/phi/baby-p
 3. Doc-links CI tolerates `[PLANNED M1/Pn]` placeholders; bulk path-depth fixes are cheap if done once at P1 and not retroactively. **Prevention**: seed `implementation/m2/` tree at P1 with correct `../../../../../../modules/` depth from the start.
 4. Per-phase test-count claims need verification against `cargo test` output, not arithmetic. **Prevention**: Part 5 fixes M1's convention (cargo-level counts in rows, "gains" column for user-meaningful figures like trybuild fixture count).
 
-**Archive location for this plan:** `baby-phi/docs/specs/plan/build/<8-hex>-m2-platform-setup.md` (first execution step is to copy this plan verbatim to that path, matching the M1 archiving convention).
+**Archive location for this plan:** `phi/docs/specs/plan/build/<8-hex>-m2-platform-setup.md` (first execution step is to copy this plan verbatim to that path, matching the M1 archiving convention).
 
 ---
 
@@ -47,7 +47,7 @@ Cross-check of admin pages 02–05 requirements, concept docs, and current M1 co
 | G15 | **Acceptance harness has no pre-claimed variant.** Every M2 handler requires a session cookie from an already-claimed admin. | `server/tests/acceptance_common/mod.rs:146` | Add `spawn_claimed() -> (Acceptance, ClaimedAdmin { agent_id, session_cookie, authed_client })` that runs the mint+claim once and returns a reqwest client preconfigured with the cookie header. |
 | G16 | **Prometheus recorder is process-global.** M1's `install_prometheus_layer` uses a `OnceLock`; only one acceptance test can pass `with_metrics: true` per process. | `acceptance_common/mod.rs:128-142` | Keep the `OnceLock` gate; designate one cross-page `acceptance_metrics.rs` as the only M2 `with_metrics: true` consumer. Revisit with `serial_test` crate if M3 needs more. |
 | G17 | **Doc-links CI covers per-milestone trees.** M2 adds `implementation/m2/` + 4 new ADRs (0016–0019). | `.github/workflows/doc-links.yml` | Seed the `m2/` tree at P1 (not retroactively). Path depth is `../../../../../../modules/` from `architecture/` or `decisions/` or `operations/` or `user-guide/` (same as M1). |
-| **G18** | **`phi-core` reuse is implicit, not explicit.** M2 surfaces overlap heavily with shipped phi-core APIs (Part 1.5 below). Without a hard reuse mandate we risk duplicating `ExecutionLimits`, `ModelConfig`, `McpClient`, `AgentProfile`, `parse_config_file`, etc. That's wasted code + drift over time. | `phi-core/src/{provider,mcp,context,agents,config,types}/*.rs` vs planned baby-phi composites | **Reuse is a commitment, not a suggestion**: every M2 composite that overlaps with a phi-core type MUST either (a) use the phi-core type directly, or (b) wrap it as a field. New baby-phi structs are permitted ONLY where phi-core has no counterpart (page 04 vault; Permission-Check constraint machinery; audit-event envelopes). See §1.5 for the per-page reuse map + D16 for the enforcement mechanism. |
+| **G18** | **`phi-core` reuse is implicit, not explicit.** M2 surfaces overlap heavily with shipped phi-core APIs (Part 1.5 below). Without a hard reuse mandate we risk duplicating `ExecutionLimits`, `ModelConfig`, `McpClient`, `AgentProfile`, `parse_config_file`, etc. That's wasted code + drift over time. | `phi-core/src/{provider,mcp,context,agents,config,types}/*.rs` vs planned phi composites | **Reuse is a commitment, not a suggestion**: every M2 composite that overlaps with a phi-core type MUST either (a) use the phi-core type directly, or (b) wrap it as a field. New phi structs are permitted ONLY where phi-core has no counterpart (page 04 vault; Permission-Check constraint machinery; audit-event envelopes). See §1.5 for the per-page reuse map + D16 for the enforcement mechanism. |
 | **G19** | **Instance-URI grants silently fail the Permission Check engine.** `resolve_grant` has three cases: (A) URI names a fundamental — fundamentals = {that one}, selector = `Any`; (B) URI names a composite — fundamentals = constituents, selector = `Any`, kind refinement added; (C) opaque instance URI (e.g. `secret:anthropic-api-key`, `provider:42`, `mcp:memory`) — fundamentals = **empty**, selector parsed from URI. Case-C grants can never be candidates at Step 3 (`covers(fundamental, _)` returns false on the empty set). Only `system:root` is special-cased. The M2 plan's **D11** ("reveal is a Permission-Check invocation; unlocks M3 delegated reveal without changing handlers") silently depends on per-instance grants working — they currently don't. **Surfaced during P4 implementation** (the reveal path): the P4 shipping workaround issues a class-wide `[read]` grant on the `secret_credential` fundamental (Case A) scoped only by catalogue + constraint — adequate for M2's single-admin model but blocks M3's delegated-custody story and would cost a data migration later. | `domain/src/permissions/expansion.rs:116-158` (resolve_grant); `server/src/platform/secrets/add.rs` (P4 workaround) | **P4.5 detour** (before P5): add an optional `fundamentals: Vec<Fundamental>` field to `Grant` (`#[serde(default)]` for DB back-compat); extend `resolve_grant` with a 4th case that prefers the persisted value when non-empty; update `add_secret` (P4) to issue `secret:<slug>` grants with `fundamentals = [SecretCredential]`. Existing grant-constructor callsites get the default empty vec. Adds one proptest covering the instance-URI match path. See §P4.5 for the full scope. |
 
 ### Confidence target: **≥ 97 % at first review**, ≥ 99 % after post-P9 remediation.
@@ -58,15 +58,15 @@ Lower than M1's 99 % first-review target because G1/G3/G14 introduce new contrac
 
 ## Part 1.5 — phi-core reuse map  `[STATUS: ⏳ pending]`
 
-**Principle** (per G18 + D16): baby-phi is a consumer of phi-core. Every M2 surface that overlaps with an existing phi-core type uses the phi-core type directly or wraps it — we do **not** re-implement what phi-core already ships.
+**Principle** (per G18 + D16): phi is a consumer of phi-core. Every M2 surface that overlaps with an existing phi-core type uses the phi-core type directly or wraps it — we do **not** re-implement what phi-core already ships.
 
-Legend: ✅ **direct reuse** (use as-is); 🔌 **wrap** (baby-phi struct holds a phi-core type as a field); 🚫 **no phi-core counterpart** (baby-phi builds from scratch).
+Legend: ✅ **direct reuse** (use as-is); 🔌 **wrap** (phi struct holds a phi-core type as a field); 🚫 **no phi-core counterpart** (phi builds from scratch).
 
 | Surface | phi-core type / API (absolute path) | M2 use site | Mode |
 |---|---|---|---|
 | **Page 02 — Model Providers** | | | |
-| Provider binding | `phi_core::provider::model::ModelConfig` (`/root/projects/phi/phi-core/src/provider/model.rs`) | `ModelRuntime.config: ModelConfig` on the baby-phi composite | 🔌 |
-| Supported providers enum | `phi_core::provider::model::ApiProtocol` | `ProviderKind` in baby-phi = type alias to `ApiProtocol` (single source of truth) | ✅ |
+| Provider binding | `phi_core::provider::model::ModelConfig` (`/root/projects/phi/phi-core/src/provider/model.rs`) | `ModelRuntime.config: ModelConfig` on the phi composite | 🔌 |
+| Supported providers enum | `phi_core::provider::model::ApiProtocol` | `ProviderKind` in phi = type alias to `ApiProtocol` (single source of truth) | ✅ |
 | Provider factory | `phi_core::provider::registry::ProviderRegistry::default()` | Enumerate in the web UI dropdown; resolve for health-probe | ✅ |
 | Cache / thinking | `phi_core::types::usage::{CacheConfig, ThinkingLevel}` | Fields on `ModelRuntime`; exposed in page 02 UI | ✅ |
 | Stream contract | `phi_core::provider::traits::{StreamProvider, StreamConfig, StreamEvent}` | Not exercised by M2 handlers (session launch is M5); reuse at that point | ✅ (deferred) |
@@ -77,7 +77,7 @@ Legend: ✅ **direct reuse** (use as-is); 🔌 **wrap** (baby-phi struct holds a
 | Health probe | (none in phi-core) | Build a thin wrapper around `list_tools()` with 2 s timeout + 3 retries | 🚫 |
 | **Page 04 — Credentials Vault** | | | |
 | Env var substitution | `phi_core::config::parser::substitute_env_vars()` (if public; else pattern) | Only tangentially — vault resolves `secret_ref → plaintext`, handler pastes plaintext into `ModelConfig.api_key` before a downstream call | 🚫 (logic is vault-native) |
-| Material storage | (none in phi-core) | baby-phi's `SecretCredential` composite + M1's `seal`/`unseal` | 🚫 |
+| Material storage | (none in phi-core) | phi's `SecretCredential` composite + M1's `seal`/`unseal` | 🚫 |
 | **Page 05 — Platform Defaults** | | | |
 | Execution limits | `phi_core::context::execution::ExecutionLimits` | `PlatformDefaults.execution_limits: ExecutionLimits` | 🔌 |
 | Agent profile | `phi_core::agents::profile::AgentProfile` | `PlatformDefaults.default_agent_profile: AgentProfile` | 🔌 |
@@ -90,10 +90,10 @@ Legend: ✅ **direct reuse** (use as-is); 🔌 **wrap** (baby-phi struct holds a
 
 **What phi-core does NOT provide and M2 must build**:
 - Credentials vault (page 04 entire surface).
-- Tool-authority manifests / Permission Check constraint lattice (baby-phi's domain entirely).
+- Tool-authority manifests / Permission Check constraint lattice (phi's domain entirely).
 - MCP health-probe (thin wrapper as noted).
 - `TenantSet` / tenant-narrowing semantics (platform-level concept not in phi-core's scope).
-- `PlatformDefaults` container struct itself (it *composes* phi-core types; the container is baby-phi-only).
+- `PlatformDefaults` container struct itself (it *composes* phi-core types; the container is phi-only).
 - Template E auto-approval (permission-system concept not in phi-core).
 
 **Concrete enforcement** (per D16):
@@ -102,7 +102,7 @@ Legend: ✅ **direct reuse** (use as-is); 🔌 **wrap** (baby-phi struct holds a
 3. `scripts/check-phi-core-reuse.sh` (new — cheap grep-based lint; see Part 7) flags tell-tale duplications:
    - `grep -rn "struct ExecutionLimits" modules/crates/` must return zero hits (only phi-core defines it).
    - `grep -rn "struct ModelConfig" modules/crates/` must return zero hits.
-   - `grep -rn "pub struct AgentProfile" modules/crates/` must return zero hits (only phi-core defines this name — baby-phi's governance analogue is renamed per §1.6).
+   - `grep -rn "pub struct AgentProfile" modules/crates/` must return zero hits (only phi-core defines this name — phi's governance analogue is renamed per §1.6).
    - `grep -rn "struct McpClient" modules/crates/` must return zero hits.
    - Runs in CI as an advisory-then-hard gate after the P3 close audit locks the policy.
 
@@ -114,12 +114,12 @@ Two deep-sweep phi-core-reuse audits of M1's shipped code (file-by-file sweep + 
 
 | # | Finding | Severity | Fix (P0) |
 |---|---|---|---|
-| **R1** | **`AgentProfile` name collision.** `domain::model::nodes::AgentProfile` (baby-phi) has fields `{id, agent_id, display_name, parallelize, created_at}` — a platform-governance node capturing concurrent-session caps. `phi_core::AgentProfile` has `{profile_id, name, description, system_prompt, thinking_level, temperature, max_tokens, config_id, skills, workspace}` — an execution blueprint for the agent loop. Same name, orthogonal concerns; M4's agent-provisioning will want **both** (governance + execution blueprint). Leaving the collision lets M4 ship with an ambiguous import, at which point renaming hits the whole Repository trait + wire types + docs. | 🚨 Material | **P0.R1** — rename baby-phi's struct to `AgentGovernanceProfile`. Touches: `domain/src/model/nodes.rs`, `domain/src/repository.rs` (`create_agent_profile` method keeps its name, arg type renamed), `in_memory.rs`, `store/src/repo_impl.rs`, `migrations/0001_initial.surql` (squashed since M1 is pre-release), tests + M1 docs. M4 then adds `phi_core::AgentProfile` as a wrapped field. |
-| **R2** | **`thiserror` version drift.** baby-phi workspace uses `thiserror = "1"`; phi-core uses `thiserror = "2"`. thiserror 1/2 error types have binary-incompatible layouts — any place baby-phi wraps a phi-core error with `#[from]` silently fails at runtime with "implementations not found". The collision doesn't bite M1 because no error-type wrapping across the phi-core boundary is exercised yet; M2's `AuditEmitter` + M4's agent-loop integration will trip it. | 🚨 Material | **P0.R2** — bump `thiserror` to `"2"` in `/root/projects/phi/baby-phi/Cargo.toml:32` (workspace); recompile; verify `cargo test --workspace` stays green. 15-minute fix. |
+| **R1** | **`AgentProfile` name collision.** `domain::model::nodes::AgentProfile` (phi) has fields `{id, agent_id, display_name, parallelize, created_at}` — a platform-governance node capturing concurrent-session caps. `phi_core::AgentProfile` has `{profile_id, name, description, system_prompt, thinking_level, temperature, max_tokens, config_id, skills, workspace}` — an execution blueprint for the agent loop. Same name, orthogonal concerns; M4's agent-provisioning will want **both** (governance + execution blueprint). Leaving the collision lets M4 ship with an ambiguous import, at which point renaming hits the whole Repository trait + wire types + docs. | 🚨 Material | **P0.R1** — rename phi's struct to `AgentGovernanceProfile`. Touches: `domain/src/model/nodes.rs`, `domain/src/repository.rs` (`create_agent_profile` method keeps its name, arg type renamed), `in_memory.rs`, `store/src/repo_impl.rs`, `migrations/0001_initial.surql` (squashed since M1 is pre-release), tests + M1 docs. M4 then adds `phi_core::AgentProfile` as a wrapped field. |
+| **R2** | **`thiserror` version drift.** phi workspace uses `thiserror = "1"`; phi-core uses `thiserror = "2"`. thiserror 1/2 error types have binary-incompatible layouts — any place phi wraps a phi-core error with `#[from]` silently fails at runtime with "implementations not found". The collision doesn't bite M1 because no error-type wrapping across the phi-core boundary is exercised yet; M2's `AuditEmitter` + M4's agent-loop integration will trip it. | 🚨 Material | **P0.R2** — bump `thiserror` to `"2"` in `/root/projects/phi/phi/Cargo.toml:32` (workspace); recompile; verify `cargo test --workspace` stays green. 15-minute fix. |
 | R3 | **`AuditEvent` vs `AgentEvent` are distinct, not duplicates.** `domain::audit::AuditEvent` (platform governance write log with hash chain + class tier) is orthogonal to `phi_core::types::event::AgentEvent` (agent-loop turn telemetry). Surfaces look similar from the outside; they're genuinely different concerns. | ⚠️ Cosmetic | **P0.R3** — add a distinction paragraph to `docs/specs/v0/implementation/m1/architecture/audit-events.md`. |
 | R4 | **`SessionClaims` (HTTP session) vs `phi_core::Session` (persistent execution trace).** M1's HS256 cookie + `SessionClaims` carries admin identity across requests; phi-core's `Session` persists agent-loop turn history. Different layers; M5+ will have both. | ⚠️ Cosmetic | **P0.R3** (same doc as R3) — add a paragraph distinguishing HTTP session vs agent-loop session to `docs/specs/v0/implementation/m1/architecture/server-topology.md` (§Session cookie). |
-| R5 | **`ToolDefinition` (baby-phi permissions metadata) vs `phi_core::AgentTool` (runtime tool).** Both are "tool" surfaces but at different layers — baby-phi's is a policy/audit node; phi-core's is a runtime `execute(params)` trait. M5+ adapter will bridge them. | ⚠️ Cosmetic | **P0.R3** (same doc pass) — add a one-line note to `docs/specs/v0/implementation/m1/architecture/graph-model.md` distinguishing the two when `ToolDefinition` is referenced. |
-| R6 | **`ServerConfig::load` (layered TOML + `BABY_PHI__KEY` env override) vs `phi_core::parse_config_file` (TOML/YAML/JSON + `${VAR}` interpolation).** Both are "config parsers" but for different shapes — `ServerConfig` is infrastructure (host/port/data-dir/session-secret); `AgentConfig` is agent blueprint. Earlier exploration briefly suggested consolidating; closer look shows they're legitimately orthogonal. M2 page 05 **does** consume `parse_config` for agent-defaults import/export — the correct reuse boundary. | ✅ Clean (but document) | **P0.R3** (same doc pass) — add a paragraph to `docs/specs/v0/implementation/m1/architecture/overview.md` §Configuration explaining the `ServerConfig` / `AgentConfig` parsing separation so M2+ authors don't mis-merge them. |
+| R5 | **`ToolDefinition` (phi permissions metadata) vs `phi_core::AgentTool` (runtime tool).** Both are "tool" surfaces but at different layers — phi's is a policy/audit node; phi-core's is a runtime `execute(params)` trait. M5+ adapter will bridge them. | ⚠️ Cosmetic | **P0.R3** (same doc pass) — add a one-line note to `docs/specs/v0/implementation/m1/architecture/graph-model.md` distinguishing the two when `ToolDefinition` is referenced. |
+| R6 | **`ServerConfig::load` (layered TOML + `PHI__KEY` env override) vs `phi_core::parse_config_file` (TOML/YAML/JSON + `${VAR}` interpolation).** Both are "config parsers" but for different shapes — `ServerConfig` is infrastructure (host/port/data-dir/session-secret); `AgentConfig` is agent blueprint. Earlier exploration briefly suggested consolidating; closer look shows they're legitimately orthogonal. M2 page 05 **does** consume `parse_config` for agent-defaults import/export — the correct reuse boundary. | ✅ Clean (but document) | **P0.R3** (same doc pass) — add a paragraph to `docs/specs/v0/implementation/m1/architecture/overview.md` §Configuration explaining the `ServerConfig` / `AgentConfig` parsing separation so M2+ authors don't mis-merge them. |
 
 **Confirmed clean** (no P0 action): Permission Check engine, Auth Request state machine, Repository trait, store crypto (`seal`/`unseal`), forward-only migrations, session cookie machinery, bootstrap credential flow, every node type except R1, all utility functions (UUID, time, base64, JSON, retry, hash-chain). CLI `agent demo` is a textbook phi-core consumer (imports `phi_core::{agents_from_config, parse_config_file, save_session, AgentEvent, SessionRecorder, StreamDelta}` directly). Feature flags on shared crates (`uuid`, `chrono`) and version pins are consistent except R2.
 
@@ -142,9 +142,9 @@ Two deep-sweep phi-core-reuse audits of M1's shipped code (file-by-file sweep + 
 | C9 | Page 02 model providers | `GET / POST /model-providers`, `POST /{id}/archive` + Template E auto-approve + catalogue seed | P5 | `server/tests/platform_model_providers_test.rs` — register emits AR + Grant + catalogue seed + audit event in one tx |
 | C10 | Page 03 MCP servers (incl. cascading revocation) | `GET / POST / PATCH /mcp-servers`, `POST /{id}/archive` + cascade | P6 | `server/tests/platform_mcp_servers_test.rs` + `domain/tests/mcp_cascade_props.rs` — monotonic grant-count reduction |
 | C11 | Page 05 platform defaults | `GET / PUT /platform/defaults` + non-retroactive inheritance | P7 | `server/tests/platform_defaults_test.rs` + `domain/tests/platform_defaults_non_retroactive_props.rs` |
-| C12 | Prometheus `baby_phi_permission_check_duration_seconds{result, failed_step}` wired through real handlers | Histogram records under real HTTP traffic | P3 (wiring), P4–P7 (emission) | `server/tests/acceptance_metrics.rs` — scrape `/metrics` after a 403 and assert labels |
+| C12 | Prometheus `phi_permission_check_duration_seconds{result, failed_step}` wired through real handlers | Histogram records under real HTTP traffic | P3 (wiring), P4–P7 (emission) | `server/tests/acceptance_metrics.rs` — scrape `/metrics` after a 403 and assert labels |
 | C13 | Audit events for all M2 writes (correct class + chain) | 14+ event types with Alerted default for sensitive surfaces; `prev_event_hash` populated | P3 (emitter), P4–P7 (usage) | `server/tests/audit_chain_m2_test.rs` — 4-write sequence with hash-chain continuity |
-| C14 | CLI subcommands for all 4 pages + `login` | `baby-phi {login, secret, model-provider, mcp-server, platform-defaults}` | P4–P7 (per page), P8 (polish) | `cli/tests/help_snapshot.rs` (insta snapshots for every subcommand's `--help`) + `cli/tests/platform_cli_test.rs` |
+| C14 | CLI subcommands for all 4 pages + `login` | `phi {login, secret, model-provider, mcp-server, platform-defaults}` | P4–P7 (per page), P8 (polish) | `cli/tests/help_snapshot.rs` (insta snapshots for every subcommand's `--help`) + `cli/tests/platform_cli_test.rs` |
 | C15 | Web UI admin layout shell + 4 pages | `app/(admin)/layout.tsx` with auth gate + sidebar nav; one SSR-probe page + Server Action + Client Component per page; shared `<ApiErrorAlert />` | P4–P7 (per page), P1 (shell) | `modules/web/__tests__/admin_layout.test.tsx` + per-page smoke tests |
 | C16 | Operations docs + troubleshooting updated | 4 new ops runbooks + M2 additions to schema-migrations + at-rest-encryption + audit-log-retention + troubleshooting with M2 stable codes | P4–P7 (per page), P8 (seal) | `check-doc-links.sh` + new `check-ops-doc-headers.sh` both CI-green |
 | C17 | doc-links CI green throughout | `implementation/m2/` tree seeded P1; fleshed per phase | P1–P8 | `.github/workflows/doc-links.yml` passes every PR |
@@ -176,9 +176,9 @@ To avoid mid-build thrashing. Push back in review if any are wrong.
 | D11 | **"Reveal" is a Permission-Check invocation with `purpose=reveal`**, not a handler-bypass special case. | Engine stays the single source of permission truth (widens step-4 per G3). Unlocks M3's "delegated reveal grant" case without changing handlers. |
 | D12 | Audit-event builder functions live in `domain::audit::events::m2` as **pure functions**. Handlers call them; the returned `AuditEvent` carries `prev_event_hash = None` (the emitter fills it). | Pins diff shapes in one place (G13); keeps handlers free of JSON literals; hermetic tests. |
 | D13 | Per-page vertical slicing: **P4–P7 ship one page at a time — Rust handler + CLI subcommand + Web page + ops doc in one phase**. | Each phase is reviewable end-to-end; avoids M1's "all CLI at P7, all web at P8" batching, which is riskier when surfaces × pages = 4 × 3 = 12 things instead of 1 × 3 = 3. |
-| D14 | CLI session persistence = `$XDG_CONFIG_HOME/baby-phi/session` file with `0600` permissions. Keyring deferred to M3+ when OAuth lands. | Re-auth-each-time is untenable (bootstrap credential is single-use). File at mode 0600 is secure enough for M2's workstation-user model. |
+| D14 | CLI session persistence = `$XDG_CONFIG_HOME/phi/session` file with `0600` permissions. Keyring deferred to M3+ when OAuth lands. | Re-auth-each-time is untenable (bootstrap credential is single-use). File at mode 0600 is secure enough for M2's workstation-user model. |
 | D15 | Admin web pages sit under `app/(admin)/` Route Group with a shared layout + `requireAdminSession()` HOF. | Route Group leaves `/` and `/bootstrap` outside the gate; HOF > Next middleware because middleware runs on Edge and would need a separate JWT path. |
-| **D16** | **phi-core reuse is a first-class mandate, not a suggestion.** Every M2 composite that overlaps a phi-core type MUST import it or wrap it; new baby-phi structs only where phi-core has no counterpart (see §1.5 reuse map). Enforced by a CI lint (`scripts/check-phi-core-reuse.sh`) + P3 close / P-final audits. | baby-phi is a consumer of phi-core; duplicating `ExecutionLimits`, `ModelConfig`, `McpClient`, `AgentProfile`, `parse_config_file`, `AgentEvent`, `Session` etc. would create a two-source-of-truth problem that compounds per milestone. Phase-1 exploration confirmed 8 of 10 M2 overlap surfaces have direct phi-core counterparts. |
+| **D16** | **phi-core reuse is a first-class mandate, not a suggestion.** Every M2 composite that overlaps a phi-core type MUST import it or wrap it; new phi structs only where phi-core has no counterpart (see §1.5 reuse map). Enforced by a CI lint (`scripts/check-phi-core-reuse.sh`) + P3 close / P-final audits. | phi is a consumer of phi-core; duplicating `ExecutionLimits`, `ModelConfig`, `McpClient`, `AgentProfile`, `parse_config_file`, `AgentEvent`, `Session` etc. would create a two-source-of-truth problem that compounds per milestone. Phase-1 exploration confirmed 8 of 10 M2 overlap surfaces have direct phi-core counterparts. |
 | **D17** | **Grant carries explicit `fundamentals: Vec<Fundamental>` alongside the resource URI** (new field, `#[serde(default)]`). The engine's `resolve_grant` prefers this value when non-empty; otherwise falls back to the existing URI-derived logic. Handlers that issue instance-URI grants (e.g. `secret:<slug>`) populate it; handlers issuing class-URI or `system:root` grants leave it empty to preserve M1 semantics. | Addresses G19. Instance-URI grants now work without a URI-scheme convention or a per-class parser. Storage stays forward-compatible (existing rows deserialize with an empty vec, which triggers the legacy URI-derivation path). Unlocks M3's per-instance delegated reveal / custody handoff **without** a data migration. The alternative — parsing a `<class>:<instance>` convention inside the engine — would proliferate special cases across every M2+ composite (`secret:`, `provider:`, `mcp:`, `platform-defaults:` …) and pollute the engine with naming trivia. |
 
 ---
@@ -193,12 +193,12 @@ Nine phases — P0 (M1 residual cleanup) then P1–P8. Each closes with `cargo f
 
 1. **R1 — Rename `AgentProfile` → `AgentGovernanceProfile`** in `domain/src/model/nodes.rs`.
 2. **R1 cascade** through `domain/src/repository.rs` (method signature only — `create_agent_profile` method name kept, arg type renamed), `in_memory.rs`, `store/src/repo_impl.rs`, `store/migrations/0001_initial.surql` (**squash into 0001** since M1 is pre-release and there are no production DBs — cleaner than a rename migration), any `M1/architecture/*.md` and `storage-and-repository.md` that cite the old name, any test files.
-3. **R2 — Bump `thiserror` to `"2"`** in `/root/projects/phi/baby-phi/Cargo.toml:32` (workspace). This aligns baby-phi with phi-core (which uses thiserror 2) and prevents the silent `#[from]` breakage that would surface the first time M2 wraps a phi-core error in a baby-phi error variant.
+3. **R2 — Bump `thiserror` to `"2"`** in `/root/projects/phi/phi/Cargo.toml:32` (workspace). This aligns phi with phi-core (which uses thiserror 2) and prevents the silent `#[from]` breakage that would surface the first time M2 wraps a phi-core error in a phi error variant.
 4. **R3 doc pass** — one PR that adds four short distinction paragraphs across M1 docs:
    - `docs/specs/v0/implementation/m1/architecture/audit-events.md` — `AuditEvent` (governance write log) vs `phi_core::AgentEvent` (agent-loop telemetry).
    - `docs/specs/v0/implementation/m1/architecture/server-topology.md` §Session cookie — `SessionClaims` (HTTP session cookie) vs `phi_core::Session` (persistent execution trace).
    - `docs/specs/v0/implementation/m1/architecture/graph-model.md` — node `ToolDefinition` (permission metadata) vs `phi_core::AgentTool` (runtime tool).
-   - `docs/specs/v0/implementation/m1/architecture/overview.md` §Configuration — `ServerConfig` (HTTP/storage layered TOML with `BABY_PHI__KEY` overrides) vs `phi_core::parse_config_file` / `AgentConfig` (agent-blueprint schema with `${VAR}` interpolation); they're orthogonal, and M2 page 05 consumes `parse_config` for agent-defaults import/export as the correct reuse boundary.
+   - `docs/specs/v0/implementation/m1/architecture/overview.md` §Configuration — `ServerConfig` (HTTP/storage layered TOML with `PHI__KEY` overrides) vs `phi_core::parse_config_file` / `AgentConfig` (agent-blueprint schema with `${VAR}` interpolation); they're orthogonal, and M2 page 05 consumes `parse_config` for agent-defaults import/export as the correct reuse boundary.
 5. **Gates**: `cargo fmt/clippy/test --workspace` green; workspace total stays at 299+14 = 313.
 
 **Files modified** (~13): `Cargo.toml` (workspace thiserror bump), `nodes.rs`, `repository.rs`, `in_memory.rs`, `repo_impl.rs`, `0001_initial.surql`, M1 docs (audit-events.md, server-topology.md, graph-model.md, overview.md, storage-and-repository.md), test files.
@@ -212,10 +212,10 @@ Nine phases — P0 (M1 residual cleanup) then P1–P8. Each closes with `cargo f
 1. **IDs** in `domain/src/model/ids.rs`: add `SecretId`, `ModelProviderId`, `McpServerId` via existing `id_newtype!` macro.
 2. **Composites** in new `domain/src/model/composites_m2.rs` — **every phi-core-overlapping field is a direct reuse or a wrap per §1.5**:
    - `ModelRuntime { config: phi_core::ModelConfig, secret_ref: SecretRef, tenants_allowed: TenantSet, status: RuntimeStatus, archived_at: Option<DateTime<Utc>> }` — `config` holds the full phi-core binding.
-   - `ExternalService { endpoint: String, kind: ExternalServiceKind, secret_ref: Option<SecretRef>, tenants_allowed: TenantSet, status: RuntimeStatus, archived_at }` — pure baby-phi struct; the live `McpClient` is instantiated on demand (not stored) from this config.
+   - `ExternalService { endpoint: String, kind: ExternalServiceKind, secret_ref: Option<SecretRef>, tenants_allowed: TenantSet, status: RuntimeStatus, archived_at }` — pure phi struct; the live `McpClient` is instantiated on demand (not stored) from this config.
    - `SecretCredential { slug, custodian, last_rotated_at, sensitive; sealed-value is store-side only }` — no phi-core counterpart.
-   - `PlatformDefaults { execution_limits: phi_core::ExecutionLimits, default_agent_profile: phi_core::AgentProfile, context_config: phi_core::ContextConfig, retry_config: phi_core::RetryConfig, default_retention_days, default_alert_channels, model_provider_defaults, updated_at, version }` — the top-level container is baby-phi-only; every phi-core-overlapping field is the phi-core type exactly.
-   - Enums: `TenantSet`, `ExternalServiceKind`, `RuntimeStatus` (baby-phi-only). `ProviderKind = phi_core::ApiProtocol` (re-export / type alias — single source of truth).
+   - `PlatformDefaults { execution_limits: phi_core::ExecutionLimits, default_agent_profile: phi_core::AgentProfile, context_config: phi_core::ContextConfig, retry_config: phi_core::RetryConfig, default_retention_days, default_alert_channels, model_provider_defaults, updated_at, version }` — the top-level container is phi-only; every phi-core-overlapping field is the phi-core type exactly.
+   - Enums: `TenantSet`, `ExternalServiceKind`, `RuntimeStatus` (phi-only). `ProviderKind = phi_core::ApiProtocol` (re-export / type alias — single source of truth).
 3. **`TemplateKind`** on `Template` node in `model/nodes.rs`: enum with `SystemBootstrap + A..F`. Existing bootstrap template rows default to `SystemBootstrap`.
 4. **Migration** `store/migrations/0002_platform_setup.surql`: `secrets_vault`, `model_providers`, `mcp_servers`, `platform_defaults` tables with the full column sets + unique index on `platform_defaults.singleton`.
 5. **Docs tree seed** `docs/specs/v0/implementation/m2/{README,architecture,user-guide,operations,decisions}/`:
@@ -228,9 +228,9 @@ Nine phases — P0 (M1 residual cleanup) then P1–P8. Each closes with `cargo f
    - `modules/web/lib/session.ts` extended with `requireAdminSession()` HOF.
    - `modules/web/lib/api/{errors,forward-cookie}.ts` — stable-code table + cookie-forwarding helper.
 7. **CLI scaffolding** for later phases:
-   - `modules/crates/cli/src/session_store.rs` — XDG config file at `$XDG_CONFIG_HOME/baby-phi/session` with 0600 perms (D14).
+   - `modules/crates/cli/src/session_store.rs` — XDG config file at `$XDG_CONFIG_HOME/phi/session` with 0600 perms (D14).
    - `modules/crates/cli/src/exit.rs` — named exit-code constants (extends M1's 0/1/2/3 ladder with 4 "precondition failed" + 5 "cascade-aborted").
-   - `modules/crates/cli/src/commands/login.rs` — `baby-phi login --credential <bphi-bootstrap-…>` (M2-only re-auth stopgap; OAuth is M3).
+   - `modules/crates/cli/src/commands/login.rs` — `phi login --credential <bphi-bootstrap-…>` (M2-only re-auth stopgap; OAuth is M3).
 8. **phi-core reuse lint** `scripts/check-phi-core-reuse.sh` (per D16 + C19): greps every `.rs` under `modules/crates/` for forbidden re-declarations of phi-core types (`struct ExecutionLimits`, `struct ModelConfig`, `struct AgentProfile`, `struct McpClient`, `struct RetryConfig`, `struct ContextConfig`, `struct AgentEvent`, `struct Session`, `struct LoopRecord`). Zero hits required. Lands in P1 as advisory; flipped to hard gate after the P3 close audit.
 
 **Files created** (~20): composites_m2.rs, migration, `m2/` tree seeds (~10 md files + README), admin shell (~5 tsx files), lib helpers (~3 ts files), CLI modules (~3 rs files).
@@ -268,7 +268,7 @@ Nine phases — P0 (M1 residual cleanup) then P1–P8. Each closes with `cargo f
 1. **`server/src/handler_support/`** (new directory):
    - `mod.rs` — public re-exports.
    - `session.rs` — `AuthenticatedSession(AgentId, SessionClaims)` axum extractor; 401 `ApiError { code: "UNAUTHENTICATED" }` on missing/invalid cookie.
-   - `permission.rs` — `check_permission(state, ctx, manifest) -> Result<Vec<ResolvedReach>, ApiError>`; exhaustive `Decision → ApiError` mapping (D10); records `baby_phi_permission_check_duration_seconds` histogram.
+   - `permission.rs` — `check_permission(state, ctx, manifest) -> Result<Vec<ResolvedReach>, ApiError>`; exhaustive `Decision → ApiError` mapping (D10); records `phi_permission_check_duration_seconds` histogram.
    - `audit.rs` — `emit_audit(&state.audit, event) -> Result<(), ApiError>`; maps emitter errors to 500 `AUDIT_EMIT_FAILED`.
    - `errors.rs` — shared `ApiError { code: &'static str, message: String }` (promoted from `handlers/bootstrap.rs` per D9).
 2. **`SurrealAuditEmitter`** in `store/src/audit_emitter.rs`:
@@ -359,7 +359,7 @@ Chosen first because: exercises M1 crypto (never used by a handler); exercises P
 
 ### P5 — Page 02: Model Providers vertical (~2 days)
 
-**phi-core reuse** (§1.5): `ModelConfig`, `ApiProtocol`, `ProviderRegistry`, `CacheConfig`, `ThinkingLevel` all imported directly. No parallel `ModelConfig` equivalent in baby-phi.
+**phi-core reuse** (§1.5): `ModelConfig`, `ApiProtocol`, `ProviderRegistry`, `CacheConfig`, `ThinkingLevel` all imported directly. No parallel `ModelConfig` equivalent in phi.
 
 1. **Business logic** in `server/src/platform/model_providers/{register,archive,list}.rs`. `register` takes a `phi_core::ModelConfig` (constructed from the POST body by a thin wire-translator) + `secret_ref`; persists; emits `ModelProviderRegistered`. `list` returns rows carrying embedded `ModelConfig` values (serde round-trippable — phi-core already derives).
 2. **Handlers** `handlers/platform_model_providers.rs`: GET / POST / POST /{id}/archive. Web payload shape mirrors phi-core's `AgentConfig.provider` section where possible.
@@ -381,7 +381,7 @@ The most contract-dense M2 page. Cascading revocation is the highest-risk surfac
 1. **Business logic** in `server/src/platform/mcp_servers/{register,patch,archive,list,health_probe}.rs`:
    - `register/patch_tenants/archive/list` — persistence + cascading revocation flow.
    - `patch_tenants(...)` — when `new_allowed ⊂ old_allowed`, call `Repository::narrow_mcp_tenants`; emit `McpServerTenantAccessRevoked { mcp_id, revoked_orgs: [...] }` (one summary event) + one `auth_request.revoked` per affected AR (D7).
-   - `health_probe(external_service) -> RuntimeStatus` — thin wrapper: construct a `phi_core::McpClient` via `connect_stdio` or `connect_http`; call `list_tools()` with a 2 s timeout; 3 retries with exponential backoff; returns `RuntimeStatus::{Ok, Error, Probing}`. This is the only baby-phi-native MCP code — phi-core ships no health API (§1.5 🚫).
+   - `health_probe(external_service) -> RuntimeStatus` — thin wrapper: construct a `phi_core::McpClient` via `connect_stdio` or `connect_http`; call `list_tools()` with a 2 s timeout; 3 retries with exponential backoff; returns `RuntimeStatus::{Ok, Error, Probing}`. This is the only phi-native MCP code — phi-core ships no health API (§1.5 🚫).
 2. **Handlers** `handlers/platform_mcp_servers.rs`: GET / POST / PATCH / POST /{id}/archive + feature-gated `POST /{id}/_probe_health` (G5).
 3. **Audit events** `audit/events/m2/mcp.rs`: `McpServerRegistered`, `McpServerTenantAccessRevoked`, `McpServerArchived`, `McpServerHealthDegraded`.
 4. **CLI** `cli/src/commands/mcp_server.rs`: `list`, `add`, `patch --tenants-allowed <csv> --confirm-cascade`, `archive`.
@@ -400,7 +400,7 @@ Smallest page — singleton + non-retroactive invariant.
 1. **Business logic** `server/src/platform/defaults/{get,put,import,export}.rs`:
    - `put_defaults` — diff old vs new (phi-core structs have `Eq` / structural diff); emit `PlatformDefaultsUpdated { diff: {field: {old, new}} }` (Alerted); does NOT touch any org rows (invariant).
    - `import_defaults_from_yaml(yaml: &str) -> PlatformDefaults` — thin wrapper over `phi_core::parse_config` that extracts the overlapping sections into the `PlatformDefaults` envelope.
-   - `export_defaults_as_yaml(&PlatformDefaults) -> String` — inverse; serialises the phi-core embedded sections + baby-phi-only fields (retention_days, alert_channels).
+   - `export_defaults_as_yaml(&PlatformDefaults) -> String` — inverse; serialises the phi-core embedded sections + phi-only fields (retention_days, alert_channels).
 2. **Handlers** `handlers/platform_defaults.rs`: GET / PUT + `POST /_import` / `GET /_export` (YAML content-type).
 3. **Audit events** `audit/events/m2/defaults.rs`: `PlatformDefaultsUpdated`.
 4. **CLI** `cli/src/commands/platform_defaults.rs`: `get [--include-factory] [--json]`, `set --key <dot.path> --value <json-literal>`, `import --file <PATH>`, `export [--format yaml|toml]`.
@@ -413,7 +413,7 @@ Smallest page — singleton + non-retroactive invariant.
 
 ### P8 — Seal: CLI completion, metrics, spec-drift, runbook, re-audit (~2 days)
 
-1. **CLI completion** `cli/src/commands/completion.rs`: `baby-phi completion {bash,zsh,fish,powershell}` via `clap_complete::generate`.
+1. **CLI completion** `cli/src/commands/completion.rs`: `phi completion {bash,zsh,fish,powershell}` via `clap_complete::generate`.
 2. **Cross-page acceptance** `server/tests/acceptance_m2.rs`: one end-to-end scenario: claim → add secret → register provider → register mcp → narrow mcp tenants → verify audit chain length + hash continuity.
 3. **Acceptance metrics** `server/tests/acceptance_metrics.rs` (C12): one `with_metrics: true` test (G16) that trips a 403 and scrapes `/metrics` for the histogram.
 4. **CI updates** `.github/workflows/rust.yml`:
@@ -470,7 +470,7 @@ Following M1's post-audit convention: **row values are `cargo test` pass counts 
 
 ## Part 6 — Documentation  `[STATUS: ⏳ pending]`
 
-Root: `baby-phi/docs/specs/v0/implementation/m2/`. Layout mirrors M1.
+Root: `phi/docs/specs/v0/implementation/m2/`. Layout mirrors M1.
 
 ```
 implementation/m2/
@@ -553,7 +553,7 @@ Before declaring M2 done, each commitment-ledger row maps to a green test.
 | C17 | doc-links green throughout | `.github/workflows/doc-links.yml` green on every PR |
 | C18 | `check_permission` mapping exhaustiveness | `server/tests/permission_check_mapping_test.rs` |
 | C19 | phi-core reuse mandate | `scripts/check-phi-core-reuse.sh` zero hits on forbidden duplications + P3 close + P-final audits spot-check composite struct fields |
-| C20 | M1 residual drift resolved (R1 rename + R2 thiserror + R3 docs) | `grep -n "pub struct AgentProfile" modules/crates/domain/src/` returns zero hits; `/root/projects/phi/baby-phi/Cargo.toml` workspace has `thiserror = "2"`; `cargo test --workspace` green after P0 commit; 4 M1 docs carry the phi-core-distinction paragraphs (audit-events, server-topology, graph-model, overview) |
+| C20 | M1 residual drift resolved (R1 rename + R2 thiserror + R3 docs) | `grep -n "pub struct AgentProfile" modules/crates/domain/src/` returns zero hits; `/root/projects/phi/phi/Cargo.toml` workspace has `thiserror = "2"`; `cargo test --workspace` green after P0 commit; 4 M1 docs carry the phi-core-distinction paragraphs (audit-events, server-topology, graph-model, overview) |
 | C21 | Instance-URI grants resolve in the engine (G19 / D17) | `domain/tests/instance_uri_grant_match_props.rs` — three proptest invariants (instance-URI-with-fundamentals → Allowed; legacy class-URI → regression-preserved; opaque-URI with empty fundamentals → still denies at Step 3). `acceptance_secrets.rs` asserts the persisted reveal-grant's `resource.uri` is `secret:<slug>`, not `secret_credential`. |
 
 **First-review confidence target: ≥ 97 %**. Post-re-audit: ≥ 99 %. Post-100 %-audit (per M1 precedent): 100 % with all LOW findings closed.
@@ -562,7 +562,7 @@ Before declaring M2 done, each commitment-ledger row maps to a green test.
 
 ## Part 9 — Execution order  `[STATUS: ⏳ pending]`
 
-0. **Archive this plan** → `baby-phi/docs/specs/plan/build/<8hex>-m2-platform-setup.md`. Generate token via `openssl rand -hex 4`. (~2 min)
+0. **Archive this plan** → `phi/docs/specs/plan/build/<8hex>-m2-platform-setup.md`. Generate token via `openssl rand -hex 4`. (~2 min)
 1. **P0** — M1 residual drift cleanup: rename `AgentProfile → AgentGovernanceProfile`; document audit-vs-agent-event distinction. Single tagged commit. (~0.5 day)
 2. **P1** — foundation: IDs + composites + migration + docs-tree seed + web shell + CLI scaffolding + phi-core-reuse lint. (~2–3 days)
 3. **P2** — Repository expansion + Template E + constraint value-match + both impls. (~2–3 days)
@@ -574,7 +574,7 @@ Before declaring M2 done, each commitment-ledger row maps to a green test.
 9. **P7** — Page 05 vertical (platform defaults). (~1.5 days)
 10. **P8** — Seal: CLI completion + cross-page acceptance + metrics test + CI updates + runbook + independent re-audit. (~2 days)
 11. **Re-audit → remediation → 100 %** (mirrors M1's post-P9 pass).
-12. **Tag milestone** — `git tag v0.1-m2` in `baby-phi` submodule (user-managed per M1 precedent).
+12. **Tag milestone** — `git tag v0.1-m2` in `phi` submodule (user-managed per M1 precedent).
 
 **Total estimate: ~18 calendar days ≈ 3 weeks.** Within build plan M2's 2-week estimate + 1 week buffer for the shared-infrastructure-first discipline (P0 rename + P3 shared infra re-audit + P4.5 engine-gap closure) that M2 benefits from but M1 did not need.
 

@@ -12,7 +12,7 @@
 --   3. `model_runtime` — NEW table for the `model_runtime_object` composite
 --      (page 02). Holds the embedded phi-core `ModelConfig` as an opaque
 --      `FLEXIBLE TYPE object`, so phi-core can evolve `ModelConfig`'s shape
---      without forcing a baby-phi migration.
+--      without forcing a phi migration.
 --   4. `platform_defaults` — NEW singleton table (page 05). A UNIQUE INDEX
 --      on the constant `singleton = 1` column guarantees at most one row.
 --
@@ -62,7 +62,7 @@ DEFINE INDEX mcp_server_status    ON mcp_server FIELDS status;
 -- The embedded `config` column holds phi-core's `ModelConfig` struct as
 -- a flexible object. Using `FLEXIBLE TYPE object` rather than declaring
 -- each field individually means phi-core's `ModelConfig` can evolve
--- (new fields, new `compat` flags) without requiring a baby-phi
+-- (new fields, new `compat` flags) without requiring a phi
 -- migration — the struct round-trips through SurrealDB by serde.
 --
 -- `secret_ref` is the vault slug (e.g. "anthropic-api-key") that
@@ -87,7 +87,7 @@ DEFINE INDEX model_runtime_status ON model_runtime FIELDS status;
 -- The `singleton` column is always 1 (ASSERT enforces); a UNIQUE INDEX
 -- on that column means the second INSERT ever attempted fails loudly.
 -- Every "nested" field is stored as a flexible object so phi-core's
--- types can evolve without forcing a baby-phi migration.
+-- types can evolve without forcing a phi migration.
 -- ----------------------------------------------------------------------------
 
 DEFINE TABLE platform_defaults SCHEMAFULL;

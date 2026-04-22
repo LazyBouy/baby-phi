@@ -4,10 +4,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "SurrealDB-backed repository implementation for baby-phi."
+description = "SurrealDB-backed repository implementation for phi."
 
 [dependencies]
-domain = { workspace = true }
+domain   = { workspace = true }
+# Required because `Repository::resolve_effective_execution_limits`
+# returns `phi_core::context::execution::ExecutionLimits`. Mirrors
+# the domain crate's direct consumption of phi-core types.
+phi-core = { workspace = true }
 
 surrealdb   = { workspace = true }
 tokio       = { workspace = true }

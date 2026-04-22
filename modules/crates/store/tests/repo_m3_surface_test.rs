@@ -16,7 +16,7 @@ use tempfile::TempDir;
 
 async fn fresh_store() -> (SurrealStore, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open embedded");
     (store, dir)
@@ -61,6 +61,7 @@ async fn list_agents_in_org_filters_by_owning_org() {
                 kind: AgentKind::Llm,
                 display_name: "worker".into(),
                 owning_org: Some(org_a),
+                role: None,
                 created_at: Utc::now(),
             })
             .await
@@ -72,6 +73,7 @@ async fn list_agents_in_org_filters_by_owning_org() {
             kind: AgentKind::Human,
             display_name: "ceo-b".into(),
             owning_org: Some(org_b),
+            role: None,
             created_at: Utc::now(),
         })
         .await
@@ -108,6 +110,7 @@ async fn list_active_auth_requests_for_org_terminal_adoption_excluded() {
         kind: AgentKind::Human,
         display_name: "ceo".into(),
         owning_org: Some(org),
+        role: None,
         created_at: Utc::now(),
     };
     store.create_organization(&minimal_org(org)).await.unwrap();

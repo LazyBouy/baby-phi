@@ -8,7 +8,7 @@
 // tier never re-specifies phi-core field layouts (leverage-checklist
 // Q3: "no phi-core imports on the web tier").
 
-const API_BASE = process.env.BABY_PHI_API_URL ?? "http://127.0.0.1:8080";
+const API_BASE = process.env.PHI_API_URL ?? "http://127.0.0.1:8080";
 const PATH = "/api/v0/orgs";
 
 // ---- Wire shapes -----------------------------------------------------------

@@ -19,19 +19,19 @@ The struct (composed in [`composites_m2.rs`](../../../../../../modules/crates/do
 | `default_agent_profile` | `phi_core::agents::profile::AgentProfile` | **phi-core** — wrapped directly |
 | `context_config` | `phi_core::context::config::ContextConfig` | **phi-core** — wrapped directly |
 | `retry_config` | `phi_core::provider::retry::RetryConfig` | **phi-core** — wrapped directly |
-| `default_retention_days` | `u32` | baby-phi-only (audit retention policy) |
-| `default_alert_channels` | `Vec<String>` | baby-phi-only (alert delivery) |
-| `singleton` | `u8` always `1` | baby-phi — enforces table uniqueness |
+| `default_retention_days` | `u32` | phi-only (audit retention policy) |
+| `default_alert_channels` | `Vec<String>` | phi-only (alert delivery) |
+| `singleton` | `u8` always `1` | phi — enforces table uniqueness |
 | `updated_at` | `DateTime<Utc>` | server-stamped on every PUT |
 | `version` | `u64` | server-bumped on every PUT (OCC) |
 
 Four of the six substantive fields are **direct phi-core wraps**, so
-a phi-core bump flows through baby-phi without a migration. The
+a phi-core bump flows through phi without a migration. The
 `platform_defaults` SurrealDB table declares those columns as
 `FLEXIBLE TYPE object` — added phi-core fields are absorbed
 transparently.
 
-The two baby-phi-native fields carry concerns phi-core has no
+The two phi-native fields carry concerns phi-core has no
 counterpart for: audit-log retention tiers and alert channels are
 platform-governance mechanisms, not agent-loop primitives.
 
@@ -110,10 +110,10 @@ revision.
 
 - **Wrapped fields.** `ExecutionLimits`, `AgentProfile`,
   `ContextConfig`, `RetryConfig` — all imported directly; no parallel
-  baby-phi struct.
+  phi struct.
 - **Factory baseline.** `PlatformDefaults::factory()` uses each
   phi-core type's `Default::default()`. Bumping phi-core
-  automatically bumps baby-phi's factory.
+  automatically bumps phi's factory.
 - **Multi-format config parser.** phi-core's
   `phi_core::config::parser::parse_config` is scoped to the
   `AgentConfig` schema — a different envelope. P7 deliberately does

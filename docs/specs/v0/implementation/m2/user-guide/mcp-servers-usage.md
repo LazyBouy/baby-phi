@@ -13,10 +13,10 @@ and the cascade is audited.
 
 ## Overview
 
-- Surface: **Web** `/mcp-servers` + **CLI** `baby-phi mcp-server …` +
+- Surface: **Web** `/mcp-servers` + **CLI** `phi mcp-server …` +
   HTTP `/api/v0/platform/mcp-servers`.
 - Auth: the same session cookie used for every other admin page.
-- Persisted composite: `ExternalService` (baby-phi-only — phi-core has
+- Persisted composite: `ExternalService` (phi-only — phi-core has
   no equivalent container).
 - Live client: constructed **on demand** at probe/invocation time
   from the stored `endpoint` string via phi-core's
@@ -68,18 +68,18 @@ playbook.
 
 ## CLI surface
 
-Four subcommands under `baby-phi mcp-server`:
+Four subcommands under `phi mcp-server`:
 
 | Command | Effect |
 |---|---|
-| `baby-phi mcp-server list [--include-archived] [--json]` | Read the catalogue. |
-| `baby-phi mcp-server add --display-name <NAME> --endpoint <ENDPOINT> [--kind mcp] [--secret-ref <slug>] [--tenants-allowed all\|uuid1,uuid2]` | Register a server. |
-| `baby-phi mcp-server patch-tenants --id <uuid> --tenants-allowed all\|uuid1,uuid2 --confirm-cascade` | Update `tenants_allowed`. `--confirm-cascade` is **required**. |
-| `baby-phi mcp-server archive --id <uuid>` | Soft-delete. |
+| `phi mcp-server list [--include-archived] [--json]` | Read the catalogue. |
+| `phi mcp-server add --display-name <NAME> --endpoint <ENDPOINT> [--kind mcp] [--secret-ref <slug>] [--tenants-allowed all\|uuid1,uuid2]` | Register a server. |
+| `phi mcp-server patch-tenants --id <uuid> --tenants-allowed all\|uuid1,uuid2 --confirm-cascade` | Update `tenants_allowed`. `--confirm-cascade` is **required**. |
+| `phi mcp-server archive --id <uuid>` | Soft-delete. |
 
 All subcommands re-use the same session cookie loaded from
-`$XDG_CONFIG_HOME/baby-phi/session` (written by
-`baby-phi bootstrap claim`).
+`$XDG_CONFIG_HOME/phi/session` (written by
+`phi bootstrap claim`).
 
 **Exit codes** (see [`cli/src/exit.rs`](../../../../../../modules/crates/cli/src/exit.rs)):
 
@@ -165,10 +165,10 @@ See the architecture map
 §Page 03 for the full table. Highlights:
 
 - `McpClient::connect_stdio`, `connect_http`, `list_tools()` — all
-  reused verbatim. No parallel baby-phi MCP client.
+  reused verbatim. No parallel phi MCP client.
 - `McpToolInfo`, `ServerInfo` — phi-core's single source of truth;
   M7b's scheduled probe uses them directly.
-- The only baby-phi-native MCP code is the thin timeout+retry
+- The only phi-native MCP code is the thin timeout+retry
   wrapper in
   [`platform/mcp_servers/health_probe.rs`](../../../../../../modules/crates/server/src/platform/mcp_servers/health_probe.rs),
   because phi-core has no probe abstraction.

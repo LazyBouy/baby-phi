@@ -11,7 +11,7 @@
 
 ## Context  `[STATUS: n/a]`
 
-M0 (scaffolding) shipped cleanly at 99 % confidence. M1 is the **Permission Check spine**: the graph model, Permission Check engine, Auth Request state machine, and System Bootstrap flow that every subsequent milestone sits on. The build-plan M1 entry is only ~15 lines ([build plan §M1](../../projects/phi/baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version — every contract pinned, every gap closed up-front, docs authored alongside code rather than after.
+M0 (scaffolding) shipped cleanly at 99 % confidence. M1 is the **Permission Check spine**: the graph model, Permission Check engine, Auth Request state machine, and System Bootstrap flow that every subsequent milestone sits on. The build-plan M1 entry is only ~15 lines ([build plan §M1](../../projects/phi/phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version — every contract pinned, every gap closed up-front, docs authored alongside code rather than after.
 
 **What went wrong in M0 (that we're preventing here):**
 
@@ -20,13 +20,13 @@ M0 (scaffolding) shipped cleanly at 99 % confidence. M1 is the **Permission Chec
 3. Deep relative doc links broke because the m0/ tree sits six dirs under repo root. **Prevention:** docs tree planned with absolute workspace-relative link pattern documented in Part 5.
 4. Build-plan headline counts ("31 nodes", "56+ edges") were stale vs concept doc (actually 37 + 66). **Prevention:** Part 1 surfaces all such deltas before coding starts.
 
-**Archive location for this plan:** `baby-phi/docs/specs/plan/build/<new-8hex>-m1-permission-check-spine.md`. First execution step (Part 8 step 0) is to copy this plan verbatim to that path, alongside the M0 audit plan and the v0.1 build plan.
+**Archive location for this plan:** `phi/docs/specs/plan/build/<new-8hex>-m1-permission-check-spine.md`. First execution step (Part 8 step 0) is to copy this plan verbatim to that path, alongside the M0 audit plan and the v0.1 build plan.
 
 ---
 
 ## Part 1 — Pre-implementation gap audit  `[STATUS: ✓ done]`
 
-Parallel Explore-agent sweep of `baby-phi/docs/specs/v0/concepts/` + `requirements/` + current code. Findings:
+Parallel Explore-agent sweep of `phi/docs/specs/v0/concepts/` + `requirements/` + current code. Findings:
 
 ### Concept-doc / build-plan deltas (must reconcile before coding)
 
@@ -39,7 +39,7 @@ Parallel Explore-agent sweep of `baby-phi/docs/specs/v0/concepts/` + `requiremen
 | G5 | System-agent provisioning (memory-extraction-agent, agent-catalog-agent) happens at **org creation**, not bootstrap — explicitly M3, not M1. | `requirements/admin/01*.md:130`; `concepts/system-agents.md` | M1 does not touch system agents. |
 | G6 | Auth Request has **9 states** (Draft/Pending/In Progress/Approved/Denied/Partial/Expired/Revoked/Cancelled) and **two-tier 90-day active-window retention** — richer than the build-plan hint suggested. | `concepts/permissions/02-auth-request.md:68-442` | State machine + retention scaffolding both land in M1. |
 | G7 | Permission Check **Step 0 = Resource Catalogue lookup** requires a `resources_catalogue` composite to exist per-org; bootstrap must seed the platform-level catalogue as its own `control_plane_object`. | `concepts/permissions/01-resource-ontology.md:179-201`; `requirements/system/s01-*.md` | Catalogue bootstrapping is part of s01. |
-| G8 | NFR-observability requires `baby_phi_permission_check_duration_seconds{result, failed_step}` — the `failed_step` label surfaces from the engine. | `requirements/cross-cutting/nfr-observability.md:26-31` | Engine must return structured decision values carrying failed_step. |
+| G8 | NFR-observability requires `phi_permission_check_duration_seconds{result, failed_step}` — the `failed_step` label surfaces from the engine. | `requirements/cross-cutting/nfr-observability.md:26-31` | Engine must return structured decision values carrying failed_step. |
 | G9 | Build plan prod-readiness table tags **at-rest encryption** as "M1 + M7b", and **schema migrations** as "M1 (first migration) + ongoing". Neither was in the terse M1 bullet. | `build-plan-v01.md §Production-readiness commitments` | Both are M1 deliverables (see Part 4). |
 
 ### Current-code extension points (inventory)
@@ -47,7 +47,7 @@ Parallel Explore-agent sweep of `baby-phi/docs/specs/v0/concepts/` + `requiremen
 - `modules/crates/domain/src/`: stubs only — `model.rs` (NodeId skeleton), `permissions.rs` (Decision enum placeholder), `state_machines.rs` (comment marker), `repository.rs` (trait with only `ping()`). Every M1 type lands here.
 - `modules/crates/store/src/lib.rs`: `SurrealStore::open_embedded` + `Repository::ping` only. M1 adds ~50 methods; `#[async_trait]` + `.client()` escape hatch are sufficient.
 - `modules/crates/server/src/router.rs`: three health routes only; M1 attaches `/api/v0/bootstrap/{status,claim}` here. `AppState` (`state.rs`) may need extension for audit-event emitter + crypto-provider handle.
-- `modules/crates/cli/src/main.rs`: **still consumes legacy `baby-phi/config.toml` and runs a phi-core demo loop.** Clap imported but no subcommand tree. M1 must migrate CLI to layered-config + add `baby-phi bootstrap {status,claim}` subcommands.
+- `modules/crates/cli/src/main.rs`: **still consumes legacy `phi/config.toml` and runs a phi-core demo loop.** Clap imported but no subcommand tree. M1 must migrate CLI to layered-config + add `phi bootstrap {status,claim}` subcommands.
 - `modules/web/app/`: only `page.tsx` + `layout.tsx`. M1 adds `app/bootstrap/page.tsx` + session-cookie helper promotion in `lib/session.ts` (TODO marker already exists).
 - Tests inherited from M0: 4 (3 health + 1 TLS). No domain tests, no acceptance harness, no proptest setup yet. **M1 ships a multi-layer test suite that grows this to ≈178 runnable tests + ≈2,500 proptest branches per CI run — see Part 5 Testing strategy.**
 - CI workflows: `rust.yml`, `web.yml`, `spec-drift.yml`, `doc-links.yml`. M1 extends `rust.yml` with proptest + acceptance-test gates; adds no new workflow unless required.
@@ -73,9 +73,9 @@ Every row from the build plan's §Production-readiness commitments that touches 
 | C7 | Schema migrations (first migration + forward-only + fail-safe) | `store::migrations` module; startup gate in `main.rs` | P1 | Migration happy-path + broken-migration-refuses-to-serve tests |
 | C8 | At-rest encryption (AES-256; env-injected master key; per-secret wrap placeholder) | Key-loading layer + encrypted secret columns in schema | P1, P2 | Unit test: encrypt/decrypt round trip; integration: key missing ⇒ startup fails |
 | C9 | Resource Catalogue seeding at bootstrap | Platform-level catalogue created as `control_plane_object` on first boot | P5 | Permission Check Step 0 exercises catalogue in acceptance test |
-| C10 | Prometheus metric `baby_phi_permission_check_duration_seconds{result, failed_step}` | Histogram registered + recorded in engine | P3 | `/metrics` scrape shows the series after one check |
+| C10 | Prometheus metric `phi_permission_check_duration_seconds{result, failed_step}` | Histogram registered + recorded in engine | P3 | `/metrics` scrape shows the series after one check |
 | C11 | Session cookie stub promoted (real OAuth is M3; M1 ships signed cookie helper) | `server::session` module; web `lib/session.ts` reads it | P6, P8 | Cookie set on successful claim; read on follow-up request |
-| C12 | CLI migrated to layered config + `baby-phi bootstrap {status,claim}` | CLI reads `ServerConfig::load()`; clap subcommand tree | P7 | CLI integration test against running server |
+| C12 | CLI migrated to layered config + `phi bootstrap {status,claim}` | CLI reads `ServerConfig::load()`; clap subcommand tree | P7 | CLI integration test against running server |
 | C13 | Acceptance-test harness (reference-layout fixture) | `tests/acceptance/` with `bootstrap_claim.rs` | P9 | One green acceptance test at P9 close |
 | C14 | Doc-authoring co-located with code | `docs/specs/v0/implementation/m1/` tree grows per phase | P1–P9 | `doc-links.yml` CI stays green throughout |
 | C15 | Type-safe Resource/Principal edges — tightens Risk 1 surfaced during P1 self-review. Sealed `Principal` + `Resource` marker traits; typed `Edge::new_owned_by` / `new_created` / `new_allocated_to` constructors; typed repository helpers for the three untyped-RELATION edges (`owned_by`, `created`, `allocated_to`). Rust now rejects wrong endpoint pairs at compile time even though SurrealDB can't. | `domain::model::principal_resource` module + typed constructors on `Edge` + typed repo methods `upsert_ownership` / `upsert_creation` / `upsert_allocation` | P2 | Unit tests over every trait impl; `trybuild` compile-fail tests prove wrong-pair cases don't build; integration round-trip through each typed helper against real SurrealDB |
@@ -88,8 +88,8 @@ To avoid mid-build thrashing, these are baked in. Push back in review if any are
 
 | # | Decision | Rationale |
 |---|---|---|
-| D1 | **Bootstrap credential delivery** = printed to stdout on `baby-phi-server --bootstrap-init` (one-shot admin command). Stored hashed (argon2id) in `bootstrap_credentials` table with `consumed_at IS NULL`. | Matches 12-factor; no file on disk with the plaintext; admin copies once and loses it like an SSH host key. |
-| D2 | **At-rest encryption scope in M1** = envelope encryption for the `secrets_vault` table only, using a master key from `BABY_PHI_MASTER_KEY` env var (32-byte base64). Full-DB encryption deferred to M7b. | The concept contract names the vault as the encryption-sensitive surface; broad encryption without KMS is theatre. |
+| D1 | **Bootstrap credential delivery** = printed to stdout on `phi-server --bootstrap-init` (one-shot admin command). Stored hashed (argon2id) in `bootstrap_credentials` table with `consumed_at IS NULL`. | Matches 12-factor; no file on disk with the plaintext; admin copies once and loses it like an SSH host key. |
+| D2 | **At-rest encryption scope in M1** = envelope encryption for the `secrets_vault` table only, using a master key from `PHI_MASTER_KEY` env var (32-byte base64). Full-DB encryption deferred to M7b. | The concept contract names the vault as the encryption-sensitive surface; broad encryption without KMS is theatre. |
 | D3 | **Schema migrations** = hand-written SurrealDB scripts under `modules/crates/store/migrations/{NNNN}_{slug}.surql`; runner walks sorted + records applied versions in a `_migrations` table. | Simple, inspectable; no external migration tool needed. |
 | D4 | **Audit event storage** = primary to `audit_events` table (SurrealDB) + shadow NDJSON append to `{data_dir}/audit.log`. Hash-chain foundation: every event carries `prev_event_hash` within its org scope; full off-site stream is M7b. | Cheap recoverability now; full tamper-evident stream comes when we wire S3 object-lock in M7b. |
 | D5 | **Docs tree layout** mirrors M0's 4-folder shape (`architecture/`, `user-guide/`, `operations/`, `decisions/`), under `docs/specs/v0/implementation/m1/`. Decisions numbered **0008–0014** (adjacent to M0's 0001–0007). | Consistent navigation across milestones. |
@@ -127,7 +127,7 @@ Nine phases, strictly sequenced so each phase's output is the next phase's input
    - `AuditClass` enum (Silent / Logged / Alerted).
    - `AuditEmitter` trait — writes to repository + shadow NDJSON; computes `prev_event_hash` within org scope.
 5. **At-rest encryption layer** in `modules/crates/store/src/crypto.rs`:
-   - `MasterKey` newtype loaded from `BABY_PHI_MASTER_KEY` (fails startup if missing when `secrets_vault` is touched).
+   - `MasterKey` newtype loaded from `PHI_MASTER_KEY` (fails startup if missing when `secrets_vault` is touched).
    - `seal(plaintext)` / `open(ciphertext)` using `aes-gcm` 0.10.
    - Applied to the single `secrets_vault.value` column via a repository wrapper.
 6. **Docs authored in this phase:**
@@ -166,7 +166,7 @@ Nine phases, strictly sequenced so each phase's output is the next phase's input
    - `check(ctx: &CheckContext, manifest: &Manifest) -> Decision`.
    - Internal helpers `step_0_catalogue`, `step_1_expand_manifest`, `step_2_resolve_grants`, `step_2a_ceiling`, `step_3_match_reaches`, `step_4_constraints`, `step_5_scope_resolution`, `step_6_consent_gating`.
    - Every step returns a typed intermediate that the next step consumes. No panics.
-2. Instrument with `tracing::instrument` + record histogram `baby_phi_permission_check_duration_seconds{result, failed_step}`.
+2. Instrument with `tracing::instrument` + record histogram `phi_permission_check_duration_seconds{result, failed_step}`.
 3. Property tests across ≈5 files, ≈10–12 `proptest!` invariants total (each expanded by `PROPTEST_CASES=100` in CI → ≈1,000–1,200 branches). Canonical invariants:
    - No grant ⇒ Denied at step 3.
    - Catalogue missing ⇒ Denied at step 0.
@@ -215,7 +215,7 @@ Nine phases, strictly sequenced so each phase's output is the next phase's input
    - `GET /api/v0/bootstrap/status` → 200 with `{claimed, admin_agent_id?}`.
    - `POST /api/v0/bootstrap/claim` → 201 on success with the full payload from `requirements/admin/01:92-113`; 400/403/409 error shapes match the requirement exactly.
 2. `server/src/session.rs`:
-   - `sign(session)` → HS256 JWT in a `baby_phi_session` cookie (Secure, HttpOnly, SameSite=Lax).
+   - `sign(session)` → HS256 JWT in a `phi_kernel_session` cookie (Secure, HttpOnly, SameSite=Lax).
    - `verify(cookie)` for follow-up requests.
 3. Wire in `router.rs` under `/api/v0/` scope; attach `tower_cookies::CookieManagerLayer` as middleware.
 4. Handler integration tests: 201 / 400 (bad channel) / 403 (bad token) / 409 (already claimed).
@@ -224,12 +224,12 @@ Nine phases, strictly sequenced so each phase's output is the next phase's input
 ### P7 — CLI subcommands (≈2 days)
 
 1. Migrate `modules/crates/cli/src/main.rs`:
-   - Drop legacy `baby-phi/config.toml` reader.
+   - Drop legacy `phi/config.toml` reader.
    - `ServerConfig::load()` for config (same layered path as server).
-   - Clap tree: `baby-phi bootstrap {status,claim}` (first subcommand group; later milestones add `baby-phi org …`, `baby-phi grant …`, etc.).
-   - HTTP client via `reqwest`; respects `BABY_PHI_API_URL`.
+   - Clap tree: `phi bootstrap {status,claim}` (first subcommand group; later milestones add `phi org …`, `phi grant …`, etc.).
+   - HTTP client via `reqwest`; respects `PHI_API_URL`.
    - Pretty-prints successful claim (prints the audit event id + next-step URL).
-2. Keep the existing phi-core agent-loop demo in a `baby-phi agent demo` subcommand so we don't regress the prototype. (Short-term; retiring the demo altogether is an M2+ cleanup item.)
+2. Keep the existing phi-core agent-loop demo in a `phi agent demo` subcommand so we don't regress the prototype. (Short-term; retiring the demo altogether is an M2+ cleanup item.)
 3. CLI integration test in `cli/tests/bootstrap_cli.rs`: spawn server, hit claim, assert exit code + stdout shape.
 4. **Docs:** `user-guide/cli-usage.md`.
 
@@ -246,8 +246,8 @@ Nine phases, strictly sequenced so each phase's output is the next phase's input
 
 ### P9 — Acceptance harness + final seal (≈2 days)
 
-1. `baby-phi/tests/acceptance/common/mod.rs`: fixture builder that boots the server against a temp data dir + unique namespace.
-2. `baby-phi/tests/acceptance/bootstrap_claim.rs`:
+1. `phi/tests/acceptance/common/mod.rs`: fixture builder that boots the server against a temp data dir + unique namespace.
+2. `phi/tests/acceptance/bootstrap_claim.rs`:
    - Fresh install path (no admin yet) ⇒ status reports `claimed: false`; claim succeeds; follow-up status reports `claimed: true, admin_agent_id: _`; audit event present in DB with class `Alerted`; grant rows present; credential marked consumed.
    - Reused credential ⇒ 403 `BOOTSTRAP_ALREADY_CONSUMED`; no audit event emitted.
    - Second claim after success ⇒ 409.
@@ -271,7 +271,7 @@ M0 shipped 4 tests because M0 was scaffolding. M1 is the first milestone where *
 | **Compile-fail — type safety** | `domain/tests/edge_type_safety/compile_fail/*.rs` | `trybuild` cases proving wrong-pair endpoint types (e.g. `ConsentId` as Principal) are rejected at compile time for the three untyped-RELATION edges | `cargo test -p domain --test edge_type_safety` | ≥6 (`trybuild` compile-fail) |
 | **Integration — server** | `server/tests/*.rs` | Handler + state + repo wired together; bootstrap endpoints 201 / 400 / 403 / 409; session sign/verify round-trip; metric surfacing; health + TLS (M0 inheritance) | `cargo test -p server` | ~25 (includes the 4 M0 tests) |
 | **Integration — CLI** | `cli/tests/*.rs` | Spawn server, invoke CLI subcommand, assert exit code + stdout shape + JSON parity with HTTP API | `cargo test -p cli` | ~8 |
-| **Acceptance — E2E** | `baby-phi/tests/acceptance/*.rs` | Full-system scenarios over a booted server: fresh-install bootstrap, reused credential, already-claimed, Resource Catalogue exercised via Permission Check, `/metrics` exposes new series | `cargo test --workspace --test 'acceptance_*'` (release profile, separate CI job) | ~6 |
+| **Acceptance — E2E** | `phi/tests/acceptance/*.rs` | Full-system scenarios over a booted server: fresh-install bootstrap, reused credential, already-claimed, Resource Catalogue exercised via Permission Check, `/metrics` exposes new series | `cargo test --workspace --test 'acceptance_*'` (release profile, separate CI job) | ~6 |
 | **Web — unit** | `modules/web/__tests__/*.test.ts` | Session helper, API client wrappers, cookie parser | `npm test` | ~10 |
 | **Web — SSR smoke** | `modules/web/__tests__/bootstrap.test.tsx` | `/bootstrap` SSR renders the claim form when unclaimed; terminal view when claimed; form submission error-path | `npm test` | ~4 |
 |  |  |  | **Total M1 runnable tests** | **≈190** (+ ≥6 `trybuild` compile-fail cases) |
@@ -306,7 +306,7 @@ Part 4's phases each close with a green test layer. The verification matrix in P
 
 - `domain/tests/common/mod.rs` — `FakeRepo` (in-memory `Repository` impl), `sample_manifest()`, `sample_grant()`, `sample_auth_request()` builders, `proptest` strategies for grant sets + manifests.
 - `store/tests/common/mod.rs` — `temp_surreal()` boots a fresh embedded store in a tempdir, returns a `SurrealStore` handle that drops the dir on scope exit.
-- `baby-phi/tests/acceptance/common/mod.rs` — `spawn_test_server()` spins up the real server binary on a random free port, returns `{url, shutdown_tx, data_dir}`; `#[tokio::test]` async.
+- `phi/tests/acceptance/common/mod.rs` — `spawn_test_server()` spins up the real server binary on a random free port, returns `{url, shutdown_tx, data_dir}`; `#[tokio::test]` async.
 - `modules/web/__tests__/helpers.ts` — `mockFetch(responses)`, `renderWithSession(tree, user)`.
 
 ### Gating rules (workflow-level detail in Part 7)
@@ -321,7 +321,7 @@ Part 4's phases each close with a green test layer. The verification matrix in P
 
 ## Part 6 — Documentation  `[STATUS: ⏳ pending]`
 
-Root: `baby-phi/docs/specs/v0/implementation/m1/`. Layout mirrors M0.
+Root: `phi/docs/specs/v0/implementation/m1/`. Layout mirrors M0.
 
 ```
 implementation/m1/
@@ -340,7 +340,7 @@ implementation/m1/
 │   └── storage-and-repository.md            M0 extension; repo methods + typed ownership-edge helpers
 ├── user-guide/
 │   ├── first-bootstrap.md                   end-to-end walkthrough (CLI + web)
-│   ├── cli-usage.md                         baby-phi bootstrap {status,claim}
+│   ├── cli-usage.md                         phi bootstrap {status,claim}
 │   ├── web-usage.md                         /bootstrap page walkthrough
 │   ├── http-api-reference.md                /api/v0/bootstrap/* contract
 │   └── troubleshooting.md                   M1 error codes + recovery
@@ -399,7 +399,7 @@ Before declaring M1 done, each row of Part 2's Commitment Ledger maps to a green
 | C7 | Schema migrations | `store/tests/migrations.rs` |
 | C8 | At-rest encryption | `store/tests/crypto_roundtrip.rs` + `missing_key_fails_startup` |
 | C9 | Resource Catalogue | exercised inside the acceptance test |
-| C10 | Metric surface | acceptance asserts `baby_phi_permission_check_duration_seconds_count > 0` on `/metrics` |
+| C10 | Metric surface | acceptance asserts `phi_permission_check_duration_seconds_count > 0` on `/metrics` |
 | C11 | Session cookie | handler test: set-cookie on claim; verify on follow-up |
 | C12 | CLI | `cli/tests/bootstrap_cli.rs` green |
 | C13 | Acceptance harness | all acceptance tests green under `--test-threads 1` |
@@ -412,7 +412,7 @@ Before declaring M1 done, each row of Part 2's Commitment Ledger maps to a green
 
 ## Part 9 — Execution order  `[STATUS: ⏳ pending]`
 
-0. **Archive this plan** — copy to `baby-phi/docs/specs/plan/build/<8hex>-m1-permission-check-spine.md`. Generate the 8-hex token with `openssl rand -hex 4`. (~2 min)
+0. **Archive this plan** — copy to `phi/docs/specs/plan/build/<8hex>-m1-permission-check-spine.md`. Generate the 8-hex token with `openssl rand -hex 4`. (~2 min)
 1. **Reconcile build-plan counts** — update `docs/specs/plan/build/36d0c6c5-build-plan-v01.md` §M1 to say "37 nodes + 66 edges" instead of "31 + 56+". Same commit as the implementation kick-off. (~5 min)
 2. **P1** — foundation: types + schema + migrations + audit skeleton + crypto layer + P1 docs. (~3 days)
 3. **P2** — type-safe edge foundation (marker traits + typed `Edge::new_*` constructors + `trybuild` compile-fail tests) + repository expansion (incl. typed ownership helpers) + ADR-0015 + P2 docs. (~3 days)
@@ -424,7 +424,7 @@ Before declaring M1 done, each row of Part 2's Commitment Ledger maps to a green
 9. **P8** — Web bootstrap page + P8 docs. (~2 days)
 10. **P9** — Acceptance harness + ops docs + final doc-links pass. (~2 days)
 11. **Re-audit** — independent Explore-agent run against Part 8's matrix; target ≥ 99 %. Remediate LOW findings in the same session.
-12. **Tag milestone** — `git tag v0.1-m1` in `baby-phi` submodule; update submodule pointer in parent repo.
+12. **Tag milestone** — `git tag v0.1-m1` in `phi` submodule; update submodule pointer in parent repo.
 
 **Total estimate: ~3 weeks of focused work (≈22 calendar days).** Still within the build plan's "2–3 weeks" envelope for M1; the extra day covers P2's type-safe-edge foundation (added after P1 self-review).
 
@@ -433,30 +433,30 @@ Before declaring M1 done, each row of Part 2's Commitment Ledger maps to a green
 ## Part 10 — Critical files  `[STATUS: n/a]`
 
 Will be modified:
-- `baby-phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` (count corrections in §M1)
-- `baby-phi/modules/crates/domain/src/{lib,model,permissions,state_machines,repository,audit}.rs` (P1–P4)
-- `baby-phi/modules/crates/store/src/{lib,migrations,crypto}.rs` (P1–P2)
-- `baby-phi/modules/crates/server/src/{router,state,session,bootstrap,handlers/bootstrap}.rs` (P5–P6)
-- `baby-phi/modules/crates/cli/src/main.rs` + new `cli/src/commands/bootstrap.rs` (P7)
-- `baby-phi/modules/web/app/bootstrap/page.tsx` + `web/lib/{session,api}.ts` (P8)
-- `baby-phi/.github/workflows/rust.yml` (P6)
-- `baby-phi/.github/workflows/spec-drift.yml` (R-SYS-* add)
-- `baby-phi/config/{default,dev,staging,prod}.toml` (add `master_key` + `bootstrap` sections commented for dev)
+- `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` (count corrections in §M1)
+- `phi/modules/crates/domain/src/{lib,model,permissions,state_machines,repository,audit}.rs` (P1–P4)
+- `phi/modules/crates/store/src/{lib,migrations,crypto}.rs` (P1–P2)
+- `phi/modules/crates/server/src/{router,state,session,bootstrap,handlers/bootstrap}.rs` (P5–P6)
+- `phi/modules/crates/cli/src/main.rs` + new `cli/src/commands/bootstrap.rs` (P7)
+- `phi/modules/web/app/bootstrap/page.tsx` + `web/lib/{session,api}.ts` (P8)
+- `phi/.github/workflows/rust.yml` (P6)
+- `phi/.github/workflows/spec-drift.yml` (R-SYS-* add)
+- `phi/config/{default,dev,staging,prod}.toml` (add `master_key` + `bootstrap` sections commented for dev)
 
 Will be created (total ~50 new files):
-- `baby-phi/docs/specs/plan/build/<8hex>-m1-permission-check-spine.md` (plan archive)
-- `baby-phi/modules/crates/store/migrations/0001_initial.surql` (+ later migrations as needed)
-- `baby-phi/modules/crates/domain/src/model/principal_resource.rs` (P2 — sealed `Principal` + `Resource` marker traits per D9/C15)
-- `baby-phi/modules/crates/domain/tests/{model_counts,permission_check_props,auth_request_props}.rs` + proptest support
-- `baby-phi/modules/crates/domain/tests/edge_type_safety/compile_fail/*.rs` (P2 — `trybuild` cases rejecting wrong-pair endpoint types)
-- `baby-phi/modules/crates/server/tests/{bootstrap_handler_test,session_cookie_test}.rs`
-- `baby-phi/modules/crates/cli/tests/bootstrap_cli.rs`
-- `baby-phi/tests/acceptance/{common/mod,bootstrap_claim}.rs`
-- `baby-phi/docs/specs/v0/implementation/m1/README.md`
-- `baby-phi/docs/specs/v0/implementation/m1/architecture/*.md` (11 files)
-- `baby-phi/docs/specs/v0/implementation/m1/user-guide/*.md` (5 files)
-- `baby-phi/docs/specs/v0/implementation/m1/operations/*.md` (4 files)
-- `baby-phi/docs/specs/v0/implementation/m1/decisions/*.md` (8 ADRs: 0008–0015)
+- `phi/docs/specs/plan/build/<8hex>-m1-permission-check-spine.md` (plan archive)
+- `phi/modules/crates/store/migrations/0001_initial.surql` (+ later migrations as needed)
+- `phi/modules/crates/domain/src/model/principal_resource.rs` (P2 — sealed `Principal` + `Resource` marker traits per D9/C15)
+- `phi/modules/crates/domain/tests/{model_counts,permission_check_props,auth_request_props}.rs` + proptest support
+- `phi/modules/crates/domain/tests/edge_type_safety/compile_fail/*.rs` (P2 — `trybuild` cases rejecting wrong-pair endpoint types)
+- `phi/modules/crates/server/tests/{bootstrap_handler_test,session_cookie_test}.rs`
+- `phi/modules/crates/cli/tests/bootstrap_cli.rs`
+- `phi/tests/acceptance/{common/mod,bootstrap_claim}.rs`
+- `phi/docs/specs/v0/implementation/m1/README.md`
+- `phi/docs/specs/v0/implementation/m1/architecture/*.md` (11 files)
+- `phi/docs/specs/v0/implementation/m1/user-guide/*.md` (5 files)
+- `phi/docs/specs/v0/implementation/m1/operations/*.md` (4 files)
+- `phi/docs/specs/v0/implementation/m1/decisions/*.md` (8 ADRs: 0008–0015)
 
 ---
 
@@ -473,6 +473,6 @@ Will be created (total ~50 new files):
 
 Track in P-by-P exec notes, not here:
 
-- Does `baby-phi-server --bootstrap-init` belong in the server binary or a dedicated `baby-phi-admin` binary? Current plan keeps it in the server binary (D1); revisit if it feels noisy.
+- Does `phi-server --bootstrap-init` belong in the server binary or a dedicated `phi-admin` binary? Current plan keeps it in the server binary (D1); revisit if it feels noisy.
 - Should the Prometheus histogram labels include `org_id`? Likely yes for multi-tenant, but M1 has one org, so it's a latent M2 question.
 - Audit shadow-log format: NDJSON vs length-prefixed binary? Default NDJSON (human-greppable); binary is a perf optimisation, not an M1 concern.

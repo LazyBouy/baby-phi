@@ -1,4 +1,4 @@
-//! `baby-phi secret {list,add,rotate,reveal,reassign}` subcommands.
+//! `phi secret {list,add,rotate,reveal,reassign}` subcommands.
 //!
 //! Every subcommand loads the saved session cookie (see
 //! [`session_store`](crate::session_store)), builds a reqwest client that
@@ -94,14 +94,14 @@ pub async fn run(server_url_override: Option<String>, cmd: SecretCommand) -> i32
     let base = match resolve_base_url(server_url_override) {
         Ok(u) => u,
         Err(e) => {
-            eprintln!("baby-phi: failed to resolve server URL: {e:#}");
+            eprintln!("phi: failed to resolve server URL: {e:#}");
             return EXIT_INTERNAL;
         }
     };
     let client = match build_authed_client() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("baby-phi: {e}");
+            eprintln!("phi: {e}");
             return EXIT_PRECONDITION_FAILED;
         }
     };
@@ -208,7 +208,7 @@ async fn list(client: &reqwest::Client, base: &str, json: bool) -> i32 {
     let res = match client.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -219,7 +219,7 @@ async fn list(client: &reqwest::Client, base: &str, json: bool) -> i32 {
     let body: ListWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode list response: {e}");
+            eprintln!("phi: failed to decode list response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -236,7 +236,7 @@ async fn list(client: &reqwest::Client, base: &str, json: bool) -> i32 {
             .unwrap()
         );
     } else if body.secrets.is_empty() {
-        println!("(vault is empty — run `baby-phi secret add --slug <…> --material-file <…>` to register one)");
+        println!("(vault is empty — run `phi secret add --slug <…> --material-file <…>` to register one)");
     } else {
         println!(
             "{:<40}  {:<14}  {:<10}  custodian",
@@ -276,7 +276,7 @@ async fn add(
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -287,7 +287,7 @@ async fn add(
     let body: AddWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode add response: {e}");
+            eprintln!("phi: failed to decode add response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -311,7 +311,7 @@ async fn rotate(client: &reqwest::Client, base: &str, slug: &str, material_file:
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -322,7 +322,7 @@ async fn rotate(client: &reqwest::Client, base: &str, slug: &str, material_file:
     let body: WriteWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode rotate response: {e}");
+            eprintln!("phi: failed to decode rotate response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -341,9 +341,7 @@ async fn reveal(
     accept_audit: bool,
 ) -> i32 {
     if !accept_audit {
-        eprintln!(
-            "baby-phi: reveal is always recorded to the alert channel (Alerted audit class)."
-        );
+        eprintln!("phi: reveal is always recorded to the alert channel (Alerted audit class).");
         eprintln!(
             "  re-run with `--accept-audit` to confirm you understand the audit implications."
         );
@@ -356,7 +354,7 @@ async fn reveal(
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -367,14 +365,14 @@ async fn reveal(
     let body: RevealWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode reveal response: {e}");
+            eprintln!("phi: failed to decode reveal response: {e}");
             return EXIT_INTERNAL;
         }
     };
     let plaintext = match BASE64_NOPAD.decode(body.material_b64.as_bytes()) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: reveal response carried invalid base64: {e}");
+            eprintln!("phi: reveal response carried invalid base64: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -386,7 +384,7 @@ async fn reveal(
     );
     use std::io::Write;
     if let Err(e) = std::io::stdout().write_all(&plaintext) {
-        eprintln!("baby-phi: failed to write plaintext to stdout: {e}");
+        eprintln!("phi: failed to write plaintext to stdout: {e}");
         return EXIT_INTERNAL;
     }
     // Trailing newline so pipes terminate cleanly.
@@ -406,7 +404,7 @@ async fn reassign(client: &reqwest::Client, base: &str, slug: &str, new_custodia
     let res = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("baby-phi: request to {url} failed: {e}");
+            eprintln!("phi: request to {url} failed: {e}");
             return EXIT_TRANSPORT;
         }
     };
@@ -417,7 +415,7 @@ async fn reassign(client: &reqwest::Client, base: &str, slug: &str, new_custodia
     let body: WriteWire = match res.json().await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("baby-phi: failed to decode reassign response: {e}");
+            eprintln!("phi: failed to decode reassign response: {e}");
             return EXIT_INTERNAL;
         }
     };
@@ -436,26 +434,23 @@ fn read_material(path: &Path) -> Result<Vec<u8>, i32> {
     if path == Path::new("-") {
         let mut buf = Vec::new();
         if let Err(e) = std::io::stdin().read_to_end(&mut buf) {
-            eprintln!("baby-phi: failed to read material from stdin: {e}");
+            eprintln!("phi: failed to read material from stdin: {e}");
             return Err(EXIT_INTERNAL);
         }
         if buf.is_empty() {
-            eprintln!("baby-phi: material read from stdin was empty");
+            eprintln!("phi: material read from stdin was empty");
             return Err(EXIT_REJECTED);
         }
         Ok(buf)
     } else {
         match std::fs::read(path) {
             Ok(buf) if buf.is_empty() => {
-                eprintln!("baby-phi: material file {} was empty", path.display());
+                eprintln!("phi: material file {} was empty", path.display());
                 Err(EXIT_REJECTED)
             }
             Ok(buf) => Ok(buf),
             Err(e) => {
-                eprintln!(
-                    "baby-phi: failed to read material from {}: {e}",
-                    path.display()
-                );
+                eprintln!("phi: failed to read material from {}: {e}", path.display());
                 Err(EXIT_PRECONDITION_FAILED)
             }
         }
@@ -468,7 +463,7 @@ fn build_authed_client() -> Result<reqwest::Client> {
         Ok(s) => s,
         Err(session_store::SessionStoreError::NotFound { .. }) => {
             anyhow::bail!(
-                "no saved session at {} — run `baby-phi bootstrap claim --credential <…>` first",
+                "no saved session at {} — run `phi bootstrap claim --credential <…>` first",
                 path.display()
             );
         }
@@ -476,7 +471,7 @@ fn build_authed_client() -> Result<reqwest::Client> {
     };
 
     let mut headers = HeaderMap::new();
-    let cookie = format!("baby_phi_session={}", session.cookie_value);
+    let cookie = format!("phi_kernel_session={}", session.cookie_value);
     headers.insert(
         COOKIE,
         HeaderValue::from_str(&cookie).context("cookie value is not a valid header")?,
@@ -515,7 +510,7 @@ fn resolve_base_url(override_url: Option<String>) -> Result<String> {
 async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -> i32 {
     match res.json::<ApiErrorWire>().await {
         Ok(err) => {
-            eprintln!("baby-phi: rejected ({}): {}", err.code, err.message);
+            eprintln!("phi: rejected ({}): {}", err.code, err.message);
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {
@@ -523,7 +518,7 @@ async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -
             }
         }
         Err(e) => {
-            eprintln!("baby-phi: HTTP {} with no error body: {e}", status.as_u16());
+            eprintln!("phi: HTTP {} with no error body: {e}", status.as_u16());
             if status.is_server_error() {
                 EXIT_INTERNAL
             } else {

@@ -20,7 +20,7 @@ Ops runbook for admin page 07 (organisation dashboard).
 | Status | Code | Trigger | Operator action |
 |---|---|---|---|
 | 200 | — | Happy path | — |
-| 404 | `ORG_NOT_FOUND` | Org id unknown | Verify id via `baby-phi org list` |
+| 404 | `ORG_NOT_FOUND` | Org id unknown | Verify id via `phi org list` |
 | 403 | `ORG_ACCESS_DENIED` | Viewer has no `MEMBER_OF` to the org | Check `list_agents_in_org` membership; the admin is **not** a member of any org they didn't nominate themselves to |
 | 500 | `REPOSITORY_ERROR` | Repo read failed mid-aggregate | Check server logs + SurrealDB health; the token-budget-pool read is the only read that propagates a guaranteed-exists assumption (the compound tx creates one per org) |
 | 500 | `AUDIT_EMIT_FAILED` | Not applicable — dashboard is read-only, never emits audit events | — |
@@ -41,11 +41,11 @@ Ops runbook for admin page 07 (organisation dashboard).
 1. Client-side: open DevTools network tab, confirm 30 s polling
    fires. If the `setInterval` halted, reload the page (the client
    component re-arms on mount).
-2. Server-side: tail `baby-phi-server` logs for `orgs::dashboard`
+2. Server-side: tail `phi-server` logs for `orgs::dashboard`
    handler errors. The handler logs every non-200 response via
    `error!`.
 3. If the handler is 200 but counters look wrong, verify against the
-   CLI: `baby-phi org dashboard --id <uuid> --json` calls the same
+   CLI: `phi org dashboard --id <uuid> --json` calls the same
    handler — mismatched counts between CLI and web would indicate a
    Next.js caching misconfiguration (not expected given `no-store`).
 4. Worst case, bounce the server — the SurrealDB-side aggregates
@@ -69,7 +69,7 @@ org (ADR-0022 invariant); a `None` here means:
   expected in v0, but check `SELECT FROM token_budget_pool WHERE
   owning_org = $org` directly.
 - The org was created outside the wizard flow (manual SurrealDB
-  insert) — operator mistake; rerun with `baby-phi org create`.
+  insert) — operator mistake; rerun with `phi org create`.
 
 The handler returns 500 `REPOSITORY_ERROR` with a human-readable
 message rather than rendering the 0/0 tile; log the message and file

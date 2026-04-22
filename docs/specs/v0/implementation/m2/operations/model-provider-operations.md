@@ -19,10 +19,10 @@ platform-governance metadata (`secret_ref`, `tenants_allowed`,
 
 **Why wrap rather than redefine?** phi-core owns the canonical
 shape of a model-runtime binding (API protocol, base URL, cost
-config, per-provider compat flags). baby-phi adds the governance
+config, per-provider compat flags). phi adds the governance
 envelope but **never** re-implements the binding — when phi-core's
 `ModelConfig` gains a field (e.g. a new compat flag for a novel
-OpenAI-compat provider), baby-phi picks it up at the next
+OpenAI-compat provider), phi picks it up at the next
 `cargo update` without any handler change.
 
 ## Provider kind enumeration
@@ -35,7 +35,7 @@ should check this before crafting a `ModelConfig` to confirm the
 CLI:
 
 ```bash
-baby-phi model-provider list-kinds
+phi model-provider list-kinds
 # provider kinds supported by this phi-core build:
 #   - "anthropic_messages"
 #   - "openai_completions"
@@ -46,7 +46,7 @@ baby-phi model-provider list-kinds
 #   - "bedrock_converse_stream"
 ```
 
-The list grows as phi-core adds providers; nothing in baby-phi
+The list grows as phi-core adds providers; nothing in phi
 pins a subset.
 
 ## Registration flow
@@ -56,7 +56,7 @@ Preconditions:
 1. The vault entry the runtime will reference must exist. Register
    the secret first:
    ```bash
-   printf 'sk-ant-<your-key>' | baby-phi secret add \
+   printf 'sk-ant-<your-key>' | phi secret add \
        --slug anthropic-api-key --material-file -
    ```
 2. Decide which orgs may invoke the runtime. Default `all`; narrow
@@ -77,7 +77,7 @@ cat > /tmp/claude-sonnet-4.json <<'JSON'
   "max_tokens": 8192
 }
 JSON
-baby-phi model-provider add \
+phi model-provider add \
     --config-file /tmp/claude-sonnet-4.json \
     --secret-ref anthropic-api-key
 # model provider registered
@@ -117,7 +117,7 @@ multi-principal exposure. M3 introduces cascade revocation (plan
 §Part 11 Q8) when delegated grants become common.
 
 ```bash
-baby-phi model-provider archive --id <uuid>
+phi model-provider archive --id <uuid>
 # model provider archived
 #   provider_id:    <uuid>
 #   audit_event_id: <uuid>
@@ -131,10 +131,10 @@ replay, but the default list hides them.
 | Symptom | Likely cause | Recovery |
 |---|---|---|
 | `400 VALIDATION_FAILED` with "config.id must be non-empty" | JSON is missing required phi-core fields | check against `phi-core/src/provider/model.rs::ModelConfig` |
-| `400 SECRET_REF_NOT_FOUND` | the vault entry the runtime references does not exist | run `baby-phi secret add --slug <slug>` first |
+| `400 SECRET_REF_NOT_FOUND` | the vault entry the runtime references does not exist | run `phi secret add --slug <slug>` first |
 | `409 MODEL_PROVIDER_DUPLICATE` | an active (non-archived) runtime already binds the same `(provider, model.id)` pair | archive the old row or choose a different model id |
-| `404 MODEL_PROVIDER_NOT_FOUND` on archive | id is wrong or already archived | `baby-phi model-provider list --include-archived` to confirm |
-| `500 INTERNAL_ERROR` on list | SurrealDB read path | check `baby-phi-server` logs + storage health |
+| `404 MODEL_PROVIDER_NOT_FOUND` on archive | id is wrong or already archived | `phi model-provider list --include-archived` to confirm |
+| `500 INTERNAL_ERROR` on list | SurrealDB read path | check `phi-server` logs + storage health |
 
 ## References
 

@@ -1,7 +1,7 @@
 // Server Actions for the credentials-vault page.
 //
 // Each action:
-//   1. Reads the admin's `baby_phi_session` cookie off the current request
+//   1. Reads the admin's `phi_kernel_session` cookie off the current request
 //      (via `forwardSessionCookieHeader`).
 //   2. Calls the matching `listSecretsApi` / `addSecretApi` / etc.
 //   3. Returns a discriminated union the client form can render into

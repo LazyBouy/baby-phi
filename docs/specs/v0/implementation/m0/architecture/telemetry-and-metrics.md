@@ -32,10 +32,10 @@ The subscriber is installed via `try_init()` which is a no-op on subsequent call
 - **Pretty (dev default)** — colourised, one-event-per-multi-line-block. Easy to read on a local terminal.
 - **JSON (prod default)** — one JSON object per line with `timestamp`, `level`, `fields`, `target`, `span`. Directly ingestable by Loki, Elasticsearch, Cloud Logging, or anything else that speaks JSON lines.
 
-Sample JSON line (from `BABY_PHI_PROFILE=prod cargo run -p server`):
+Sample JSON line (from `PHI_PROFILE=prod cargo run -p server`):
 
 ```json
-{"timestamp":"2026-04-19T14:03:17.294Z","level":"INFO","fields":{"message":"baby-phi-server listening (plaintext HTTP — terminate TLS at reverse proxy in prod)","addr":"0.0.0.0:8080"},"target":"server"}
+{"timestamp":"2026-04-19T14:03:17.294Z","level":"INFO","fields":{"message":"phi-server listening (plaintext HTTP — terminate TLS at reverse proxy in prod)","addr":"0.0.0.0:8080"},"target":"server"}
 ```
 
 ### Filter directives
@@ -80,7 +80,7 @@ This is why the server separates [`build_router`](../../../../../../modules/crat
 
 ### Scraping
 
-A Prometheus server scrapes `/metrics` on a configurable cadence (typically 15–60 s). The Dockerfile exposes port 8080; operators point Prometheus at `http://<baby-phi-host>:8080/metrics`. The ingress/reverse proxy should route this path without authentication on an internal-only interface, or with a scraper-only auth token — see [`operations/tls-and-transport-security.md`](../operations/tls-and-transport-security.md).
+A Prometheus server scrapes `/metrics` on a configurable cadence (typically 15–60 s). The Dockerfile exposes port 8080; operators point Prometheus at `http://<phi-host>:8080/metrics`. The ingress/reverse proxy should route this path without authentication on an internal-only interface, or with a scraper-only auth token — see [`operations/tls-and-transport-security.md`](../operations/tls-and-transport-security.md).
 
 ### Cardinality
 

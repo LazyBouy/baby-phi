@@ -1,11 +1,11 @@
 //! `list_provider_kinds` — the set of `ApiProtocol` variants
-//! baby-phi currently supports.
+//! phi currently supports.
 //!
 //! **phi-core is the single source of truth.** The response enumerates
 //! [`phi_core::provider::registry::ProviderRegistry::default().protocols()`]
-//! — baby-phi never hard-codes a list of its own. When phi-core adds a
+//! — phi never hard-codes a list of its own. When phi-core adds a
 //! new provider (e.g. a future `OpenAiBatchApi`), this endpoint picks
-//! it up at the next `cargo update` without any baby-phi code change.
+//! it up at the next `cargo update` without any phi code change.
 //!
 //! Return shape: a `Vec<ApiProtocol>` serialised via phi-core's own
 //! serde impl (`#[serde(rename_all = "snake_case")]`), so wire values
@@ -29,7 +29,7 @@ mod tests {
     #[test]
     fn default_registry_contains_anthropic() {
         // Sanity check — if the default registry ever drops Anthropic,
-        // something upstream changed and baby-phi should react
+        // something upstream changed and phi should react
         // intentionally rather than silently.
         let kinds = list_provider_kinds();
         assert!(

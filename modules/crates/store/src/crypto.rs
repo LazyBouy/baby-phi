@@ -3,7 +3,7 @@
 //! Scope for M1 (per plan decision D2): only the `secrets_vault.value`
 //! column is sealed. Broader full-DB encryption requires KMS integration
 //! and is deferred to M7b. The master key is read from
-//! `BABY_PHI_MASTER_KEY` as a 32-byte base64-encoded value; binaries that
+//! `PHI_MASTER_KEY` as a 32-byte base64-encoded value; binaries that
 //! try to read a secret before loading it fail with
 //! [`CryptoError::MissingMasterKey`] and the server refuses to start.
 //!
@@ -19,7 +19,7 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 /// The name of the environment variable the server reads for the master key.
-pub const MASTER_KEY_ENV: &str = "BABY_PHI_MASTER_KEY";
+pub const MASTER_KEY_ENV: &str = "PHI_MASTER_KEY";
 
 /// A 32-byte symmetric key. Deliberately not `Serialize` so it cannot
 /// accidentally land in logs or JSON payloads.
@@ -49,7 +49,7 @@ pub enum CryptoError {
 }
 
 impl MasterKey {
-    /// Load the master key from the `BABY_PHI_MASTER_KEY` env var.
+    /// Load the master key from the `PHI_MASTER_KEY` env var.
     pub fn from_env() -> Result<Self, CryptoError> {
         let raw = std::env::var(MASTER_KEY_ENV).map_err(|_| CryptoError::MissingMasterKey)?;
         Self::from_base64(&raw)

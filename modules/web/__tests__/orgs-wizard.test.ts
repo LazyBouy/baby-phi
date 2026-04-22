@@ -104,7 +104,7 @@ test("CreateOrgBody type permits defaults_snapshot_override as opaque phi-core p
   // a full `defaults_snapshot_override` object containing arbitrary
   // phi-core fields without the web tier having to re-specify them.
   // If a future commit tightens `Record<string, unknown>` to a
-  // baby-phi re-declaration, this test fails to type-check.
+  // phi re-declaration, this test fails to type-check.
   const override: Record<string, unknown> = {
     execution_limits: {
       max_turns: 50,

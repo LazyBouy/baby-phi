@@ -1,4 +1,4 @@
-// Edit + PUT form. Exposes the baby-phi-native fields as first-class
+// Edit + PUT form. Exposes the phi-native fields as first-class
 // controls (retention days, alert channels) and the embedded phi-core
 // sections as JSON textareas — the form never assumes a particular
 // phi-core field layout, so phi-core evolution doesn't require a

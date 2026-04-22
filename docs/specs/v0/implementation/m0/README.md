@@ -1,6 +1,6 @@
 <!-- Last verified: 2026-04-19 by Claude Code -->
 
-# baby-phi — M0 implementation documentation
+# phi — M0 implementation documentation
 
 M0 is the **scaffolding** milestone of the v0.1 build plan: a Cargo workspace with four Rust crates (`cli`, `domain`, `store`, `server`), an embedded SurrealDB (RocksDB) adapter, an axum HTTP server with health + metrics, a Next.js 14 web UI skeleton, a Dockerfile + compose stack, three CI workflows, and a 12-factor layered-config story. Nothing in M0 implements the Permission Check engine, Auth Request state machine, or any admin page — those land in M1+.
 
@@ -58,9 +58,9 @@ Each ADR follows the Status / Context / Decision / Consequences / Alternatives p
 | [0001](decisions/0001-surrealdb-over-memgraph.md) | SurrealDB over Memgraph as the embedded graph DB |
 | [0002](decisions/0002-three-parallel-surfaces.md) | Ship CLI + HTTP API + Web UI in parallel |
 | [0003](decisions/0003-modules-crates-layout.md) | `modules/crates/` + `modules/web/` directory split |
-| [0004](decisions/0004-terse-package-names.md) | Package names drop the `baby-phi-` prefix; binary names keep it |
+| [0004](decisions/0004-terse-package-names.md) | Package names drop the `phi-` prefix; binary names keep it |
 | [0005](decisions/0005-metrics-layer-separation.md) | Separate `build_router` from `with_prometheus` |
-| [0006](decisions/0006-twelve-factor-layered-config.md) | TOML layers + `BABY_PHI_*` env overrides, secrets env-only |
+| [0006](decisions/0006-twelve-factor-layered-config.md) | TOML layers + `PHI_*` env overrides, secrets env-only |
 | [0007](decisions/0007-embedded-vs-sidecar-database.md) | Embedded SurrealDB for v0.1; standalone + TiKV as scaling tiers |
 
 ## Conventions

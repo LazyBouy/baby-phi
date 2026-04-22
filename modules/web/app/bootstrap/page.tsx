@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata = {
-  title: "Bootstrap — baby-phi",
+  title: "Bootstrap — phi",
 };
 
 export default async function BootstrapPage() {
@@ -33,8 +33,8 @@ export default async function BootstrapPage() {
             {result.error}
           </pre>
           <p className="mt-3 text-sm opacity-70">
-            Make sure <code>baby-phi-server</code> is running and that
-            <code> BABY_PHI_API_URL</code> points at it.
+            Make sure <code>phi-server</code> is running and that
+            <code> PHI_API_URL</code> points at it.
           </p>
         </section>
       </Shell>
@@ -72,7 +72,7 @@ export default async function BootstrapPage() {
     <Shell>
       <p className="text-sm opacity-70">
         No platform admin has been claimed yet. Paste the bootstrap credential
-        printed by <code>baby-phi-server bootstrap-init</code> to take the
+        printed by <code>phi-server bootstrap-init</code> to take the
         role.
       </p>
       <ClaimForm />

@@ -2,7 +2,7 @@
 
 # Operations — TLS and transport security
 
-baby-phi-server supports two TLS deployment patterns: a **reverse-proxy-in-front** (recommended) and a **native TLS listener** (simple single-node). Both are live in M0. Cert renewal hot-reload and mTLS-to-upstream are `[PLANNED M7b]`.
+phi-server supports two TLS deployment patterns: a **reverse-proxy-in-front** (recommended) and a **native TLS listener** (simple single-node). Both are live in M0. Cert renewal hot-reload and mTLS-to-upstream are `[PLANNED M7b]`.
 
 ## Recommended — reverse-proxy terminates TLS
 
@@ -18,7 +18,7 @@ baby-phi-server supports two TLS deployment patterns: a **reverse-proxy-in-front
             │  plaintext HTTP on an internal network
             ▼
  ┌───────────────────────┐
- │  baby-phi-server      │   ← [server.tls] unset; plaintext listener
+ │  phi-server      │   ← [server.tls] unset; plaintext listener
  │  (Docker container /  │     on 0.0.0.0:8080
  │   systemd service)    │
  └───────────────────────┘
@@ -26,15 +26,15 @@ baby-phi-server supports two TLS deployment patterns: a **reverse-proxy-in-front
 
 Why this is the recommended posture:
 
-- **Operational separation.** Cert renewal, HTTP/2, gzip, rate limits — all handled by the proxy. baby-phi-server stays focused on its domain.
+- **Operational separation.** Cert renewal, HTTP/2, gzip, rate limits — all handled by the proxy. phi-server stays focused on its domain.
 - **Renewal without restart.** ACME clients (Certbot, Caddy's built-in, AWS ACM) rotate certs transparently. Native TLS in M0 requires a process restart.
-- **Edge features.** Reverse proxies give you CDN integration, geo-routing, DDoS protection, and WAF rules. baby-phi-server can't replicate that.
+- **Edge features.** Reverse proxies give you CDN integration, geo-routing, DDoS protection, and WAF rules. phi-server can't replicate that.
 
 Configuration for this posture: simply leave `[server.tls]` unset in the active profile (this is the default). The plaintext `axum::serve` path at [`main.rs:50-53`](../../../../../../modules/crates/server/src/main.rs) runs.
 
 ## Simple — native TLS
 
-When a reverse proxy is overkill (e.g. a single-node on-prem deploy, a homelab, or during early customer demos), baby-phi-server can serve TLS itself via `axum-server`.
+When a reverse proxy is overkill (e.g. a single-node on-prem deploy, a homelab, or during early customer demos), phi-server can serve TLS itself via `axum-server`.
 
 ### Enabling it
 
@@ -43,15 +43,15 @@ Add `[server.tls]` to the active profile OR inject via env:
 ```toml
 # config/prod.toml or equivalent
 [server.tls]
-cert_path = "/etc/baby-phi/tls/cert.pem"
-key_path  = "/etc/baby-phi/tls/key.pem"
+cert_path = "/etc/phi/tls/cert.pem"
+key_path  = "/etc/phi/tls/key.pem"
 ```
 
 Or:
 
 ```bash
-export BABY_PHI_SERVER__TLS__CERT_PATH=/etc/baby-phi/tls/cert.pem
-export BABY_PHI_SERVER__TLS__KEY_PATH=/etc/baby-phi/tls/key.pem
+export PHI_SERVER__TLS__CERT_PATH=/etc/phi/tls/cert.pem
+export PHI_SERVER__TLS__KEY_PATH=/etc/phi/tls/key.pem
 ```
 
 The server detects `Option::Some(tls)` at [`main.rs:35-48`](../../../../../../modules/crates/server/src/main.rs) and uses `axum_server::bind_rustls`.
@@ -66,9 +66,9 @@ PEM-encoded. Typical sources:
 
 ### Renewal
 
-v0.1: **restart required**. Update the PEM files, then restart `baby-phi-server`. Loss of in-flight connections on restart; graceful-shutdown on `SIGTERM` completes existing requests before the new process binds.
+v0.1: **restart required**. Update the PEM files, then restart `phi-server`. Loss of in-flight connections on restart; graceful-shutdown on `SIGTERM` completes existing requests before the new process binds.
 
-Hot-reload of certificates without a restart is `[PLANNED M7b]`. Until then, a simple `systemctl restart baby-phi-server` after a Certbot renew hook is the expected pattern.
+Hot-reload of certificates without a restart is `[PLANNED M7b]`. Until then, a simple `systemctl restart phi-server` after a Certbot renew hook is the expected pattern.
 
 ### TLS version + cipher policy
 
@@ -112,7 +112,7 @@ Before turning on native TLS in production:
 - [ ] Cert + key PEM files present, owned by the server process's uid, mode `0400` on the key.
 - [ ] Cert matches the external DNS name the server is reached at.
 - [ ] Cert renewal mechanism in place (cron + Certbot, or systemd timer, or AWS-managed).
-- [ ] `BABY_PHI_SERVER__TLS__CERT_PATH` and `…KEY_PATH` set in the process environment (or in the layered config).
+- [ ] `PHI_SERVER__TLS__CERT_PATH` and `…KEY_PATH` set in the process environment (or in the layered config).
 - [ ] Healthcheck command updated to `https://127.0.0.1:8080/healthz/ready` (or Docker's HEALTHCHECK rewritten with `--no-check-certificate`).
 - [ ] Firewall lets inbound 8080 only from the intended sources.
 

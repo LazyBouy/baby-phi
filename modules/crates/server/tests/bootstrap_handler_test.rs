@@ -44,6 +44,7 @@ fn app_with(repo: Arc<InMemoryRepository>) -> Router {
         session: test_session(),
         audit: Arc::new(domain::audit::NoopAuditEmitter),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
+        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
     })
 }
 
@@ -158,8 +159,8 @@ async fn claim_happy_path_returns_201_and_sets_session_cookie() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        set_cookie.contains("baby_phi_session="),
-        "expected baby_phi_session cookie, got: {set_cookie}"
+        set_cookie.contains("phi_kernel_session="),
+        "expected phi_kernel_session cookie, got: {set_cookie}"
     );
     assert!(set_cookie.contains("HttpOnly"));
     assert!(set_cookie.contains("SameSite=Lax"));
@@ -167,10 +168,10 @@ async fn claim_happy_path_returns_201_and_sets_session_cookie() {
     // Extract the cookie value and verify it.
     let cookie_line = set_cookie
         .lines()
-        .find(|l| l.contains("baby_phi_session="))
+        .find(|l| l.contains("phi_kernel_session="))
         .unwrap();
     let value = cookie_line
-        .split("baby_phi_session=")
+        .split("phi_kernel_session=")
         .nth(1)
         .unwrap()
         .split(';')

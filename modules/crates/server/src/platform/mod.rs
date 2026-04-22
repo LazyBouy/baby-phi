@@ -2,8 +2,10 @@
 //! business logic here. Each page gets its own submodule; handlers in
 //! [`crate::handlers`] stay thin HTTP shims on top.
 
+pub mod agents;
 pub mod defaults;
 pub mod mcp_servers;
 pub mod model_providers;
 pub mod orgs;
+pub mod projects;
 pub mod secrets;

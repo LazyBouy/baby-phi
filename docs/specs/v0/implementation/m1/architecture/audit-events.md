@@ -109,7 +109,7 @@ repository grows `write_audit_event` + `last_event_hash_for_org`.
 
 ## Relationship to `phi_core::AgentEvent`
 
-baby-phi's [`AuditEvent`](../../../../../../modules/crates/domain/src/audit/mod.rs)
+phi's [`AuditEvent`](../../../../../../modules/crates/domain/src/audit/mod.rs)
 and phi-core's [`AgentEvent`](../../../../../../../phi-core/src/types/event.rs)
 are **orthogonal surfaces**, not alternatives for each other:
 
@@ -124,7 +124,7 @@ are **orthogonal surfaces**, not alternatives for each other:
 They can reference each other (an `AuditEvent` describing "agent X ran
 session Y" can carry the phi-core `loop_id` / `turn_id` in its `diff`),
 but they are not substitutable. M5+ session-launch flows emit **both**:
-phi-core streams `AgentEvent`s to the UI; baby-phi simultaneously
+phi-core streams `AgentEvent`s to the UI; phi simultaneously
 writes `AuditEvent`s to the audit log for compliance.
 
 ## Concept references
@@ -132,6 +132,6 @@ writes `AuditEvent`s to the audit log for compliance.
 - NFR: `docs/specs/v0/requirements/cross-cutting/nfr-observability.md`.
 - ADR: [0013 audit events — class + chain](../decisions/0013-audit-events-class-and-chain.md).
 - phi-core mapping: [`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
-  §`AgentEvent` (classified as a **Node** mapping to baby-phi's **Event**
+  §`AgentEvent` (classified as a **Node** mapping to phi's **Event**
   graph concept — distinct from the `AuditEvent` compliance log).
 - Build plan: "Audit-log tamper resistance" row — M1 seeds, M7b completes.

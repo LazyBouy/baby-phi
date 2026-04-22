@@ -1,4 +1,4 @@
-//! Smoke tests for the `baby-phi completion <shell>` subcommand.
+//! Smoke tests for the `phi completion <shell>` subcommand.
 //!
 //! Two shape assertions per shell:
 //!   - Help renders + exits 0.
@@ -8,14 +8,11 @@
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_baby-phi")
+    env!("CARGO_BIN_EXE_phi")
 }
 
 fn run(args: &[&str]) -> (bool, String, String) {
-    let out = Command::new(bin())
-        .args(args)
-        .output()
-        .expect("run baby-phi");
+    let out = Command::new(bin()).args(args).output().expect("run phi");
     (
         out.status.success(),
         String::from_utf8_lossy(&out.stdout).to_string(),
@@ -33,7 +30,7 @@ fn completion_help_lists_shell_value_enum() {
     for shell in ["bash", "zsh", "fish", "powershell"] {
         assert!(
             stdout.to_lowercase().contains(shell),
-            "`baby-phi completion --help` must list `{shell}`; got:\n{stdout}"
+            "`phi completion --help` must list `{shell}`; got:\n{stdout}"
         );
     }
 }
@@ -124,6 +121,45 @@ fn completion_scripts_expose_org_subcommand_tree_on_every_shell() {
                 "{shell} completion must surface `org {sub}`; got \
                  snippet:\n{}",
                 &stdout[..stdout.len().min(600)]
+            );
+        }
+    }
+}
+
+#[test]
+fn completion_scripts_expose_m4_agent_subcommand_tree_on_every_shell() {
+    // M4/P1 commitment C19: clap_complete's subcommand-tree walk must
+    // surface every new `agent {list,show,create,update,revert-limits}`
+    // subcommand in addition to the legacy `agent demo` — on every
+    // shell. Keeps shell-completion parity regression-proof once M4/P4
+    // and M4/P5 land the wired implementations.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok, "completion {shell} exited non-zero");
+        for sub in ["list", "show", "create", "update", "revert-limits", "demo"] {
+            assert!(
+                stdout.contains(sub),
+                "{shell} completion must surface `agent {sub}`; got snippet:\n{}",
+                &stdout[..stdout.len().min(800)]
+            );
+        }
+    }
+}
+
+#[test]
+fn completion_scripts_expose_m4_project_subcommand_tree_on_every_shell() {
+    // M4/P1 commitment C19: `phi project {list,show,create,update-okrs}`
+    // must surface on every shell backend. The scaffolds aren't wired
+    // yet (M4/P6–P7 lands the server business logic) but the
+    // subcommand tree is fully parseable today.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok, "completion {shell} exited non-zero");
+        for sub in ["project", "update-okrs"] {
+            assert!(
+                stdout.contains(sub),
+                "{shell} completion must surface `{sub}`; got snippet:\n{}",
+                &stdout[..stdout.len().min(800)]
             );
         }
     }

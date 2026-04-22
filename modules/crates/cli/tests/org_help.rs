@@ -1,4 +1,4 @@
-//! Smoke tests for the `baby-phi org` subcommand family.
+//! Smoke tests for the `phi org` subcommand family.
 //!
 //! Shape assertions only — help renders + `--id` is required on
 //! `dashboard`/`show`; `--from-layout` surfaces on `create`. These
@@ -8,14 +8,11 @@
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_baby-phi")
+    env!("CARGO_BIN_EXE_phi")
 }
 
 fn run(args: &[&str]) -> (bool, String, String) {
-    let out = Command::new(bin())
-        .args(args)
-        .output()
-        .expect("run baby-phi");
+    let out = Command::new(bin()).args(args).output().expect("run phi");
     (
         out.status.success(),
         String::from_utf8_lossy(&out.stdout).to_string(),
@@ -30,7 +27,7 @@ fn org_help_lists_all_four_subcommands() {
     for sub in ["create", "list", "show", "dashboard"] {
         assert!(
             stdout.contains(sub),
-            "`baby-phi org --help` must mention `{sub}`; got:\n{stdout}"
+            "`phi org --help` must mention `{sub}`; got:\n{stdout}"
         );
     }
 }

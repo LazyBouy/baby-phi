@@ -48,7 +48,7 @@ Graph edge mutations that match any active template's fire rule:
 
 ## Observability
 
-- Metrics: `baby_phi_template_fires_total{template_id, org_id}`, `baby_phi_template_fires_per_event` (histogram), `baby_phi_template_fire_latency_seconds`.
+- Metrics: `phi_template_fires_total{template_id, org_id}`, `phi_template_fires_per_event` (histogram), `phi_template_fire_latency_seconds`.
 - Audit events: `AuthorityTemplateGrantFired`, `TemplateFireSkipped`.
 
 ## Cross-References

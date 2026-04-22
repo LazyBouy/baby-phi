@@ -26,7 +26,7 @@ async fn fresh_emitter() -> (
     tempfile::TempDir,
 ) {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open store");
     let repo: Arc<dyn Repository> = Arc::new(store);

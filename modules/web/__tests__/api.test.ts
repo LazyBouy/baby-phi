@@ -68,7 +68,7 @@ test("parseClaimSuccess — maps snake_case wire to camelCase domain", () => {
 
 test("extractSessionJwt — pulls JWT from a realistic Set-Cookie header", () => {
   const header =
-    "baby_phi_session=eyJhbGciOiJIUzI1NiJ9.payload.sig; HttpOnly; SameSite=Lax; Path=/; Expires=Wed, 01 Jan 2030 00:00:00 GMT";
+    "phi_kernel_session=eyJhbGciOiJIUzI1NiJ9.payload.sig; HttpOnly; SameSite=Lax; Path=/; Expires=Wed, 01 Jan 2030 00:00:00 GMT";
   assert.equal(
     extractSessionJwt(header),
     "eyJhbGciOiJIUzI1NiJ9.payload.sig",

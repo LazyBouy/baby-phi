@@ -6,7 +6,7 @@
 
 ## 2. Page Purpose + Primary Actor
 
-Detail editor for a single Agent. Supports **create** (reached via "+ Add Agent" from [08-agent-roster-list.md](08-agent-roster-list.md)) and **edit** (reached via a row's "View" link). The editor binds the phi-core types `AgentProfile` + `ModelConfig` + `ExecutionLimits` with baby-phi's `parallelize`, `kind`, and project-role fields. For **System Agents**, the editor is read-only here — full configuration lives in [13-system-agents-config.md](13-system-agents-config.md).
+Detail editor for a single Agent. Supports **create** (reached via "+ Add Agent" from [08-agent-roster-list.md](08-agent-roster-list.md)) and **edit** (reached via a row's "View" link). The editor binds the phi-core types `AgentProfile` + `ModelConfig` + `ExecutionLimits` with phi's `parallelize`, `kind`, and project-role fields. For **System Agents**, the editor is read-only here — full configuration lives in [13-system-agents-config.md](13-system-agents-config.md).
 
 **Primary actor:** Human Agent holding `[allocate]` on the org's `agent-catalogue`.
 
@@ -45,7 +45,7 @@ Create mode:
 │   max_turns [ 40 ]  max_tokens [ 80000 ]                         │
 │   max_duration_secs [ 2400 ]  max_cost_usd [ 2.00 ]              │
 │                                                                  │
-│ baby-phi fields                                                  │
+│ phi fields                                                  │
 │   parallelize  [ 2 ]  (org cap: 4)                               │
 │   project_role   { class-cohort-1: learner }   [+ Add role]     │
 │   base_organization   acme (inherited from this org)            │

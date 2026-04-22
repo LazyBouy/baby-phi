@@ -7,7 +7,7 @@
 //! failure modes:
 //!
 //! - `EXIT_PRECONDITION_FAILED` (4) — a step that must precede this
-//!   command hasn't happened (e.g. `baby-phi secret reveal` with no
+//!   command hasn't happened (e.g. `phi secret reveal` with no
 //!   saved session, or `mcp-server patch` against an archived
 //!   server). Shell scripts can use this to fail fast rather than
 //!   retrying.
@@ -42,3 +42,12 @@ pub const EXIT_PRECONDITION_FAILED: i32 = 4;
 /// after partial work. New in M2 / P1; used by `mcp-server patch`
 /// starting at M2 / P6.
 pub const EXIT_CASCADE_ABORTED: i32 = 5;
+
+/// The requested subcommand is scaffolded but not yet wired — the
+/// caller should upgrade to the milestone that ships it. New in
+/// M4 / P1; used by the `agent {list,show,create,update}` +
+/// `project {list,show,create,update-okrs}` stubs until M4/P4–P7
+/// land their server-side business logic. The intent is that shell
+/// scripts can detect the "not yet implemented" path deterministically
+/// rather than matching on stderr text.
+pub const EXIT_NOT_IMPLEMENTED: i32 = 6;

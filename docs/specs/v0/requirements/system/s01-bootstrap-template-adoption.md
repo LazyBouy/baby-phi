@@ -50,7 +50,7 @@ The REST call `POST /api/v0/bootstrap/claim` handled by [admin/01-platform-boots
 ## Observability
 
 - Alerted audit event `PlatformAdminClaimed`.
-- Metric: `baby_phi_bootstrap_claims_total{result="success|invalid|expired|already_consumed"}`.
+- Metric: `phi_bootstrap_claims_total{result="success|invalid|expired|already_consumed"}`.
 
 ## Cross-References
 

@@ -1,7 +1,7 @@
 // Server Actions for the model-providers page.
 //
 // Every action forwards the admin's session cookie + calls the
-// matching baby-phi API endpoint. The register action accepts a
+// matching phi API endpoint. The register action accepts a
 // `configJson` string (operator-pasted) so the web tier stays
 // ignorant of phi-core's `ModelConfig` field layout — whatever JSON
 // the operator supplies goes straight to the server, which

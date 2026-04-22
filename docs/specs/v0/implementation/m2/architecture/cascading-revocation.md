@@ -109,7 +109,7 @@ permission-system state machine.
 
 ## phi-core leverage
 
-- `TenantSet` (the enum being narrowed) is **baby-phi-only**.
+- `TenantSet` (the enum being narrowed) is **phi-only**.
   phi-core has no tenancy model; tenancy is a platform-governance
   concern layered on top.
 - The live `McpClient` is never consulted during the cascade — the

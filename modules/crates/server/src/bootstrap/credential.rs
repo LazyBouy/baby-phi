@@ -6,7 +6,7 @@
 //! comparison.
 //!
 //! Per D1 in the M1 plan the plaintext is printed to stdout ONCE on
-//! `baby-phi-server bootstrap-init`; the hash is what the claim handler
+//! `phi-server bootstrap-init`; the hash is what the claim handler
 //! looks up in [`Repository::find_unconsumed_credential`].
 
 use argon2::{

@@ -8,7 +8,7 @@
 
 `PlatformDefaults` is a singleton row that holds platform-wide baselines
 for four phi-core types (`ExecutionLimits`, `AgentProfile`,
-`ContextConfig`, `RetryConfig`) plus two baby-phi-native fields
+`ContextConfig`, `RetryConfig`) plus two phi-native fields
 (`default_retention_days`, `default_alert_channels`). Every newly
 created org consumes these at creation time as the starting point
 for its own governance config.

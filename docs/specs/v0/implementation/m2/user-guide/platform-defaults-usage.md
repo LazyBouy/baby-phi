@@ -7,7 +7,7 @@
 Platform Defaults is the platform-wide baseline that new orgs adopt
 at creation time. It composes four phi-core types directly —
 `ExecutionLimits`, `AgentProfile`, `ContextConfig`, `RetryConfig` —
-plus two baby-phi-native fields (`default_retention_days`,
+plus two phi-native fields (`default_retention_days`,
 `default_alert_channels`).
 
 Edits are **non-retroactive**: they apply only to orgs created after
@@ -20,22 +20,22 @@ for the rationale.
 | Surface | Command / URL | Effect |
 |---|---|---|
 | Web | `/platform-defaults` | SSR form + factory side panel |
-| CLI | `baby-phi platform-defaults get [--include-factory] [--format json\|yaml\|toml]` | Read current |
-| CLI | `baby-phi platform-defaults put --file <PATH> --if-version <N>` | Update (OCC-checked) |
-| CLI | `baby-phi platform-defaults factory [--format json\|yaml\|toml]` | Print phi-core baseline (no server call) |
+| CLI | `phi platform-defaults get [--include-factory] [--format json\|yaml\|toml]` | Read current |
+| CLI | `phi platform-defaults put --file <PATH> --if-version <N>` | Update (OCC-checked) |
+| CLI | `phi platform-defaults factory [--format json\|yaml\|toml]` | Print phi-core baseline (no server call) |
 | HTTP | `GET /api/v0/platform/defaults` | Wire read |
 | HTTP | `PUT /api/v0/platform/defaults` | Wire update |
 
 ## CLI
 
 All subcommands share the M2 auth flow (reads the session cookie
-saved by `baby-phi bootstrap claim`). The `factory` subcommand is the
+saved by `phi bootstrap claim`). The `factory` subcommand is the
 exception — it's offline, no HTTP call.
 
 ### `get`
 
 ```
-baby-phi platform-defaults get --format yaml
+phi platform-defaults get --format yaml
 ```
 
 Prints the persisted row (or the factory baseline if no row exists
@@ -43,7 +43,7 @@ yet). On a fresh install the CLI prints a `# note:` stderr line
 warning that what you see is the factory baseline, not a stored row.
 
 ```
-baby-phi platform-defaults get --include-factory --format json
+phi platform-defaults get --include-factory --format json
 ```
 
 Wraps the output with `{ defaults, persisted, factory }` so you can
@@ -52,7 +52,7 @@ diff your live row against the phi-core baseline.
 ### `put`
 
 ```
-baby-phi platform-defaults put --file defaults.yaml --if-version 3
+phi platform-defaults put --file defaults.yaml --if-version 3
 ```
 
 `--file` can be `-` to read from stdin. Format auto-detects from
@@ -64,7 +64,7 @@ JSON-only; multi-format support is client-side.
 value is stale:
 
 ```
-baby-phi: rejected (PLATFORM_DEFAULTS_STALE_WRITE): stale if_version; current server-side version is 5 — re-read and retry
+phi: rejected (PLATFORM_DEFAULTS_STALE_WRITE): stale if_version; current server-side version is 5 — re-read and retry
 ```
 
 Exit code in that case is `2` (`EXIT_REJECTED`).
@@ -72,7 +72,7 @@ Exit code in that case is `2` (`EXIT_REJECTED`).
 ### `factory`
 
 ```
-baby-phi platform-defaults factory --format yaml > reset.yaml
+phi platform-defaults factory --format yaml > reset.yaml
 ```
 
 Prints `PlatformDefaults::factory(now)` — the phi-core-sourced
@@ -97,7 +97,7 @@ Navigate to `/platform-defaults`. The page:
 
 ### DefaultsForm
 
-Each baby-phi-native field gets a dedicated control:
+Each phi-native field gets a dedicated control:
 
 - `Default retention (days)` — number input.
 - `Default alert channels` — comma-separated text input.
@@ -121,7 +121,7 @@ the stale-write message — refresh to pull the latest.
 ### FactoryDefaultsPanel
 
 Read-only. Shows the four phi-core sections as JSON blocks + the
-baby-phi baselines as plain text. Operators copy sections into the
+phi baselines as plain text. Operators copy sections into the
 form to reset individual slices.
 
 ## HTTP

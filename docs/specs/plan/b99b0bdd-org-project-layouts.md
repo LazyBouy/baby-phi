@@ -20,10 +20,10 @@ The examples leverage phi-core's existing types (`AgentProfile`, `ModelConfig`, 
 
 ## History — where prior work is recorded  `[PLAN: new]` `[DOCS: n/a]`
 
-- Phase A–D archive: `baby-phi/docs/specs/plan/d95fac8f-ownership-auth-request.md`
-- Phase F archive: `baby-phi/docs/specs/plan/54b1b2cb-split-and-gap-closure.md`
-- Phase G/H archive: `baby-phi/docs/specs/plan/b30cb86b-push-to-95.md`
-- Current spec state: `baby-phi/docs/specs/v0/concepts/`
+- Phase A–D archive: `phi/docs/specs/plan/d95fac8f-ownership-auth-request.md`
+- Phase F archive: `phi/docs/specs/plan/54b1b2cb-split-and-gap-closure.md`
+- Phase G/H archive: `phi/docs/specs/plan/b30cb86b-push-to-95.md`
+- Current spec state: `phi/docs/specs/v0/concepts/`
 
 ## Decisions Captured  `[PLAN: new]` `[DOCS: see Impl column]`
 
@@ -44,7 +44,7 @@ The examples leverage phi-core's existing types (`AgentProfile`, `ModelConfig`, 
 
 ### O0: Archive this plan  `[PLAN: new]` `[DOCS: ⏳]`
 
-Copy verbatim to `baby-phi/docs/specs/plan/<random>-org-project-layouts.md` (8-hex-char token). First action after approval.
+Copy verbatim to `phi/docs/specs/plan/<random>-org-project-layouts.md` (8-hex-char token). First action after approval.
 
 ### O1: Resource Catalogue rule (primary + composite)  `[PLAN: new]` `[DOCS: ⏳]`
 
@@ -118,7 +118,7 @@ Copy verbatim to `baby-phi/docs/specs/plan/<random>-org-project-layouts.md` (8-h
 
 ### O2: OKR fields on Project  `[PLAN: new]` `[DOCS: ⏳]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/project.md`, with ontology.md echo.
+**File:** `phi/docs/specs/v0/concepts/project.md`, with ontology.md echo.
 
 1. Add `objectives: Vec<Objective>` and `key_results: Vec<KeyResult>` rows to Project Properties table (both optional).
 2. Add §Objectives and Key Results (OKRs) subsection with value-object definitions:
@@ -185,7 +185,7 @@ Copy verbatim to `baby-phi/docs/specs/plan/<random>-org-project-layouts.md` (8-h
 
 ### O4: Parallelized sessions  `[PLAN: new]` `[DOCS: ⏳]`
 
-**File:** `baby-phi/docs/specs/v0/concepts/agent.md`, plus cross-references.
+**File:** `phi/docs/specs/v0/concepts/agent.md`, plus cross-references.
 
 **Change:** Add a new subsection §Parallelized Sessions under the agent-anatomy content:
 
@@ -204,7 +204,7 @@ Cross-reference additions:
 ### O5: System Agents (catalogue file)  `[PLAN: new]` `[DOCS: ⏳]`
 
 **Files:**
-- NEW `baby-phi/docs/specs/v0/concepts/system-agents.md`
+- NEW `phi/docs/specs/v0/concepts/system-agents.md`
 - `permissions/07-templates-and-tools.md` (system_agents in Standard Org Template)
 - `agent.md` (cross-reference from §System Agent)
 
@@ -307,7 +307,7 @@ Same shape as O6, scoped to the 5 project layouts.
 
 | File | Edit(s) |
 |------|---------|
-| `baby-phi/docs/specs/plan/<random>-org-project-layouts.md` (NEW) | O0 |
+| `phi/docs/specs/plan/<random>-org-project-layouts.md` (NEW) | O0 |
 | `permissions/01-resource-ontology.md` | O1 (Catalogue section), O3 (inbox/outbox composites) |
 | `permissions/04-manifest-and-resolution.md` | O1 (Step 0 in pseudocode) |
 | `permissions/05-memory-sessions.md` | O3 (inbox/outbox section) |

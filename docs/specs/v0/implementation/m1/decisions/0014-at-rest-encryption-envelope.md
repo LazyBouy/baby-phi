@@ -26,7 +26,7 @@ loaded, what the debug story is.
 2. **Algorithm: AES-256-GCM.** Industry standard AEAD; built-in
    authentication tag; available in the well-audited `aes-gcm` crate.
    Key size is 32 bytes.
-3. **Master key injected via env var.** `BABY_PHI_MASTER_KEY` carries the
+3. **Master key injected via env var.** `PHI_MASTER_KEY` carries the
    base64-encoded 32-byte key. The server refuses to start if the vault is
    touched and the key isn't loadable — matches the migration runner's
    fail-safe posture.
@@ -49,7 +49,7 @@ Positive:
 
 - **Secrets never reach the disk in plaintext.** Even if the DB file is
   copied off a compromised host, the vault column is opaque without
-  `BABY_PHI_MASTER_KEY`.
+  `PHI_MASTER_KEY`.
 - **Minimal dependency footprint.** `aes-gcm`, `base64`, and `rand` are
   well-audited, small crates.
 - **Debug/log leakage is hard to hit accidentally.** The redacted `Debug`

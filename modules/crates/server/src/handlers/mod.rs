@@ -4,6 +4,7 @@
 //! …). M1/P6 ships only [`bootstrap`]; every M2+ milestone adds another
 //! sibling module.
 
+pub mod agents;
 pub mod bootstrap;
 pub mod orgs;
 pub mod platform_defaults;

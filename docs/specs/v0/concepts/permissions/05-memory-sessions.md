@@ -428,7 +428,7 @@ The big difference from the old "five models" framing: **templates are not mutua
 | High-privacy | D + E | Only explicit role-based access; no automatic grants |
 | Maximum control | E only | Every grant is manually issued; no defaults |
 
-**Recommended default for baby-phi:** Templates **A + B**. This gives sensible behavior ("project leads can read their team; agents can read what they delegated") with two cheap-to-compute auto-issued grants.
+**Recommended default for phi:** Templates **A + B**. This gives sensible behavior ("project leads can read their team; agents can read what they delegated") with two cheap-to-compute auto-issued grants.
 
 ### Worked Examples
 

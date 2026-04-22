@@ -10,31 +10,31 @@
 
 ## Future Scenarios (from phi-core roadmap)
 
-These phi-core future scenarios directly feed into baby-phi's coordination design:
+These phi-core future scenarios directly feed into phi's coordination design:
 
 ### HITL Resume (Human-in-the-Loop)
 
 Agent is aborted mid-execution, human reviews, then resumes. Requires checkpoint/restore on Agent state. phi-core needs `Agent::checkpoint()` / `Agent::restore(checkpoint)`.
 
-**baby-phi implication:** The data model must support partial sessions — loops that are `Aborted` with a resumption path. The graph edge `CONTINUES_FROM` with `ContinuationKind::Rerun` or `Branch` captures this.
+**phi implication:** The data model must support partial sessions — loops that are `Aborted` with a resumption path. The graph edge `CONTINUES_FROM` with `ContinuationKind::Rerun` or `Branch` captures this.
 
 ### Checkpoint Restore (Cross-Process)
 
 Serialize agent state to storage, load it in a different process. phi-core needs `AgentSnapshot` type.
 
-**baby-phi implication:** The data layer IS the persistence. If all state is in the graph, checkpoint/restore is just "read the graph" / "write the graph". No separate snapshot mechanism needed.
+**phi implication:** The data layer IS the persistence. If all state is in the graph, checkpoint/restore is just "read the graph" / "write the graph". No separate snapshot mechanism needed.
 
 ### Parallel Exploration
 
 Multiple branches from the same checkpoint run concurrently. phi-core supports this via `agent_loop_continue(Branch)` with cloned contexts.
 
-**baby-phi implication:** The `Loop` node naturally supports this — multiple Loops share the same `CONTINUES_FROM` parent, each as a sibling branch. `ParallelGroupRecord` (value object on Loop) tracks which branch was selected. The `PARALLEL_WITH` edge connects siblings.
+**phi implication:** The `Loop` node naturally supports this — multiple Loops share the same `CONTINUES_FROM` parent, each as a sibling branch. `ParallelGroupRecord` (value object on Loop) tracks which branch was selected. The `PARALLEL_WITH` edge connects siblings.
 
 ### Auto Origin/Continue Selection
 
 Agent decides whether to `agent_loop` or `agent_loop_continue` based on context state.
 
-**baby-phi implication:** This is the "agent invocation layer" — baby-phi should provide a high-level `send(agent_id, message)` that inspects the agent's current state in the data model and dispatches correctly.
+**phi implication:** This is the "agent invocation layer" — phi should provide a high-level `send(agent_id, message)` that inspects the agent's current state in the data model and dispatches correctly.
 
 ---
 

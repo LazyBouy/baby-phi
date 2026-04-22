@@ -1,11 +1,11 @@
-# Production. Set BABY_PHI_PROFILE=prod.
+# Production. Set PHI_PROFILE=prod.
 #
 # Secrets (DB encryption key, OAuth client secret, etc.) must be env-injected.
 #
 # TLS policy:
 #   The **recommended production pattern** is to terminate TLS at a reverse
-#   proxy (nginx / Caddy / AWS ALB / Cloudflare) in front of baby-phi-server,
-#   and run baby-phi-server itself over plaintext HTTP on an internal network.
+#   proxy (nginx / Caddy / AWS ALB / Cloudflare) in front of phi-server,
+#   and run phi-server itself over plaintext HTTP on an internal network.
 #   This keeps cert rotation out-of-process and lets the proxy handle HTTP/2
 #   multiplexing, rate limiting, and WAF rules.
 #
@@ -13,8 +13,8 @@
 #   serve TLS natively by setting [server.tls]:
 #
 #       [server.tls]
-#       cert_path = "/etc/baby-phi/tls/cert.pem"
-#       key_path  = "/etc/baby-phi/tls/key.pem"
+#       cert_path = "/etc/phi/tls/cert.pem"
+#       key_path  = "/etc/phi/tls/key.pem"
 #
 #   The server will then serve HTTPS only. Native-TLS cert rotation in v0.1
 #   requires a process restart; hot-reload is [PLANNED M7b].
@@ -24,7 +24,7 @@ host = "0.0.0.0"
 port = 8080
 
 [storage]
-data_dir = "/var/lib/baby-phi/data"
+data_dir = "/var/lib/phi/data"
 
 [telemetry]
 log_filter = "info"

@@ -1,4 +1,4 @@
-//! baby-phi HTTP API.
+//! phi HTTP API.
 //!
 //! M0 shipped health + metrics. M1/P6 adds the `/api/v0/bootstrap/*`
 //! endpoints + the signed-session-cookie layer. M2–M5 layer on the org,

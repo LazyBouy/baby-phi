@@ -88,14 +88,14 @@ impl SessionKey {
     }
 
     /// Test-only constructor. Takes a raw secret and sensible defaults
-    /// (cookie name `baby_phi_session`, TTL 1 hour, `secure=false`). No
+    /// (cookie name `phi_kernel_session`, TTL 1 hour, `secure=false`). No
     /// length check — use in-process tests only; production code MUST use
     /// [`from_config`].
     pub fn for_tests(secret: &str) -> Self {
         Self {
             encode: EncodingKey::from_secret(secret.as_bytes()),
             decode: DecodingKey::from_secret(secret.as_bytes()),
-            cookie_name: "baby_phi_session".to_string(),
+            cookie_name: "phi_kernel_session".to_string(),
             ttl_seconds: 3600,
             secure: false,
         }
@@ -188,7 +188,7 @@ mod tests {
         assert_eq!(claims.sub, "agent-42");
         assert!(claims.exp > claims.iat);
         // Cookie shape.
-        assert_eq!(cookie.name(), "baby_phi_session");
+        assert_eq!(cookie.name(), "phi_kernel_session");
         assert_eq!(cookie.http_only(), Some(true));
         assert_eq!(cookie.same_site(), Some(SameSite::Lax));
         assert_eq!(cookie.path(), Some("/"));
@@ -213,7 +213,7 @@ mod tests {
     fn from_config_rejects_short_secret() {
         let cfg = SessionConfig {
             secret: "too-short".into(),
-            cookie_name: "baby_phi_session".into(),
+            cookie_name: "phi_kernel_session".into(),
             ttl_seconds: 3600,
             secure: true,
         };
@@ -225,7 +225,7 @@ mod tests {
     fn from_config_accepts_32_byte_secret() {
         let cfg = SessionConfig {
             secret: "01234567890123456789012345678901".into(),
-            cookie_name: "baby_phi_session".into(),
+            cookie_name: "phi_kernel_session".into(),
             ttl_seconds: 3600,
             secure: true,
         };

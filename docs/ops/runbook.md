@@ -1,6 +1,6 @@
 <!-- Last verified: 2026-04-22 by Claude Code -->
 
-# baby-phi operations runbook
+# phi operations runbook
 
 > **Status:** partial. The full runbook is an **M7b** deliverable per the v0.1 build plan (see [`../specs/plan/build/36d0c6c5-build-plan-v01.md`](../specs/plan/build/36d0c6c5-build-plan-v01.md) §M7b). M2/P8 aggregates every shipped admin-page runbook below so operators have one cross-reference index.
 

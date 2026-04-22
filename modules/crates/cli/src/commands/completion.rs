@@ -1,15 +1,15 @@
-//! `baby-phi completion <shell>` — generate shell-completion scripts.
+//! `phi completion <shell>` — generate shell-completion scripts.
 //!
-//! Delegates entirely to `clap_complete::generate`; baby-phi adds no
+//! Delegates entirely to `clap_complete::generate`; phi adds no
 //! logic of its own. The generated scripts are written to stdout so
 //! operators pipe them into `.bashrc` / `.zshrc` / the appropriate
 //! completion dir.
 //!
 //! Usage:
-//!   baby-phi completion bash   > /usr/share/bash-completion/completions/baby-phi
-//!   baby-phi completion zsh    > "${fpath[1]}/_baby-phi"
-//!   baby-phi completion fish   > ~/.config/fish/completions/baby-phi.fish
-//!   baby-phi completion powershell > baby-phi.ps1
+//!   phi completion bash   > /usr/share/bash-completion/completions/phi
+//!   phi completion zsh    > "${fpath[1]}/_phi"
+//!   phi completion fish   > ~/.config/fish/completions/phi.fish
+//!   phi completion powershell > phi.ps1
 //!
 //! This subcommand is intentionally offline — it never opens a
 //! session cookie or calls the server. That keeps `EXIT_OK` achievable
@@ -33,7 +33,7 @@ pub fn run(shell: Shell) -> i32 {
     let mut out = io::stdout().lock();
     generate(shell, &mut cmd, bin_name, &mut out);
     if let Err(e) = out.flush() {
-        eprintln!("baby-phi: failed to flush completion output: {e}");
+        eprintln!("phi: failed to flush completion output: {e}");
         return EXIT_INTERNAL;
     }
     EXIT_OK

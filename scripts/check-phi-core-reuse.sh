@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # phi-core leverage lint (D16 / C19 in the M2 plan; also baked into
-# baby-phi/CLAUDE.md).
+# phi/CLAUDE.md).
 #
-# baby-phi is a consumer of phi-core. Every surface that overlaps with
+# phi is a consumer of phi-core. Every surface that overlaps with
 # something phi-core already ships must import or wrap the phi-core
 # type — never re-implement. This lint fails CI if any `.rs` under
 # `modules/crates/` re-declares a known phi-core type name.
@@ -12,9 +12,9 @@
 # duplicates:
 #
 #   - domain::model::AgentProfile wraps phi_core::AgentProfile (M1/P0
-#     established the wrap; the baby-phi struct carries governance
+#     established the wrap; the phi struct carries governance
 #     fields on top of a `blueprint: phi_core::AgentProfile` field).
-#     The baby-phi struct is the authoritative platform-governance node;
+#     The phi struct is the authoritative platform-governance node;
 #     the phi-core struct is the embedded execution blueprint. Skipping.
 #
 # Everything else stays a hard denylist — the build must break before
@@ -27,7 +27,7 @@ cd "$(dirname "$0")/.."
 
 SCAN_ROOT="modules/crates"
 
-# Types phi-core owns; no baby-phi crate may redeclare them.
+# Types phi-core owns; no phi crate may redeclare them.
 FORBIDDEN=(
     "ExecutionLimits"
     "ModelConfig"
@@ -66,10 +66,10 @@ done
 # is legible).  Removing an exception here MUST come with a CLAUDE.md
 # update documenting the new invariant.
 #
-# - AgentProfile: baby-phi's struct is a platform-governance node that
+# - AgentProfile: phi's struct is a platform-governance node that
 #   wraps phi_core::AgentProfile as a `blueprint` field (per
 #   concepts/phi-core-mapping.md + the M1/P0 reshape). It is the
-#   baby-phi-authoritative surface; the wrap field is phi-core's.
+#   phi-authoritative surface; the wrap field is phi-core's.
 ALLOWLIST_EXPLAINED=(
     "AgentProfile: wraps phi_core::AgentProfile as a blueprint field — see m1/architecture/graph-model.md §AgentProfile wraps phi-core"
 )
@@ -80,7 +80,7 @@ fi
 if [[ $hits -gt 0 ]]; then
     echo ""
     echo "check-phi-core-reuse: FAIL — $hits forbidden redeclaration(s)."
-    echo "See baby-phi/CLAUDE.md §phi-core Leverage for the reuse mandate."
+    echo "See phi/CLAUDE.md §phi-core Leverage for the reuse mandate."
     exit 1
 fi
 

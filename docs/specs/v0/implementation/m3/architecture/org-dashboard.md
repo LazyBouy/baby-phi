@@ -65,7 +65,7 @@ dashboard surface is **deliberately phi-core-light**:
   polling-contract rev on every phi-core release. Drill-down to the
   full snapshot is available via `GET /orgs/:id` (the `show.rs`
   endpoint), which does carry it verbatim, per D11/Q6.
-- **Q3 rejections** (all baby-phi-native):
+- **Q3 rejections** (all phi-native):
   `phi_core::Session`/`LoopRecord`/`Turn` — deferred to M5+ (D11:
   dashboard rows at M3 link to audit log, not session traces).
   `phi_core::Usage` — token budget is a governance-level economic

@@ -14,7 +14,7 @@ and the day-to-day usage flow in [`../user-guide/secrets-vault-usage.md`](../use
 
 ```
                       ┌───────────────────────┐
-                      │  baby-phi secret …    │
+                      │  phi secret …    │
                       │  web /secrets         │  (user surfaces)
                       └──────────┬────────────┘
                                  │ HTTP + cookie

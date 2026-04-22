@@ -4,7 +4,7 @@
 # Ontological Data Model
 
 > Extracted from brainstorm.md Section 2 + Section 3.12, refined 2026-04-09.
-> The canonical reference for baby-phi's node types, edge types, value objects, and schema registry.
+> The canonical reference for phi's node types, edge types, value objects, and schema registry.
 > See also: [agent.md](agent.md) (extended agent model), [permissions.md](permissions/README.md) (capability model + Consent), [phi-core-mapping.md](phi-core-mapping.md) (full type mapping)
 
 ---
@@ -25,8 +25,8 @@ This is a graph-first model (think ontology, not relational tables), even if the
 |------|----------|-----------------|---------------|
 | **Agent** | `agent_id` | `BasicAgent` | The nucleus — everything radiates from here |
 | **AgentProfile** | `profile_id` | `AgentProfile` | Blueprint: who the agent IS. Carries a `parallelize: u32` field (default 1) that bounds concurrent sessions — see [agent.md § Parallelized Sessions](agent.md#parallelized-sessions). |
-| **User** | `user_id` | *baby-phi concept* | Who owns/interacts with agents |
-| **Identity** | `agent_id` | *baby-phi concept* | Emergent self of an LLM Agent — a materialized node with **four fields**: `self_description` (NL bio, ≤500 tokens, agent-authored), `lived` (LivedExperience struct: sessions_completed, ratings_window, skills, specializations), `witnessed` (WitnessedExperience struct: memories_extracted, subordinates_observed, extraction_scope_distribution), and `embedding` (vector; dim set at platform bootstrap). Updated reactively on session end, memory extraction, skill change, rating received. See [agent.md § Identity Node Content](agent.md#identity-node-content--provisional-direction). LLM Agents only; Human Agents have no Identity. |
+| **User** | `user_id` | *phi concept* | Who owns/interacts with agents |
+| **Identity** | `agent_id` | *phi concept* | Emergent self of an LLM Agent — a materialized node with **four fields**: `self_description` (NL bio, ≤500 tokens, agent-authored), `lived` (LivedExperience struct: sessions_completed, ratings_window, skills, specializations), `witnessed` (WitnessedExperience struct: memories_extracted, subordinates_observed, extraction_scope_distribution), and `embedding` (vector; dim set at platform bootstrap). Updated reactively on session end, memory extraction, skill change, rating received. See [agent.md § Identity Node Content](agent.md#identity-node-content--provisional-direction). LLM Agents only; Human Agents have no Identity. |
 
 ### Execution History
 
@@ -56,16 +56,16 @@ This is a graph-first model (think ontology, not relational tables), even if the
 | Node | Identity | phi-core Source | Why it exists |
 |------|----------|-----------------|---------------|
 | **ExecutionLimits** | generated | `ExecutionLimits` | Constrains agent resources |
-| **Grant** | `grant_id` | *baby-phi concept* | Capability-based access control (5-tuple record held by a principal) |
-| **AuthRequest** | `request_id` | *baby-phi concept* | First-class workflow composite (`auth_request_object`) that mediates Grant creation. Carries: `request_id`, `requestor`, `kinds`, `scope`, `state` (enum: Draft/Pending/In Progress/Approved/Denied/Partial/Expired/Revoked/Cancelled), `valid_until`, `submitted_at`, `resource_slots` (list of `{resource, approvers[{approver, state, responded_at}]}`), `routing_override`, `justification`, `audit_class`, retention fields (`active_window_days`, `archived`, `terminal_state_entered_at`). Full lifecycle in [permissions.md → Auth Request Lifecycle](permissions/02-auth-request.md#auth-request-lifecycle). |
-| **Template** | `template_name` | *baby-phi concept* | A reusable permission pattern adopted at org level; adoption emits an Auth Request that serves as the provenance for all subsequent Grants the template fires. See [permissions.md → Standard Permission Templates](permissions/07-templates-and-tools.md#standard-permission-templates). |
-| **ToolAuthorityManifest** | attached to `ToolDefinition.name` | *baby-phi concept* | Publish-time authority declaration for a tool. Carries `resource`, `actions`, `constraints`, `kind`, `target_kinds`, `delegable`, `approval`. See [permissions.md → Tool Authority Manifest](permissions/04-manifest-and-resolution.md#tool-authority-manifest-tool-requirements). |
-| **Consent** | `consent_id` | *baby-phi concept* | Subordinate consent record gating Authority Template grants (see [permissions.md → Consent Policy](permissions/06-multi-scope-consent.md#consent-policy-organizational)) |
+| **Grant** | `grant_id` | *phi concept* | Capability-based access control (5-tuple record held by a principal) |
+| **AuthRequest** | `request_id` | *phi concept* | First-class workflow composite (`auth_request_object`) that mediates Grant creation. Carries: `request_id`, `requestor`, `kinds`, `scope`, `state` (enum: Draft/Pending/In Progress/Approved/Denied/Partial/Expired/Revoked/Cancelled), `valid_until`, `submitted_at`, `resource_slots` (list of `{resource, approvers[{approver, state, responded_at}]}`), `routing_override`, `justification`, `audit_class`, retention fields (`active_window_days`, `archived`, `terminal_state_entered_at`). Full lifecycle in [permissions.md → Auth Request Lifecycle](permissions/02-auth-request.md#auth-request-lifecycle). |
+| **Template** | `template_name` | *phi concept* | A reusable permission pattern adopted at org level; adoption emits an Auth Request that serves as the provenance for all subsequent Grants the template fires. See [permissions.md → Standard Permission Templates](permissions/07-templates-and-tools.md#standard-permission-templates). |
+| **ToolAuthorityManifest** | attached to `ToolDefinition.name` | *phi concept* | Publish-time authority declaration for a tool. Carries `resource`, `actions`, `constraints`, `kind`, `target_kinds`, `delegable`, `approval`. See [permissions.md → Tool Authority Manifest](permissions/04-manifest-and-resolution.md#tool-authority-manifest-tool-requirements). |
+| **Consent** | `consent_id` | *phi concept* | Subordinate consent record gating Authority Template grants (see [permissions.md → Consent Policy](permissions/06-multi-scope-consent.md#consent-policy-organizational)) |
 | **CompactionPolicy** | generated | `CompactionConfig` | Context management strategy |
 | **RetryPolicy** | generated | `RetryConfig` | Error retry behavior |
 | **CachePolicy** | generated | `CacheConfig` | Prompt caching behavior |
 
-### Social Structure (baby-phi extensions)
+### Social Structure (phi extensions)
 
 | Node | Identity | Why it exists |
 |------|----------|---------------|

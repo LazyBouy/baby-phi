@@ -7,11 +7,11 @@ the P3 "leverage = None" slip (see §Backstory below).
 
 ## Why this checklist exists
 
-The [baby-phi/CLAUDE.md §phi-core Leverage](../../../../../../CLAUDE.md)
-mandate is clear: *every baby-phi surface that overlaps a phi-core type
+The [phi/CLAUDE.md §phi-core Leverage](../../../../../../CLAUDE.md)
+mandate is clear: *every phi surface that overlaps a phi-core type
 must reuse it directly or wrap it — never re-implement*. `scripts/check-phi-core-reuse.sh`
 hard-gates *duplication*, but the grep-linter cannot catch
-**missed-leverage opportunities** where baby-phi *should* have reused a
+**missed-leverage opportunities** where phi *should* have reused a
 phi-core type and didn't.
 
 Catching miss-leverage requires a structural audit per phase. The
@@ -40,9 +40,9 @@ like `Vec<Agent>` expand into `Agent`'s fields; `Organization`
 expands into `Organization.defaults_snapshot` which wraps 4 phi-core
 types.
 
-Transitive carriage counts as leverage even if the wrapper is baby-phi.
+Transitive carriage counts as leverage even if the wrapper is phi.
 P3's `apply_org_creation` tx is the canonical example: the wrapper is
-baby-phi plumbing, but the payload ships `phi_core::AgentProfile`
+phi plumbing, but the payload ships `phi_core::AgentProfile`
 (system-agent blueprints) and `phi_core::ModelConfig` (via
 `ModelRuntime`) through the tx.
 
@@ -72,16 +72,16 @@ phi-core/src/
 For every deliverable + candidate pair, one of:
 - ✅ **Direct reuse** (`use phi_core::X`) — field type or return type is
   the phi-core type itself.
-- 🔌 **Wrap** — baby-phi struct has a phi-core type as a field
+- 🔌 **Wrap** — phi struct has a phi-core type as a field
   (example: `AgentProfile.blueprint: phi_core::AgentProfile`).
 - ♻ **Inherit, don't duplicate** — phi-core type lives in one place
   (typically a shared composite like `Organization.defaults_snapshot`)
   and downstream consumers read from there instead of creating a copy.
   See [ADR-0023](../decisions/0023-system-agents-inherit-from-org-snapshot.md).
-- 🏗 **Build-from-scratch (baby-phi-native)** — phi-core has no
+- 🏗 **Build-from-scratch (phi-native)** — phi-core has no
   counterpart. Must cite **which orthogonal-surface** boundary applies
   (governance plane, permission engine, audit log, etc. per
-  baby-phi/CLAUDE.md §Orthogonal surfaces).
+  phi/CLAUDE.md §Orthogonal surfaces).
 
 ### 4. Tag every deliverable inline
 
@@ -131,7 +131,7 @@ assertions — things that should exist — not only negative ones.
 **Good:**
 > phi-core leverage: grep confirms `AgentProfile.blueprint` field in every
 > `create_agent_profile` call site is `phi_core::agents::profile::AgentProfile`
-> (not a baby-phi local struct); integration test asserts 0 rows on the
+> (not a phi local struct); integration test asserts 0 rows on the
 > per-agent `execution_limits` / `retry_policy` / `cache_policy` tables
 > after `apply_org_creation` runs (ADR-0023 inherit-from-snapshot
 > invariant); `check-phi-core-reuse.sh` zero hits.
@@ -144,7 +144,7 @@ duplication.
 
 M3's original plan labelled P3's `### phi-core leverage` as **"None"**
 on the reasoning that P3 ships "graph-transaction plumbing + batch
-audit helper + test fixture + per-org chain proptest — all baby-phi
+audit helper + test fixture + per-org chain proptest — all phi
 plumbing." That answered Q1 (no direct imports) but skipped Q2 (the
 compound tx's *payload* carries `phi_core::AgentProfile` and
 `phi_core::ModelConfig` via M2's existing wraps).
@@ -165,7 +165,7 @@ close-audit greps is the structural fix.
 M3's P0–P2 phases have been re-audited against the Q1/Q2/Q3 discipline
 and the results confirmed clean (P2 genuinely touches no phi-core
 surfaces — templates + governance audit events + org-scoped list
-methods all sit on baby-phi's orthogonal governance plane).
+methods all sit on phi's orthogonal governance plane).
 
 P3 onwards: every phase's `### phi-core leverage` subsection in the
 [M3 plan archive](../../../../plan/build/563945fe-m3-organization-creation.md)
@@ -247,7 +247,7 @@ Not yet implemented; noting here so they don't slip out of scope:
 - **PR-level phi-core gate.** A per-PR template with Q1/Q2/Q3
   checkboxes would catch slips within hours rather than at phase
   close. Candidate for M7b's CI-hardening phase.
-- **Automated miss-leverage detection.** A grep for baby-phi struct
+- **Automated miss-leverage detection.** A grep for phi struct
   definitions that *mirror* (by field-name set) a phi-core type
   would catch cases the current linter misses. Candidate for M6+ when
   the type inventory stabilises.

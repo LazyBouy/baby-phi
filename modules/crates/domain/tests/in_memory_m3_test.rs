@@ -41,6 +41,7 @@ fn agent_in(org: OrgId, kind: AgentKind) -> Agent {
         kind,
         display_name: "test-agent".into(),
         owning_org: Some(org),
+        role: None,
         created_at: Utc::now(),
     }
 }
@@ -109,6 +110,7 @@ async fn list_active_auth_requests_for_org_filters_by_org_and_state() {
         kind: AgentKind::Human,
         display_name: "CEO".into(),
         owning_org: Some(org),
+        role: None,
         created_at: Utc::now(),
     })
     .await

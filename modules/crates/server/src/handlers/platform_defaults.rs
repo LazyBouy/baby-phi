@@ -19,7 +19,7 @@
 //! The server is **JSON-only**. YAML / TOML import/export is a
 //! CLI-side concern — the CLI converts into JSON before PUTting. This
 //! matches the phi-core leverage boundary (`parse_config` is phi-core's
-//! multi-format pipeline for `AgentConfig`; baby-phi's `PlatformDefaults`
+//! multi-format pipeline for `AgentConfig`; phi's `PlatformDefaults`
 //! is a different struct, so we don't reach through phi-core's parser
 //! on the server side).
 

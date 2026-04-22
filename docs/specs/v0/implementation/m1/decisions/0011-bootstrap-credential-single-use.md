@@ -43,9 +43,9 @@ We chose argon2id over:
   recommendation for new code and is already workspace-standard.
 - **scrypt.** Also acceptable; chose argon2id for ecosystem momentum.
 
-### Delivery — stdout, **once**, on `baby-phi-server bootstrap-init`.
+### Delivery — stdout, **once**, on `phi-server bootstrap-init`.
 
-The install process runs `baby-phi-server bootstrap-init` once. That
+The install process runs `phi-server bootstrap-init` once. That
 command generates 32 CSPRNG bytes, base64url-encodes them, prefixes
 `bphi-bootstrap-`, stores the argon2id hash, and prints the plaintext
 to stdout surrounded by a one-time banner.
@@ -58,7 +58,7 @@ We chose stdout-only over:
   file-resident secrets.
 - **An env var the server itself reads.** Rejected. The credential is
   meant to be typed by a human into the `/bootstrap` page, not
-  consumed by the server. Putting it in `BABY_PHI_BOOTSTRAP_CRED` would
+  consumed by the server. Putting it in `PHI_BOOTSTRAP_CRED` would
   mean the running server has access to a secret it never uses.
 - **Log output.** Rejected. Structured logs get shipped to log
   aggregators (the whole point of structured logging); sending the
@@ -157,7 +157,7 @@ Negative:
   real installs have in practice?"
 - **Stdout-only delivery is awkward in some orchestration contexts.**
   A fully-automated install pipeline can't easily capture stdout from
-  a non-interactive `baby-phi-server bootstrap-init` run. The M1
+  a non-interactive `phi-server bootstrap-init` run. The M1
   answer is "run the command as part of install scripting and capture
   the output line matching `bphi-bootstrap-*`." We accept this
   operational wart rather than add an "emit to file" flag that would

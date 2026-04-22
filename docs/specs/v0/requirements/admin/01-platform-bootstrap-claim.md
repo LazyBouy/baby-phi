@@ -22,7 +22,7 @@ The first page a Human Agent encounters after a fresh install. The install proce
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    baby-phi  —  Welcome                         │
+│                    phi  —  Welcome                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  No administrator has been assigned yet.                        │

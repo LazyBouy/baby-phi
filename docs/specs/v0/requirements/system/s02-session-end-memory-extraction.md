@@ -44,7 +44,7 @@ The `memory-extraction-agent` (one of the two standard System Agents) reads the 
 ## Observability
 
 - Audit events: `MemoryExtracted`, `MemoryExtractionSkipped`, `MemoryExtractionFailed`, `MemoryExtractionPoolDenied`.
-- Metrics: `baby_phi_memory_extraction_queue_depth`, `baby_phi_memory_extraction_duration_seconds`, `baby_phi_memory_extraction_memories_per_session`, `baby_phi_memory_extraction_failures_total{reason=...}`.
+- Metrics: `phi_memory_extraction_queue_depth`, `phi_memory_extraction_duration_seconds`, `phi_memory_extraction_memories_per_session`, `phi_memory_extraction_failures_total{reason=...}`.
 
 ## Cross-References
 

@@ -192,5 +192,5 @@ The last section. Must include:
 1. Copy this file to `admin/NN-page-name.md` or `agent-self-service/aNN-page-name.md`.
 2. Replace each section's template text with the page's actual content.
 3. Give every requirement a unique ID matching the convention in [../README.md](../README.md#requirement-id-conventions).
-4. Grep `grep -rE 'R-(ADMIN|AGENT|SYS|NFR)-' baby-phi/docs/specs/v0/requirements/` before committing to catch accidental ID collisions.
+4. Grep `grep -rE 'R-(ADMIN|AGENT|SYS|NFR)-' phi/docs/specs/v0/requirements/` before committing to catch accidental ID collisions.
 5. Populate the traceability matrix entry at [cross-cutting/traceability-matrix.md](../cross-cutting/traceability-matrix.md) with the concept sections your page covers.

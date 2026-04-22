@@ -1,6 +1,6 @@
 <!-- Last verified: 2026-04-20 by Claude Code -->
 
-# baby-phi — M1 implementation documentation
+# phi — M1 implementation documentation
 
 M1 is the **Permission Check spine** milestone. It lands:
 
@@ -15,7 +15,7 @@ M1 is the **Permission Check spine** milestone. It lands:
 - The System Bootstrap (s01) flow.
 - `GET /api/v0/bootstrap/status` + `POST /api/v0/bootstrap/claim` HTTP
   endpoints with a signed session cookie.
-- The CLI `baby-phi bootstrap {status,claim}` subcommands (CLI migrated to
+- The CLI `phi bootstrap {status,claim}` subcommands (CLI migrated to
   layered config).
 - The `/bootstrap` SSR page in the Next.js web app.
 - Acceptance tests and the M1 extensions to the CI workflows.
@@ -66,7 +66,7 @@ be linked once the corresponding phase lands.
 | [permission-check-engine.md](architecture/permission-check-engine.md) | 6-step (+2a) pipeline with ASCII diagram, module layout, metric wiring, proptest coverage |
 | [auth-request-state-machine.md](architecture/auth-request-state-machine.md) | 9-state lifecycle + aggregation tables + transition API + retention window + proptest coverage |
 | [bootstrap-flow.md](architecture/bootstrap-flow.md) | s01 atomic adoption flow + entity shape + rollback contract |
-| [server-topology.md](architecture/server-topology.md) | Extends the M0 route table with `/api/v0/bootstrap/*` + the signed-cookie layer + the `baby_phi_bootstrap_claims_total` counter |
+| [server-topology.md](architecture/server-topology.md) | Extends the M0 route table with `/api/v0/bootstrap/*` + the signed-cookie layer + the `phi_bootstrap_claims_total` counter |
 | [web-topology.md](architecture/web-topology.md) | Extends the M0 web map with the `/bootstrap` SSR page + Server Action + session-cookie plumbing |
 | [storage-and-repository.md](architecture/storage-and-repository.md) | M0 extension — 36-method Repository surface + typed ownership-edge helpers |
 
@@ -75,7 +75,7 @@ be linked once the corresponding phase lands.
 | Page | Purpose |
 |---|---|
 | [first-bootstrap.md](user-guide/first-bootstrap.md) | End-to-end walkthrough — install command, credential delivery, claim flow, failure cases |
-| [cli-usage.md](user-guide/cli-usage.md) | `baby-phi bootstrap {status,claim}` + `agent demo` reference |
+| [cli-usage.md](user-guide/cli-usage.md) | `phi bootstrap {status,claim}` + `agent demo` reference |
 | [web-usage.md](user-guide/web-usage.md) | `/bootstrap` page walkthrough with error-case table |
 | [http-api-reference.md](user-guide/http-api-reference.md) | `/api/v0/bootstrap/*` request + response contract |
 | [troubleshooting.md](user-guide/troubleshooting.md) | M1 error codes + exit-code ladder + recovery paths |

@@ -13,7 +13,7 @@ Three scanners run on every push and pull request. Each covers a different surfa
 ### Local equivalent
 
 ```bash
-cd baby-phi
+cd phi
 /root/rust-env/cargo/bin/cargo install cargo-audit --locked   # one-time
 /root/rust-env/cargo/bin/cargo audit
 ```
@@ -67,7 +67,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 ### Local equivalent
 
 ```bash
-cd baby-phi
+cd phi
 /root/rust-env/cargo/bin/cargo install cargo-deny --locked   # one-time
 /root/rust-env/cargo/bin/cargo deny check
 ```
@@ -94,7 +94,7 @@ cd baby-phi
 ### Local equivalent
 
 ```bash
-cd baby-phi/modules/web
+cd phi/modules/web
 npm audit --production --audit-level=high
 ```
 

@@ -50,18 +50,18 @@ BootstrapPage (SSR, force-dynamic)
 | [`modules/web/app/bootstrap/actions.ts`](../../../../../../modules/web/app/bootstrap/actions.ts) | Server Action `submitClaim(prev, formData)` — validates input, calls `postBootstrapClaim`, forwards the session cookie |
 | [`modules/web/app/bootstrap/ClaimForm.tsx`](../../../../../../modules/web/app/bootstrap/ClaimForm.tsx) | Client component — the form + inline error/success rendering via `useFormState` |
 | [`modules/web/lib/api.ts`](../../../../../../modules/web/lib/api.ts) | API client — `getHealth`, `getBootstrapStatus`, `postBootstrapClaim` + pure wire-parsers (`parseStatusBody`, `parseClaimSuccess`, `extractSessionJwt`) |
-| [`modules/web/lib/session.ts`](../../../../../../modules/web/lib/session.ts) | Server-component helper that reads `baby_phi_session` cookie + verifies via `verifySessionToken` |
+| [`modules/web/lib/session.ts`](../../../../../../modules/web/lib/session.ts) | Server-component helper that reads `phi_kernel_session` cookie + verifies via `verifySessionToken` |
 | [`modules/web/lib/session-verify.ts`](../../../../../../modules/web/lib/session-verify.ts) | Pure `verifySessionToken` — split out so Node's built-in test runner can exercise JWT verification without standing up `next/headers` |
 
 ## Session cookie lifecycle (P6 ↔ P8)
 
 ```
-baby-phi-server (M1/P6)                   Next.js web (M1/P8)
+phi-server (M1/P6)                   Next.js web (M1/P8)
 ────────────────────────                   ─────────────────────
 POST /api/v0/bootstrap/claim
       │
       ├─ 201 Created + Set-Cookie:
-      │    baby_phi_session=<JWT>;
+      │    phi_kernel_session=<JWT>;
       │    HttpOnly; SameSite=Lax; Path=/
       │
       ▼
@@ -82,13 +82,13 @@ Next request to / or /bootstrap
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `BABY_PHI_API_URL` | `http://127.0.0.1:8080` | Base URL the SSR code hits for `/api/v0/*` and `/healthz/*` |
-| `BABY_PHI_SESSION_SECRET` | `dev-only-placeholder-override-via-env-var-32b` (32 bytes) | HS256 key; must match the Rust server's `session.secret`. MUST be overridden in every non-dev environment. |
-| `BABY_PHI_SESSION_COOKIE_NAME` | `baby_phi_session` | Cookie name for the signed JWT |
+| `PHI_API_URL` | `http://127.0.0.1:8080` | Base URL the SSR code hits for `/api/v0/*` and `/healthz/*` |
+| `PHI_SESSION_SECRET` | `dev-only-placeholder-override-via-env-var-32b` (32 bytes) | HS256 key; must match the Rust server's `session.secret`. MUST be overridden in every non-dev environment. |
+| `PHI_SESSION_COOKIE_NAME` | `phi_kernel_session` | Cookie name for the signed JWT |
 
-The dev placeholder for `BABY_PHI_SESSION_SECRET` matches the dev
+The dev placeholder for `PHI_SESSION_SECRET` matches the dev
 placeholder in [`config/default.toml`](../../../../../../config/default.toml)
-so `npm run dev` + `baby-phi-server` play nicely out of the box.
+so `npm run dev` + `phi-server` play nicely out of the box.
 
 ## Test coverage
 
@@ -105,8 +105,8 @@ so no Next.js runtime is required.
 
 Playwright-less **manual smoke** ran at P8 close:
 
-1. `baby-phi-server bootstrap-init` — mint a credential.
-2. `baby-phi-server` + `npm run dev` in parallel.
+1. `phi-server bootstrap-init` — mint a credential.
+2. `phi-server` + `npm run dev` in parallel.
 3. `curl http://127.0.0.1:3000/bootstrap` on an unclaimed install →
    renders the claim form (verified against the expected HTML shape).
 4. `curl -X POST /api/v0/bootstrap/claim` to flip the state → re-fetch

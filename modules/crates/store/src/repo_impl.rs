@@ -27,12 +27,15 @@ use domain::model::ids::{
     AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId, ProjectId, UserId,
 };
 use domain::model::nodes::{
-    Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
-    OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
+    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
+    Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ResourceRef, Template,
+    ToolAuthorityManifest, User,
 };
+use domain::model::AgentExecutionLimitsOverride;
 use domain::repository::{
-    BootstrapClaim, BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, Repository,
-    RepositoryError, RepositoryResult,
+    AgentCreationPayload, AgentCreationReceipt, BootstrapClaim, BootstrapCredentialRow,
+    OrgCreationPayload, OrgCreationReceipt, ProjectCreationPayload, ProjectCreationReceipt,
+    ProjectShapeCounts, Repository, RepositoryError, RepositoryResult,
 };
 
 use crate::SurrealStore;
@@ -1222,15 +1225,282 @@ impl Repository for SurrealStore {
         Ok(out)
     }
 
-    async fn list_projects_in_org(
+    async fn list_projects_in_org(&self, org: OrgId) -> RepositoryResult<Vec<Project>> {
+        // M4/P1 fleshes the project table. The belongs_to RELATION
+        // (M1 table, still in use) carries the project→org link;
+        // multi-owner Shape B projects have two edges so projects
+        // appear in the list of both co-owners.
+        //
+        // `SELECT VALUE in FROM belongs_to WHERE out = $o` plucks
+        // the `in` field as a flat list of record ids, which the
+        // `id IN (...)` outer filter then matches against.
+        //
+        // Response indexing note: each statement owns its own index;
+        // the `LET` at 0 is empty, the `SELECT` is at 1.
+        let mut resp = self
+            .client()
+            .query(
+                "LET $o = type::thing('organization', $org); \
+                 SELECT *, record::id(id) AS _rid OMIT id FROM project \
+                 WHERE id IN (SELECT VALUE in FROM belongs_to WHERE out = $o)",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(1).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("project row missing _rid".into()))?;
+            let project_id = ProjectId::from_uuid(parse_uuid(&rid)?);
+            let row = inject_id(row, project_id)?;
+            out.push(serde_json::from_value(row).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    // ---- M4/P2 surface --------------------------------------------
+
+    async fn list_agents_in_org_by_role(
         &self,
-        _org: OrgId,
-    ) -> RepositoryResult<Vec<domain::model::ids::ProjectId>> {
-        // v0 has no persisted `project` table; M4 wires project
-        // creation + the dashboard panel. Returning an empty Vec today
-        // lets M3/P5's handler + CLI + web panel render "0 projects"
-        // cleanly until M4.
-        Ok(vec![])
+        org: OrgId,
+        role: Option<AgentRole>,
+    ) -> RepositoryResult<Vec<Agent>> {
+        // When `role` is None, the WHERE delegates to the M3
+        // `list_agents_in_org` shape exactly. When Some, the serde
+        // wire form (`AgentRole::as_str`) is the column value.
+        let mut q = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM agent \
+                 WHERE owning_org = $org \
+                   AND ($role = NONE OR role = $role)",
+            )
+            .bind(("org", org.to_string()));
+        q = match role {
+            None => q.bind(("role", surrealdb::sql::Value::None)),
+            Some(r) => q.bind(("role", r.as_str().to_string())),
+        };
+        let mut resp = q.await.map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("agent row missing _rid".into()))?;
+            let agent_id = AgentId::from_uuid(parse_uuid(&rid)?);
+            let row = inject_id(row, agent_id)?;
+            out.push(serde_json::from_value(row).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn get_project(&self, id: ProjectId) -> RepositoryResult<Option<Project>> {
+        let mut resp = self
+            .client()
+            .query("SELECT * OMIT id FROM type::thing('project', $id)")
+            .bind(("id", id.to_string()))
+            .await
+            .map_err(backend)?;
+        let Some(row) = take_first_row(&mut resp, 0).await? else {
+            return Ok(None);
+        };
+        let row = inject_id(row, id)?;
+        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+    }
+
+    async fn list_projects_by_shape_in_org(
+        &self,
+        org: OrgId,
+        shape: ProjectShape,
+    ) -> RepositoryResult<Vec<Project>> {
+        let mut resp = self
+            .client()
+            .query(
+                "LET $o = type::thing('organization', $org); \
+                 SELECT *, record::id(id) AS _rid OMIT id FROM project \
+                 WHERE shape = $shape \
+                   AND id IN (SELECT VALUE in FROM belongs_to WHERE out = $o)",
+            )
+            .bind(("org", org.to_string()))
+            .bind(("shape", shape.as_str().to_string()))
+            .await
+            .map_err(backend)?;
+        // LET at idx 0, SELECT at idx 1.
+        let rows: Vec<serde_json::Value> = resp.take(1).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("project row missing _rid".into()))?;
+            let project_id = ProjectId::from_uuid(parse_uuid(&rid)?);
+            let row = inject_id(row, project_id)?;
+            out.push(serde_json::from_value(row).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn count_projects_by_shape_in_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<ProjectShapeCounts> {
+        // Two independent counts at the storage layer — cheaper than
+        // materialising the row set.
+        let mut resp = self
+            .client()
+            .query(
+                "LET $o = type::thing('organization', $org); \
+                 LET $owned = (SELECT VALUE in FROM belongs_to WHERE out = $o); \
+                 SELECT count() AS c FROM project \
+                   WHERE shape = 'shape_a' AND id IN $owned GROUP ALL; \
+                 SELECT count() AS c FROM project \
+                   WHERE shape = 'shape_b' AND id IN $owned GROUP ALL",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        // The first two statements are LETs, which SurrealDB skips
+        // when extracting typed rows; the two SELECT counts land at
+        // indices 2 and 3.
+        fn count_at(resp: &mut surrealdb::Response, idx: usize) -> RepositoryResult<u32> {
+            let rows: Vec<serde_json::Value> = resp.take(idx).map_err(backend)?;
+            Ok(rows
+                .into_iter()
+                .next()
+                .and_then(|v| v.get("c").and_then(|c| c.as_u64()))
+                .unwrap_or(0) as u32)
+        }
+        Ok(ProjectShapeCounts {
+            shape_a: count_at(&mut resp, 2)?,
+            shape_b: count_at(&mut resp, 3)?,
+        })
+    }
+
+    async fn list_projects_led_by_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Project>> {
+        let mut resp = self
+            .client()
+            .query(
+                "LET $a = type::thing('agent', $agent); \
+                 SELECT *, record::id(id) AS _rid OMIT id FROM project \
+                 WHERE id IN (SELECT VALUE in FROM has_lead WHERE out = $a)",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        // LET at idx 0, SELECT at idx 1.
+        let rows: Vec<serde_json::Value> = resp.take(1).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("project row missing _rid".into()))?;
+            let project_id = ProjectId::from_uuid(parse_uuid(&rid)?);
+            let row = inject_id(row, project_id)?;
+            out.push(serde_json::from_value(row).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn get_agent_execution_limits_override(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentExecutionLimitsOverride>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM agent_execution_limits \
+                 WHERE owning_agent = $agent LIMIT 1",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| {
+                RepositoryError::Backend("agent_execution_limits row missing _rid".into())
+            })?;
+        let node_id = NodeId::from_uuid(parse_uuid(&rid)?);
+        let row = inject_id(row, node_id)?;
+        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+    }
+
+    async fn set_agent_execution_limits_override(
+        &self,
+        row: &AgentExecutionLimitsOverride,
+    ) -> RepositoryResult<()> {
+        // Create-or-replace: DELETE any existing row for the agent (by
+        // the UNIQUE `owning_agent` index), then CREATE the new one.
+        // Two round-trips; acceptable at M4 volume.
+        self.client()
+            .query("DELETE FROM agent_execution_limits WHERE owning_agent = $agent RETURN NONE")
+            .bind(("agent", row.owning_agent.to_string()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        let body = strip_id(serde_json::to_value(row).map_err(backend)?);
+        self.client()
+            .query(
+                "CREATE type::thing('agent_execution_limits', $id) CONTENT $body \
+                 RETURN NONE",
+            )
+            .bind(("id", row.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn clear_agent_execution_limits_override(&self, agent: AgentId) -> RepositoryResult<()> {
+        self.client()
+            .query("DELETE FROM agent_execution_limits WHERE owning_agent = $agent RETURN NONE")
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn resolve_effective_execution_limits(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<phi_core::context::execution::ExecutionLimits>> {
+        // Step 1: override if present.
+        if let Some(row) = self.get_agent_execution_limits_override(agent).await? {
+            return Ok(Some(row.limits));
+        }
+        // Step 2: org snapshot via the agent's owning_org.
+        let Some(agent_row) = self.get_agent(agent).await? else {
+            return Ok(None);
+        };
+        let Some(org_id) = agent_row.owning_org else {
+            return Ok(None);
+        };
+        let Some(org) = self.get_organization(org_id).await? else {
+            return Ok(None);
+        };
+        Ok(org
+            .defaults_snapshot
+            .as_ref()
+            .map(|snap| snap.execution_limits.clone()))
     }
 
     async fn list_active_auth_requests_for_org(
@@ -1599,6 +1869,258 @@ impl Repository for SurrealStore {
             ],
             token_budget_pool_id: payload.token_budget_pool.id,
             adoption_auth_request_ids: adoption_ar_ids,
+        })
+    }
+
+    async fn apply_project_creation(
+        &self,
+        payload: &ProjectCreationPayload,
+    ) -> RepositoryResult<ProjectCreationReceipt> {
+        // Pre-validate shape/arity at the client side so a bad payload
+        // fails fast without opening the transaction.
+        use domain::model::nodes::ProjectShape;
+        match payload.project.shape {
+            ProjectShape::A if payload.owning_orgs.len() == 1 => {}
+            ProjectShape::B if payload.owning_orgs.len() == 2 => {}
+            _ => {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "project shape {:?} requires {} owning orgs, got {}",
+                    payload.project.shape,
+                    match payload.project.shape {
+                        ProjectShape::A => 1,
+                        ProjectShape::B => 2,
+                    },
+                    payload.owning_orgs.len()
+                )));
+            }
+        }
+
+        let project_body = strip_id(serde_json::to_value(&payload.project).map_err(backend)?);
+        let has_lead_edge_id = EdgeId::new();
+
+        let mut q = String::from(
+            "BEGIN TRANSACTION;\n\
+             CREATE type::thing('project', $pid) CONTENT $project_body RETURN NONE;\n\
+             LET $p = type::thing('project', $pid);\n\
+             LET $lead = type::thing('agent', $lead_id);\n\
+             RELATE $p -> has_lead -> $lead \
+                 SET id = type::thing('has_lead', $edge_hl) RETURN NONE;\n",
+        );
+        // One BELONGS_TO + HAS_PROJECT edge pair per owning org.
+        for i in 0..payload.owning_orgs.len() {
+            q.push_str(&format!(
+                "LET $o{i} = type::thing('organization', $org_id_{i});\n\
+                 RELATE $p -> belongs_to -> $o{i} \
+                     SET id = type::thing('belongs_to', $edge_bt_{i}) RETURN NONE;\n\
+                 RELATE $o{i} -> has_project -> $p \
+                     SET id = type::thing('has_project', $edge_hp_{i}) RETURN NONE;\n"
+            ));
+        }
+        for i in 0..payload.member_agent_ids.len() {
+            q.push_str(&format!(
+                "LET $m{i} = type::thing('agent', $member_id_{i});\n\
+                 RELATE $p -> has_agent -> $m{i} \
+                     SET id = type::thing('has_agent', $edge_ha_{i}) RETURN NONE;\n"
+            ));
+        }
+        for i in 0..payload.sponsor_agent_ids.len() {
+            q.push_str(&format!(
+                "LET $s{i} = type::thing('agent', $sponsor_id_{i});\n\
+                 RELATE $p -> has_sponsor -> $s{i} \
+                     SET id = type::thing('has_sponsor', $edge_hs_{i}) RETURN NONE;\n"
+            ));
+        }
+        for i in 0..payload.catalogue_entries.len() {
+            q.push_str(&format!(
+                "CREATE resources_catalogue SET owning_org = $org_id_0, \
+                 resource_uri = $cat_uri_{i}, kind = $cat_kind_{i}, \
+                 added_at = $now RETURN NONE;\n"
+            ));
+        }
+        q.push_str("COMMIT TRANSACTION;");
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut binder = self
+            .client()
+            .query(q)
+            .bind(("pid", payload.project.id.to_string()))
+            .bind(("project_body", project_body))
+            .bind(("lead_id", payload.lead_agent_id.to_string()))
+            .bind(("edge_hl", has_lead_edge_id.to_string()))
+            .bind(("now", now));
+        for (i, org) in payload.owning_orgs.iter().enumerate() {
+            binder = binder
+                .bind((format!("org_id_{i}"), org.to_string()))
+                .bind((format!("edge_bt_{i}"), EdgeId::new().to_string()))
+                .bind((format!("edge_hp_{i}"), EdgeId::new().to_string()));
+        }
+        for (i, m) in payload.member_agent_ids.iter().enumerate() {
+            binder = binder
+                .bind((format!("member_id_{i}"), m.to_string()))
+                .bind((format!("edge_ha_{i}"), EdgeId::new().to_string()));
+        }
+        for (i, s) in payload.sponsor_agent_ids.iter().enumerate() {
+            binder = binder
+                .bind((format!("sponsor_id_{i}"), s.to_string()))
+                .bind((format!("edge_hs_{i}"), EdgeId::new().to_string()));
+        }
+        for (i, (uri, kind)) in payload.catalogue_entries.iter().enumerate() {
+            binder = binder
+                .bind((format!("cat_uri_{i}"), uri.clone()))
+                .bind((format!("cat_kind_{i}"), kind.clone()));
+        }
+
+        binder.await.map_err(backend)?.check().map_err(backend)?;
+
+        Ok(ProjectCreationReceipt {
+            project_id: payload.project.id,
+            owning_org_ids: payload.owning_orgs.clone(),
+            lead_agent_id: payload.lead_agent_id,
+            has_lead_edge_id,
+        })
+    }
+
+    async fn apply_agent_creation(
+        &self,
+        payload: &AgentCreationPayload,
+    ) -> RepositoryResult<AgentCreationReceipt> {
+        let org_id = payload.agent.owning_org.ok_or_else(|| {
+            RepositoryError::InvalidArgument("agent.owning_org must be Some".into())
+        })?;
+        if let Some(role) = payload.agent.role {
+            if !role.is_valid_for(payload.agent.kind) {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "role {:?} invalid for kind {:?}",
+                    role, payload.agent.kind
+                )));
+            }
+        }
+
+        let agent_body = strip_id(serde_json::to_value(&payload.agent).map_err(backend)?);
+        let inbox_body = strip_id(serde_json::to_value(&payload.inbox).map_err(backend)?);
+        let outbox_body = strip_id(serde_json::to_value(&payload.outbox).map_err(backend)?);
+        let profile_body = match payload.profile.as_ref() {
+            Some(p) => Some(strip_id(serde_json::to_value(p).map_err(backend)?)),
+            None => None,
+        };
+        let mut grant_bodies: Vec<serde_json::Value> =
+            Vec::with_capacity(payload.default_grants.len());
+        for g in &payload.default_grants {
+            grant_bodies.push(serde_json::to_value(GrantRow::from_domain(g)).map_err(backend)?);
+        }
+        let override_body = match payload.initial_execution_limits_override.as_ref() {
+            Some(ovr) => Some(strip_id(serde_json::to_value(ovr).map_err(backend)?)),
+            None => None,
+        };
+
+        let mut q = String::from(
+            "BEGIN TRANSACTION;\n\
+             CREATE type::thing('agent', $aid) CONTENT $agent_body RETURN NONE;\n\
+             CREATE type::thing('inbox_object', $inbox_id) CONTENT $inbox_body RETURN NONE;\n\
+             CREATE type::thing('outbox_object', $outbox_id) CONTENT $outbox_body RETURN NONE;\n\
+             LET $a = type::thing('agent', $aid);\n\
+             LET $inb = type::thing('inbox_object', $inbox_id);\n\
+             LET $out = type::thing('outbox_object', $outbox_id);\n\
+             LET $org = type::thing('organization', $org_id);\n\
+             RELATE $a -> has_inbox -> $inb \
+                 SET id = type::thing('has_inbox', $edge_hi) RETURN NONE;\n\
+             RELATE $a -> has_outbox -> $out \
+                 SET id = type::thing('has_outbox', $edge_ho) RETURN NONE;\n\
+             RELATE $a -> member_of -> $org \
+                 SET id = type::thing('member_of', $edge_mo) RETURN NONE;\n\
+             RELATE $org -> has_member -> $a \
+                 SET id = type::thing('has_member', $edge_hm) RETURN NONE;\n",
+        );
+        if payload.profile.is_some() {
+            q.push_str(
+                "CREATE type::thing('agent_profile', $prof_id) CONTENT $prof_body RETURN NONE;\n\
+                 LET $prof = type::thing('agent_profile', $prof_id);\n\
+                 RELATE $a -> has_profile -> $prof \
+                     SET id = type::thing('has_profile', $edge_hp) RETURN NONE;\n",
+            );
+        }
+        if payload.initial_execution_limits_override.is_some() {
+            q.push_str(
+                "CREATE type::thing('agent_execution_limits', $ovr_id) \
+                 CONTENT $ovr_body RETURN NONE;\n",
+            );
+        }
+        for i in 0..payload.default_grants.len() {
+            q.push_str(&format!(
+                "CREATE type::thing('grant', $grant_id_{i}) CONTENT $grant_body_{i} RETURN NONE;\n"
+            ));
+        }
+        for i in 0..payload.catalogue_entries.len() {
+            q.push_str(&format!(
+                "CREATE resources_catalogue SET owning_org = $org_id, \
+                 resource_uri = $cat_uri_{i}, kind = $cat_kind_{i}, \
+                 added_at = $now RETURN NONE;\n"
+            ));
+        }
+        q.push_str("COMMIT TRANSACTION;");
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut binder = self
+            .client()
+            .query(q)
+            .bind(("aid", payload.agent.id.to_string()))
+            .bind(("agent_body", agent_body))
+            .bind(("inbox_id", payload.inbox.id.to_string()))
+            .bind(("inbox_body", inbox_body))
+            .bind(("outbox_id", payload.outbox.id.to_string()))
+            .bind(("outbox_body", outbox_body))
+            .bind(("org_id", org_id.to_string()))
+            .bind(("edge_hi", EdgeId::new().to_string()))
+            .bind(("edge_ho", EdgeId::new().to_string()))
+            .bind(("edge_mo", EdgeId::new().to_string()))
+            .bind(("edge_hm", EdgeId::new().to_string()))
+            .bind(("now", now));
+        if let Some(pb) = profile_body {
+            let pid = payload.profile.as_ref().unwrap().id;
+            binder = binder
+                .bind(("prof_id", pid.to_string()))
+                .bind(("prof_body", pb))
+                .bind(("edge_hp", EdgeId::new().to_string()));
+        }
+        if let Some(ob) = override_body {
+            let oid = payload
+                .initial_execution_limits_override
+                .as_ref()
+                .unwrap()
+                .id;
+            binder = binder
+                .bind(("ovr_id", oid.to_string()))
+                .bind(("ovr_body", ob));
+        }
+        for (i, (g, body)) in payload
+            .default_grants
+            .iter()
+            .zip(grant_bodies.iter())
+            .enumerate()
+        {
+            binder = binder
+                .bind((format!("grant_id_{i}"), g.id.to_string()))
+                .bind((format!("grant_body_{i}"), body.clone()));
+        }
+        for (i, (uri, kind)) in payload.catalogue_entries.iter().enumerate() {
+            binder = binder
+                .bind((format!("cat_uri_{i}"), uri.clone()))
+                .bind((format!("cat_kind_{i}"), kind.clone()));
+        }
+
+        binder.await.map_err(backend)?.check().map_err(backend)?;
+
+        Ok(AgentCreationReceipt {
+            agent_id: payload.agent.id,
+            owning_org_id: org_id,
+            inbox_id: payload.inbox.id,
+            outbox_id: payload.outbox.id,
+            profile_id: payload.profile.as_ref().map(|p| p.id),
+            default_grant_ids: payload.default_grants.iter().map(|g| g.id).collect(),
+            execution_limits_override_id: payload
+                .initial_execution_limits_override
+                .as_ref()
+                .map(|o| o.id),
         })
     }
 }

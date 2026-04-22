@@ -14,7 +14,7 @@
 //!      counts after real traffic.
 //!
 //! Per plan §P8 §3: the histogram M2 is building toward is
-//! `baby_phi_permission_check_duration_seconds` — populated when
+//! `phi_permission_check_duration_seconds` — populated when
 //! handlers call `handler_support::check_permission`. M2 admin
 //! handlers use the Template-E bypass (self-approved), so no M2
 //! handler records into that histogram yet. This test proves the

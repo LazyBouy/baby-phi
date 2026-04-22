@@ -1,23 +1,23 @@
-# CLAUDE.md — baby-phi
+# CLAUDE.md — phi
 
-baby-phi is the agent management platform that consumes `phi-core` as a library. As of M0 it is a **Cargo workspace** with three parallel surfaces (CLI, HTTP API, Next.js web UI) sharing one domain layer.
+phi is the agent management platform that consumes `phi-core` as a library. As of M0 it is a **Cargo workspace** with three parallel surfaces (CLI, HTTP API, Next.js web UI) sharing one domain layer.
 
 ## Workspace layout
 
 ```
-baby-phi/                       (workspace root — virtual Cargo.toml)
+phi/                       (workspace root — virtual Cargo.toml)
 ├── modules/
 │   ├── crates/
-│   │   ├── cli/                CLI binary (clap). Package `cli`, binary `baby-phi`.
+│   │   ├── cli/                CLI binary (clap). Package `cli`, binary `phi`.
 │   │   ├── domain/             Graph model + Permission Check + state machines.
 │   │   ├── store/              SurrealDB (embedded, RocksDB) adapter.
-│   │   └── server/             axum HTTP API. Package `server`, binary `baby-phi-server`.
+│   │   └── server/             axum HTTP API. Package `server`, binary `phi-server`.
 │   └── web/                    Next.js 14 (App Router + SSR).
 ├── config/                     Layered TOML configs (default + dev/staging/prod).
 ├── docs/specs/                 Concepts + requirements (source of truth for v0).
 ├── docs/specs/plan/            Plan archives (git-ignored by convention).
 ├── scripts/                    Ops helpers (spec-drift check, …).
-├── Dockerfile                  Multi-stage build for baby-phi-server.
+├── Dockerfile                  Multi-stage build for phi-server.
 ├── docker-compose.yml          Local dev stack (server + web).
 └── deny.toml                   cargo-deny policy.
 ```
@@ -29,28 +29,28 @@ server          ─┼─▶ domain ─▶ store ─▶ SurrealDB
 web (Next.js)  ──┘             (plus phi-core for agent/session types)
 ```
 
-Package names are deliberately terse (`cli`, `domain`, `store`, `server`); the shipped binary names keep the product prefix (`baby-phi`, `baby-phi-server`) via explicit `[[bin]] name`.
+Package names are deliberately terse (`cli`, `domain`, `store`, `server`); the shipped binary names keep the product prefix (`phi`, `phi-server`) via explicit `[[bin]] name`.
 
 ## Build & Run
 
 All cargo commands must use `/root/rust-env/cargo/bin/cargo`. CI enforces `RUSTFLAGS="-Dwarnings"`.
 
 ```bash
-# From baby-phi/ (the workspace root):
+# From phi/ (the workspace root):
 /root/rust-env/cargo/bin/cargo build --workspace
 /root/rust-env/cargo/bin/cargo fmt --all -- --check
 RUSTFLAGS="-Dwarnings" /root/rust-env/cargo/bin/cargo clippy --workspace --all-targets
 /root/rust-env/cargo/bin/cargo test --workspace
 
 # Run the HTTP server (reads config/default.toml + config/<profile>.toml +
-# BABY_PHI_* env vars; see modules/crates/server/src/config.rs):
-BABY_PHI_PROFILE=dev /root/rust-env/cargo/bin/cargo run -p server
+# PHI_* env vars; see modules/crates/server/src/config.rs):
+PHI_PROFILE=dev /root/rust-env/cargo/bin/cargo run -p server
 
-# Run the existing CLI demo (still reads baby-phi/config.toml):
+# Run the existing CLI demo (still reads phi/config.toml):
 set -a && source .env && set +a
 /root/rust-env/cargo/bin/cargo run -p cli
 
-# Web UI (from baby-phi/modules/web/):
+# Web UI (from phi/modules/web/):
 npm install && npm run dev
 ```
 
@@ -66,13 +66,13 @@ Every platform-level feature sits in this workspace — phi-core stays a pure ag
 
 ## phi-core Leverage (first-class mandate)
 
-baby-phi is a **consumer** of phi-core, not a parallel implementation. Every surface that overlaps with an existing `phi_core::` type MUST reuse it directly or wrap it — **never re-implement**. This is not a style preference; it is a two-source-of-truth problem that compounds per milestone.
+phi is a **consumer** of phi-core, not a parallel implementation. Every surface that overlaps with an existing `phi_core::` type MUST reuse it directly or wrap it — **never re-implement**. This is not a style preference; it is a two-source-of-truth problem that compounds per milestone.
 
 **Rules of engagement:**
 
 1. **Before introducing any struct/enum/trait** whose shape overlaps with something in phi-core, check `phi-core/src/` first. If phi-core ships it, import it.
    - Direct reuse (`use phi_core::X`) — use phi-core's type as-is.
-   - Wrap (`pub struct Y { inner: phi_core::X, ... }`) — extend with baby-phi-only governance fields.
+   - Wrap (`pub struct Y { inner: phi_core::X, ... }`) — extend with phi-only governance fields.
    - Build from scratch — only if phi-core has **no** counterpart (e.g., permission-check engine, credentials vault, tenant sets, audit hash-chain).
 
 2. **Known reuse surfaces** (non-exhaustive; see `docs/specs/v0/concepts/phi-core-mapping.md` for the full list):
@@ -88,7 +88,7 @@ baby-phi is a **consumer** of phi-core, not a parallel implementation. Every sur
 
 5. **`thiserror` must track phi-core's version** (currently `"2"`). Version drift breaks `#[from]` conversions at runtime with cryptic "implementations not found" errors.
 
-**Orthogonal surfaces that are NOT phi-core duplicates** (these are intentionally baby-phi-only — do not conflate):
+**Orthogonal surfaces that are NOT phi-core duplicates** (these are intentionally phi-only — do not conflate):
 - `domain::audit::AuditEvent` (governance write log, hash-chain, retention tier) vs `phi_core::types::event::AgentEvent` (agent-loop telemetry stream) — see `implementation/m1/architecture/audit-events.md`.
 - `server::session::SessionClaims` (HTTP cookie JWT) vs `phi_core::session::Session` (persisted execution trace) — see `implementation/m1/architecture/server-topology.md`.
 - `domain::model::ToolDefinition` (permission metadata node) vs `phi_core::types::tool::AgentTool` (runtime trait) — see `implementation/m1/architecture/graph-model.md`.

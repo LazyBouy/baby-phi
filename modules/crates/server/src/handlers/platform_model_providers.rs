@@ -13,7 +13,7 @@
 //!
 //! Wire body for POST mirrors [`phi_core::provider::model::ModelConfig`]
 //! directly — clients construct the config object exactly as phi-core's
-//! own factory methods produce it. baby-phi adds three wrapper fields
+//! own factory methods produce it. phi adds three wrapper fields
 //! (`secret_ref`, `tenants_allowed`, `config`); no other transcription.
 
 use axum::extract::{Path, Query, State};

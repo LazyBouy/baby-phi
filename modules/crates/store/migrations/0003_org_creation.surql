@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 0003_org_creation.surql
 --
--- Schema evolution for baby-phi v0.1 / milestone M3.
+-- Schema evolution for phi v0.1 / milestone M3.
 --
 -- Scope:
 --   1. Extend the `organization` table with the M3 governance fields

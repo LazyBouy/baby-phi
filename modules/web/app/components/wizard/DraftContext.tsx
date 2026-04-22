@@ -31,7 +31,7 @@ import {
 /// local/session storage keys the app might use. The M3/P1 wizard
 /// uses keys like `m3.org-create.step1`; M4+ wizards will prefix
 /// differently.
-const DRAFT_KEY_PREFIX = "baby-phi.wizard.";
+const DRAFT_KEY_PREFIX = "phi.wizard.";
 
 /// SSR guard — `window` is undefined during Next.js server render.
 /// Every storage read/write routes through these helpers so the

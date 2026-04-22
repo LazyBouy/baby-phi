@@ -14,7 +14,7 @@ concept doc's source-order also defers Step 4 until after Step 5). The
 runtime needs an implementation that:
 
 - Returns a structured `Decision` with a discrete `failed_step` label, so
-  the M1 Prometheus histogram `baby_phi_permission_check_duration_seconds
+  the M1 Prometheus histogram `phi_permission_check_duration_seconds
   {result, failed_step}` (commitment C10) has something to populate.
 - Is a **pure** function — callable from the bootstrap flow (P5), HTTP
   handlers (P6), and acceptance tests (P9) without requiring any of them

@@ -11,7 +11,7 @@ use tempfile::tempdir;
 #[tokio::test]
 async fn open_embedded_applies_initial_migration_and_creates_schema() {
     let dir = tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("fresh store opens green");
 
@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 3, "every embedded migration recorded");
+    assert_eq!(rows.len(), 4, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -38,6 +38,11 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[2].get("slug").and_then(|v| v.as_str()),
         Some("org_creation")
+    );
+    assert_eq!(rows[3].get("version").and_then(|v| v.as_i64()), Some(4));
+    assert_eq!(
+        rows[3].get("slug").and_then(|v| v.as_str()),
+        Some("agents_projects")
     );
 
     // A sample table from the initial migration exists and accepts a row

@@ -22,7 +22,7 @@
 //!   the operator can re-run the command after verifying storage;
 //! - the slug uniqueness index catches the retry's duplicate slug + any
 //!   orphan row from a prior attempt will be visible via
-//!   `baby-phi secret list` as a row with no matching audit event;
+//!   `phi secret list` as a row with no matching audit event;
 //! - **no automated sweep ships in M2** — closing the TOCTOU window
 //!   is tracked as M3 work (archived plan §Part 11 Q8 / D6 note); the
 //!   fix is an atomic `apply_secret_add` repository method mirroring

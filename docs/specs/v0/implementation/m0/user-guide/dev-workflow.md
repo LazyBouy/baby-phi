@@ -2,12 +2,12 @@
 
 # User guide — dev workflow
 
-Day-to-day commands for contributing to baby-phi. Assumes you've completed [getting-started.md](getting-started.md).
+Day-to-day commands for contributing to phi. Assumes you've completed [getting-started.md](getting-started.md).
 
 ## Cargo conventions
 
 - **Always** invoke `/root/rust-env/cargo/bin/cargo`. The workstation has no `cargo` on `$PATH` by default — direct invocation ensures the right toolchain. See [`CLAUDE.md`](../../../../../../CLAUDE.md).
-- **Always** run from the workspace root `/root/projects/phi/baby-phi/`. Cargo finds the workspace manifest there; running from a subcrate works but is inconsistent.
+- **Always** run from the workspace root `/root/projects/phi/phi/`. Cargo finds the workspace manifest there; running from a subcrate works but is inconsistent.
 
 ## The four local gates
 
@@ -132,24 +132,24 @@ See [running-locally.md](running-locally.md) for boot sequences.
 
 ## Debugging
 
-- `tracing` logs from the server respect `RUST_LOG` when `BABY_PHI_TELEMETRY__LOG_FILTER` is set (they override each other; the env-var wins). For quick debugging, `BABY_PHI_TELEMETRY__LOG_FILTER=trace cargo run -p server` dumps everything.
-- For breakpoint-style debugging, `rust-gdb` or `rust-lldb` both work on the `target/debug/baby-phi-server` binary.
+- `tracing` logs from the server respect `RUST_LOG` when `PHI_TELEMETRY__LOG_FILTER` is set (they override each other; the env-var wins). For quick debugging, `PHI_TELEMETRY__LOG_FILTER=trace cargo run -p server` dumps everything.
+- For breakpoint-style debugging, `rust-gdb` or `rust-lldb` both work on the `target/debug/phi-server` binary.
 - SurrealDB's embedded RocksDB files can be inspected with `rocksdb-tools` if you need to peek at storage (rarely needed — prefer `cargo run -p cli -- …` CLI commands once M1 lands).
 
 ## Submodule discipline
 
-`baby-phi` and `phi-core` are submodules of the outer `phi` repo. When you commit inside `baby-phi/`, the outer repo sees the submodule SHA change. Commit workflow:
+`phi` and `phi-core` are submodules of the outer `phi` repo. When you commit inside `phi/`, the outer repo sees the submodule SHA change. Commit workflow:
 
 ```bash
-# inside baby-phi/
+# inside phi/
 git add <files>
 git commit -m "…"
 git push origin <branch>
 
 # back in the outer repo
 cd /root/projects/phi
-git add baby-phi
-git commit -m "Update baby-phi submodule to <short sha>"
+git add phi
+git commit -m "Update phi submodule to <short sha>"
 git push
 ```
 
@@ -159,7 +159,7 @@ If you forget the outer-repo commit, pull requests on the outer repo will show t
 
 ```bash
 # Run server locally (loopback + pretty logs)
-BABY_PHI_PROFILE=dev /root/rust-env/cargo/bin/cargo run -p server
+PHI_PROFILE=dev /root/rust-env/cargo/bin/cargo run -p server
 
 # Run the CLI demo (uses .env + config.toml)
 set -a && source .env && set +a

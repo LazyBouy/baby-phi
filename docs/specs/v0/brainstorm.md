@@ -1,4 +1,4 @@
-# baby-phi v0 — Brainstorm
+# phi v0 — Brainstorm
 
 > Living document. Captures ideas and design decisions from brainstorming sessions.
 > Not a spec — a seedbed. Ideas here graduate into proper specs when they solidify.
@@ -7,7 +7,7 @@
 
 ## 1. Core Vision
 
-baby-phi is an **agent management system** where many agents operate, perform different activities without stepping on each other's resources, yet can communicate and coordinate as required.
+phi is an **agent management system** where many agents operate, perform different activities without stepping on each other's resources, yet can communicate and coordinate as required.
 
 The foundation is a **data model layer** that translates phi-core structs into an interconnected, self-describing data fabric — queryable, introspectable, and extensible at runtime.
 
@@ -29,7 +29,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 |------|----------|------------|-----------------|---------------|
 | **Agent** | `agent_id` | name, status, created_at | `BasicAgent` | The nucleus — everything radiates from here |
 | **AgentProfile** | `profile_id` | name, description, system_prompt, thinking_level, temperature, max_tokens, config_id, workspace | `AgentProfile` | Blueprint: who the agent IS |
-| **User** | `user_id` | name, role, created_at | *baby-phi concept* | Who owns/interacts with agents. External identity. |
+| **User** | `user_id` | name, role, created_at | *phi concept* | Who owns/interacts with agents. External identity. |
 
 #### Execution History
 
@@ -69,16 +69,16 @@ This is a graph-first model (think ontology, not relational tables), even if the
 | Node | Identity | Properties | phi-core Source | Why it exists |
 |------|----------|------------|-----------------|---------------|
 | **ExecutionLimits** | generated | max_turns, max_tokens, max_duration_secs, max_cost | `ExecutionLimits` | Constrains what an agent can consume |
-| **Permission** | generated | scope, actions, target_pattern, granted_by, expires_at | *baby-phi concept* | Access control for agents |
+| **Permission** | generated | scope, actions, target_pattern, granted_by, expires_at | *phi concept* | Access control for agents |
 | **CompactionPolicy** | generated | compact_at_pct, budget_threshold_pct, scope, keep_first_turns, keep_recent_turns, max_summary_tokens, tool_output_max_lines, focus_message | `CompactionConfig`, `CompactionScope` | How context is managed when it grows |
 | **RetryPolicy** | generated | max_retries, initial_delay_ms, max_delay_ms, jitter_pct | `RetryConfig` | How provider errors are retried |
 | **CachePolicy** | generated | enabled, strategy (auto/disabled/manual), cache_system, cache_tools, cache_messages | `CacheConfig`, `CacheStrategy` | Prompt caching behavior |
 
-#### Memory & Knowledge (baby-phi concepts)
+#### Memory & Knowledge (phi concepts)
 
 | Node | Identity | Properties | phi-core Source | Why it exists |
 |------|----------|------------|-----------------|---------------|
-| **Memory** | generated | type (user/feedback/project/reference), content, created_at, updated_at, source_agent_id | *baby-phi concept* | Persistent knowledge across sessions |
+| **Memory** | generated | type (user/feedback/project/reference), content, created_at, updated_at, source_agent_id | *phi concept* | Persistent knowledge across sessions |
 
 #### Configuration (structural)
 
@@ -459,7 +459,7 @@ ToolImpl       │    └────┬────┘
 
 > Session: 2026-04-09. Extends the technical ontology (Section 2) with a philosophical
 > model of agency, an agent economy, and social structures (Projects, Organizations).
-> Section 2 remains the phi-core grounding; Section 3 is the baby-phi extension layer.
+> Section 2 remains the phi-core grounding; Section 3 is the phi extension layer.
 
 ### 3.1 Grounding Principle
 
@@ -900,7 +900,7 @@ This mirrors capability-based security and cloud IAM: authority is tied to a spe
 
 Every authority surface in the system maps to one of these resource families:
 
-| Resource Class | What It Covers | baby-phi Mapping |
+| Resource Class | What It Covers | phi Mapping |
 |---|---|---|
 | **Filesystem object** | Files, directories, repos, temp paths | Agent workspace, skill files |
 | **Process/exec object** | Shell commands, binaries, containers | BashTool, script execution |
@@ -1036,7 +1036,7 @@ Permission
 
 ### 4.8 phi-core Extension Points
 
-Permissions are a baby-phi concern. phi-core provides the hooks:
+Permissions are a phi concern. phi-core provides the hooks:
 
 | phi-core hook | Permission enforcement |
 |---|---|
@@ -1057,31 +1057,31 @@ Permissions are a baby-phi concern. phi-core provides the hooks:
 
 ## 5. Future Scenarios (from phi-core roadmap)
 
-These phi-core future scenarios directly feed into baby-phi's design:
+These phi-core future scenarios directly feed into phi's design:
 
 ### 5.1 HITL Resume (Human-in-the-Loop)
 
 Agent is aborted mid-execution, human reviews, then resumes. Requires checkpoint/restore on Agent state. phi-core needs `Agent::checkpoint()` / `Agent::restore(checkpoint)`.
 
-**baby-phi implication:** The data model must support partial sessions — loops that are `Aborted` with a resumption path. The graph edge `CONTINUES_FROM` with `ContinuationKind::Rerun` or `Branch` captures this.
+**phi implication:** The data model must support partial sessions — loops that are `Aborted` with a resumption path. The graph edge `CONTINUES_FROM` with `ContinuationKind::Rerun` or `Branch` captures this.
 
 ### 5.2 Checkpoint Restore (Cross-Process)
 
 Serialize agent state to storage, load it in a different process. phi-core needs `AgentSnapshot` type.
 
-**baby-phi implication:** The data layer IS the persistence. If all state is in the graph, checkpoint/restore is just "read the graph" / "write the graph". No separate snapshot mechanism needed.
+**phi implication:** The data layer IS the persistence. If all state is in the graph, checkpoint/restore is just "read the graph" / "write the graph". No separate snapshot mechanism needed.
 
 ### 5.3 Parallel Exploration
 
 Multiple branches from the same checkpoint run concurrently. phi-core supports this via `agent_loop_continue(Branch)` with cloned contexts.
 
-**baby-phi implication:** The `Loop` node naturally supports this — multiple Loops share the same `CONTINUES_FROM` parent, each as a sibling branch. `ParallelGroupRecord` (value object on Loop) tracks which branch was selected. The `PARALLEL_WITH` edge connects siblings.
+**phi implication:** The `Loop` node naturally supports this — multiple Loops share the same `CONTINUES_FROM` parent, each as a sibling branch. `ParallelGroupRecord` (value object on Loop) tracks which branch was selected. The `PARALLEL_WITH` edge connects siblings.
 
 ### 5.4 Auto Origin/Continue Selection
 
 Agent decides whether to `agent_loop` or `agent_loop_continue` based on context state.
 
-**baby-phi implication:** This is the "agent invocation layer" — baby-phi should provide a high-level `send(agent_id, message)` that inspects the agent's current state in the data model and dispatches correctly.
+**phi implication:** This is the "agent invocation layer" — phi should provide a high-level `send(agent_id, message)` that inspects the agent's current state in the data model and dispatches correctly.
 
 ---
 
@@ -1293,7 +1293,7 @@ Every public phi-core struct/enum mapped to its ontology classification.
 | Date | Topic | Key Decisions |
 |------|-------|---------------|
 | 2026-04-05 | Data model foundation | Agent-centric ontology; 10 node types, 12 edge types; Message as separate node; schema registry for introspection |
-| 2026-04-05 | Permissions (emerging) | 5 permission dimensions identified; phi-core hooks as extension points; baby-phi owns policy |
+| 2026-04-05 | Permissions (emerging) | 5 permission dimensions identified; phi-core hooks as extension points; phi owns policy |
 | 2026-04-05 | Future scenarios | HITL resume, checkpoint restore, parallel exploration, auto-dispatch — all mapped to ontology |
 | 2026-04-05 | Comprehensive expansion | 20 node types, 27 edge types, 50+ value objects, 45+ runtime-only types; added MCP, Memory, User, Permission, Event, SystemPrompt, EvaluationStrategy, CompactionPolicy, RetryPolicy, CachePolicy, OpenApiSpec, ToolImplementation, PromptBlock, AgentConfig nodes; full phi-core struct mapping in Appendix A |
 | 2026-04-09 | Agent philosophy & social structure | Soul (immutable genetics), Identity (emergent event-driven), Power (verbs→skills composition), Experience (3 memory tiers). Token economy: Contract vs Worker modes, Worth/Value/Meaning triad, bidding process. New nodes: Project (with status flow), Task (biddable work unit), Bid, Rating, Organization, Channel. Human Agent as Agent without Model. Market concept (placeholder). 26 node types, 42+ edge types. |

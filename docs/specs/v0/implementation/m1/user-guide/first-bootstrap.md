@@ -2,7 +2,7 @@
 
 # First-bootstrap walkthrough
 
-End-to-end guide for the first human on a fresh baby-phi install: from
+End-to-end guide for the first human on a fresh phi install: from
 running the installer to claiming the platform-admin role. P5 ships the
 server-side atomic flow; **P6 lands the HTTP handlers** (`GET
 /api/v0/bootstrap/status` + `POST /api/v0/bootstrap/claim` plus the
@@ -15,7 +15,7 @@ landed; the HTTP / curl path is available today.
 On a fresh data directory, run:
 
 ```bash
-baby-phi-server bootstrap-init
+phi-server bootstrap-init
 ```
 
 Output:
@@ -49,7 +49,7 @@ for why stdout-only delivery is the right default.
 ## 2. Start the server
 
 ```bash
-baby-phi-server
+phi-server
 ```
 
 The server binds per
@@ -66,7 +66,7 @@ the claim form. Paste your saved credential, enter a display name,
 pick a channel kind (Slack / email / web), enter the handle, submit.
 
 **Option B — CLI (ships in P7).**
-`baby-phi bootstrap claim --credential bphi-bootstrap-…
+`phi bootstrap claim --credential bphi-bootstrap-…
 --display-name 'Alex Chen' --channel-kind slack --channel-handle @alex`.
 See [cli-usage.md](cli-usage.md) for the full reference (including
 exit-code semantics for shell-script callers).
@@ -85,7 +85,7 @@ curl -sS -X POST https://<server>/api/v0/bootstrap/claim \
 ```
 
 On success (HTTP 201), the response carries a `Set-Cookie:
-baby_phi_session=<jwt>; HttpOnly; SameSite=Lax; Path=/` header and the
+phi_kernel_session=<jwt>; HttpOnly; SameSite=Lax; Path=/` header and the
 JSON payload:
 
 ```json
@@ -134,7 +134,7 @@ behind. Retry is always safe until one claim succeeds.
 After the claim, the platform-admin journey continues into the M2+
 phases the plan calls out: model-provider registration, the first org
 setup, agent provisioning. P6 will redirect the browser to the next
-phase's landing page; CLI users continue through `baby-phi` subcommands
+phase's landing page; CLI users continue through `phi` subcommands
 as they land.
 
 ## Cross-references

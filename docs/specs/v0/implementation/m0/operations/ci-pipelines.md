@@ -9,7 +9,7 @@ Three GitHub Actions workflows gate every push and pull request to `main` / `dev
 | File | Purpose | Triggers |
 |---|---|---|
 | [`.github/workflows/rust.yml`](../../../../../../.github/workflows/rust.yml) | fmt, clippy, test, cargo audit, cargo deny | push + PR on `main`, `dev` |
-| [`.github/workflows/web.yml`](../../../../../../.github/workflows/web.yml) | lint, typecheck, test, build, npm audit | push + PR on `main`, `dev` — paths-scoped to `baby-phi/modules/web/**` |
+| [`.github/workflows/web.yml`](../../../../../../.github/workflows/web.yml) | lint, typecheck, test, build, npm audit | push + PR on `main`, `dev` — paths-scoped to `phi/modules/web/**` |
 | [`.github/workflows/spec-drift.yml`](../../../../../../.github/workflows/spec-drift.yml) | Spec-drift guard (requirement ids referenced in code must exist in `docs/specs/v0/requirements/`) | push + PR on `main`, `dev` |
 
 ## `rust.yml` jobs
@@ -59,7 +59,7 @@ The advisory DB is downloaded fresh on every run so new advisories surface immed
 
 Each step is atomic; any failure aborts. Build output is not published in M0 (no registry push yet).
 
-The workflow is **path-scoped**: it only runs when files under `baby-phi/modules/web/**` or the workflow file itself change. This keeps the main CI loop fast.
+The workflow is **path-scoped**: it only runs when files under `phi/modules/web/**` or the workflow file itself change. This keeps the main CI loop fast.
 
 ### `audit`
 

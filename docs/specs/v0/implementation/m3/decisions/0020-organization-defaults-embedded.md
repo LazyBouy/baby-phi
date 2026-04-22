@@ -8,7 +8,7 @@
 
 M2/P7 shipped `PlatformDefaults` — a singleton row holding platform-
 wide baselines for `ExecutionLimits`, `AgentProfile`, `ContextConfig`,
-`RetryConfig` plus two baby-phi-native fields. ADR-0019 pinned the
+`RetryConfig` plus two phi-native fields. ADR-0019 pinned the
 non-retroactive invariant: a later PUT does **not** mutate existing
 orgs; each org freezes its own copy at creation time.
 
@@ -76,7 +76,7 @@ The snapshot struct wraps four phi-core types directly:
 `phi_core::context::execution::ExecutionLimits`,
 `phi_core::agents::profile::AgentProfile`,
 `phi_core::context::config::ContextConfig`, and
-`phi_core::provider::retry::RetryConfig`. No parallel baby-phi
+`phi_core::provider::retry::RetryConfig`. No parallel phi
 layer — same pattern M2/P7 established for `PlatformDefaults`.
 `OrganizationDefaultsSnapshot::from_platform_defaults` is a
 field-wise copy; phi-core sub-fields ride through verbatim. Baby-phi

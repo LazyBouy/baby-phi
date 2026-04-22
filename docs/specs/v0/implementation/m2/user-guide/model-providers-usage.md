@@ -30,7 +30,7 @@ is authoritative for scripted provisioning.
 ### Prereq: seed the API key
 
 ```bash
-printf 'sk-ant-<your-key>' | baby-phi secret add \
+printf 'sk-ant-<your-key>' | phi secret add \
     --slug anthropic-api-key --material-file -
 ```
 
@@ -38,7 +38,7 @@ printf 'sk-ant-<your-key>' | baby-phi secret add \
 
 ```bash
 # 1. Discover the kinds this build of phi-core supports.
-baby-phi model-provider list-kinds
+phi model-provider list-kinds
 
 # 2. Draft a ModelConfig as a JSON file. Any phi-core-accepted field
 #    is valid; leave api_key unset.
@@ -56,13 +56,13 @@ cat > /tmp/claude-sonnet-4.json <<'JSON'
 JSON
 
 # 3. Register.
-baby-phi model-provider add \
+phi model-provider add \
     --config-file /tmp/claude-sonnet-4.json \
     --secret-ref anthropic-api-key
 
 # Defaults tenants_allowed to `all`. Narrow explicitly if you
 # need per-org isolation:
-baby-phi model-provider add \
+phi model-provider add \
     --config-file /tmp/claude-sonnet-4.json \
     --secret-ref anthropic-api-key \
     --tenants-allowed 6f3a1c2d-...,8e12bb34-...
@@ -81,12 +81,12 @@ Navigate to **Model Providers** in the admin sidebar:
 ## Listing
 
 ```bash
-baby-phi model-provider list
+phi model-provider list
 # provider_id                            provider            model_id                         status      archived
 # <uuid>                                 anthropic           claude-sonnet-4-20250514         "ok"        -
 
-baby-phi model-provider list --include-archived
-baby-phi model-provider list --json  # pipe into jq
+phi model-provider list --include-archived
+phi model-provider list --json  # pipe into jq
 ```
 
 The web table shows the same rows — archived entries render at
@@ -95,7 +95,7 @@ reduced opacity with the archive button hidden.
 ## Archiving
 
 ```bash
-baby-phi model-provider archive --id <uuid>
+phi model-provider archive --id <uuid>
 ```
 
 Web: click **Archive** in the provider's row. The archive is

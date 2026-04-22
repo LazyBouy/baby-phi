@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 async fn fresh_store() -> (SurrealStore, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open embedded");
     (store, dir)
@@ -41,6 +41,7 @@ fn sample_agent() -> Agent {
         kind: AgentKind::Human,
         display_name: "Alice".into(),
         owning_org: None,
+        role: None,
         created_at: Utc::now(),
     }
 }
@@ -407,6 +408,7 @@ async fn get_admin_agent_finds_human_agent_after_create() {
         kind: AgentKind::Llm,
         display_name: "background-bot".into(),
         owning_org: None,
+        role: None,
         created_at: Utc::now(),
     };
     store.create_agent(&llm).await.expect("llm");
@@ -1014,6 +1016,7 @@ async fn agent_llm_kind_and_owning_org_roundtrips() {
         kind: AgentKind::Llm,
         display_name: "claude-coder-7".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     store.create_agent(&agent).await.unwrap();
@@ -1484,6 +1487,7 @@ fn bootstrap_claim_for(
             kind: AgentKind::Human,
             display_name: "Alex Chen".into(),
             owning_org: None,
+            role: None,
             created_at: now,
         },
         channel: Channel {
@@ -1624,6 +1628,7 @@ async fn apply_bootstrap_claim_is_idempotent_failure_when_agent_id_collides() {
             kind: AgentKind::Human,
             display_name: "Pre-Existing".into(),
             owning_org: None,
+            role: None,
             created_at: Utc::now(),
         })
         .await

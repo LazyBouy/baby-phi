@@ -1,7 +1,7 @@
 <!-- Status: CONCEPTUAL -->
 <!-- Last verified: 2026-04-15 by Claude Code -->
 
-# baby-phi v0 Requirements
+# phi v0 Requirements
 
 > Derived from the v0 concept docs. Framed as an **admin-UI-first journey**: requirements are grouped by the pages a Human Agent with admin authority walks through to go from fresh install to "an agent can productively run a session." That sequence is also the bootstrap dependency chain — requirements therefore order themselves.
 

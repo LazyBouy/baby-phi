@@ -31,7 +31,7 @@ use tempfile::TempDir;
 
 async fn fresh_store() -> (SurrealStore, TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let store = SurrealStore::open_embedded(dir.path().join("db"), "baby-phi", "test")
+    let store = SurrealStore::open_embedded(dir.path().join("db"), "phi", "test")
         .await
         .expect("open embedded");
     (store, dir)
@@ -60,6 +60,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         kind: AgentKind::Human,
         display_name: "Acme CEO".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     let ceo_channel = Channel {
@@ -97,6 +98,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         kind: AgentKind::Llm,
         display_name: "memory-extractor".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     let sys1_agent = Agent {
@@ -104,6 +106,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         kind: AgentKind::Llm,
         display_name: "agent-catalog".into(),
         owning_org: Some(org_id),
+        role: None,
         created_at: Utc::now(),
     };
     // Role-specific phi-core blueprints — each one proves transit of
@@ -231,7 +234,7 @@ async fn agent_profile_blueprint_roundtrips_phi_core_fields() {
     // Positive phi-core transit assertion: each system agent's
     // `agent_profile.blueprint` must preserve the full
     // `phi_core::AgentProfile` shape end-to-end — system_prompt,
-    // name, etc. A baby-phi local re-implementation would lose
+    // name, etc. A phi local re-implementation would lose
     // fields on round-trip.
     let (store, _dir) = fresh_store().await;
     let payload = build_payload(sample_org());
@@ -269,7 +272,7 @@ async fn agent_profile_blueprint_roundtrips_phi_core_fields() {
     );
 
     // Compile-time proof that the payload's blueprint field is
-    // exactly phi-core's AgentProfile (not a baby-phi redeclaration).
+    // exactly phi-core's AgentProfile (not a phi redeclaration).
     // If anyone breaks the wrap in the future, this function
     // signature won't accept the field and the test won't compile.
     fn is_phi_core_agent_profile(_: &phi_core::agents::profile::AgentProfile) {}

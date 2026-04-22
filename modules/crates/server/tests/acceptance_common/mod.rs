@@ -1,7 +1,7 @@
 //! Shared harness for acceptance tests.
 //!
 //! Each test gets a fresh `SurrealStore` in its own tempdir (real
-//! RocksDB, not the in-memory fake) and a real `baby-phi-server` axum
+//! RocksDB, not the in-memory fake) and a real `phi-server` axum
 //! app bound to a loopback port. That's the "E2E" contract — we
 //! exercise the exact same code paths the production binary runs,
 //! against the exact same storage backend.
@@ -77,6 +77,7 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
         session: SessionKey::for_tests(TEST_SESSION_SECRET),
         audit: Arc::new(store::SurrealAuditEmitter::new(repo)),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
+        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
     };
 
     let app: Router = if with_metrics {

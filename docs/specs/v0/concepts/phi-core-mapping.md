@@ -3,7 +3,7 @@
 # phi-core Type Mapping
 
 > Extracted from brainstorm.md Appendix A + Section 2.5.
-> Reference document mapping all phi-core public types to the baby-phi ontology.
+> Reference document mapping all phi-core public types to the phi ontology.
 > See also: [ontology.md](ontology.md) (the ontological model these types map into)
 
 ---

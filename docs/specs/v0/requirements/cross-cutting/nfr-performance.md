@@ -27,7 +27,7 @@
 
 ## Cold-start & scaling
 
-- **R-NFR-performance-12:** A freshly-started baby-phi instance SHALL be ready to serve bootstrap-claim within 30s of process start (including DB connection establishment).
+- **R-NFR-performance-12:** A freshly-started phi instance SHALL be ready to serve bootstrap-claim within 30s of process start (including DB connection establishment).
 - **R-NFR-performance-13:** An org's org-dashboard initial load ([admin/07-organization-dashboard.md](../admin/07-organization-dashboard.md)) SHALL be interactive within 1s of first request (subsequent reads may be faster via caching).
 
 ## Regression guard

@@ -26,7 +26,7 @@ These ride in through any M2 write or read.
 
 | Code | HTTP | Meaning | Recovery |
 |---|---|---|---|
-| `UNAUTHENTICATED` | 401 | Session cookie missing or expired | Re-run `baby-phi bootstrap claim` (or the future M3 `baby-phi login`) to mint a fresh cookie |
+| `UNAUTHENTICATED` | 401 | Session cookie missing or expired | Re-run `phi bootstrap claim` (or the future M3 `phi login`) to mint a fresh cookie |
 | `VALIDATION_FAILED` | 400 | Request body failed shape / bounds check | Fix the input per the accompanying `message` |
 | `AUDIT_EMIT_FAILED` | 500 | Audit emitter returned an error; the underlying write may have succeeded | Check server logs (`audit_events` table or hash-chain break); re-verify state via a GET before retrying |
 | `INTERNAL_ERROR` | 500 | Repository / crypto / session-signing error | Check the structured `error=` field in server logs |
@@ -52,10 +52,10 @@ Emitted by [`handlers/platform_secrets.rs`](../../../../../../modules/crates/ser
 
 | Code | HTTP | Meaning | Recovery |
 |---|---|---|---|
-| `SECRET_SLUG_IN_USE` | 409 | `slug` already exists in the vault | Pick a different slug or rotate the existing entry with `baby-phi secret rotate` |
-| `SECRET_NOT_FOUND` | 404 | No vault entry for that slug | Confirm via `baby-phi secret list`; slugs are case-sensitive |
+| `SECRET_SLUG_IN_USE` | 409 | `slug` already exists in the vault | Pick a different slug or rotate the existing entry with `phi secret rotate` |
+| `SECRET_NOT_FOUND` | 404 | No vault entry for that slug | Confirm via `phi secret list`; slugs are case-sensitive |
 | `AWAITING_CONSENT` | 202 | Reveal waiting on Permission-Check consent | Complete the consent flow surfaced in the UI; retry after approval |
-| `VAULT_CRYPTO_FAILED` | 500 | Seal/unseal failure (master-key drift, tampered ciphertext) | Check server logs for `crypto` errors; verify `BABY_PHI_SESSION_SECRET` and master-key provisioning |
+| `VAULT_CRYPTO_FAILED` | 500 | Seal/unseal failure (master-key drift, tampered ciphertext) | Check server logs for `crypto` errors; verify `PHI_SESSION_SECRET` and master-key provisioning |
 
 ## Page 02 — Model Providers
 
@@ -64,8 +64,8 @@ Emitted by [`handlers/platform_model_providers.rs`](../../../../../../modules/cr
 | Code | HTTP | Meaning | Recovery |
 |---|---|---|---|
 | `MODEL_PROVIDER_DUPLICATE` | 409 | `(provider, config.id)` pair already registered | Archive the existing row and register fresh, or pick a different `config.id` |
-| `SECRET_REF_NOT_FOUND` | 400 | `secret_ref` slug does not exist in the vault | Add the secret first via `baby-phi secret add --slug <slug> --material-file <path>` |
-| `MODEL_PROVIDER_NOT_FOUND` | 404 | Archive target id doesn't exist | List via `baby-phi model-provider list --include-archived` to confirm the id |
+| `SECRET_REF_NOT_FOUND` | 400 | `secret_ref` slug does not exist in the vault | Add the secret first via `phi secret add --slug <slug> --material-file <path>` |
+| `MODEL_PROVIDER_NOT_FOUND` | 404 | Archive target id doesn't exist | List via `phi model-provider list --include-archived` to confirm the id |
 
 ## Page 03 — MCP Servers
 
@@ -74,7 +74,7 @@ Emitted by [`handlers/platform_mcp_servers.rs`](../../../../../../modules/crates
 | Code | HTTP | Meaning | Recovery |
 |---|---|---|---|
 | `SECRET_REF_NOT_FOUND` | 400 | `secret_ref` slug does not exist in the vault | Add the secret first; OR omit `secret_ref` for unauthenticated services |
-| `MCP_SERVER_NOT_FOUND` | 404 | PATCH / archive target id doesn't exist | List via `baby-phi mcp-server list --include-archived` |
+| `MCP_SERVER_NOT_FOUND` | 404 | PATCH / archive target id doesn't exist | List via `phi mcp-server list --include-archived` |
 
 **Cascade-on-narrow side-effects:** PATCHing `tenants_allowed` to a strict subset emits one `platform.mcp_server.tenant_access_revoked` summary + N per-AR `auth_request.revoked` events. Forward-only — see [`../operations/mcp-server-operations.md`](../operations/mcp-server-operations.md) §5 for the emergency over-narrow playbook.
 
@@ -84,7 +84,7 @@ Emitted by [`handlers/platform_defaults.rs`](../../../../../../modules/crates/se
 
 | Code | HTTP | Meaning | Recovery |
 |---|---|---|---|
-| `PLATFORM_DEFAULTS_STALE_WRITE` | 409 | `if_version` doesn't match current row | Re-read via `baby-phi platform-defaults get --format json`, merge onto the new version, retry with the current `--if-version` |
+| `PLATFORM_DEFAULTS_STALE_WRITE` | 409 | `if_version` doesn't match current row | Re-read via `phi platform-defaults get --format json`, merge onto the new version, retry with the current `--if-version` |
 
 Validation bounds on PUT (all → `VALIDATION_FAILED`):
 
@@ -102,7 +102,7 @@ Stable contract mapped by [`cli/src/exit.rs`](../../../../../../modules/crates/c
 | `1` | transport error | server unreachable, DNS resolve failure, TLS handshake mismatch |
 | `2` | server rejected with a known 4xx code | `VALIDATION_FAILED`, `MCP_SERVER_NOT_FOUND`, `PLATFORM_DEFAULTS_STALE_WRITE`, etc. |
 | `3` | internal / unexpected | 5xx, malformed response body, local I/O failure on `factory` output |
-| `4` | precondition failed | no saved session at `$XDG_CONFIG_HOME/baby-phi/session` |
+| `4` | precondition failed | no saved session at `$XDG_CONFIG_HOME/phi/session` |
 | `5` | cascade aborted | `mcp-server patch-tenants` without `--confirm-cascade` |
 
 ## Common recovery paths
@@ -111,7 +111,7 @@ Stable contract mapped by [`cli/src/exit.rs`](../../../../../../modules/crates/c
 
 The operator hasn't run `bootstrap claim` yet, or the session file was deleted.
 
-Recovery: re-run `baby-phi bootstrap claim --credential <bphi-bootstrap-…> --display-name <NAME> --channel-kind web --channel-handle <URL>`. The plaintext credential is single-use; if it was already consumed, see the M1 runbook's "Credential consumed but no admin exists".
+Recovery: re-run `phi bootstrap claim --credential <bphi-bootstrap-…> --display-name <NAME> --channel-kind web --channel-handle <URL>`. The plaintext credential is single-use; if it was already consumed, see the M1 runbook's "Credential consumed but no admin exists".
 
 ### "PATCH narrows more than expected"
 
@@ -124,9 +124,9 @@ Recovery: see [`../operations/mcp-server-operations.md`](../operations/mcp-serve
 Two admins edited concurrently; your `if_version` is behind.
 
 Recovery:
-1. `baby-phi platform-defaults get --format json` — the response includes the current `version`.
+1. `phi platform-defaults get --format json` — the response includes the current `version`.
 2. Merge your intended changes on top of the fetched row.
-3. `baby-phi platform-defaults put --file <merged.json> --if-version <new-version>`.
+3. `phi platform-defaults put --file <merged.json> --if-version <new-version>`.
 
 ### "I lost the bootstrap credential plaintext"
 

@@ -1,5 +1,6 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- M4/P0 amendment: expanded Agent Taxonomy with §Agent Roles to cover the 6-variant AgentRole enum. Human-side roles (Executive / Admin / Member) added alongside the pre-existing LLM-side roles (Intern / Contract / System). Pins the is_valid_for(kind) rule. -->
 
 # Agent
 
@@ -20,7 +21,7 @@
 
 ## Agent Taxonomy
 
-baby-phi recognizes the following agent types:
+phi recognizes the following agent types:
 
 ```
                           ┌─────────┐
@@ -55,6 +56,48 @@ baby-phi recognizes the following agent types:
 | **System Agent** | Outside (fixed cost) | No | Yes | Introspection agent, project setup agent, monitoring agent |
 | **Standard / Intern** | Outside (until promoted) | No | Yes | New worker agent, < 10 jobs completed |
 | **Standard / Contract** | Inside (full participant) | Yes | Yes | Promoted agent with track record |
+
+---
+
+## Agent Roles
+
+The taxonomy above describes the **kinds** of agent (Human vs LLM, and
+the LLM subdivisions). The **role** field refines this: every agent
+(of either kind) carries an optional `role` discriminator that pins
+their governance position within the org.
+
+phi's `AgentRole` enum (M4) has **six variants** spanning both
+kinds:
+
+| Role | Valid for kind | Meaning | Examples |
+|------|---|---|---|
+| `Executive` | Human | Top-tier governance authority in an org. Typically the CEO at org creation; may delegate. Holds broad `[allocate]` grants on the org's control plane. | CEO, Founder |
+| `Admin` | Human | Operational governance — can create/edit agents, manage projects, adopt templates. Reports to `Executive`. | Platform admin, HR lead |
+| `Member` | Human | Ordinary human participant. Can be nominated as project lead/member; cannot manage the org-level control plane without additional grants. | Individual contributor, reviewer |
+| `Intern` | LLM | Standard LLM agent pre-token-economy. No bidding; fixed cost. Promotes to `Contract` after the rating threshold is met. | New worker agent |
+| `Contract` | LLM | Standard LLM agent in the token economy. Participates in bids; has a worth/value/meaning record. | Promoted agent with track record |
+| `System` | LLM | Infrastructure LLM agent (memory-extractor, agent-catalog). Lives outside the token economy. Created at org creation or page 13. | memory-extractor, agent-catalog |
+
+**Cross-kind invariant** — `AgentRole::is_valid_for(kind)` rule:
+
+- `Executive`, `Admin`, `Member` → valid only when `Agent.kind ==
+  Human`.
+- `Intern`, `Contract`, `System` → valid only when `Agent.kind ==
+  Llm`.
+
+phi's Rust code enforces this at create-time + edit-time of an
+Agent (M4 page 09 editor). Role is **immutable post-creation** at M4
+scope; role transitions (e.g., Intern → Contract) go through
+separate flows (token-economy promotion; see [token-economy.md](token-economy.md)).
+
+**`role = None`** is valid for legacy agents created before M4 (the
+field is `Option<AgentRole>`). The M4 dashboard surfaces these as
+`unclassified` in its per-role count panel. Operators may backfill a
+role via page 09 edit mode.
+
+**Canonical implementation:** `phi/modules/crates/domain/src/model/nodes.rs::AgentRole`
+(shipped at M4/P1). M4 dashboard panel: `AgentsSummary {
+executive, admin, member, intern, contract, system, unclassified }`.
 
 ---
 
