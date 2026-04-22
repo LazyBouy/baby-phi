@@ -22,7 +22,7 @@ pub mod errors;
 pub mod permission;
 pub mod session;
 
-pub use audit::emit_audit;
+pub use audit::{emit_audit, emit_audit_batch};
 pub use errors::ApiError;
 pub use permission::{check_permission, denial_to_api_error};
 pub use session::AuthenticatedSession;

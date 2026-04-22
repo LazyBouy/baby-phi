@@ -234,11 +234,73 @@ pub struct User {
 }
 
 /// Organization node — the top of the social-structure hierarchy.
+///
+/// M3 extends the M1/M2 baseline with governance fields (consent
+/// policy, default audit class, adopted authority templates) and a
+/// frozen snapshot of platform defaults (per ADR-0019's
+/// non-retroactive invariant). Fields added in M3 carry
+/// `#[serde(default)]` so pre-M3 orgs deserialised from storage keep
+/// round-tripping without a manual backfill — new fields resolve to
+/// safe defaults.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Organization {
     pub id: OrgId,
     pub display_name: String,
+    /// Operator-facing org vision statement (optional; supplied by
+    /// the M3 org-creation wizard, step 1). Purely baby-phi —
+    /// phi-core has no org-governance concept.
+    #[serde(default)]
+    pub vision: Option<String>,
+    /// Operator-facing org mission statement (same provenance as
+    /// `vision`).
+    #[serde(default)]
+    pub mission: Option<String>,
+    /// Consent policy governing cross-session data access. Captured
+    /// at creation time and frozen (the non-retroactive invariant).
+    /// Defaults to `Implicit` for pre-M3 orgs deserialised from
+    /// storage.
+    #[serde(default = "Organization::default_consent_policy")]
+    pub consent_policy: crate::model::ConsentPolicy,
+    /// Default audit tier applied when no event-specific class is
+    /// specified. Defaults to `Logged` for pre-M3 deserialisation
+    /// compatibility.
+    #[serde(default = "Organization::default_audit_class")]
+    pub audit_class_default: crate::audit::AuditClass,
+    /// Authority templates enabled for this org (subset of
+    /// `TemplateKind::{A, B, C, D}`; E is always-available, F is
+    /// reserved for M6). Applied at creation time with the org's CEO
+    /// as the approver for each template-adoption Auth Request.
+    #[serde(default)]
+    pub authority_templates_enabled: Vec<TemplateKind>,
+    /// Snapshot of platform defaults at org-creation time. Frozen —
+    /// later `PlatformDefaults` PUTs do not mutate this field. `None`
+    /// for pre-M3 orgs deserialised from storage (those orgs fall
+    /// back to reading the current platform defaults at invocation
+    /// time; this path is M3-backward-compat only).
+    #[serde(default)]
+    pub defaults_snapshot: Option<crate::model::OrganizationDefaultsSnapshot>,
+    /// Preferred model provider for this org (M3 wizard step 5). All
+    /// agents in the org default to this provider unless overridden
+    /// at agent-profile time. `None` means "use the platform default
+    /// at invocation time."
+    #[serde(default)]
+    pub default_model_provider: Option<crate::model::ids::ModelProviderId>,
+    /// System agents provisioned at org-creation time (M3 spawns two:
+    /// memory-extraction-agent + agent-catalog-agent). Used by the
+    /// dashboard's AgentsSummary panel + M5's event-subscription
+    /// wiring.
+    #[serde(default)]
+    pub system_agents: Vec<AgentId>,
     pub created_at: DateTime<Utc>,
+}
+
+impl Organization {
+    fn default_consent_policy() -> crate::model::ConsentPolicy {
+        crate::model::ConsentPolicy::Implicit
+    }
+    fn default_audit_class() -> crate::audit::AuditClass {
+        crate::audit::AuditClass::Logged
+    }
 }
 
 /// A reusable permission pattern whose adoption emits an Auth Request that

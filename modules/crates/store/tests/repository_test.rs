@@ -70,6 +70,14 @@ async fn organization_create_and_get_round_trip() {
     let org = Organization {
         id: OrgId::new(),
         display_name: "Acme".into(),
+        vision: None,
+        mission: None,
+        consent_policy: domain::model::ConsentPolicy::Implicit,
+        audit_class_default: domain::audit::AuditClass::Logged,
+        authority_templates_enabled: vec![],
+        defaults_snapshot: None,
+        default_model_provider: None,
+        system_agents: vec![],
         created_at: Utc::now(),
     };
     store.create_organization(&org).await.expect("create");

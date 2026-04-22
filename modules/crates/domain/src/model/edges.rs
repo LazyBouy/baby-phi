@@ -1,4 +1,4 @@
-//! The 66 edge types the v0 ontology defines.
+//! The 67 edge types the v0 ontology defines.
 //!
 //! Edges are modelled as a single tagged enum [`Edge`]. Each variant's payload
 //! carries the edge's ID and the IDs of its `from` and `to` nodes. Where the
@@ -7,7 +7,7 @@
 //! target; `HOLDS_GRANT` from Agent/Project/Org; `PROVIDES_TOOL` from
 //! McpServer/OpenApiSpec; `OWNED_BY` both as Agent→User and generic
 //! Resource→Principal), we model each source/target type pair as a distinct
-//! variant — this is what gets the count to 66.
+//! variant — this is what gets the count to 67.
 //!
 //! Source of truth: `docs/specs/v0/concepts/ontology.md` §Edge Types.
 
@@ -20,7 +20,7 @@ use super::ids::{
 
 /// Every edge type in the v0 ontology.
 ///
-/// Count: **66** (invariant asserted in [`tests`]).
+/// Count: **67** (invariant asserted in [`tests`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "edge")]
 pub enum Edge {
@@ -254,6 +254,14 @@ pub enum Edge {
         from: ProjectId,
         to: AgentId,
     },
+    /// Project P → Agent X: X is the designated lead of P. M3/P1 adds
+    /// the variant so the Template A pure-fn constructor (M3/P2) can
+    /// name it as its trigger condition; M5 wires the template firing.
+    HasLead {
+        id: EdgeId,
+        from: ProjectId,
+        to: AgentId,
+    },
     HasTask {
         id: EdgeId,
         from: ProjectId,
@@ -432,6 +440,7 @@ impl Edge {
             Edge::HasSuborganization { .. } => "HAS_SUBORGANIZATION",
             Edge::HasSponsor { .. } => "HAS_SPONSOR",
             Edge::HasAgent { .. } => "HAS_AGENT",
+            Edge::HasLead { .. } => "HAS_LEAD",
             Edge::HasTask { .. } => "HAS_TASK",
             Edge::BelongsTo { .. } => "BELONGS_TO",
             Edge::AssignedTo { .. } => "ASSIGNED_TO",
@@ -463,9 +472,9 @@ impl Edge {
 
 /// Every edge kind name, in the same order as the concept doc's tables.
 ///
-/// Used by tests to assert the 66 count. Strings here mirror
+/// Used by tests to assert the 67 count. Strings here mirror
 /// [`Edge::name`] outputs for the same variant order.
-pub const EDGE_KIND_NAMES: [&str; 66] = [
+pub const EDGE_KIND_NAMES: [&str; 67] = [
     "HAS_PROFILE",
     "USES_MODEL",
     "HAS_TOOL",
@@ -510,6 +519,7 @@ pub const EDGE_KIND_NAMES: [&str; 66] = [
     "HAS_SUBORGANIZATION",
     "HAS_SPONSOR",
     "HAS_AGENT",
+    "HAS_LEAD",
     "HAS_TASK",
     "BELONGS_TO",
     "ASSIGNED_TO",
@@ -593,14 +603,14 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn edge_kind_names_is_exactly_66() {
-        assert_eq!(EDGE_KIND_NAMES.len(), 66);
+    fn edge_kind_names_is_exactly_67() {
+        assert_eq!(EDGE_KIND_NAMES.len(), 67);
     }
 
     #[test]
     fn edge_kind_names_are_distinct() {
         let set: HashSet<_> = EDGE_KIND_NAMES.iter().collect();
-        assert_eq!(set.len(), 66);
+        assert_eq!(set.len(), 67);
     }
 
     #[test]

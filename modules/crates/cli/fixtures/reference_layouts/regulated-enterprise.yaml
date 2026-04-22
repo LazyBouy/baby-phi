@@ -1,0 +1,25 @@
+# Reference layout — regulated-enterprise (M3/P4).
+#
+# Models an org under external compliance: per-session consent,
+# alerted audit default, full template suite (A/B/C/D). Large token
+# budget reflects typical internal-LLM usage at enterprise scale.
+
+display_name: Regulated Enterprise
+vision: Ship AI-assisted workflows under SOC2/HIPAA constraints.
+mission: Every agent decision trail re-verifiable by a human auditor.
+
+consent_policy: per_session
+audit_class_default: alerted
+authority_templates_enabled:
+  - a
+  - b
+  - c
+  - d
+
+default_model_provider: null
+
+ceo_display_name: Carol Compliance
+ceo_channel_kind: email
+ceo_channel_handle: carol@regulated.enterprise.test
+
+token_budget: 50000000

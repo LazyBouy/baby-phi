@@ -29,8 +29,8 @@ use crate::model::{
     TenantSet,
 };
 use crate::repository::{
-    BootstrapCredentialRow, Repository, RepositoryError, RepositoryResult, SealedBlob,
-    TenantRevocation,
+    BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, Repository, RepositoryError,
+    RepositoryResult, SealedBlob, TenantRevocation,
 };
 
 #[derive(Default)]
@@ -59,6 +59,8 @@ struct State {
     model_providers: HashMap<ModelProviderId, ModelRuntime>,
     mcp_servers: HashMap<McpServerId, ExternalService>,
     platform_defaults: Option<PlatformDefaults>,
+    // M3/P3 additions.
+    token_budget_pools: HashMap<NodeId, crate::model::composites_m3::TokenBudgetPool>,
 }
 
 #[derive(Clone)]
@@ -781,6 +783,236 @@ impl Repository for InMemoryRepository {
     ) -> RepositoryResult<()> {
         self.seed_catalogue_entry(owning_org, resource_uri, composite.kind_name())
             .await
+    }
+
+    // ---- M3 org-scoped reads --------------------------------------
+
+    async fn list_agents_in_org(&self, org: OrgId) -> RepositoryResult<Vec<Agent>> {
+        let state = self.lock()?;
+        Ok(state
+            .agents
+            .values()
+            .filter(|a| a.owning_org == Some(org))
+            .cloned()
+            .collect())
+    }
+
+    async fn list_all_orgs(&self) -> RepositoryResult<Vec<Organization>> {
+        let state = self.lock()?;
+        Ok(state.organizations.values().cloned().collect())
+    }
+
+    async fn list_projects_in_org(
+        &self,
+        _org: OrgId,
+    ) -> RepositoryResult<Vec<crate::model::ids::ProjectId>> {
+        // v0 has no `Project` struct + no projects table — M4 will wire
+        // them. Returning an empty Vec today lets the dashboard panel
+        // render a "0 projects" count without special-casing
+        // unimplemented-method handling on the caller side.
+        Ok(vec![])
+    }
+
+    async fn list_active_auth_requests_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>> {
+        let state = self.lock()?;
+        // Non-terminal states = not-yet-decided. The 9-state machine's
+        // terminal set is {Approved, Denied, Partial, Expired,
+        // Withdrawn, Escalated, Archived}; Draft / Pending /
+        // InProgress are the dashboard-visible active states.
+        use crate::model::nodes::AuthRequestState as S;
+        let agents_in_org: std::collections::HashSet<AgentId> = state
+            .agents
+            .values()
+            .filter(|a| a.owning_org == Some(org))
+            .map(|a| a.id)
+            .collect();
+        Ok(state
+            .auth_requests
+            .values()
+            .filter(|r| {
+                !r.archived
+                    && matches!(r.state, S::Draft | S::Pending | S::InProgress)
+                    && match &r.requestor {
+                        PrincipalRef::Organization(o) => *o == org,
+                        PrincipalRef::Agent(a) => agents_in_org.contains(a),
+                        _ => false,
+                    }
+            })
+            .cloned()
+            .collect())
+    }
+
+    async fn list_recent_audit_events_for_org(
+        &self,
+        org: OrgId,
+        limit: usize,
+    ) -> RepositoryResult<Vec<AuditEvent>> {
+        let state = self.lock()?;
+        let mut matching: Vec<AuditEvent> = state
+            .audit_events
+            .iter()
+            .filter(|e| e.org_scope == Some(org))
+            .cloned()
+            .collect();
+        // Newest-first — matches the SurrealDB `ORDER BY timestamp
+        // DESC` in the sibling implementation.
+        matching.sort_by_key(|e| std::cmp::Reverse(e.timestamp));
+        matching.truncate(limit);
+        Ok(matching)
+    }
+
+    async fn list_adoption_auth_requests_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>> {
+        let state = self.lock()?;
+        // Match by URI prefix — adoption ARs carry
+        // `org:<id>/template:<kind>` as their resource URI (see
+        // `domain::templates::adoption::build_adoption_request`).
+        let prefix = format!("org:{}/template:", org);
+        Ok(state
+            .auth_requests
+            .values()
+            .filter(|r| {
+                r.resource_slots
+                    .iter()
+                    .any(|s| s.resource.uri.starts_with(&prefix))
+            })
+            .cloned()
+            .collect())
+    }
+
+    async fn apply_org_creation(
+        &self,
+        payload: &OrgCreationPayload,
+    ) -> RepositoryResult<OrgCreationReceipt> {
+        // Pseudo-atomicity via the single write-lock (same pattern as
+        // `apply_bootstrap_claim`). Pre-flight validates every
+        // invariant before mutating, so a rejection leaves zero
+        // partial state.
+        let mut state = self.lock()?;
+
+        let org_id = payload.organization.id;
+
+        // ---- pre-flight validation ------------------------------
+        if state.organizations.contains_key(&org_id) {
+            return Err(RepositoryError::Conflict(format!(
+                "organization already exists: {org_id}"
+            )));
+        }
+        if state
+            .token_budget_pools
+            .values()
+            .any(|p| p.owning_org == org_id)
+        {
+            return Err(RepositoryError::Conflict(format!(
+                "token_budget_pool already exists for org: {org_id}"
+            )));
+        }
+        if payload.ceo_agent.owning_org != Some(org_id) {
+            return Err(RepositoryError::InvalidArgument(
+                "ceo_agent.owning_org must match organization.id".into(),
+            ));
+        }
+        for (agent, _profile) in &payload.system_agents {
+            if agent.owning_org != Some(org_id) {
+                return Err(RepositoryError::InvalidArgument(
+                    "system_agent.owning_org must match organization.id".into(),
+                ));
+            }
+        }
+        if payload.token_budget_pool.owning_org != org_id {
+            return Err(RepositoryError::InvalidArgument(
+                "token_budget_pool.owning_org must match organization.id".into(),
+            ));
+        }
+
+        // ---- commit --------------------------------------------
+        state
+            .organizations
+            .insert(org_id, payload.organization.clone());
+        state
+            .agents
+            .insert(payload.ceo_agent.id, payload.ceo_agent.clone());
+        state
+            .channels
+            .insert(payload.ceo_channel.id, payload.ceo_channel.clone());
+        state
+            .inboxes
+            .insert(payload.ceo_inbox.id, payload.ceo_inbox.clone());
+        state
+            .outboxes
+            .insert(payload.ceo_outbox.id, payload.ceo_outbox.clone());
+        state
+            .grants
+            .insert(payload.ceo_grant.id, payload.ceo_grant.clone());
+
+        let mut system_agent_ids = [payload.system_agents[0].0.id, payload.system_agents[1].0.id];
+        let mut system_agent_profile_ids =
+            [payload.system_agents[0].1.id, payload.system_agents[1].1.id];
+        // `Vec<Agent>` iteration order is unspecified but `[T; 2]` is
+        // stable — we emit ids in the order the caller supplied to
+        // keep `OrgCreationReceipt.system_agent_ids` deterministic.
+        for (agent, profile) in &payload.system_agents {
+            state.agents.insert(agent.id, agent.clone());
+            state.agent_profiles.insert(profile.id, profile.clone());
+        }
+        // Defensive: we assigned the pair from indices 0/1, so no-op
+        // here; kept to document the stable-order invariant.
+        system_agent_ids.sort_by_key(|id| {
+            payload
+                .system_agents
+                .iter()
+                .position(|(a, _)| a.id == *id)
+                .expect("id came from payload")
+        });
+        system_agent_profile_ids.sort_by_key(|id| {
+            payload
+                .system_agents
+                .iter()
+                .position(|(_, p)| p.id == *id)
+                .expect("id came from payload")
+        });
+
+        state.token_budget_pools.insert(
+            payload.token_budget_pool.id,
+            payload.token_budget_pool.clone(),
+        );
+
+        let mut adoption_ar_ids = Vec::with_capacity(payload.adoption_auth_requests.len());
+        for ar in &payload.adoption_auth_requests {
+            state.auth_requests.insert(ar.id, ar.clone());
+            adoption_ar_ids.push(ar.id);
+        }
+
+        for (uri, kind) in &payload.catalogue_entries {
+            state
+                .catalogue
+                .push((Some(org_id), uri.clone(), kind.clone()));
+        }
+
+        // ADR-0023 invariant check (defensive): no per-agent
+        // ExecutionLimits / RetryPolicy / CachePolicy / CompactionPolicy
+        // nodes are materialised here. The in-memory backend has no
+        // HashMap slots for those at all, which enforces the invariant
+        // structurally. This comment documents the intent for future
+        // readers / bug-fixers.
+
+        Ok(OrgCreationReceipt {
+            org_id,
+            ceo_agent_id: payload.ceo_agent.id,
+            ceo_channel_id: payload.ceo_channel.id,
+            ceo_inbox_id: payload.ceo_inbox.id,
+            ceo_outbox_id: payload.ceo_outbox.id,
+            ceo_grant_id: payload.ceo_grant.id,
+            system_agent_ids,
+            system_agent_profile_ids,
+            token_budget_pool_id: payload.token_budget_pool.id,
+            adoption_auth_request_ids: adoption_ar_ids,
+        })
     }
 }
 

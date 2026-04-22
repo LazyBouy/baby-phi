@@ -7,5 +7,6 @@ pub mod completion;
 pub mod login;
 pub mod mcp_server;
 pub mod model_provider;
+pub mod org;
 pub mod platform_defaults;
 pub mod secrets;

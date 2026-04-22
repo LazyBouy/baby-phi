@@ -9,3 +9,4 @@
 //! assert on the same shape. See decision D12 in the archived M2 plan.
 
 pub mod m2;
+pub mod m3;

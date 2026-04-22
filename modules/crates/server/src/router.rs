@@ -83,7 +83,12 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/platform/defaults",
             get(handlers::platform_defaults::get).put(handlers::platform_defaults::put),
-        );
+        )
+        .route(
+            "/orgs",
+            get(handlers::orgs::list).post(handlers::orgs::create),
+        )
+        .route("/orgs/:id", get(handlers::orgs::show));
 
     Router::new()
         .route("/healthz/live", get(health::live))

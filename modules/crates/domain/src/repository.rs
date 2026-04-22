@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::audit::AuditEvent;
 use crate::model::ids::{
     AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
-    OrgId, SecretId,
+    OrgId, ProjectId, SecretId,
 };
 use crate::model::nodes::{
     Agent, AgentProfile, AuthRequest, Channel, Consent, Grant, InboxObject, Memory, Organization,
@@ -120,6 +120,83 @@ pub struct BootstrapClaim {
     /// The `PlatformAdminClaimed` audit event (R-ADMIN-01-N1 /
     /// R-SYS-s01 side-effects).
     pub audit_event: crate::audit::AuditEvent,
+}
+
+// ----------------------------------------------------------------------------
+// Org-creation payload (M3/P3) — everything `apply_org_creation` commits
+// atomically. See ADR-0022 (compound transaction) + ADR-0023
+// (inherit-from-snapshot — no per-agent ExecutionLimits/ContextConfig/
+// RetryConfig nodes are created).
+// ----------------------------------------------------------------------------
+
+/// Full payload for `Repository::apply_org_creation`.
+///
+/// Constructed by the M3/P4 wizard orchestrator from the validated POST
+/// body + resolved platform defaults. The orchestrator clones
+/// `phi_core::AgentProfile` out of `organization.defaults_snapshot`,
+/// overrides `name` / `system_prompt` per role, and bundles everything
+/// here before handing the payload to the repo for a single-transaction
+/// commit.
+///
+/// Ordering of the internal vectors is preserved — adoption auth
+/// requests commit in the order the orchestrator supplies them, which
+/// is also the order their companion `authority_template.adopted`
+/// audit events emit in `emit_audit_batch`.
+#[derive(Debug, Clone)]
+pub struct OrgCreationPayload {
+    /// The new org node. Orchestrator freezes `defaults_snapshot` here
+    /// per ADR-0019 before calling; repo persists as-is.
+    pub organization: crate::model::nodes::Organization,
+    /// The CEO Human Agent.
+    pub ceo_agent: crate::model::nodes::Agent,
+    /// CEO's reach-me channel (Slack / email / web).
+    pub ceo_channel: crate::model::nodes::Channel,
+    /// CEO's inbox (governance inbox, not phi-core runtime inbox).
+    pub ceo_inbox: crate::model::nodes::InboxObject,
+    /// CEO's outbox.
+    pub ceo_outbox: crate::model::nodes::OutboxObject,
+    /// CEO's `[allocate]`-on-`org:<id>` grant — the root authority
+    /// over the org's control-plane surface.
+    pub ceo_grant: crate::model::nodes::Grant,
+    /// Two system agents + their `AgentProfile` nodes. Each profile's
+    /// `blueprint: phi_core::agents::profile::AgentProfile` carries
+    /// the role-specific system prompt.
+    pub system_agents: [(
+        crate::model::nodes::Agent,
+        crate::model::nodes::AgentProfile,
+    ); 2],
+    /// Org-level token budget pool (1:1 with org).
+    pub token_budget_pool: crate::model::composites_m3::TokenBudgetPool,
+    /// One Template-E-shaped adoption AR per enabled template (subset
+    /// of A / B / C / D). Orchestrator is free to supply empty if the
+    /// org adopts no templates.
+    pub adoption_auth_requests: Vec<crate::model::nodes::AuthRequest>,
+    /// Catalogue seeds: `(resource_uri, kind)` pairs scoped to this org.
+    /// Must include at minimum the org's control-plane URI
+    /// (`org:<id>`), each adoption AR's template URI
+    /// (`org:<id>/template:<kind>`), and the CEO's inbox/outbox URIs.
+    pub catalogue_entries: Vec<(String, String)>,
+}
+
+/// Everything the caller (M3/P4 handler) needs after a successful
+/// `apply_org_creation` commit — ids to emit audit events against,
+/// ids to include in the HTTP response, ids to thread into the
+/// post-commit message-delivery hooks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrgCreationReceipt {
+    pub org_id: OrgId,
+    pub ceo_agent_id: AgentId,
+    pub ceo_channel_id: NodeId,
+    pub ceo_inbox_id: NodeId,
+    pub ceo_outbox_id: NodeId,
+    pub ceo_grant_id: GrantId,
+    pub system_agent_ids: [AgentId; 2],
+    pub system_agent_profile_ids: [NodeId; 2],
+    pub token_budget_pool_id: NodeId,
+    /// Adoption AR ids, in the same order as
+    /// `OrgCreationPayload.adoption_auth_requests` (so the caller can
+    /// pair each with its companion audit event).
+    pub adoption_auth_request_ids: Vec<AuthRequestId>,
 }
 
 // ----------------------------------------------------------------------------
@@ -453,6 +530,110 @@ pub trait Repository: Send + Sync + 'static {
         resource_uri: &str,
         composite: Composite,
     ) -> RepositoryResult<()>;
+
+    // ================================================================
+    // M3 additions — admin pages 06–07.
+    //
+    // Org-scoped list methods that page 07 (dashboard) relies on.
+    // Every read is by `OrgId`; unknown-org returns `Ok(vec![])`
+    // (not `Err(NotFound)`) so empty-org paths stay distinct from
+    // repository failures. Landed in M3/P2 per commitment C5.
+    // ================================================================
+
+    /// List every Agent whose `owning_org == Some(org)`. Includes all
+    /// kinds (Human / Intern / Contract / System). Returns an empty
+    /// `Vec` when the org is unknown or has no members yet. Used by
+    /// the M3/P5 dashboard's `AgentsSummary` panel.
+    async fn list_agents_in_org(&self, org: OrgId) -> RepositoryResult<Vec<Agent>>;
+
+    /// List every organization in the platform. Used by M3/P4's
+    /// `GET /api/v0/orgs` index. No pagination at M3 (dashboard fits
+    /// tens of orgs); M4 adds a cursor-based variant if platform
+    /// volume demands.
+    async fn list_all_orgs(&self) -> RepositoryResult<Vec<Organization>>;
+
+    /// List every Project belonging to `org`. **M3 note**: v0's
+    /// `Project` surface is minimal (no dedicated struct yet; M4
+    /// fleshes it). Today the method returns `Vec<ProjectId>` so
+    /// the M3/P5 dashboard's `ProjectsSummary` panel can render a
+    /// count even before projects are persisted. When M4 adds the
+    /// Project struct + persistence, the return type will migrate
+    /// to `Vec<Project>` in a coordinated change.
+    async fn list_projects_in_org(&self, org: OrgId) -> RepositoryResult<Vec<ProjectId>>;
+
+    /// List every non-terminal Auth Request requested by a principal
+    /// belonging to `org`. "Non-terminal" = state ∈ {Draft, Pending,
+    /// InProgress} (terminal states are Approved / Denied / Partial
+    /// / Expired / Withdrawn / Escalated / Archived). Excludes
+    /// `archived = true` rows regardless of state.
+    ///
+    /// Used by the M3/P5 dashboard's `PendingAuthRequests` panel.
+    async fn list_active_auth_requests_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>>;
+
+    /// List up to `limit` most-recent audit events whose `org_scope ==
+    /// Some(org)`. Results are ordered newest-first by `timestamp`.
+    /// Used by the M3/P5 dashboard's `RecentAuditEvents` panel.
+    async fn list_recent_audit_events_for_org(
+        &self,
+        org: OrgId,
+        limit: usize,
+    ) -> RepositoryResult<Vec<AuditEvent>>;
+
+    /// List every adoption AR (template kinds A / B / C / D) for
+    /// `org`. Filter: AR's resource URI starts with
+    /// `org:<id>/template:` AND `provenance_template` points at a
+    /// template node of one of the A-D kinds (M3/P4 wires the
+    /// provenance on persist).
+    ///
+    /// Adoption ARs are terminal-Approved (Template-E-shaped); this
+    /// method returns every one regardless of `archived` so the
+    /// dashboard's `AdoptedTemplates` panel can display both active
+    /// and revoked adoptions.
+    ///
+    /// Returns `Vec<AuthRequest>` so callers can render
+    /// `template_kind` from the referenced Template node without a
+    /// second query (the caller already has the Template rows cached
+    /// from the org-creation flow).
+    async fn list_adoption_auth_requests_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>>;
+
+    // ---- Org creation compound tx (M3/P3) -----------------------------
+    //
+    // Single atomic write: Organization + CEO Agent/Channel/Inbox/Outbox/
+    // Grant + 2 system agents + 2 AgentProfile nodes + TokenBudgetPool
+    // + N adoption Auth Requests + the edge set
+    // (HasCeo / HasMember / MemberOf / HasInbox / HasOutbox / HasChannel
+    // / HasProfile) + catalogue seeds.
+    //
+    // See ADR-0022 for the compound-tx rationale; ADR-0023 pins the
+    // inherit-from-snapshot invariant (no per-agent phi-core-wrap
+    // nodes). `UsesModel` edge wiring is deferred to M5 session launch.
+
+    /// Commit the full M3 org-creation write in one atomic transaction.
+    ///
+    /// On `Ok(OrgCreationReceipt)`, every entity in `payload` is
+    /// durable and the caller may emit the `platform.organization.created`
+    /// + N `authority_template.adopted` audit events via
+    /// `handler_support::audit::emit_audit_batch`. On `Err(_)`, **no**
+    /// partial state survives — the SurrealDB impl wraps every write
+    /// in `BEGIN TRANSACTION … COMMIT TRANSACTION`; the in-memory impl
+    /// validates first and then applies under a single write-lock.
+    ///
+    /// Pre-conditions (caller's responsibility):
+    /// - `payload.organization.id` is fresh (unique).
+    /// - Every `system_agents[n].0.owning_org == Some(payload.organization.id)`.
+    /// - `payload.ceo_agent.owning_org == Some(payload.organization.id)`.
+    /// - Every `adoption_auth_requests[n].state == AuthRequestState::Approved`.
+    /// - `payload.token_budget_pool.owning_org == payload.organization.id`.
+    async fn apply_org_creation(
+        &self,
+        payload: &OrgCreationPayload,
+    ) -> RepositoryResult<OrgCreationReceipt>;
 }
 
 /// One cascade hit recorded by [`Repository::narrow_mcp_tenants`] —

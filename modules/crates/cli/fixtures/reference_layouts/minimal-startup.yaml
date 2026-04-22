@@ -1,0 +1,35 @@
+# Reference layout — minimal-startup (M3/P4).
+#
+# One of 3 layouts shipped at M3 (full 10-layout parity is M8 scope
+# per plan §G18). Models the smallest operator-interesting org:
+# implicit consent, single human CEO, one adopted authority template.
+#
+# Consumed by `baby-phi org create --from-layout <this>.yaml` — the
+# CLI deserialises this file, re-encodes as JSON, and POSTs to
+# `/api/v0/orgs` verbatim. Every field here maps 1:1 to the
+# `CreateOrgRequest` wire shape in
+# `modules/crates/server/src/handlers/orgs.rs`.
+#
+# phi-core transit: `defaults_snapshot_override` is omitted so the
+# server snapshot-copies current platform defaults (the ADR-0019
+# default path). When present, the field would wrap 4 phi-core
+# types (ExecutionLimits / ContextConfig / RetryConfig /
+# AgentProfile); see `regulated-enterprise.yaml` for an example.
+
+display_name: Minimal Startup
+vision: Ship the simplest org shape the platform supports.
+mission: Prove the compound-tx path + wizard primitives.
+
+consent_policy: implicit
+audit_class_default: logged
+authority_templates_enabled:
+  - a
+
+# No override — server snapshots platform defaults.
+default_model_provider: null
+
+ceo_display_name: Alice Founder
+ceo_channel_kind: email
+ceo_channel_handle: alice@minimal.startup.test
+
+token_budget: 500000

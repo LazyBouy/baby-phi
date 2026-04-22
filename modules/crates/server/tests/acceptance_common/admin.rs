@@ -120,3 +120,184 @@ pub async fn spawn_claimed(with_metrics: bool) -> ClaimedAdmin {
         authed_client,
     }
 }
+
+// ============================================================================
+// M3/P3 — `spawn_claimed_with_org` fixture
+// ============================================================================
+
+/// Every page-test at M3/P4+ that needs a populated org starts here:
+/// the acceptance server + the platform-admin-claimed environment +
+/// one minimal-startup-shaped org (CEO, 2 system agents, 1 adopted
+/// template, 1 token budget pool).
+pub struct ClaimedOrg {
+    pub admin: ClaimedAdmin,
+    pub org_id: domain::model::ids::OrgId,
+    pub ceo_agent_id: domain::model::ids::AgentId,
+    pub system_agents: [domain::model::ids::AgentId; 2],
+}
+
+impl ClaimedOrg {
+    pub fn url(&self, path: &str) -> String {
+        self.admin.url(path)
+    }
+}
+
+/// Boot a claimed environment + create a minimal-startup-shaped
+/// organization via the compound `apply_org_creation` transaction.
+///
+/// **M3/P3 stub-body note**: the plan commits to driving the org
+/// through the real `POST /api/v0/orgs` wizard flow at P4. The P3
+/// fixture instead reaches into the harness's `Arc<SurrealStore>` and
+/// calls [`domain::Repository::apply_org_creation`] directly — this
+/// lets downstream P3 tests (e.g. the two-orgs audit-chain proptest)
+/// use a real, populated org without waiting for the HTTP endpoint.
+/// P4 replaces the body with the wizard submission without breaking
+/// the public signature.
+pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
+    use chrono::Utc;
+    use domain::audit::AuditClass;
+    use domain::model::composites_m3::{ConsentPolicy, TokenBudgetPool};
+    use domain::model::ids::{AgentId, GrantId, NodeId, OrgId};
+    use domain::model::nodes::{
+        Agent, AgentKind, AgentProfile, Channel, ChannelKind, Grant, InboxObject, Organization,
+        OutboxObject, PrincipalRef, ResourceRef, TemplateKind,
+    };
+    use domain::model::Fundamental;
+    use domain::repository::{OrgCreationPayload, Repository};
+    use domain::templates::a;
+
+    let admin = spawn_claimed(with_metrics).await;
+
+    let org_id = OrgId::new();
+    // CEO is a FRESH Human agent owned by the new org — distinct from
+    // `admin.agent_id` (the platform admin). A real wizard at M3/P4
+    // may have the admin nominate themselves or a different human.
+    let ceo_agent = Agent {
+        id: AgentId::new(),
+        kind: AgentKind::Human,
+        display_name: "CEO".into(),
+        owning_org: Some(org_id),
+        created_at: Utc::now(),
+    };
+    let ceo_channel = Channel {
+        id: NodeId::new(),
+        agent_id: ceo_agent.id,
+        kind: ChannelKind::Email,
+        handle: "ceo@fixture.test".into(),
+        created_at: Utc::now(),
+    };
+    let ceo_inbox = InboxObject {
+        id: NodeId::new(),
+        agent_id: ceo_agent.id,
+        created_at: Utc::now(),
+    };
+    let ceo_outbox = OutboxObject {
+        id: NodeId::new(),
+        agent_id: ceo_agent.id,
+        created_at: Utc::now(),
+    };
+    let ceo_grant = Grant {
+        id: GrantId::new(),
+        holder: PrincipalRef::Agent(ceo_agent.id),
+        action: vec!["allocate".into()],
+        resource: ResourceRef {
+            uri: format!("org:{}", org_id),
+        },
+        fundamentals: vec![Fundamental::IdentityPrincipal, Fundamental::Tag],
+        descends_from: None,
+        delegable: true,
+        issued_at: Utc::now(),
+        revoked_at: None,
+    };
+    // Two system agents with phi-core blueprints — the same role
+    // defaults M3/P4 will assign at the real wizard.
+    let sys0_agent = Agent {
+        id: AgentId::new(),
+        kind: AgentKind::Llm,
+        display_name: "memory-extractor".into(),
+        owning_org: Some(org_id),
+        created_at: Utc::now(),
+    };
+    let sys1_agent = Agent {
+        id: AgentId::new(),
+        kind: AgentKind::Llm,
+        display_name: "agent-catalog".into(),
+        owning_org: Some(org_id),
+        created_at: Utc::now(),
+    };
+    let sys0_blueprint = phi_core::agents::profile::AgentProfile {
+        name: Some("memory-extractor".into()),
+        system_prompt: Some("You distill agent memories.".into()),
+        ..phi_core::agents::profile::AgentProfile::default()
+    };
+    let sys1_blueprint = phi_core::agents::profile::AgentProfile {
+        name: Some("agent-catalog".into()),
+        system_prompt: Some("You maintain the org's agent catalogue.".into()),
+        ..phi_core::agents::profile::AgentProfile::default()
+    };
+    let sys0_profile = AgentProfile {
+        id: NodeId::new(),
+        agent_id: sys0_agent.id,
+        parallelize: 1,
+        blueprint: sys0_blueprint,
+        created_at: Utc::now(),
+    };
+    let sys1_profile = AgentProfile {
+        id: NodeId::new(),
+        agent_id: sys1_agent.id,
+        parallelize: 1,
+        blueprint: sys1_blueprint,
+        created_at: Utc::now(),
+    };
+    let sys_ids = [sys0_agent.id, sys1_agent.id];
+    let organization = Organization {
+        id: org_id,
+        display_name: "Fixture Org".into(),
+        vision: None,
+        mission: None,
+        consent_policy: ConsentPolicy::Implicit,
+        audit_class_default: AuditClass::Logged,
+        authority_templates_enabled: vec![TemplateKind::A],
+        defaults_snapshot: None,
+        default_model_provider: None,
+        system_agents: sys_ids.to_vec(),
+        created_at: Utc::now(),
+    };
+    let token_budget_pool = TokenBudgetPool::new(org_id, 1_000_000, Utc::now());
+    let adoption_ar = a::build_adoption_request(a::AdoptionArgs {
+        org_id,
+        ceo: PrincipalRef::Agent(ceo_agent.id),
+        now: Utc::now(),
+    });
+
+    let payload = OrgCreationPayload {
+        organization,
+        ceo_agent: ceo_agent.clone(),
+        ceo_channel,
+        ceo_inbox,
+        ceo_outbox,
+        ceo_grant,
+        system_agents: [(sys0_agent, sys0_profile), (sys1_agent, sys1_profile)],
+        token_budget_pool,
+        adoption_auth_requests: vec![adoption_ar],
+        catalogue_entries: vec![
+            (format!("org:{}", org_id), "control_plane".into()),
+            (format!("org:{}/template:a", org_id), "control_plane".into()),
+        ],
+    };
+
+    let ceo_agent_id = ceo_agent.id;
+    admin
+        .acc
+        .store
+        .apply_org_creation(&payload)
+        .await
+        .expect("spawn_claimed_with_org: apply_org_creation should succeed on a fresh store");
+
+    ClaimedOrg {
+        admin,
+        org_id,
+        ceo_agent_id,
+        system_agents: sys_ids,
+    }
+}

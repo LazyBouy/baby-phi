@@ -31,7 +31,8 @@ use domain::model::nodes::{
     OutboxObject, PrincipalRef, ResourceRef, Template, ToolAuthorityManifest, User,
 };
 use domain::repository::{
-    BootstrapClaim, BootstrapCredentialRow, Repository, RepositoryError, RepositoryResult,
+    BootstrapClaim, BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, Repository,
+    RepositoryError, RepositoryResult,
 };
 
 use crate::SurrealStore;
@@ -1166,6 +1167,376 @@ impl Repository for SurrealStore {
     ) -> RepositoryResult<()> {
         self.m2_seed_catalogue_entry_for_composite(owning_org, resource_uri, composite)
             .await
+    }
+
+    // ================================================================
+    // M3 org-scoped reads — admin pages 06 (wizard show-after-create)
+    // + 07 (dashboard). No writes in this group; every method is a
+    // simple SELECT + row decode. Unknown org yields `Ok(vec![])`
+    // (not `NotFound`) so empty-org paths stay distinct from errors.
+    // ================================================================
+
+    async fn list_agents_in_org(&self, org: OrgId) -> RepositoryResult<Vec<Agent>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM agent \
+                 WHERE owning_org = $org",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("agent row missing _rid".into()))?;
+            let agent_id = AgentId::from_uuid(parse_uuid(&rid)?);
+            let row = inject_id(row, agent_id)?;
+            out.push(serde_json::from_value(row).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_all_orgs(&self) -> RepositoryResult<Vec<Organization>> {
+        let mut resp = self
+            .client()
+            .query("SELECT *, record::id(id) AS _rid OMIT id FROM organization")
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("organization row missing _rid".into()))?;
+            let org_id = OrgId::from_uuid(parse_uuid(&rid)?);
+            let row = inject_id(row, org_id)?;
+            out.push(serde_json::from_value(row).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_projects_in_org(
+        &self,
+        _org: OrgId,
+    ) -> RepositoryResult<Vec<domain::model::ids::ProjectId>> {
+        // v0 has no persisted `project` table; M4 wires project
+        // creation + the dashboard panel. Returning an empty Vec today
+        // lets M3/P5's handler + CLI + web panel render "0 projects"
+        // cleanly until M4.
+        Ok(vec![])
+    }
+
+    async fn list_active_auth_requests_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>> {
+        // Active = non-terminal state {draft, pending, in_progress}
+        // AND not archived. Requestor belongs to `org` either directly
+        // (an Organization principal with matching id) or
+        // transitively (an Agent whose `owning_org = org`).
+        //
+        // The SurrealQL filter below spells the two cases out. For the
+        // Agent-in-org case we rely on the already-indexed
+        // `agent.owning_org` column rather than joining — the agent
+        // set is small and the query planner gets a better plan
+        // against `agent.owning_org` than against a relation walk.
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id \
+                 FROM auth_request \
+                 WHERE archived = false \
+                   AND state IN ['draft', 'pending', 'in_progress'] \
+                   AND ( \
+                        (requestor_kind = 'organization' AND requestor_id = $org) \
+                        OR \
+                        (requestor_kind = 'agent' AND requestor_id IN \
+                          (SELECT VALUE record::id(id) FROM agent WHERE owning_org = $org)) \
+                   )",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("auth_request row missing _rid".into()))?;
+            let arid = AuthRequestId::from_uuid(parse_uuid(&rid)?);
+            let arow: AuthRequestRow = serde_json::from_value(row).map_err(backend)?;
+            out.push(arow.into_domain(arid)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_recent_audit_events_for_org(
+        &self,
+        org: OrgId,
+        limit: usize,
+    ) -> RepositoryResult<Vec<AuditEvent>> {
+        // ORDER BY timestamp DESC uses the compound index
+        // `audit_events_org_timestamp` (org_scope, timestamp) from
+        // migration 0001 — the dashboard's "recent events" panel
+        // pulls a small window newest-first.
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS __id OMIT id FROM audit_events \
+                 WHERE org_scope = $org \
+                 ORDER BY timestamp DESC \
+                 LIMIT $limit",
+            )
+            .bind(("org", org.to_string()))
+            .bind(("limit", limit as i64))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let id_str = row
+                .as_object_mut()
+                .and_then(|m| m.remove("__id"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("audit_events row missing __id".into()))?;
+            let event_id = AuditEventId::from_uuid(parse_uuid(&id_str)?);
+            let parsed: AuditEventRow = serde_json::from_value(row).map_err(backend)?;
+            out.push(parsed.into_domain(event_id)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_adoption_auth_requests_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>> {
+        // Adoption ARs carry `org:<id>/template:<kind>` as their
+        // resource URI — see
+        // `domain::templates::adoption::build_adoption_request`.
+        // `string::starts_with` does the prefix match; include
+        // archived rows so the dashboard's `AdoptedTemplates` panel
+        // can display revoked adoptions alongside live ones.
+        let prefix = format!("org:{}/template:", org);
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id \
+                 FROM auth_request \
+                 WHERE resource_slots[WHERE string::starts_with(resource.uri, $prefix)] != []",
+            )
+            .bind(("prefix", prefix))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("auth_request row missing _rid".into()))?;
+            let arid = AuthRequestId::from_uuid(parse_uuid(&rid)?);
+            let arow: AuthRequestRow = serde_json::from_value(row).map_err(backend)?;
+            out.push(arow.into_domain(arid)?);
+        }
+        Ok(out)
+    }
+
+    async fn apply_org_creation(
+        &self,
+        payload: &OrgCreationPayload,
+    ) -> RepositoryResult<OrgCreationReceipt> {
+        // All writes happen inside a single SurrealDB transaction. Any
+        // statement error rolls back the whole batch — the org is
+        // never created partially.
+        //
+        // ADR-0023 invariant (enforced structurally): no per-agent
+        // `execution_limits` / `retry_policy` / `cache_policy` /
+        // `compaction_policy` rows are written here. Verified by the
+        // close-audit test in `repo_apply_org_creation_tx_test.rs`.
+        //
+        // Serialise every entity up-front so serde errors surface
+        // before we open the transaction.
+        let org_body = strip_id(serde_json::to_value(&payload.organization).map_err(backend)?);
+        let ceo_agent_body = strip_id(serde_json::to_value(&payload.ceo_agent).map_err(backend)?);
+        let ceo_channel_body =
+            strip_id(serde_json::to_value(&payload.ceo_channel).map_err(backend)?);
+        let ceo_inbox_body = strip_id(serde_json::to_value(&payload.ceo_inbox).map_err(backend)?);
+        let ceo_outbox_body = strip_id(serde_json::to_value(&payload.ceo_outbox).map_err(backend)?);
+        let ceo_grant_body =
+            serde_json::to_value(GrantRow::from_domain(&payload.ceo_grant)).map_err(backend)?;
+        let budget_body = serde_json::json!({
+            "owning_org":         payload.token_budget_pool.owning_org.to_string(),
+            "initial_allocation": payload.token_budget_pool.initial_allocation,
+            "used":               payload.token_budget_pool.used,
+            "created_at":         payload.token_budget_pool.created_at.to_rfc3339(),
+        });
+
+        // Pre-serialise system agents + profiles (in their input order
+        // so the receipt's ids stay deterministic).
+        let sys_agent_0_body =
+            strip_id(serde_json::to_value(&payload.system_agents[0].0).map_err(backend)?);
+        let sys_agent_1_body =
+            strip_id(serde_json::to_value(&payload.system_agents[1].0).map_err(backend)?);
+        let sys_profile_0_body =
+            strip_id(serde_json::to_value(&payload.system_agents[0].1).map_err(backend)?);
+        let sys_profile_1_body =
+            strip_id(serde_json::to_value(&payload.system_agents[1].1).map_err(backend)?);
+
+        // Pre-serialise adoption auth requests.
+        let mut adoption_ar_bodies: Vec<serde_json::Value> =
+            Vec::with_capacity(payload.adoption_auth_requests.len());
+        for ar in &payload.adoption_auth_requests {
+            adoption_ar_bodies
+                .push(serde_json::to_value(AuthRequestRow::from_domain(ar)?).map_err(backend)?);
+        }
+
+        // Now assemble the compound tx. SurrealDB 2.x accepts multiple
+        // statements separated by `;` in one `query(...)` call.
+        let mut q = String::from(
+            "BEGIN TRANSACTION;\n\
+             CREATE type::thing('organization', $org_id) CONTENT $org_body RETURN NONE;\n\
+             CREATE type::thing('agent', $ceo_id) CONTENT $ceo_agent_body RETURN NONE;\n\
+             CREATE type::thing('channel', $ceo_channel_id) CONTENT $ceo_channel_body RETURN NONE;\n\
+             CREATE type::thing('inbox_object', $ceo_inbox_id) CONTENT $ceo_inbox_body RETURN NONE;\n\
+             CREATE type::thing('outbox_object', $ceo_outbox_id) CONTENT $ceo_outbox_body RETURN NONE;\n\
+             CREATE type::thing('grant', $ceo_grant_id) CONTENT $ceo_grant_body RETURN NONE;\n\
+             CREATE type::thing('agent', $sys0_id) CONTENT $sys0_body RETURN NONE;\n\
+             CREATE type::thing('agent', $sys1_id) CONTENT $sys1_body RETURN NONE;\n\
+             CREATE type::thing('agent_profile', $prof0_id) CONTENT $prof0_body RETURN NONE;\n\
+             CREATE type::thing('agent_profile', $prof1_id) CONTENT $prof1_body RETURN NONE;\n\
+             CREATE type::thing('token_budget_pool', $budget_id) CONTENT $budget_body RETURN NONE;\n\
+             LET $org = type::thing('organization', $org_id);\n\
+             LET $ceo = type::thing('agent', $ceo_id);\n\
+             LET $sys0 = type::thing('agent', $sys0_id);\n\
+             LET $sys1 = type::thing('agent', $sys1_id);\n\
+             LET $prof0 = type::thing('agent_profile', $prof0_id);\n\
+             LET $prof1 = type::thing('agent_profile', $prof1_id);\n\
+             LET $ceo_inb = type::thing('inbox_object', $ceo_inbox_id);\n\
+             LET $ceo_out = type::thing('outbox_object', $ceo_outbox_id);\n\
+             LET $ceo_ch = type::thing('channel', $ceo_channel_id);\n\
+             RELATE $org -> has_ceo -> $ceo \
+                 SET id = type::thing('has_ceo', $edge_has_ceo) RETURN NONE;\n\
+             RELATE $org -> has_member -> $ceo \
+                 SET id = type::thing('has_member', $edge_hm_ceo) RETURN NONE;\n\
+             RELATE $org -> has_member -> $sys0 \
+                 SET id = type::thing('has_member', $edge_hm_s0) RETURN NONE;\n\
+             RELATE $org -> has_member -> $sys1 \
+                 SET id = type::thing('has_member', $edge_hm_s1) RETURN NONE;\n\
+             RELATE $ceo -> member_of -> $org \
+                 SET id = type::thing('member_of', $edge_mo_ceo) RETURN NONE;\n\
+             RELATE $sys0 -> member_of -> $org \
+                 SET id = type::thing('member_of', $edge_mo_s0) RETURN NONE;\n\
+             RELATE $sys1 -> member_of -> $org \
+                 SET id = type::thing('member_of', $edge_mo_s1) RETURN NONE;\n\
+             RELATE $ceo -> has_inbox -> $ceo_inb \
+                 SET id = type::thing('has_inbox', $edge_hi_ceo) RETURN NONE;\n\
+             RELATE $ceo -> has_outbox -> $ceo_out \
+                 SET id = type::thing('has_outbox', $edge_ho_ceo) RETURN NONE;\n\
+             RELATE $ceo -> has_channel -> $ceo_ch \
+                 SET id = type::thing('has_channel', $edge_hc_ceo) RETURN NONE;\n\
+             RELATE $sys0 -> has_profile -> $prof0 \
+                 SET id = type::thing('has_profile', $edge_hp_s0) RETURN NONE;\n\
+             RELATE $sys1 -> has_profile -> $prof1 \
+                 SET id = type::thing('has_profile', $edge_hp_s1) RETURN NONE;\n",
+        );
+        // Adoption ARs — one CREATE per entry.
+        for i in 0..adoption_ar_bodies.len() {
+            q.push_str(&format!(
+                "CREATE type::thing('auth_request', $ar_id_{i}) CONTENT $ar_body_{i} RETURN NONE;\n"
+            ));
+        }
+        // Catalogue entries.
+        for i in 0..payload.catalogue_entries.len() {
+            q.push_str(&format!(
+                "CREATE resources_catalogue SET owning_org = $org_id, \
+                 resource_uri = $cat_uri_{i}, kind = $cat_kind_{i}, \
+                 added_at = $now RETURN NONE;\n"
+            ));
+        }
+        q.push_str("COMMIT TRANSACTION;");
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut binder = self
+            .client()
+            .query(q)
+            .bind(("org_id", payload.organization.id.to_string()))
+            .bind(("org_body", org_body))
+            .bind(("ceo_id", payload.ceo_agent.id.to_string()))
+            .bind(("ceo_agent_body", ceo_agent_body))
+            .bind(("ceo_channel_id", payload.ceo_channel.id.to_string()))
+            .bind(("ceo_channel_body", ceo_channel_body))
+            .bind(("ceo_inbox_id", payload.ceo_inbox.id.to_string()))
+            .bind(("ceo_inbox_body", ceo_inbox_body))
+            .bind(("ceo_outbox_id", payload.ceo_outbox.id.to_string()))
+            .bind(("ceo_outbox_body", ceo_outbox_body))
+            .bind(("ceo_grant_id", payload.ceo_grant.id.to_string()))
+            .bind(("ceo_grant_body", ceo_grant_body))
+            .bind(("sys0_id", payload.system_agents[0].0.id.to_string()))
+            .bind(("sys0_body", sys_agent_0_body))
+            .bind(("sys1_id", payload.system_agents[1].0.id.to_string()))
+            .bind(("sys1_body", sys_agent_1_body))
+            .bind(("prof0_id", payload.system_agents[0].1.id.to_string()))
+            .bind(("prof0_body", sys_profile_0_body))
+            .bind(("prof1_id", payload.system_agents[1].1.id.to_string()))
+            .bind(("prof1_body", sys_profile_1_body))
+            .bind(("budget_id", payload.token_budget_pool.id.to_string()))
+            .bind(("budget_body", budget_body))
+            .bind(("edge_has_ceo", EdgeId::new().to_string()))
+            .bind(("edge_hm_ceo", EdgeId::new().to_string()))
+            .bind(("edge_hm_s0", EdgeId::new().to_string()))
+            .bind(("edge_hm_s1", EdgeId::new().to_string()))
+            .bind(("edge_mo_ceo", EdgeId::new().to_string()))
+            .bind(("edge_mo_s0", EdgeId::new().to_string()))
+            .bind(("edge_mo_s1", EdgeId::new().to_string()))
+            .bind(("edge_hi_ceo", EdgeId::new().to_string()))
+            .bind(("edge_ho_ceo", EdgeId::new().to_string()))
+            .bind(("edge_hc_ceo", EdgeId::new().to_string()))
+            .bind(("edge_hp_s0", EdgeId::new().to_string()))
+            .bind(("edge_hp_s1", EdgeId::new().to_string()))
+            .bind(("now", now));
+        for (i, ar) in payload.adoption_auth_requests.iter().enumerate() {
+            binder = binder
+                .bind((format!("ar_id_{i}"), ar.id.to_string()))
+                .bind((format!("ar_body_{i}"), adoption_ar_bodies[i].clone()));
+        }
+        for (i, (uri, kind)) in payload.catalogue_entries.iter().enumerate() {
+            binder = binder
+                .bind((format!("cat_uri_{i}"), uri.clone()))
+                .bind((format!("cat_kind_{i}"), kind.clone()));
+        }
+        binder.await.map_err(backend)?.check().map_err(backend)?;
+
+        let adoption_ar_ids = payload
+            .adoption_auth_requests
+            .iter()
+            .map(|ar| ar.id)
+            .collect();
+
+        Ok(OrgCreationReceipt {
+            org_id: payload.organization.id,
+            ceo_agent_id: payload.ceo_agent.id,
+            ceo_channel_id: payload.ceo_channel.id,
+            ceo_inbox_id: payload.ceo_inbox.id,
+            ceo_outbox_id: payload.ceo_outbox.id,
+            ceo_grant_id: payload.ceo_grant.id,
+            system_agent_ids: [payload.system_agents[0].0.id, payload.system_agents[1].0.id],
+            system_agent_profile_ids: [
+                payload.system_agents[0].1.id,
+                payload.system_agents[1].1.id,
+            ],
+            token_budget_pool_id: payload.token_budget_pool.id,
+            adoption_auth_request_ids: adoption_ar_ids,
+        })
     }
 }
 

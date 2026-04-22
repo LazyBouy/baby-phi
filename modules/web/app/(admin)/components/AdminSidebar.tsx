@@ -26,6 +26,7 @@ const NAV: NavItem[] = [
   { href: "/model-providers", label: "Model Providers", ready: true },
   { href: "/mcp-servers", label: "MCP Servers", ready: true },
   { href: "/platform-defaults", label: "Platform Defaults", ready: true },
+  { href: "/organizations", label: "Organizations", ready: true },
 ];
 
 export function AdminSidebar({ currentUserId }: { currentUserId: string }) {

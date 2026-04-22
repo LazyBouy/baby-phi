@@ -27,7 +27,7 @@ use domain::permissions::{
 };
 use domain::repository::{RepositoryError, RepositoryResult};
 use server::handler_support::permission::{check_permission, denial_to_api_error};
-use server::handler_support::{emit_audit, ApiError};
+use server::handler_support::{emit_audit, emit_audit_batch, ApiError};
 
 // -----------------------------------------------------------------------
 // check_permission contract
@@ -256,4 +256,92 @@ async fn emit_audit_maps_failure_to_500_audit_emit_failed() {
     assert_eq!(err.code, "AUDIT_EMIT_FAILED");
     assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
     assert!(err.message.contains("disk full"));
+}
+
+// -----------------------------------------------------------------------
+// emit_audit_batch contract (M3/P3)
+// -----------------------------------------------------------------------
+
+/// Records every event the emitter sees, in order, so the test can
+/// assert on iteration order.
+#[derive(Default)]
+struct RecordingEmitter {
+    recorded: tokio::sync::Mutex<Vec<AuditEventId>>,
+}
+
+#[async_trait]
+impl AuditEmitter for RecordingEmitter {
+    async fn emit(&self, event: AuditEvent) -> RepositoryResult<()> {
+        self.recorded.lock().await.push(event.event_id);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn emit_audit_batch_returns_ids_in_input_order() {
+    let events: Vec<AuditEvent> = (0..4).map(|_| sample_audit_event()).collect();
+    let expected_ids: Vec<AuditEventId> = events.iter().map(|e| e.event_id).collect();
+
+    let emitter = Arc::new(RecordingEmitter::default());
+    let ids = emit_audit_batch(emitter.as_ref(), events)
+        .await
+        .expect("batch emit succeeds");
+
+    assert_eq!(ids, expected_ids, "returned ids must match input order");
+    assert_eq!(
+        *emitter.recorded.lock().await,
+        expected_ids,
+        "emitter saw events in the input order — required for per-org chain continuity"
+    );
+}
+
+#[tokio::test]
+async fn emit_audit_batch_empty_input_returns_empty_vec() {
+    let emitter: Arc<dyn AuditEmitter> = Arc::new(NoopAuditEmitter);
+    let ids = emit_audit_batch(emitter.as_ref(), vec![])
+        .await
+        .expect("empty batch is trivially Ok");
+    assert!(ids.is_empty());
+}
+
+#[tokio::test]
+async fn emit_audit_batch_fails_fast_on_first_error() {
+    /// Fails on the Nth call (0-indexed); succeeds otherwise. Used to
+    /// prove fail-fast: after the failing call, no further emits
+    /// happen.
+    struct FailsAtIndex {
+        fail_at: usize,
+        calls: tokio::sync::Mutex<usize>,
+    }
+    #[async_trait]
+    impl AuditEmitter for FailsAtIndex {
+        async fn emit(&self, _e: AuditEvent) -> RepositoryResult<()> {
+            let mut n = self.calls.lock().await;
+            let current = *n;
+            *n += 1;
+            if current == self.fail_at {
+                Err(RepositoryError::Backend("simulated emit failure".into()))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    let emitter = Arc::new(FailsAtIndex {
+        fail_at: 2,
+        calls: tokio::sync::Mutex::new(0),
+    });
+    let events: Vec<AuditEvent> = (0..5).map(|_| sample_audit_event()).collect();
+
+    let err = emit_audit_batch(emitter.as_ref(), events)
+        .await
+        .expect_err("batch must fail on the 3rd event");
+    assert_eq!(err.code, "AUDIT_EMIT_FAILED");
+
+    // Emitter received exactly 3 calls: events 0, 1, 2 — then bailed.
+    // Events 3 and 4 MUST NOT have been attempted (fail-fast).
+    let total_calls = *emitter.calls.lock().await;
+    assert_eq!(
+        total_calls, 3,
+        "emitter should have seen exactly 3 calls (fail-fast after the failing one)"
+    );
 }

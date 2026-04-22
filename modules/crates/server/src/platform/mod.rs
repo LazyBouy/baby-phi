@@ -5,4 +5,5 @@
 pub mod defaults;
 pub mod mcp_servers;
 pub mod model_providers;
+pub mod orgs;
 pub mod secrets;

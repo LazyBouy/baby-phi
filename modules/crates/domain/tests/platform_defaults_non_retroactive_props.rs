@@ -61,6 +61,14 @@ proptest! {
                 let o = Organization {
                     id: OrgId::new(),
                     display_name: format!("org-{i}"),
+                    vision: None,
+                    mission: None,
+                    consent_policy: domain::model::ConsentPolicy::Implicit,
+                    audit_class_default: domain::audit::AuditClass::Logged,
+                    authority_templates_enabled: vec![],
+                    defaults_snapshot: None,
+                    default_model_provider: None,
+                    system_agents: vec![],
                     created_at: Utc::now(),
                 };
                 repo.create_organization(&o).await.unwrap();

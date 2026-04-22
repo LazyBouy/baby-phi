@@ -88,6 +88,13 @@ enum Command {
         #[arg(value_enum)]
         shell: Shell,
     },
+    /// Organization subcommands (M3). `create`/`list`/`show` ship in
+    /// M3/P4; `dashboard` ships in M3/P5. The clap surface is
+    /// scaffolded in M3/P1 so shell completions name them today.
+    Org {
+        #[command(subcommand)]
+        cmd: commands::org::OrgCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -154,6 +161,7 @@ async fn main() {
             commands::platform_defaults::run(cli.server_url, cmd).await
         }
         Command::Completion { shell } => commands::completion::run(shell),
+        Command::Org { cmd } => commands::org::run(cli.server_url, cmd).await,
     };
     std::process::exit(code);
 }

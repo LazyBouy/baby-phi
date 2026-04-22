@@ -1,0 +1,24 @@
+# Reference layout — mid-product-team (M3/P4).
+#
+# Models a growing product team: explicit consent on data access,
+# alerted audit tier for governance visibility, three adopted
+# authority templates (A/B/C).
+
+display_name: Mid Product Team
+vision: Build features shippable within two-week cycles.
+mission: Autonomous research paired with human review at each sprint.
+
+consent_policy: one_time
+audit_class_default: alerted
+authority_templates_enabled:
+  - a
+  - b
+  - c
+
+default_model_provider: null
+
+ceo_display_name: Bob Product
+ceo_channel_kind: slack
+ceo_channel_handle: "#bob-dm"
+
+token_budget: 5000000

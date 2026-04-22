@@ -5,13 +5,14 @@
 //! - [`fundamentals`] — 9 atomic resource classes.
 //! - [`composites`] — 8 named bundles of fundamentals.
 //! - [`nodes`] — 37 node types (structs + `NodeKind` inventory enum).
-//! - [`edges`] — 66-variant `Edge` enum.
+//! - [`edges`] — 67-variant `Edge` enum.
 //!
 //! Source of truth for the inventory: `docs/specs/v0/concepts/ontology.md` +
 //! `docs/specs/v0/concepts/permissions/01-resource-ontology.md`.
 
 pub mod composites;
 pub mod composites_m2;
+pub mod composites_m3;
 pub mod edges;
 pub mod fundamentals;
 pub mod ids;
@@ -23,6 +24,7 @@ pub use composites_m2::{
     ExternalService, ExternalServiceKind, ModelRuntime, PlatformDefaults, ProviderKind,
     RuntimeStatus, SecretCredential, SecretRef, TenantSet,
 };
+pub use composites_m3::{ConsentPolicy, OrganizationDefaultsSnapshot, TokenBudgetPool};
 pub use edges::{Edge, EDGE_KIND_NAMES};
 pub use fundamentals::Fundamental;
 pub use ids::{
@@ -60,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    fn ontology_has_sixty_six_edge_kinds() {
-        assert_eq!(EDGE_KIND_NAMES.len(), 66);
+    fn ontology_has_sixty_seven_edge_kinds() {
+        assert_eq!(EDGE_KIND_NAMES.len(), 67);
     }
 }
