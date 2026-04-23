@@ -128,17 +128,35 @@ pub struct ViewerContext {
     pub can_admin_manage: bool,
 }
 
-/// Count of agents grouped by kind. M3's domain model has two
-/// `AgentKind` variants (`Human`, `Llm`); the requirements doc
-/// mentions a future four-way split (`Human / Intern / Contract /
-/// System`) that needs an `AgentRole` field — carryover for M4/P?.
+/// Count of agents grouped by the M4/P1 6-variant [`AgentRole`] + an
+/// `unclassified` bucket for pre-M4 rows where `Agent.role` is still
+/// `None`. `total` = sum of all seven buckets.
+///
+/// **M4/P8 wire break**: the prior `{ human, llm }` fields were removed
+/// in favour of the role taxonomy — the old fields were a
+/// placeholder-before-AgentRole shipped at M3. `total` stays stable so
+/// dashboard polling clients don't break; every other consumer (the web
+/// dashboard panel, CLI summary formatters, acceptance tests) is
+/// updated in the same commit.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct AgentsSummary {
     pub total: u32,
-    pub human: u32,
-    /// System / LLM agents — at M3 the only `AgentKind::Llm` agents
-    /// per org are the 2 system agents provisioned at creation time.
-    pub llm: u32,
+    /// Human · Executive role.
+    pub executive: u32,
+    /// Human · Admin role.
+    pub admin: u32,
+    /// Human · Member role.
+    pub member: u32,
+    /// LLM · Intern role.
+    pub intern: u32,
+    /// LLM · Contract role.
+    pub contract: u32,
+    /// LLM · System role.
+    pub system: u32,
+    /// Role field is `None` — either a pre-M4 row or a freshly-created
+    /// agent before role assignment. Dashboard surfaces these so
+    /// operators can notice the gap.
+    pub unclassified: u32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -232,12 +250,26 @@ pub async fn dashboard_summary(
     };
 
     let agents = repo.list_agents_in_org(org_id).await?;
-    let viewer_role = resolve_viewer_role(&agents, viewer_agent_id);
+    // Resolve the viewer's `HAS_LEAD` targets BEFORE role resolution so
+    // we can mark them as `ProjectLead` (M4/P8 — first milestone where
+    // `HAS_LEAD` has production writers).
+    let viewer_led_projects = repo.list_projects_led_by_agent(viewer_agent_id).await?;
+    let org_project_ids: std::collections::HashSet<_> = repo
+        .list_projects_in_org(org_id)
+        .await?
+        .iter()
+        .map(|p| p.id)
+        .collect();
+    let viewer_leads_here = viewer_led_projects
+        .iter()
+        .any(|p| org_project_ids.contains(&p.id));
+    let viewer_role = resolve_viewer_role(&agents, viewer_agent_id, viewer_leads_here);
     if matches!(viewer_role, ViewerRole::None) {
         return Ok(DashboardOutcome::AccessDenied);
     }
 
     let projects = repo.list_projects_in_org(org_id).await?;
+    let shape_counts = repo.count_projects_by_shape_in_org(org_id).await?;
     let active_ars = repo.list_active_auth_requests_for_org(org_id).await?;
     let pending_for_viewer = count_pending_with_slot_for(&active_ars, viewer_agent_id);
 
@@ -264,7 +296,8 @@ pub async fn dashboard_summary(
     let agents_summary = count_agents(&agents);
     let projects_summary = ProjectsSummary {
         active: projects.len() as u32,
-        ..Default::default()
+        shape_a: shape_counts.shape_a,
+        shape_b: shape_counts.shape_b,
     };
 
     let cta_cards = build_cta_cards(org_id, viewer_role, &agents_summary, &projects_summary);
@@ -310,14 +343,22 @@ const RECENT_EVENT_LIMIT: usize = 5;
 // Pure helpers — unit-tested exhaustively below.
 // ---------------------------------------------------------------------------
 
-fn resolve_viewer_role(agents: &[Agent], viewer_agent_id: AgentId) -> ViewerRole {
-    // Membership is derived from Agent.owning_org being the org in
-    // question — the `list_agents_in_org` filter already narrowed
-    // the list. Admin detection at M3 is "first Human agent in the
-    // org" — the CEO created at org-creation time. A proper grant
-    // walk lands once M5's permission-check wiring is dashboard-
-    // aware; noting this narrowness explicitly here rather than
-    // hiding it in a comment.
+/// Derive the viewer's role in this org. Called from the handler with
+/// the full agent list (already narrowed to the target org) plus the
+/// viewer's `HAS_LEAD`-target list (projects led by the viewer across
+/// the platform; the orchestrator intersects with this org's project
+/// set before deciding the role).
+///
+/// **M4/P8**: the `ProjectLead` branch populates for the first time —
+/// prior to M4 `HAS_LEAD` edges had no production writers. Admin
+/// detection still narrows to "first Human in the org" (the CEO at
+/// creation time); a proper grant-walk lands once M5's permission-check
+/// wiring is dashboard-aware.
+fn resolve_viewer_role(
+    agents: &[Agent],
+    viewer_agent_id: AgentId,
+    viewer_leads_a_project_in_this_org: bool,
+) -> ViewerRole {
     let in_org = agents.iter().any(|a| a.id == viewer_agent_id);
     if !in_org {
         return ViewerRole::None;
@@ -330,18 +371,26 @@ fn resolve_viewer_role(agents: &[Agent], viewer_agent_id: AgentId) -> ViewerRole
         .unwrap_or(false);
     if is_ceo {
         ViewerRole::Admin
+    } else if viewer_leads_a_project_in_this_org {
+        ViewerRole::ProjectLead
     } else {
         ViewerRole::Member
     }
 }
 
 fn count_agents(agents: &[Agent]) -> AgentsSummary {
+    use domain::model::nodes::AgentRole;
     let mut out = AgentsSummary::default();
     for a in agents {
         out.total += 1;
-        match a.kind {
-            AgentKind::Human => out.human += 1,
-            AgentKind::Llm => out.llm += 1,
+        match a.role {
+            Some(AgentRole::Executive) => out.executive += 1,
+            Some(AgentRole::Admin) => out.admin += 1,
+            Some(AgentRole::Member) => out.member += 1,
+            Some(AgentRole::Intern) => out.intern += 1,
+            Some(AgentRole::Contract) => out.contract += 1,
+            Some(AgentRole::System) => out.system += 1,
+            None => out.unclassified += 1,
         }
     }
     out
@@ -497,7 +546,10 @@ mod tests {
     fn resolve_viewer_role_non_member_is_none() {
         let agents = vec![agent(AgentKind::Human, Utc::now())];
         let outsider = AgentId::new();
-        assert_eq!(resolve_viewer_role(&agents, outsider), ViewerRole::None);
+        assert_eq!(
+            resolve_viewer_role(&agents, outsider, false),
+            ViewerRole::None
+        );
     }
 
     #[test]
@@ -508,24 +560,65 @@ mod tests {
         let later_human = agent(AgentKind::Human, t1);
         let sys = agent(AgentKind::Llm, t0);
         let agents = vec![ceo.clone(), later_human.clone(), sys];
-        assert_eq!(resolve_viewer_role(&agents, ceo.id), ViewerRole::Admin);
         assert_eq!(
-            resolve_viewer_role(&agents, later_human.id),
+            resolve_viewer_role(&agents, ceo.id, false),
+            ViewerRole::Admin
+        );
+        assert_eq!(
+            resolve_viewer_role(&agents, later_human.id, false),
             ViewerRole::Member
         );
     }
 
     #[test]
-    fn count_agents_splits_human_and_llm() {
+    fn resolve_viewer_role_project_lead_surfaces_when_not_admin() {
+        // The later Human is not the CEO, so without project-lead
+        // signal they'd be Member. With the signal they're ProjectLead.
+        let t0 = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let t1 = Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap();
+        let ceo = agent(AgentKind::Human, t0);
+        let later_human = agent(AgentKind::Human, t1);
+        let agents = vec![ceo.clone(), later_human.clone()];
+        assert_eq!(
+            resolve_viewer_role(&agents, later_human.id, true),
+            ViewerRole::ProjectLead
+        );
+        // Admin wins over ProjectLead when both apply.
+        assert_eq!(
+            resolve_viewer_role(&agents, ceo.id, true),
+            ViewerRole::Admin
+        );
+    }
+
+    #[test]
+    fn count_agents_splits_by_role_with_unclassified_bucket() {
+        use domain::model::nodes::AgentRole;
+        let with_role = |k: AgentKind, r: Option<AgentRole>| Agent {
+            id: AgentId::new(),
+            kind: k,
+            display_name: "x".into(),
+            owning_org: Some(OrgId::new()),
+            role: r,
+            created_at: Utc::now(),
+        };
         let agents = vec![
-            agent(AgentKind::Human, Utc::now()),
-            agent(AgentKind::Llm, Utc::now()),
-            agent(AgentKind::Llm, Utc::now()),
+            with_role(AgentKind::Human, Some(AgentRole::Executive)),
+            with_role(AgentKind::Human, Some(AgentRole::Admin)),
+            with_role(AgentKind::Human, Some(AgentRole::Member)),
+            with_role(AgentKind::Llm, Some(AgentRole::Intern)),
+            with_role(AgentKind::Llm, Some(AgentRole::Contract)),
+            with_role(AgentKind::Llm, Some(AgentRole::System)),
+            with_role(AgentKind::Llm, None), // pre-M4 row → unclassified
         ];
         let s = count_agents(&agents);
-        assert_eq!(s.total, 3);
-        assert_eq!(s.human, 1);
-        assert_eq!(s.llm, 2);
+        assert_eq!(s.total, 7);
+        assert_eq!(s.executive, 1);
+        assert_eq!(s.admin, 1);
+        assert_eq!(s.member, 1);
+        assert_eq!(s.intern, 1);
+        assert_eq!(s.contract, 1);
+        assert_eq!(s.system, 1);
+        assert_eq!(s.unclassified, 1);
     }
 
     #[test]
@@ -533,8 +626,9 @@ mod tests {
         let org = org_with_name("Acme");
         let agents = AgentsSummary {
             total: 3,
-            human: 1,
-            llm: 2,
+            executive: 1,
+            system: 2,
+            ..Default::default()
         };
         let projects = ProjectsSummary::default();
         let banner = build_welcome_banner(&org, &agents, &projects);
@@ -547,8 +641,11 @@ mod tests {
         let org = org_with_name("Acme");
         let agents = AgentsSummary {
             total: 10,
-            human: 3,
-            llm: 2,
+            executive: 1,
+            member: 3,
+            intern: 4,
+            system: 2,
+            ..Default::default()
         };
         let projects = ProjectsSummary {
             active: 2,
@@ -574,8 +671,9 @@ mod tests {
         let org_id = OrgId::new();
         let agents = AgentsSummary {
             total: 3,
-            human: 1,
-            llm: 2,
+            executive: 1,
+            system: 2,
+            ..Default::default()
         };
         let projects = ProjectsSummary::default();
         let cards = build_cta_cards(org_id, ViewerRole::Admin, &agents, &projects);

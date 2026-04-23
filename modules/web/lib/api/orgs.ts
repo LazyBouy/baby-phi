@@ -106,8 +106,18 @@ export type ViewerContextWire = {
 
 export type AgentsSummaryWire = {
   total: number;
-  human: number;
-  llm: number;
+  // 6-variant AgentRole buckets shipped at M4/P8 (replaces M3's
+  // placeholder `{ human, llm }` shape once AgentRole landed on the
+  // Agent node at M4/P1). `total` = sum of every bucket.
+  executive: number;
+  admin: number;
+  member: number;
+  intern: number;
+  contract: number;
+  system: number;
+  // Agents whose `role` is `None` — pre-M4 rows OR newly-created
+  // agents before role assignment.
+  unclassified: number;
 };
 
 export type ProjectsSummaryWire = {

@@ -355,8 +355,24 @@ pub trait Repository: Send + Sync + 'static {
 
     async fn create_agent(&self, agent: &Agent) -> RepositoryResult<()>;
     async fn get_agent(&self, id: AgentId) -> RepositoryResult<Option<Agent>>;
+    /// Upsert the Agent row (matched on `id`). Used by M4/P5's profile
+    /// editor to persist mutable-field changes (`display_name`).
+    /// Immutable-field drift is caller-enforced — this method does not
+    /// re-validate `kind` / `role` / `owning_org`.
+    async fn upsert_agent(&self, agent: &Agent) -> RepositoryResult<()>;
 
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()>;
+    /// Fetch the (single) [`AgentProfile`] row whose `agent_id == agent`.
+    /// At M4 the schema enforces 1:1 via a UNIQUE index in migration
+    /// 0004; this method returns `Ok(None)` for Human agents that
+    /// never get a profile row.
+    async fn get_agent_profile_for_agent(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentProfile>>;
+    /// Upsert the profile row (matched on `id`). Used by M4/P5's
+    /// profile editor to persist blueprint + parallelize edits.
+    async fn upsert_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()>;
 
     async fn create_user(&self, user: &User) -> RepositoryResult<()>;
 
@@ -762,6 +778,23 @@ pub trait Repository: Send + Sync + 'static {
     /// site.
     async fn list_projects_led_by_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Project>>;
 
+    /// Persist (create-or-replace) a project row. Shipped at M4/P7 for
+    /// the in-place OKR editor (`PATCH /api/v0/projects/:id/okrs`) —
+    /// the orchestrator validates the OKR patch in Rust, builds a
+    /// fully-replaced [`Project`] struct, then calls this method.
+    ///
+    /// Invariants enforced at the callsite (not this method): the
+    /// project already exists (callers read-then-write), the shape +
+    /// owning-org edges don't change (OKR mutations never change
+    /// governance), and `created_at` is preserved from the existing
+    /// row.
+    ///
+    /// M5+ may extend this to accept a narrower `ProjectPatch` shape
+    /// if status transitions + resource-boundary edits land as
+    /// separate endpoints; at M4 the OKR editor is the only writer so
+    /// full-row replacement is the minimum-surface path.
+    async fn upsert_project(&self, project: &Project) -> RepositoryResult<()>;
+
     /// Look up the opt-in per-agent `ExecutionLimits` override row
     /// for `agent`. Returns `Ok(None)` when the agent inherits from
     /// the org snapshot (ADR-0023 default path).
@@ -798,6 +831,24 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         agent: AgentId,
     ) -> RepositoryResult<Option<phi_core::context::execution::ExecutionLimits>>;
+
+    /// Count an agent's in-flight sessions — used by the M4/P5 profile
+    /// editor to gate the `ModelConfig` change path (D-M4-3): changing
+    /// an agent's model while a session is running returns
+    /// `409 ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE`.
+    ///
+    /// **M4 stub**: baby-phi's governance `Session` node persists at
+    /// M5 session launch. Until then this method returns `Ok(0)` for
+    /// every agent. The 409 code path is wired now so that M5 can
+    /// flip this to the real query with no handler change.
+    ///
+    /// **Test ergonomics**: acceptance tests that want to exercise
+    /// the 409 path wrap the `Arc<dyn Repository>` with a thin
+    /// decorator that returns a non-zero count for one specific
+    /// agent id.
+    async fn count_active_sessions_for_agent(&self, _agent: AgentId) -> RepositoryResult<u32> {
+        Ok(0)
+    }
 
     /// List every non-terminal Auth Request requested by a principal
     /// belonging to `org`. "Non-terminal" = state ∈ {Draft, Pending,

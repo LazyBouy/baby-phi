@@ -43,6 +43,32 @@ impl ClaimedAdmin {
     }
 }
 
+/// Mint a reqwest client that authenticates as `subject_agent_id`.
+///
+/// Signs a fresh JWT with the same key the acceptance server uses and
+/// pre-installs the `phi_kernel_session` cookie as a default header.
+/// Used by page-test scenarios that need a viewer distinct from the
+/// bootstrap admin (e.g. the page-11 403 access-gate test).
+pub fn authed_client_for(
+    _admin: &ClaimedAdmin,
+    subject_agent_id: domain::model::ids::AgentId,
+) -> Result<reqwest::Client, Box<dyn std::error::Error>> {
+    use server::SessionKey;
+    let key = SessionKey::for_tests(super::TEST_SESSION_SECRET);
+    let (token, _cookie) =
+        server::session::sign_and_build_cookie(&key, &subject_agent_id.to_string())?;
+    let mut default_headers = HeaderMap::new();
+    default_headers.insert(
+        COOKIE,
+        HeaderValue::from_str(&format!("phi_kernel_session={token}"))?,
+    );
+    Ok(reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
+        .default_headers(default_headers)
+        .build()?)
+}
+
 /// Boot a fresh acceptance server, mint a bootstrap credential, POST
 /// `/api/v0/bootstrap/claim` with sensible defaults, and capture the
 /// resulting session cookie into a preconfigured reqwest client.

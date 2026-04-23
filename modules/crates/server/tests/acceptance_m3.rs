@@ -108,8 +108,10 @@ async fn wizard_to_dashboard_preserves_audit_chain_and_counts() {
     // Dashboard reports the freshly-created org's shape.
     assert_eq!(d1["org"]["id"].as_str(), Some(org_id_str.as_str()));
     assert_eq!(d1["agents_summary"]["total"].as_u64(), Some(3));
-    assert_eq!(d1["agents_summary"]["human"].as_u64(), Some(1));
-    assert_eq!(d1["agents_summary"]["llm"].as_u64(), Some(2));
+    // M3/P4's wizard seeds CEO + 2 system agents with `role = None`;
+    // M4/P8 dashboard puts these in the `unclassified` bucket until a
+    // real M4/P5 "assign roles" pass (operator-driven).
+    assert_eq!(d1["agents_summary"]["unclassified"].as_u64(), Some(3));
     assert_eq!(d1["viewer"]["role"].as_str(), Some("admin"));
     assert_eq!(d1["token_budget"]["total"].as_u64(), Some(2_500_000));
     let adopted = d1["templates_adopted"]

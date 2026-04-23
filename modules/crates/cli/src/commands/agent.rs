@@ -59,11 +59,62 @@ pub async fn run(server_url_override: Option<String>, cmd: AgentCommand) -> i32 
             )
             .await
         }
-        AgentCommand::Show { .. } => scaffold("agent show", "M4/P5"),
-        AgentCommand::Create { .. } => scaffold("agent create", "M4/P5"),
-        AgentCommand::Update { .. } => scaffold("agent update", "M4/P5"),
-        AgentCommand::RevertLimits { .. } => scaffold("agent revert-limits", "M4/P5"),
+        AgentCommand::Show { .. } => scaffold("agent show", "M4/P5b"),
+        AgentCommand::Create {
+            org_id,
+            name,
+            kind,
+            role,
+            model_id: _,
+            system_prompt,
+            parallelize,
+            override_max_turns,
+            override_max_tokens,
+            override_max_duration_secs,
+            override_max_cost,
+            json,
+        } => {
+            create_impl(
+                server_url_override,
+                CreateCliInput {
+                    org_id,
+                    name,
+                    kind,
+                    role,
+                    system_prompt,
+                    parallelize,
+                    override_max_turns,
+                    override_max_tokens,
+                    override_max_duration_secs,
+                    override_max_cost,
+                    json,
+                },
+            )
+            .await
+        }
+        AgentCommand::Update {
+            id,
+            patch_json,
+            json,
+        } => update_impl(server_url_override, &id, &patch_json, json).await,
+        AgentCommand::RevertLimits { id, json } => {
+            revert_limits_impl(server_url_override, &id, json).await
+        }
     }
+}
+
+struct CreateCliInput {
+    org_id: String,
+    name: String,
+    kind: String,
+    role: String,
+    system_prompt: Option<String>,
+    parallelize: u32,
+    override_max_turns: Option<usize>,
+    override_max_tokens: Option<usize>,
+    override_max_duration_secs: Option<u64>,
+    override_max_cost: Option<f64>,
+    json: bool,
 }
 
 fn scaffold(cmd: &str, target_milestone: &str) -> i32 {
@@ -275,6 +326,246 @@ async fn report_api_error(res: reqwest::Response, status: reqwest::StatusCode) -
             EXIT_REJECTED
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// `agent create` — M4/P5
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct CreateResponseWire {
+    agent_id: String,
+    owning_org_id: String,
+    profile_id: Option<String>,
+    execution_limits_override_id: Option<String>,
+    audit_event_id: String,
+}
+
+async fn create_impl(server_url_override: Option<String>, input: CreateCliInput) -> i32 {
+    let base = match resolve_base_url(server_url_override) {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("phi: failed to resolve server URL: {e:#}");
+            return EXIT_INTERNAL;
+        }
+    };
+    let client = match build_authed_client() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("phi: {e}");
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
+
+    // Validate CLI-supplied kind + role against the server enum set
+    // before round-tripping. The server re-checks — this is just a
+    // friendlier early error.
+    let kind_wire = match input.kind.as_str() {
+        "human" => "human",
+        "llm" => "llm",
+        other => {
+            eprintln!("phi: --kind must be `human` or `llm` (got `{other}`)");
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
+    let role_wire = match input.role.as_str() {
+        "executive" | "admin" | "member" | "intern" | "contract" | "system" => input.role.as_str(),
+        other => {
+            eprintln!(
+                "phi: --role must be one of executive|admin|member|intern|contract|system (got `{other}`)"
+            );
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
+
+    // Blueprint — minimal seed from the CLI flags. The web wizard
+    // fills a richer blueprint; CLI users typically refine via a
+    // subsequent `phi agent update --patch-json`.
+    let mut blueprint = serde_json::json!({});
+    if let Some(sp) = &input.system_prompt {
+        blueprint["system_prompt"] = serde_json::json!(sp);
+    }
+
+    let override_body = match (
+        input.override_max_turns,
+        input.override_max_tokens,
+        input.override_max_duration_secs,
+        input.override_max_cost,
+    ) {
+        (None, None, None, None) => serde_json::Value::Null,
+        (t, tok, d, c) => {
+            // phi-core::ExecutionLimits serde shape:
+            // { max_turns, max_total_tokens, max_duration (Duration),
+            //   max_cost }. We use sensible per-field defaults when a
+            //   subset is supplied so the full struct round-trips.
+            serde_json::json!({
+                "max_turns": t.unwrap_or(50),
+                "max_total_tokens": tok.unwrap_or(1_000_000),
+                "max_duration": { "secs": d.unwrap_or(600), "nanos": 0 },
+                "max_cost": c,
+            })
+        }
+    };
+
+    let body = serde_json::json!({
+        "display_name": input.name,
+        "kind": kind_wire,
+        "role": role_wire,
+        "blueprint": blueprint,
+        "parallelize": input.parallelize,
+        "initial_execution_limits_override": override_body,
+    });
+
+    let url = format!("{base}/api/v0/orgs/{}/agents", urlencode(&input.org_id));
+    let res = match client.post(&url).json(&body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("phi: POST {url} failed: {e}");
+            return EXIT_TRANSPORT;
+        }
+    };
+    let status = res.status();
+    if !status.is_success() {
+        return report_api_error(res, status).await;
+    }
+    let body: serde_json::Value = match res.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("phi: decode response: {e}");
+            return EXIT_INTERNAL;
+        }
+    };
+    if input.json {
+        println!("{}", serde_json::to_string_pretty(&body).unwrap());
+    } else {
+        println!("agent created");
+        if let Some(aid) = body["agent_id"].as_str() {
+            println!("  id:               {aid}");
+        }
+        if let Some(oid) = body["execution_limits_override_id"].as_str() {
+            println!("  override_id:      {oid}");
+        } else {
+            println!("  execution_limits: inherited from org snapshot");
+        }
+    }
+    EXIT_OK
+}
+
+// ---------------------------------------------------------------------------
+// `agent update` — M4/P5
+// ---------------------------------------------------------------------------
+
+async fn update_impl(
+    server_url_override: Option<String>,
+    id: &str,
+    patch_json: &str,
+    json: bool,
+) -> i32 {
+    let base = match resolve_base_url(server_url_override) {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("phi: failed to resolve server URL: {e:#}");
+            return EXIT_INTERNAL;
+        }
+    };
+    let client = match build_authed_client() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("phi: {e}");
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
+    let body: serde_json::Value = match serde_json::from_str(patch_json) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("phi: --patch-json is not valid JSON: {e}");
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
+    let url = format!("{base}/api/v0/agents/{}/profile", urlencode(id));
+    let res = match client.patch(&url).json(&body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("phi: PATCH {url} failed: {e}");
+            return EXIT_TRANSPORT;
+        }
+    };
+    let status = res.status();
+    if !status.is_success() {
+        return report_api_error(res, status).await;
+    }
+    let out: serde_json::Value = match res.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("phi: decode response: {e}");
+            return EXIT_INTERNAL;
+        }
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        match out["audit_event_id"].as_str() {
+            Some(event_id) => println!("agent updated (audit event: {event_id})"),
+            None => println!("no-op — patch contained no changes"),
+        }
+        if let Some(src) = out["execution_limits_source"].as_str() {
+            println!("  execution_limits: {src}");
+        }
+    }
+    EXIT_OK
+}
+
+// ---------------------------------------------------------------------------
+// `agent revert-limits` — M4/P5
+// ---------------------------------------------------------------------------
+
+async fn revert_limits_impl(server_url_override: Option<String>, id: &str, json: bool) -> i32 {
+    let base = match resolve_base_url(server_url_override) {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("phi: failed to resolve server URL: {e:#}");
+            return EXIT_INTERNAL;
+        }
+    };
+    let client = match build_authed_client() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("phi: {e}");
+            return EXIT_PRECONDITION_FAILED;
+        }
+    };
+    let url = format!(
+        "{base}/api/v0/agents/{}/execution-limits-override",
+        urlencode(id)
+    );
+    let res = match client.delete(&url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("phi: DELETE {url} failed: {e}");
+            return EXIT_TRANSPORT;
+        }
+    };
+    let status = res.status();
+    if !status.is_success() {
+        return report_api_error(res, status).await;
+    }
+    let out: serde_json::Value = match res.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("phi: decode response: {e}");
+            return EXIT_INTERNAL;
+        }
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!("execution_limits override reverted");
+        if let Some(src) = out["execution_limits_source"].as_str() {
+            println!("  agent now using: {src} (org snapshot)");
+        }
+    }
+    EXIT_OK
 }
 
 // ---------------------------------------------------------------------------

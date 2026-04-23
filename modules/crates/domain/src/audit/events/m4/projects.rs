@@ -179,9 +179,50 @@ pub fn project_creation_denied(
 
 /// Wrap a `ProjectId` as a `NodeId` — project rows live in the
 /// entity namespace, not the edge namespace.
-#[allow(dead_code)] // internal helper — retained for symmetry with the agents module
 fn project_node_id(id: ProjectId) -> NodeId {
     NodeId::from_uuid(*id.as_uuid())
+}
+
+/// `platform.project.okr_updated` — Logged.
+///
+/// Emitted once per OKR mutation applied via the M4/P7 in-place OKR
+/// editor (`PATCH /api/v0/projects/:id/okrs`). One event per entry in
+/// the patch array — operators see the sequence in the per-org audit
+/// chain and can replay it row by row.
+///
+/// The `op` field records `create` / `update` / `delete`; the `kind`
+/// field records `objective` / `key_result`. `before` carries the
+/// pre-image (None on create) and `after` the post-image (None on
+/// delete). The reader drives diff rendering from this pair.
+#[allow(clippy::too_many_arguments)]
+pub fn project_okrs_updated(
+    actor: AgentId,
+    project_id: ProjectId,
+    org: OrgId,
+    kind: &str,
+    op: &str,
+    entity_id: &str,
+    before: serde_json::Value,
+    after: serde_json::Value,
+    timestamp: DateTime<Utc>,
+) -> AuditEvent {
+    let diff = serde_json::json!({
+        "kind":       kind,
+        "op":         op,
+        "entity_id":  entity_id,
+        "before":     before,
+        "after":      after,
+    });
+    scaffold(
+        "platform.project.okr_updated",
+        actor,
+        project_node_id(project_id),
+        org,
+        timestamp,
+        diff,
+        AuditClass::Logged,
+        None,
+    )
 }
 
 #[cfg(test)]
@@ -260,6 +301,31 @@ mod tests {
             .as_array()
             .expect("approver_agent_ids serialises as array");
         assert_eq!(approvers.len(), 2);
+    }
+
+    #[test]
+    fn project_okrs_updated_is_logged_and_carries_before_after() {
+        let pid = ProjectId::new();
+        let org = OrgId::new();
+        let ev = project_okrs_updated(
+            AgentId::new(),
+            pid,
+            org,
+            "objective",
+            "update",
+            "obj-1",
+            serde_json::json!({ "status": "draft" }),
+            serde_json::json!({ "status": "active" }),
+            Utc::now(),
+        );
+        assert_eq!(ev.event_type, "platform.project.okr_updated");
+        assert_eq!(ev.audit_class, AuditClass::Logged);
+        assert_eq!(ev.org_scope, Some(org));
+        assert_eq!(ev.diff["kind"], "objective");
+        assert_eq!(ev.diff["op"], "update");
+        assert_eq!(ev.diff["entity_id"], "obj-1");
+        assert_eq!(ev.diff["before"]["status"], "draft");
+        assert_eq!(ev.diff["after"]["status"], "active");
     }
 
     #[test]

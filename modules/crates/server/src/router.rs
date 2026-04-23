@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
@@ -36,6 +36,13 @@ use crate::{handlers, health, state::AppState};
 /// - `GET   /api/v0/orgs/:id`                                 (M3/P4)
 /// - `GET   /api/v0/orgs/:id/dashboard`                       (M3/P5)
 /// - `GET   /api/v0/orgs/:org_id/agents`                      (M4/P4)
+/// - `POST  /api/v0/orgs/:org_id/agents`                      (M4/P5)
+/// - `PATCH /api/v0/agents/:id/profile`                       (M4/P5)
+/// - `DELETE /api/v0/agents/:id/execution-limits-override`    (M4/P5)
+/// - `POST  /api/v0/orgs/:org_id/projects`                    (M4/P6)
+/// - `POST  /api/v0/projects/_pending/:ar_id/approve`         (M4/P6)
+/// - `GET   /api/v0/projects/:id`                              (M4/P7)
+/// - `PATCH /api/v0/projects/:id/okrs`                         (M4/P7)
 ///
 /// The `CookieManagerLayer` is applied once here so every handler that
 /// pulls `Cookies` from the extractor gets a working jar.
@@ -95,7 +102,22 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/orgs/:id", get(handlers::orgs::show))
         .route("/orgs/:id/dashboard", get(handlers::orgs::dashboard))
-        .route("/orgs/:org_id/agents", get(handlers::agents::list));
+        .route(
+            "/orgs/:org_id/agents",
+            get(handlers::agents::list).post(handlers::agents::create),
+        )
+        .route("/agents/:id/profile", patch(handlers::agents::update))
+        .route(
+            "/agents/:id/execution-limits-override",
+            delete(handlers::agents::revert_execution_limits_override),
+        )
+        .route("/orgs/:org_id/projects", post(handlers::projects::create))
+        .route(
+            "/projects/_pending/:ar_id/approve",
+            post(handlers::projects::approve_pending),
+        )
+        .route("/projects/:id", get(handlers::projects::show))
+        .route("/projects/:id/okrs", patch(handlers::projects::update_okrs));
 
     Router::new()
         .route("/healthz/live", get(health::live))

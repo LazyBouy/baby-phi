@@ -351,10 +351,73 @@ impl Repository for SurrealStore {
         Ok(Some(serde_json::from_value(row).map_err(backend)?))
     }
 
+    async fn upsert_agent(&self, agent: &Agent) -> RepositoryResult<()> {
+        let body = strip_id(serde_json::to_value(agent).map_err(backend)?);
+        self.client()
+            .query("UPDATE type::thing('agent', $id) CONTENT $body RETURN NONE")
+            .bind(("id", agent.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
         let body = strip_id(serde_json::to_value(profile).map_err(backend)?);
         self.client()
             .query("CREATE type::thing('agent_profile', $id) CONTENT $body RETURN NONE")
+            .bind(("id", profile.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn get_agent_profile_for_agent(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentProfile>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM agent_profile \
+                 WHERE agent_id = $agent LIMIT 1",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| RepositoryError::Backend("agent_profile row missing _rid".into()))?;
+        let profile_id = NodeId::from_uuid(parse_uuid(&rid)?);
+        let row = inject_id(row, profile_id)?;
+        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+    }
+
+    async fn upsert_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
+        let body = strip_id(serde_json::to_value(profile).map_err(backend)?);
+        // UPSERT semantics: delete any existing row for this agent
+        // (1:1 invariant), then upsert the supplied id. Two statements
+        // are wrapped in a single transaction so a failure on the
+        // second leaves no orphaned row.
+        self.client()
+            .query(
+                "BEGIN TRANSACTION; \
+                 DELETE agent_profile WHERE agent_id = $agent AND id != type::thing('agent_profile', $id); \
+                 UPDATE type::thing('agent_profile', $id) CONTENT $body RETURN NONE; \
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("agent", profile.agent_id.to_string()))
             .bind(("id", profile.id.to_string()))
             .bind(("body", body))
             .await
@@ -1408,6 +1471,19 @@ impl Repository for SurrealStore {
             out.push(serde_json::from_value(row).map_err(backend)?);
         }
         Ok(out)
+    }
+
+    async fn upsert_project(&self, project: &Project) -> RepositoryResult<()> {
+        let body = strip_id(serde_json::to_value(project).map_err(backend)?);
+        self.client()
+            .query("UPDATE type::thing('project', $id) CONTENT $body RETURN NONE")
+            .bind(("id", project.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
     }
 
     async fn get_agent_execution_limits_override(

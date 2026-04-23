@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- Last verified: 2026-04-23 by Claude Code -->
 
 # phi operations runbook
 
@@ -91,3 +91,71 @@ contracts stable. Operators extending M3 surfaces must run the
 four-tier enforcement model — treating `check-phi-core-reuse.sh`
 alone as sufficient is **rejected by review**. See the checklist's
 "Enforcement — four-tier model" section for the required discipline.
+
+## M4 — Agents + Projects (aggregated runbook index)
+
+M4 shipped admin pages 08 (agent roster), 09 (agent profile editor),
+10 (project creation wizard — Shape A + Shape B), 11 (project
+detail). First milestone to materialise the `Project` node + write
+`HAS_LEAD` edges in production. First milestone to introduce a two-
+approver Auth Request flow (Shape B, co-owned projects). First
+milestone to extend agents with the 6-variant `AgentRole` spanning
+Human (Executive / Admin / Member) and LLM (Intern / Contract /
+System) agents. First milestone to ship a domain event bus
+(`TemplateAFireListener` subscribes to `HasLeadEdgeCreated` and
+fires the Template A grant automatically). Per-page ops runbooks:
+
+- [`../specs/v0/implementation/m4/operations/agent-roster-operations.md`](../specs/v0/implementation/m4/operations/agent-roster-operations.md) — page 08. Role filter UX, search-prefix semantics, roster read-back edge cases.
+- [`../specs/v0/implementation/m4/operations/agent-profile-editor-operations.md`](../specs/v0/implementation/m4/operations/agent-profile-editor-operations.md) — page 09. Create + edit + revert-override flows, `ExecutionLimits` inherit vs override decision tree, `is_valid_for(kind)` guard, three ExecutionLimits paths (inherit / override-set / override-revert).
+- [`../specs/v0/implementation/m4/operations/project-creation-operations.md`](../specs/v0/implementation/m4/operations/project-creation-operations.md) — page 10. Shape A (immediate) vs Shape B (two-approver) decision tree, 4-outcome approval matrix (both-approve / both-deny / mixed), Shape B materialisation deferral (C-M5-6).
+- [`../specs/v0/implementation/m4/operations/project-detail-operations.md`](../specs/v0/implementation/m4/operations/project-detail-operations.md) — page 11. In-place OKR patch semantics, "Recent sessions" placeholder (empty until M5 / C-M5-3).
+
+### M4 stable error codes (grep-able reference)
+
+The full catalogue lives in [`../specs/v0/implementation/m4/user-guide/troubleshooting.md`](../specs/v0/implementation/m4/user-guide/troubleshooting.md). Newly-introduced codes at M4:
+
+- `AGENT_ID_IN_USE` (409) — POST /orgs/:org_id/agents received an agent id collision (rare; server mints uuids).
+- `AGENT_IMMUTABLE_FIELD_CHANGED` (400) — PATCH /agents/:id/profile tried to change `id` / `kind` / `role` / `base_organization` (immutable post-creation at M4 scope).
+- `AGENT_ROLE_INVALID_FOR_KIND` (400) — Create/update tried to assign a role the `is_valid_for(kind)` predicate rejects (e.g. Intern role on a Human agent).
+- `PARALLELIZE_CEILING_EXCEEDED` (400) — Create/update supplied a `parallelize` value outside `[1, org_cap]`.
+- `EXECUTION_LIMITS_EXCEED_ORG_CEILING` (400) — per-agent override violates the `≤ org snapshot` invariant pinned by ADR-0027.
+- `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` (409) — PATCH tried to change `ModelConfig` while the agent has in-flight sessions (D-M4-3). **M4 note**: `Repository::count_active_sessions_for_agent` is a stub returning `Ok(0)` at M4 — the 409 code path is wired but never fires until M5 / C-M5-5 activates the real query.
+- `SYSTEM_AGENT_READ_ONLY` (403) — edit attempted on a `role=system` agent; system agents are managed by platform ops only.
+- `SHAPE_B_MISSING_CO_OWNER` (400) — POST /orgs/:org_id/projects requested Shape B without `co_owner_org_id`.
+- `SHAPE_A_HAS_CO_OWNER` (400) — Shape A with a `co_owner_org_id` supplied (Shape A is single-org by definition).
+- `CO_OWNER_INVALID` (400) — co-owner org equal to primary owner OR co-owner org not found.
+- `LEAD_NOT_IN_OWNING_ORG` (400) — lead agent's `owning_org` isn't one of the project's owning orgs.
+- `MEMBER_INVALID` (400) — member or sponsor id not found OR not in an owning org.
+- `PROJECT_ID_IN_USE` (409) — POST /orgs/:org_id/projects received a `project_id` that already exists. Server-minted UUIDs; retry the operator form.
+- `PENDING_AR_NOT_FOUND` (404) / `PENDING_AR_NOT_SHAPE_B` (400) / `PENDING_AR_ALREADY_TERMINAL` (409) — approve-pending handler call errors.
+- `APPROVER_NOT_AUTHORIZED` (403) — caller on `POST /projects/_pending/:ar_id/approve` isn't one of the two approver slots. Also reused for the page-11 OKR-patch access gate.
+- `PROJECT_NOT_FOUND` (404) — GET /projects/:id on an unknown id.
+- `PROJECT_ACCESS_DENIED` (403) — viewer is not a member of any owning org and is not on the project roster.
+- `OKR_VALIDATION_FAILED` (400) — PATCH /projects/:id/okrs violates a shape rule (duplicate id, missing parent objective, measurement-type mismatch, delete on objective with dependent KRs).
+- `TRANSITION_ILLEGAL` (400) — AR state-machine transition rejected by `transition_slot` (Shape B approval flow).
+
+### M4 incident playbooks
+
+- **Orphaned Agent on `apply_agent_creation` partial failure** — [`../specs/v0/implementation/m4/operations/agent-profile-editor-operations.md`](../specs/v0/implementation/m4/operations/agent-profile-editor-operations.md). The compound tx wraps `Agent` + `Inbox` + `Outbox` + default grants + optional profile + optional `agent_execution_limits` row. A 500 on POST /agents means the full transaction rolled back; verify via GET /orgs/:org_id/agents. A 201 response means the full row set is durable.
+- **Shape B approval-deadlock** — [`../specs/v0/implementation/m4/operations/project-creation-operations.md`](../specs/v0/implementation/m4/operations/project-creation-operations.md). If one slot approves and the other never responds, the AR stays in `Pending` forever at M4 scope (`expires_at` is set to 30 days; automatic cancellation is M5+). Operators can force-cancel by driving a `Denied` through the remaining slot with an explanatory reason.
+- **Template A grant missed by the listener** — [`../specs/v0/implementation/m4/architecture/template-a-firing.md`](../specs/v0/implementation/m4/architecture/template-a-firing.md). Listener errors are logged with the emitting `event_id` so operators can replay. M4 does NOT auto-retry; a failed grant emission leaves the project materialised without a lead grant. Fire the grant manually via the admin page or wait for M7b's event-retry infra.
+- **Dashboard role counters drift** — [`../specs/v0/implementation/m4/operations/agent-profile-editor-operations.md`](../specs/v0/implementation/m4/operations/agent-profile-editor-operations.md). The dashboard's `AgentsSummary` 6-role buckets derive from `Agent.role` — agents with `role=None` (pre-M4 rows OR freshly-created agents before role assignment) show up in the `unclassified` bucket. If the count is unexpectedly high, operators assign roles via page 09. The bucket is intentional; not a bug.
+- **OKR patch partial audit emission** — [`../specs/v0/implementation/m4/operations/project-detail-operations.md`](../specs/v0/implementation/m4/operations/project-detail-operations.md). The patch is sequential: each entry mutates in-memory vectors, then the full Project row is upserted, then audits emit one-per-entry. If the upsert succeeded but audit emission failed mid-patch, the row holds the full post-image but the chain has only N-1 events. Run the M1 audit-chain repair playbook.
+
+### M4 phi-core leverage — durable map
+
+- Agent-profile editor (page 09) is M4's phi-core-heaviest file — 4 direct imports in [`agents/update.rs`](../specs/v0/implementation/m4/architecture/phi-core-reuse-map.md) (`AgentProfile`, `ExecutionLimits`, `ModelConfig`, `ThinkingLevel`). Every other M4 surface is phi-core-import-free by design.
+- Compile-time coercion tests (3 per hotspot) + positive greps keep the wraps aligned; `check-phi-core-reuse.sh` runs on every PR.
+- Wire-shape schema snapshots strip phi-core-wrapping fields at the dashboard + project-detail tiers (tests: `dashboard_summary_wire_shape_excludes_phi_core_fields`, `wire_shape_strips_phi_core`, `show_happy_path`'s forbidden-key assertion).
+- The phi-core reuse map doc is the durable reference: [`../specs/v0/implementation/m4/architecture/phi-core-reuse-map.md`](../specs/v0/implementation/m4/architecture/phi-core-reuse-map.md). See that doc for per-page tables + the P8 close-audit record.
+
+### M4 known deferrals (read this before reporting a gap as a bug)
+
+Per the base build plan's pinned carryovers (see [`../specs/plan/build/36d0c6c5-build-plan-v01.md`](../specs/plan/build/36d0c6c5-build-plan-v01.md) §M5 and §M8):
+
+- **C-M5-3**: baby-phi governance `Session` node persistence. Until M5 ships, page 11's "Recent sessions" panel returns `[]` and the dashboard has no session-count tiles.
+- **C-M5-4**: Per-agent tool binding. M4 agents don't yet carry an editable tool set; `AgentTool` resolution happens at session-start time in M5.
+- **C-M5-5**: `Repository::count_active_sessions_for_agent` real implementation. Stub returns `Ok(0)` at M4; `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` never fires until M5.
+- **C-M5-6**: Shape B materialisation-after-approve. `POST /projects/_pending/:ar_id/approve` returns `Terminal { state: Approved, project_id: None }` at M4; M5 wires the compound-tx materialisation path.
+- **C-M5-7** (informal): roster read-back for project members/sponsors. Edges are written at creation but page 11's roster panel surfaces only the lead. Dedicated repo method lands at M5 alongside session launch.
+- **C-M8-1**: `phi project create --from-layout` + 3–5 project-layout YAML fixtures. Deferred to M8 per D-M4-6.

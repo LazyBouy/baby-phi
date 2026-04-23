@@ -129,11 +129,20 @@ function OrgHeader({ summary }: { summary: DashboardSummaryWire }) {
 
 function AgentsSummary({ summary }: { summary: DashboardSummaryWire }) {
   const a = summary.agents_summary;
+  const humanSide = a.executive + a.admin + a.member;
+  const llmSide = a.intern + a.contract + a.system;
   return (
     <Tile title="Agents" value={a.total} testid="panel-agents-summary">
       <div className="text-xs opacity-70">
-        human {a.human} · llm {a.llm}
+        human {humanSide} · llm {llmSide}
+        {a.unclassified > 0 ? ` · unclassified ${a.unclassified}` : ""}
       </div>
+      {a.total > 0 && (
+        <div className="mt-1 text-[10px] opacity-60">
+          exec {a.executive} · admin {a.admin} · member {a.member} · intern{" "}
+          {a.intern} · contract {a.contract} · system {a.system}
+        </div>
+      )}
     </Tile>
   );
 }

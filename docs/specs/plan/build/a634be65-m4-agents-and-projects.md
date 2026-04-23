@@ -167,7 +167,7 @@ Walking the phi-core module inventory per checklist §2:
 
 | # | Decision | User-chosen answer |
 |---|---|---|
-| D-M4-1 | `ThinkingLevel` UI variants | Show all 4 (`Off / Low / Medium / High`); default `Medium`. |
+| D-M4-1 | `ThinkingLevel` UI variants | Show all **5** (`Off / Minimal / Low / Medium / High`); default `Medium`. **Corrected at M4/P5 close** — phi-core's `types::usage::ThinkingLevel` enum ships 5 variants (the `Minimal` level was missed during M4/P0 planning); the editor dropdown matches the actual phi-core enum. |
 | D-M4-2 | Per-agent `ExecutionLimits` override | **SHIP at M4.** New `agent_execution_limits` table; page 09 editable with "Revert to org default" button. ADR-0027 pins opt-in override; ADR-0023 stays authoritative for default. Invariant: per-agent values ≤ org snapshot values. |
 | D-M4-3 | `ModelConfig` change on active-session agent | **Forbid** — return 409 `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE`. Operator must terminate sessions first. |
 | D-M4-4 | Template A firing scope | **Pure-fn + event-listener subscription**, BOTH at M4. Domain event bus + `TemplateAFireListener` wired so every `HAS_LEAD` edge write triggers the grant-builder automatically. ADR-0028 pins event-bus architecture. |
@@ -230,7 +230,7 @@ Target: **25 commitments closed** at P8.
 | D10 | **`phi project` CLI does NOT ship `--from-layout` at M4.** Deferred to M8. **P0 updates the base build plan's M8 section** (`docs/specs/plan/build/36d0c6c5-build-plan-v01.md`) to pin this commitment explicitly so it doesn't slip. | User-confirmed at plan close. Reference project layouts are per-scenario; limited fixture reuse vs org layouts. |
 | D11 | **Dashboard carryover closure is P8, not mid-milestone.** P1 defines types; P2 wires repo; P8 retrofits dashboard after all M4 machinery exists. | Avoids schema churn. M3 dashboard keeps zero-counter behaviour until P8. |
 | D12 | **`HasSponsor`, `HasSubproject`, `BelongsTo` edge variants.** Audit at P0: which exist? Concept doc lists all three. M3 shipped at 67 edges. P0 reports exact current-state; P1 adds only what's genuinely missing. | Lets P1 focus on the real gap. |
-| D-M4-1 | **`ThinkingLevel` UI shows all 4 variants** (`Off / Low / Medium / High`), default `Medium`. | User-confirmed. |
+| D-M4-1 | **`ThinkingLevel` UI shows all 5 variants** (`Off / Minimal / Low / Medium / High`), default `Medium`. **Corrected at M4/P5 close** — phi-core ships 5 variants (the `Minimal` level was missed during M4/P0 planning); dropdown matches the phi-core enum so future phi-core variant additions require only a dropdown refresh, not a plan amendment. | User-confirmed (with post-P5 correction). |
 | D-M4-2 | **Per-agent `ExecutionLimits` override SHIPS at M4**, opt-in (override row) + inherit default. | User-confirmed. See D5. |
 | D-M4-3 | **`ModelConfig` change on active-session agent returns 409**. Operator must terminate sessions first. | R-ADMIN-09-W4. |
 | D-M4-4 | **Template A firing = pure-fn builder + event-listener subscription at M4**. | User-confirmed. See D7. |
@@ -484,8 +484,8 @@ Create + edit an Agent with phi-core-typed form fields. System agents read-only.
 - **Q1 direct imports**: **THE phi-core-heavy phase**. Imports across P5 files:
   - `use phi_core::agents::profile::AgentProfile;` — form binds directly (create + update).
   - `use phi_core::context::execution::ExecutionLimits;` — **writeable** at M4 per D-M4-2; appears in create + update + `execution_limits.rs` resolver.
-  - `use phi_core::provider::model::ModelConfig;` — id-field validation against org catalogue.
-  - `use phi_core::types::ThinkingLevel;` — 4-variant dropdown per D-M4-1.
+  - `use phi_core::provider::model::ModelConfig;` — id-field validation against org catalogue. **At M4/P5 close this dropped to deferred-M5**: phi-core's `AgentProfile` has no `model_config` field (only a stable `config_id` used for loop_id composition), and baby-phi's `AgentProfile` wrap hasn't added a per-agent model-binding extension yet. M5 adds the extension + activates the full edit flow; the 409 `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` code path + `count_active_sessions_for_agent` stub ship today so M5 flips one predicate.
+  - `use phi_core::types::ThinkingLevel;` — **5-variant** dropdown per D-M4-1 (corrected at P5 close — phi-core ships `Off / Minimal / Low / Medium / High`).
 - **Q2 transitive**: patch body (`AgentProfilePatch`) carries these 4 types end-to-end via serde. Override path additionally transits `ExecutionLimits` into the `agent_execution_limits` row's `FLEXIBLE TYPE object` column.
 - **Q3 rejections**: per-agent `RetryConfig` / `ContextConfig` override — still deferred (user did not approve these for M4; only `ExecutionLimits` override shipped). `AgentTool` assignment — deferred to M5. Both documented.
 
@@ -852,7 +852,7 @@ Track in per-phase exec notes:
 ## Open items — all resolved at plan close
 
 All 6 planning-decision items (D-M4-1 through D-M4-6) were confirmed by user at plan close:
-- ✅ **D-M4-1**: ThinkingLevel UI shows all 4 variants, default Medium.
+- ✅ **D-M4-1**: ThinkingLevel UI shows all **5** variants (`Off / Minimal / Low / Medium / High`), default Medium. _Post-P5 correction_: original D-M4-1 said "4 variants"; phi-core actually ships 5. Dropdown matches phi-core enum.
 - ✅ **D-M4-2**: Per-agent ExecutionLimits override SHIPS at M4 (user chose override path).
 - ✅ **D-M4-3**: ModelConfig change on active sessions returns 409.
 - ✅ **D-M4-4**: Template A firing wires BOTH pure-fn AND event-listener subscription at M4.

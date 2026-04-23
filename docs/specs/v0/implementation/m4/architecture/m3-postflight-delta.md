@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- Last verified: 2026-04-23 by Claude Code -->
 
 # M3 post-flight delta (M4/P0)
 

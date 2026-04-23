@@ -148,14 +148,16 @@ fn completion_scripts_expose_m4_agent_subcommand_tree_on_every_shell() {
 
 #[test]
 fn completion_scripts_expose_m4_project_subcommand_tree_on_every_shell() {
-    // M4/P1 commitment C19: `phi project {list,show,create,update-okrs}`
-    // must surface on every shell backend. The scaffolds aren't wired
-    // yet (M4/P6–P7 lands the server business logic) but the
-    // subcommand tree is fully parseable today.
+    // M4/P1 commitment C19, reinforced at M4/P8: `phi project {list,
+    // show, create, update-okrs, approve-pending}` must all surface on
+    // every shell backend. M4/P6 wired `create` + `approve-pending`;
+    // M4/P7 wired `show` + `update-okrs` (list ships at M4/P8+ or
+    // later — kept in the tree at P1 so completion is regression-
+    // proof).
     for shell in ["bash", "zsh", "fish", "powershell"] {
         let (ok, stdout, _) = run(&["completion", shell]);
         assert!(ok, "completion {shell} exited non-zero");
-        for sub in ["project", "update-okrs"] {
+        for sub in ["project", "update-okrs", "approve-pending"] {
             assert!(
                 stdout.contains(sub),
                 "{shell} completion must surface `{sub}`; got snippet:\n{}",

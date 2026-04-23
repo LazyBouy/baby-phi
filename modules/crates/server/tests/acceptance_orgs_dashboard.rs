@@ -74,13 +74,22 @@ async fn fresh_minimal_startup_shows_cta_cards_and_welcome_banner() {
     assert_eq!(res.status().as_u16(), 200);
     let body: Value = res.json().await.unwrap();
 
-    // Agents summary — CEO (human=1) + 2 system agents (llm=2).
+    // Agents summary — CEO + 2 system agents, all seeded with
+    // `role = None` at the fixture (the M3/P3 `spawn_claimed_with_org`
+    // pre-dates AgentRole; a real M4/P5 wizard would set roles).
+    // Dashboard surfaces all three in `unclassified` so operators
+    // notice the gap.
     assert_eq!(body["agents_summary"]["total"].as_u64(), Some(3));
-    assert_eq!(body["agents_summary"]["human"].as_u64(), Some(1));
-    assert_eq!(body["agents_summary"]["llm"].as_u64(), Some(2));
+    assert_eq!(body["agents_summary"]["unclassified"].as_u64(), Some(3));
+    assert_eq!(body["agents_summary"]["executive"].as_u64(), Some(0));
+    assert_eq!(body["agents_summary"]["intern"].as_u64(), Some(0));
 
-    // Projects summary — zero until M4.
+    // Projects summary — fresh org has no projects at M3; shape_a /
+    // shape_b both zero (M4/P8 flipped these from hardcoded-zero to
+    // real counts via `count_projects_by_shape_in_org`).
     assert_eq!(body["projects_summary"]["active"].as_u64(), Some(0));
+    assert_eq!(body["projects_summary"]["shape_a"].as_u64(), Some(0));
+    assert_eq!(body["projects_summary"]["shape_b"].as_u64(), Some(0));
 
     // Welcome banner present for fresh orgs.
     assert!(

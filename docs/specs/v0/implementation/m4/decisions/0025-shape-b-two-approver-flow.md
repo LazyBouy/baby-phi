@@ -1,8 +1,8 @@
-<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- Last verified: 2026-04-23 by Claude Code -->
 
 # ADR-0025 — Shape B two-approver project creation flow
 
-**Status: Proposed** — flips to Accepted at M4/P6 close.
+**Status: Accepted** — flipped at M4/P6 close after Shape A happy-path + Shape B submit (2-slot AR in `Pending`) + Shape B approve-pending handler (drives `transition_slot` through all 4 outcomes) + 4-outcome acceptance tests landed. Materialisation-after-both-approve is wired at the state-machine tier but does NOT yet reconstruct the full `CreateProjectInput` — that piece deferred to **C-M5-6** in the base build plan (Shape B's second-approve materialisation needs a sidecar table / persistence of the pending payload; at M4 the AR state machine drives correctly through all 4 outcomes, emits the correct audit events, but the `Approved` terminal path returns `project_id: null` in the response).
 
 ## Context
 

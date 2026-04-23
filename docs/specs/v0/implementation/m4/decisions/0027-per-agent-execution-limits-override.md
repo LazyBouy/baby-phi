@@ -1,8 +1,8 @@
-<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- Last verified: 2026-04-23 by Claude Code -->
 
 # ADR-0027 — Per-agent ExecutionLimits override
 
-**Status: Proposed** — flips to Accepted at M4/P5 close.
+**Status: Accepted** — flipped at M4/P5 close after `create_agent` + `update_agent_profile` orchestrators + the `execution_limits` resolver landed; 4 unit tests + compile-time coercion witnesses pin the invariants.
 
 ## Context
 

@@ -110,6 +110,11 @@ jobs:
             --test acceptance_orgs_create \
             --test acceptance_orgs_dashboard \
             --test acceptance_m3 \
+            --test acceptance_agents_list \
+            --test acceptance_agents_profile \
+            --test acceptance_projects_create \
+            --test acceptance_projects_detail \
+            --test acceptance_m4 \
             --test acceptance_metrics \
             -- --test-threads 1
 

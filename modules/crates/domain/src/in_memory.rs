@@ -211,10 +211,50 @@ impl Repository for InMemoryRepository {
         Ok(self.lock()?.agents.get(&id).cloned())
     }
 
+    async fn upsert_agent(&self, agent: &Agent) -> RepositoryResult<()> {
+        self.lock()?.agents.insert(agent.id, agent.clone());
+        Ok(())
+    }
+
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
         self.lock()?
             .agent_profiles
             .insert(profile.id, profile.clone());
+        Ok(())
+    }
+
+    async fn get_agent_profile_for_agent(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentProfile>> {
+        Ok(self
+            .lock()?
+            .agent_profiles
+            .values()
+            .find(|p| p.agent_id == agent)
+            .cloned())
+    }
+
+    async fn upsert_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
+        let mut g = self.lock()?;
+        // Remove any existing profile for the same agent (1:1 invariant)
+        // before inserting, so we don't accumulate duplicates when the
+        // caller passes a fresh `id` for an edit.
+        let existing: Vec<_> = g
+            .agent_profiles
+            .iter()
+            .filter_map(|(k, v)| {
+                if v.agent_id == profile.agent_id && *k != profile.id {
+                    Some(*k)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for k in existing {
+            g.agent_profiles.remove(&k);
+        }
+        g.agent_profiles.insert(profile.id, profile.clone());
         Ok(())
     }
 
@@ -959,6 +999,12 @@ impl Repository for InMemoryRepository {
             .filter(|p| project_ids.contains(&p.id))
             .cloned()
             .collect())
+    }
+
+    async fn upsert_project(&self, project: &Project) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        state.projects.insert(project.id, project.clone());
+        Ok(())
     }
 
     async fn get_agent_execution_limits_override(

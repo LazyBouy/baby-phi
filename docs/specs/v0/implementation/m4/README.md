@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- Last verified: 2026-04-23 by Claude Code -->
 
 # M4 — Agents + Projects
 
@@ -25,8 +25,8 @@ Plan archive: [`../../../plan/build/a634be65-m4-agents-and-projects.md`](../../.
 | P4 — Page 08 vertical (Agent Roster List) | [PLANNED M4/P4] | Business logic + handler + CLI + Web + ops doc |
 | P5 — Page 09 vertical (Agent Profile Editor + ExecutionLimits override) | [PLANNED M4/P5] | M4's phi-core-heaviest phase — 4 direct imports (AgentProfile, ExecutionLimits, ModelConfig, ThinkingLevel) |
 | P6 — Page 10 vertical (Project Creation Wizard) | [PLANNED M4/P6] | Shape A + Shape B + 6-step web wizard; Template A fires automatically via subscription |
-| P7 — Page 11 vertical (Project Detail) | [PLANNED M4/P7] | Read-only detail + in-place OKR edit |
-| P8 — Seal: dashboard rewrite + cross-page acceptance + CI + runbook + independent 3-agent re-audit | [PLANNED M4/P8] | M3 dashboard counters reactivated; `acceptance_m4.rs`; target ≥99% composite |
+| P7 — Page 11 vertical (Project Detail) | [EXISTS] ✓ M4/P7 | Read-only detail (`GET /api/v0/projects/:id`) + in-place OKR edit (`PATCH …/okrs`); roster panel surfaces lead; recent-sessions panel empty until M5 (C-M5-3); `upsert_project` repo method + `project_okrs_updated` audit builder shipped |
+| P8 — Seal: dashboard rewrite + cross-page acceptance + CI + runbook + independent 3-agent re-audit | [EXISTS] ✓ M4/P8 | `AgentsSummary` 6+unclassified buckets; `ProjectsSummary` real counts via `count_projects_by_shape_in_org`; `ViewerRole::ProjectLead` populated via `list_projects_led_by_agent`; `acceptance_m4.rs` (2 scenarios, cross-page + project-lead); CI rust.yml extended with 5 new `--test` entries; M4 section of [`docs/ops/runbook.md`](../../../../ops/runbook.md) + full troubleshooting table + phi-core reuse map populated end-to-end |
 
 ## ADRs
 
