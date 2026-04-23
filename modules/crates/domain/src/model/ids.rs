@@ -12,7 +12,9 @@ use uuid::Uuid;
 macro_rules! id_newtype {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+        )]
         #[serde(transparent)]
         pub struct $name(pub Uuid);
 
@@ -111,6 +113,29 @@ id_newtype!(
 id_newtype!(
     /// Identifier of an `ExternalService` composite instance (M2 page 03).
     McpServerId
+);
+id_newtype!(
+    /// Identifier of a `LoopRecord` governance node (M5 — wraps
+    /// `phi_core::session::model::LoopRecord`). Distinct from phi-core's
+    /// `LoopRecord.loop_id: String` — the latter lives on `inner`.
+    LoopId
+);
+id_newtype!(
+    /// Identifier of a `Turn` governance node (M5 — wraps
+    /// `phi_core::session::model::Turn`). Distinct from phi-core's
+    /// `Turn.turn_id: TurnId { loop_id, turn_index }` — the latter lives
+    /// on `inner`.
+    TurnNodeId
+);
+id_newtype!(
+    /// Identifier of an `AgentCatalogEntry` composite instance (M5 page
+    /// 13 / s03 catalogue cache).
+    AgentCatalogEntryId
+);
+id_newtype!(
+    /// Identifier of a `SystemAgentRuntimeStatus` composite instance (M5
+    /// page 13 live-status tile).
+    SystemAgentRuntimeStatusId
 );
 
 #[cfg(test)]

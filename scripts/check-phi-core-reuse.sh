@@ -27,7 +27,8 @@ cd "$(dirname "$0")/.."
 
 SCAN_ROOT="modules/crates"
 
-# Types phi-core owns; no phi crate may redeclare them.
+# Types phi-core owns; no phi crate may redeclare them. Hard denial
+# — any match anywhere under $SCAN_ROOT fails the lint.
 FORBIDDEN=(
     "ExecutionLimits"
     "ModelConfig"
@@ -46,7 +47,22 @@ FORBIDDEN=(
     "ThinkingLevel"
     "McpToolInfo"
     "McpToolAdapter"
+    "Turn"
+    "AgentTool"
 )
+
+# Types phi-core owns, but baby-phi wraps at the governance-node
+# tier. The wrap is permitted ONLY in
+# `modules/crates/domain/src/model/nodes.rs`; a redeclaration
+# anywhere else fails the lint. Added at M5/P0 for the Session
+# wrap (ADR-0029) — the wrap literally carries the same name
+# (`struct Session { inner: phi_core::session::model::Session, ... }`)
+# so we cannot just add it to FORBIDDEN.
+WRAP_FORBIDDEN=(
+    "Session"
+)
+
+WRAP_ALLOWED_FILE="modules/crates/domain/src/model/nodes.rs"
 
 hits=0
 
@@ -59,6 +75,19 @@ for name in "${FORBIDDEN[@]}"; do
         echo "check-phi-core-reuse: FORBIDDEN redeclaration of phi-core type '$name':"
         echo "$matches" | sed 's/^/  /'
         hits=$((hits + 1))
+    fi
+done
+
+for name in "${WRAP_FORBIDDEN[@]}"; do
+    matches=$(grep -rn --include="*.rs" -E "^[[:space:]]*(pub[[:space:]]+)?(struct|enum|trait)[[:space:]]+${name}\b" "$SCAN_ROOT" || true)
+    if [[ -n "$matches" ]]; then
+        # Filter out the wrap-allowed file.
+        filtered=$(echo "$matches" | grep -v "^${WRAP_ALLOWED_FILE}:" || true)
+        if [[ -n "$filtered" ]]; then
+            echo "check-phi-core-reuse: FORBIDDEN redeclaration of phi-core wrap type '$name' outside $WRAP_ALLOWED_FILE:"
+            echo "$filtered" | sed 's/^/  /'
+            hits=$((hits + 1))
+        fi
     fi
 done
 

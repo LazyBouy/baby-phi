@@ -29,3 +29,9 @@ secret = "dev-only-placeholder-override-via-env-var-32b"
 cookie_name = "phi_kernel_session"
 ttl_seconds = 43200
 secure = true
+# Platform-wide concurrency ceiling on active agent-loop sessions
+# (M5 / ADR-0031). Launches beyond this cap return HTTP 503
+# `SESSION_WORKER_SATURATED`. Distinct from the per-agent
+# `parallelize` cap (409 `PARALLELIZE_CAP_REACHED`, which comes from
+# the agent's blueprint).
+max_concurrent = 16

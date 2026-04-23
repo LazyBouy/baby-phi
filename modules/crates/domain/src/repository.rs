@@ -23,16 +23,17 @@ use serde::{Deserialize, Serialize};
 use crate::audit::AuditEvent;
 use crate::model::ids::{
     AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
-    OrgId, ProjectId, SecretId,
+    OrgId, ProjectId, SecretId, SessionId,
 };
 use crate::model::nodes::{
-    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
-    Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ResourceRef, Template,
-    ToolAuthorityManifest, User,
+    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
+    LoopRecordNode, Memory, Organization, OutboxObject, PrincipalRef, Project, ProjectShape,
+    ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest, TurnNode, User,
 };
 use crate::model::{
-    AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime, PlatformDefaults,
-    Principal, Resource, SecretCredential, SecretRef, TenantSet,
+    AgentCatalogEntry, AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime,
+    PlatformDefaults, Principal, Resource, SecretCredential, SecretRef, SessionDetail,
+    ShapeBPendingProject, SystemAgentRuntimeStatus, TenantSet,
 };
 
 // ----------------------------------------------------------------------------
@@ -837,10 +838,12 @@ pub trait Repository: Send + Sync + 'static {
     /// an agent's model while a session is running returns
     /// `409 ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE`.
     ///
-    /// **M4 stub**: baby-phi's governance `Session` node persists at
-    /// M5 session launch. Until then this method returns `Ok(0)` for
-    /// every agent. The 409 code path is wired now so that M5 can
-    /// flip this to the real query with no handler change.
+    /// **M5/P2 update**: both first-party impls (in-memory +
+    /// SurrealDB) override this with a real count. The default
+    /// body below stays as a safety net — `Ok(0)` — so thin test
+    /// decorators that don't care about the 409 path still compile.
+    /// Production Repositories MUST override; the flipped behaviour
+    /// closes C-M5-5.
     ///
     /// **Test ergonomics**: acceptance tests that want to exercise
     /// the 409 path wrap the `Arc<dyn Repository>` with a thin
@@ -1007,6 +1010,201 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         payload: &AgentCreationPayload,
     ) -> RepositoryResult<AgentCreationReceipt>;
+
+    // ---- M5/P2 — Session + sidecar + catalog + status surface ---------
+    //
+    // Landed at M5/P2 per the M5 plan §P2 Deliverables.
+    // **phi-core leverage** (Q1 at P2): 0 new `use phi_core::*` imports
+    // in this file — all phi-core types flow through the already-wrapped
+    // `Session` / `LoopRecordNode` / `TurnNode` node structs imported
+    // above. The M4/P1 wrap pattern absorbs every phi-core type
+    // transit; no new direct imports cross the repo trait.
+
+    /// Persist a fresh governance `Session` row + its first
+    /// [`LoopRecordNode`] + the `runs_session` edge linking session
+    /// to project — the writes the M5/P4 launch handler needs to
+    /// make the session visible to page 11's "Recent sessions" panel.
+    ///
+    /// **Drift-addendum invariant (D1.1)**: the SurrealDB `session`
+    /// table inherits a mandatory `created_at: string` column from
+    /// 0001. Implementations MUST populate `created_at` (typically
+    /// the same wall-clock value as `session.started_at`) inside the
+    /// compound write or SurrealDB's SCHEMAFULL ASSERT will reject
+    /// the row.
+    async fn persist_session(
+        &self,
+        session: &Session,
+        first_loop: &LoopRecordNode,
+    ) -> RepositoryResult<()>;
+
+    /// Append a new [`LoopRecordNode`] to an existing session.
+    /// Called by [`BabyPhiSessionRecorder`] (M5/P3) on each
+    /// `AgentStart` that opens a follow-on loop in the same
+    /// session (continuation / rerun / branch).
+    async fn append_loop_record(&self, loop_record: &LoopRecordNode) -> RepositoryResult<()>;
+
+    /// Append a materialised [`TurnNode`] to an existing loop.
+    /// Called by [`BabyPhiSessionRecorder`] on each `TurnEnd`. The
+    /// same `created_at: string` mandatory-field invariant from the
+    /// drift addendum (D1.1) applies to the `turn` table — impls
+    /// populate it alongside the turn's own `started_at`.
+    async fn append_turn(&self, turn: &TurnNode) -> RepositoryResult<()>;
+
+    /// Persist one `phi_core::AgentEvent` for the audit replay tier.
+    /// M5/P1 deliberately keeps this pass-through; the `AgentEvent`
+    /// stream flows through [`BabyPhiSessionRecorder`]'s storage
+    /// sink rather than surfacing phi-core types at the repo
+    /// boundary (Q3 rejection — preserves the repo's phi-core-free
+    /// trait shape). Implementations serialise the event via
+    /// [`serde_json::Value`] on the way in so callers may evolve
+    /// the `AgentEvent` shape without forcing a trait change.
+    async fn append_agent_event(
+        &self,
+        session: SessionId,
+        event: serde_json::Value,
+    ) -> RepositoryResult<()>;
+
+    /// Fetch the full session drill-down (session + every loop +
+    /// every turn) keyed by `session`. Returns [`None`] when the
+    /// session is unknown (404 on the HTTP tier).
+    ///
+    /// Reconstructs the nested `phi_core::Session.loops` tree from
+    /// baby-phi's flattened storage layout. Per-Turn queries stay
+    /// O(1) against the flat `turn` table; full drill-down is one
+    /// compound SELECT per tier + in-process group-by.
+    async fn fetch_session(&self, session: SessionId) -> RepositoryResult<Option<SessionDetail>>;
+
+    /// List every session whose `owning_project == project`.
+    /// Ordered newest-first by `started_at`. Used by page 11's
+    /// "Recent sessions" panel + the M5/P4 `GET /projects/:id/sessions`
+    /// endpoint (which strips to `SessionHeader` at the wire tier per
+    /// the plan's §P4 schema-snapshot invariant).
+    async fn list_sessions_in_project(&self, project: ProjectId) -> RepositoryResult<Vec<Session>>;
+
+    /// List every session with `started_by == agent` and
+    /// `governance_state == Running`. Drives the per-agent
+    /// parallelize gate at M5/P4 launch time; also underpins the
+    /// [`count_active_sessions_for_agent`] flip (the count is just
+    /// `.len()` on the list for the in-memory impl).
+    async fn list_active_sessions_for_agent(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Vec<Session>>;
+
+    /// Mark a session terminal (Completed / Aborted / FailedLaunch).
+    /// Rejects the call when the session is already terminal
+    /// (`Conflict` — callers treat as idempotent "already ended").
+    /// Atomically sets `ended_at` to the supplied `at` value.
+    async fn mark_session_ended(
+        &self,
+        session: SessionId,
+        at: DateTime<Utc>,
+        state: SessionGovernanceState,
+    ) -> RepositoryResult<()>;
+
+    /// Terminate a session from the page-14 W3 action path. Thin
+    /// wrapper around `mark_session_ended(..., Aborted)` + a
+    /// governance `reason` string + `terminated_by` principal ref
+    /// kept on the audit emit (not on the session row — reason /
+    /// actor live in the audit event, not in the durable session
+    /// row itself). Impls return `NotFound` if the session is
+    /// unknown, `Conflict` if already terminal.
+    async fn terminate_session(
+        &self,
+        session: SessionId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()>;
+
+    /// Persist the Shape B pending-project payload sidecar. Called
+    /// from `POST /projects` at submit time, alongside the AR
+    /// creation in the same compound tx. Closes C-M5-6 at M5/P4.
+    async fn persist_shape_b_pending(&self, row: &ShapeBPendingProject) -> RepositoryResult<()>;
+
+    /// Read the sidecar by `auth_request`. Called by the
+    /// `approve_pending_shape_b` Approved branch to reconstruct the
+    /// full `CreateProjectInput` for the materialisation compound
+    /// tx. Returns [`None`] after the sidecar has been deleted (the
+    /// idempotent post-materialise state).
+    async fn fetch_shape_b_pending(
+        &self,
+        auth_request: AuthRequestId,
+    ) -> RepositoryResult<Option<ShapeBPendingProject>>;
+
+    /// Delete the sidecar after the Approved branch successfully
+    /// materialises the project. No-op on a missing row (sidecar
+    /// already deleted → idempotent).
+    async fn delete_shape_b_pending(&self, auth_request: AuthRequestId) -> RepositoryResult<()>;
+
+    /// Upsert an [`AgentCatalogEntry`] — the s03 catalogue cache
+    /// row. Keyed by `agent_id` (UNIQUE per migration 0005's
+    /// `agent_catalog_entry_identity` index). Called from
+    /// [`AgentCatalogListener`] at M5/P8 on 8 trigger variants
+    /// (AgentCreated / AgentArchived / edge-change events).
+    async fn upsert_agent_catalog_entry(&self, entry: &AgentCatalogEntry) -> RepositoryResult<()>;
+
+    /// List every catalogue entry for `org` — the page-07 dashboard
+    /// roll-up source + M6 a05 grants-view underpinning. Ordered by
+    /// `display_name` for stable operator-facing output.
+    async fn list_agent_catalog_entries_in_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AgentCatalogEntry>>;
+
+    /// Get a single catalogue entry by agent id. Returns [`None`]
+    /// when the agent has no row yet (pre-first-upsert).
+    async fn get_agent_catalog_entry(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentCatalogEntry>>;
+
+    /// Upsert the [`SystemAgentRuntimeStatus`] tile for a system
+    /// agent. Called by all 5 listener bodies (Template A / C / D
+    /// fire + memory-extraction + agent-catalog) via a shared
+    /// helper on every fire.
+    async fn upsert_system_agent_runtime_status(
+        &self,
+        status: &SystemAgentRuntimeStatus,
+    ) -> RepositoryResult<()>;
+
+    /// Fetch every runtime-status row for `org` — the page-13
+    /// listing endpoint's data source (R-ADMIN-13-R2 / N3). Ordered
+    /// by `agent_id` for stable operator-facing output.
+    async fn fetch_system_agent_runtime_status_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<SystemAgentRuntimeStatus>>;
+
+    /// List every [`Template`] row for the org's adoption view.
+    /// M5/P1 migration 0005 flipped `template` uniqueness from name
+    /// to kind (ADR-0030) — Template rows are now platform-level;
+    /// per-org adoption lives on the AR's `provenance_template`.
+    /// This method therefore returns the **5 platform Template
+    /// rows** (A/B/C/D/E) every org sees, filtered or augmented by
+    /// adoption state at the server handler tier (M5/P5). The
+    /// `org` parameter is kept for symmetry + future evolution but
+    /// not used by the read itself at M5/P2.
+    async fn list_authority_templates_for_org(&self, org: OrgId)
+        -> RepositoryResult<Vec<Template>>;
+
+    /// Count the [`Grant`] rows whose `DESCENDS_FROM` edge points at
+    /// `auth_request`. Used by page 12 to surface the
+    /// "grants that will be revoked" confirm-dialog number before
+    /// the operator runs the revoke-cascade. Pre-cascade read —
+    /// counts BOTH active and already-revoked grants for the full
+    /// audit trail; the revoke action itself filters to non-terminal
+    /// grants at M5/P5.
+    async fn count_grants_fired_by_adoption(
+        &self,
+        auth_request: AuthRequestId,
+    ) -> RepositoryResult<u32>;
+
+    /// List every adoption-AR row for `org` whose `state ==
+    /// AuthRequestState::Revoked`. Powers page 12's "Revoked"
+    /// bucket (R-ADMIN-12-R2). Ordered by `created_at` newest-first.
+    async fn list_revoked_adoptions_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>>;
 }
 
 /// One cascade hit recorded by [`Repository::narrow_mcp_tenants`] —

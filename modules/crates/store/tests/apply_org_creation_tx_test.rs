@@ -126,6 +126,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         agent_id: sys0_agent.id,
         parallelize: 1,
         blueprint: sys0_blueprint,
+        model_config_id: None,
         created_at: Utc::now(),
     };
     let sys1_profile = AgentProfile {
@@ -133,6 +134,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         agent_id: sys1_agent.id,
         parallelize: 1,
         blueprint: sys1_blueprint,
+        model_config_id: None,
         created_at: Utc::now(),
     };
     let token_budget_pool = TokenBudgetPool::new(org_id, 1_000_000, Utc::now());

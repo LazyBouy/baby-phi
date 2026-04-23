@@ -6,10 +6,19 @@
 # requirement ids that tests still depend on.
 #
 # Patterns guarded (grep -E):
-#   R-ADMIN-[0-9]{2}-[A-Z][0-9]+
-#   R-AGENT-[0-9]{2}-[A-Z][0-9]+
-#   R-SYS-[0-9]{2}-[A-Z][0-9]+
-#   R-NFR-[A-Z]+-[A-Z0-9]+
+#   R-ADMIN-[0-9]{2}-[A-Z][0-9]+           e.g. R-ADMIN-12-R1 (M5 page 12)
+#   R-AGENT-[0-9]{2}-[A-Z][0-9]+           e.g. R-AGENT-a04-R2 (M6 pages)
+#   R-SYS-[A-Za-z0-9]+-[A-Z0-9]+           e.g. R-SYS-s01-1, R-SYS-s02-4
+#   R-NFR-[A-Z]+-[A-Z0-9]+                 e.g. R-NFR-PERF-1
+#
+# The middle segment must accept lowercase — system-flow ids are
+# `s01`, `s02`, `s03`, `s05` with a lowercase `s` prefix; agent
+# pages use `a01`..`a05`. M5/P0 broadened the pattern to catch
+# R-SYS-s02-* / R-SYS-s03-* / R-SYS-s05-* references introduced
+# by the memory-extraction + agent-catalog + template-C/D fire
+# listeners. Prior pattern `[A-Z0-9]+` was uppercase-only and
+# silently missed M1 R-SYS-s01-* references (fixed retroactively
+# at M5/P0).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -20,7 +29,7 @@ if [[ ! -d "$SPEC_DIR" ]]; then
   exit 0
 fi
 
-pattern='R-(ADMIN|AGENT|SYS|NFR)-[A-Z0-9]+-[A-Z0-9]+'
+pattern='R-(ADMIN|AGENT|SYS|NFR)-[A-Za-z0-9]+-[A-Z0-9]+'
 
 mapfile -t referenced < <(
   grep -REho "$pattern" \

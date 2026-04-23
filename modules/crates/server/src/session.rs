@@ -216,6 +216,7 @@ mod tests {
             cookie_name: "phi_kernel_session".into(),
             ttl_seconds: 3600,
             secure: true,
+            max_concurrent: 16,
         };
         let err = SessionKey::from_config(&cfg).unwrap_err();
         matches!(err, SessionBuildError::SecretTooShort { .. });
@@ -228,6 +229,7 @@ mod tests {
             cookie_name: "phi_kernel_session".into(),
             ttl_seconds: 3600,
             secure: true,
+            max_concurrent: 16,
         };
         assert!(SessionKey::from_config(&cfg).is_ok());
     }

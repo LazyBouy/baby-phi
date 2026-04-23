@@ -126,6 +126,7 @@ async fn create_agent_profile_persists_row() {
             agent_id: AgentId::new(),
             parallelize: 4,
             blueprint,
+            model_config_id: None,
             created_at: Utc::now(),
         })
         .await

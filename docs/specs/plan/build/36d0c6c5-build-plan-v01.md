@@ -299,6 +299,21 @@ These items are **deferred from M4** (closed at M4/P0 planning after user decisi
 - a04 My work.
 - a05 My profile + grants (with authority-chain traversal per NFR-observability R6).
 
+#### Carryovers from M5 — must-pick-up at M6 detailed planning
+
+These items were deliberately **deferred** at M5/P0 (user decision D6). They fall naturally into M6's agent self-service scope (page a04 "my work" + a05 "my grants" both touch memory retrieval); pinning them here so the M6 detailed planning session picks them up rather than re-discovering them during execution. Mirrors the shape of the M3→M5 + M4→M5 + M4→M8 carryover subsections above.
+
+- **C-M6-1 — Memory node tier + interface contract + ownership-by-multi-tag + permission-over-time retrieval.** M5/P8 wires the `memory-extraction-agent` (s02) to fire on `DomainEvent::SessionEnded` and emit a `MemoryExtracted` audit event for each candidate memory (with a **structured tag list** — agent / group / project / org tags the memory is associated with — serialised alongside the session transcript reference on the audit event, so M6 can materialise Memory nodes from the audit stream without re-running the extractor). M5 deliberately does **NOT** persist `Memory` nodes. Three sub-requirements pinned for M6 detailed planning:
+  - (i) **Well-defined memory interface contract**. Any memory system that integrates with baby-phi (including baby-phi's default implementation) MUST implement a clear trait / API contract (draft shape: `trait MemoryStore { async fn extract(&self, session: &Session) -> Vec<Memory>; async fn retrieve(&self, query: RetrievalQuery, viewer: AgentId) -> Vec<Memory>; async fn tag(&self, memory: MemoryId, tags: Vec<Tag>) -> Result<(), MemoryError>; }`). The contract surface is what lets third-party memory integrations (vector stores, knowledge graphs, custom RAG stacks) plug in without touching baby-phi governance. Default impl + contract ship **together** at M6.
+  - (ii) **Ownership via multi-tag**. A single memory (or the session it was extracted from) can carry **multiple tags simultaneously** — agent (who saw it) / group (who participated) / project (what it was for) / org (where it lives). Tags are first-class ownership; a memory does not have a single "owner" field. The tag schema supports custom tags (`#<string>`) for extensibility (e.g. `#public`, `#pii-redacted`, `#kb-article`). Materialisation from M5's `MemoryExtracted` audit: the structured tag list on the audit event drives the initial tag set; later tagging is mutation on the Memory node.
+  - (iii) **Permission-over-time retrieval**. Agents retrieve only memory they have **current** grants for at retrieval time — grants revoked after extraction forfeit read access immediately. Retrieval is NOT a cached view of "what this agent could see at extraction time"; it is a live Permission Check against the agent's active grants at the moment of retrieval. This interacts with the M1 Permission Check engine + M4 authority-chain traversal + M7 `DESCENDS_FROM` walk — draft the retrieval gate as a composition, not a re-implementation.
+  
+  **Files affected at M6:** `modules/crates/domain/src/model/nodes.rs::Memory` (new node), `modules/crates/domain/src/memory_contract.rs` (new — `MemoryStore` trait + default impl), `modules/crates/store/migrations/0006_*.surql` (new memory table + `HAS_MEMORY` edges + tag-index table + multi-tag junction), `modules/crates/server/src/platform/memory/` (new dir — CRUD + retrieval endpoints), `modules/crates/cli/src/commands/memory.rs` (new — `phi memory {list, show, tag, retrieve}`), `modules/web/app/(admin)/organizations/[id]/memory/` (new — browse + tag UI).
+
+**Why this belongs at M6, not M7**: a04 "my work" + a05 "my grants" both ship at M6 and both depend on memory retrieval semantics being defined. Waiting until M7 forces a05 to ship without retrieval, which undermines the "agent self-service" milestone goal. M6 is the right home.
+
+**phi-core leverage implications for M6 detailed planning**: Memory itself is pure baby-phi governance (no phi-core counterpart — phi-core has message history but no retrieval-with-permission concept). The retrieval path may compose `phi_core::types::tool::AgentTool` (if a `retrieve_memory` tool is exposed to LLM agents at a01), but that's reuse of the M5 resolver surface, not a new import. The default implementation's storage backend is SurrealDB (same as the rest of baby-phi); third-party impls (Chroma, Weaviate, LanceDB) satisfy the `MemoryStore` trait + persist wherever they choose. Consult the [M5 plan archive §D6](../../v0/implementation/m5/architecture/m4-postflight-delta.md) + [M5 plan](./01710c13-m5-templates-system-agents-sessions.md) §Part 3 §D6 for the full resolution context.
+
 ### M7 — Remaining system flows + NFR wiring (≈2 weeks)
 
 - s04 full state-machine observability (was scaffolded in M1; full audit + metrics now).
@@ -419,6 +434,37 @@ Each milestone (M0–M8) is multi-session work. The plan archive step is the fir
 3. Land per-page acceptance tests before moving to the next page.
 4. Update docs (if implementation surfaces a concept gap, fix both code and doc in the same commit per `phi/CLAUDE.md`).
 5. Tag milestone completion with a git tag (`v0.1-m0`, `v0.1-m1`, …).
+
+### Per-phase close discipline — 4-aspect + drift addendum  `[PLAN: pinned at M5/P1 close, inaugurates for M6+]`
+
+Applies to every phase of every milestone M5 onward (and retroactively to any M2–M4 phase that reopens). Upgraded from M4's 3-aspect model by M5's planning round; codified here as the standing rule after the inaugural drift-addendum appeared at M5/P1 close.
+
+**Phase close is not complete until all four aspects are reported + the drift addendum is updated.** This is what keeps the plan archive, downstream docs, ADRs, and shipped code coherent across 22–25 day milestone arcs where each phase introduces new interaction surfaces with earlier work.
+
+1. **Code correctness** — `cargo fmt/clippy/test --workspace` + `npm test/typecheck/lint/build` green. `RUSTFLAGS="-Dwarnings"` enforced. Targeted per-phase test-count target hit (see each phase's §Tests added in the milestone plan).
+2. **Docs accuracy** — per-page architecture + ops docs reflect shipped code; `<!-- Last verified: YYYY-MM-DD by Claude Code -->` headers refreshed; ADR statuses (Proposed / Accepted / Accepted-in-part) correct for the phase.
+3. **phi-core leverage** — `scripts/check-phi-core-reuse.sh` green; positive greps match the phase's prediction in the milestone plan's §Part 1.5 / §phi-core leverage subsection (**exact line counts + exact file locations**); compile-time coercion witnesses pass; no re-implementations of phi-core types under `modules/crates/`.
+4. **Archive-plan compliance** — walk the milestone plan archive (at `docs/specs/plan/build/<8hex>-<label>.md`) deliverable-by-deliverable for the closing phase. Mark each bullet ✅ / ⚠ drift / ✗ missing. **Any ✗ blocks close**; ⚠ drift items are permitted but MUST land in the drift addendum (see below) before the phase can close.
+
+**Composite confidence** = `min(aspect_scores)` or weighted average per phase policy. Archive-plan compliance is a hard floor — a phase that achieves 99% on the first three aspects but 80% on archive-plan compliance closes at **80%**, not 95%.
+
+**Drift addendum (inaugurated at M5/P1 close):** every milestone plan archive carries a trailing `# Drift addenda` section (append-only, one subsection per closed phase). For each ⚠ drift, one entry using this exact five-block template:
+
+- **P0 plan said** — direct quote from the plan body describing the original intent.
+- **Reality at P<N> implementation** — what the environment imposed + why the P0 text was wrong (wrong assumption about prior migration / wrong phi-core shape / collision / etc.).
+- **What P<N> shipped** — the actual adaptation.
+- **Downstream consequence** — any invariant future phases must honour (e.g. "P2 repo writers must populate both X and Y").
+- **Documented at** — bullet list of every downstream doc / ADR / code site carrying the correction, with clickable relative links.
+
+**Why this discipline matters.** A milestone plan archive is a P0 snapshot. Without the addendum step, the archive silently drifts out of coherence with shipped code across multi-week milestones — readers re-read a stale P0 code block and trust it. The addendum pattern preserves the P0 intent visible in the plan body (useful for auditing the planning process) while surfacing every deviation in one canonical place. Plan body is **never mutated post-P0**; all corrections live in the addendum.
+
+**Closing protocol.** Every phase close produces, in this order: (a) a 4-aspect confidence report, (b) archive-plan compliance walk ticking each deliverable, (c) addendum update landing any ⚠ drift items, (d) pause for user review before opening the next phase. No phase chains autonomously past its own close.
+
+**Standing guardrails (carry across every phase of every milestone M5+).** Pinned here so future milestone planning rounds inherit them without re-discovery:
+- **phi-core leverage** — Q1/Q2/Q3 walked up-front at each milestone's P0; per-phase close audits check exact import counts + compile-time witnesses + CI `check-phi-core-reuse.sh` green.
+- **CLI naming** — binary is `phi` (never `baby-phi`). Every new CLI subcommand carries a completion-regression test on all four shells (bash, zsh, fish, powershell) + a negative assertion that `baby-phi` never surfaces in completion output.
+- **Documentation–code alignment** — doc updates land in the same commit as code changes per [`phi/CLAUDE.md`](../../../../CLAUDE.md). Status tags (`[EXISTS]`, `[PLANNED]`, `[CONCEPTUAL]`) stay current. `Last verified` headers refreshed on every touch.
+- **Phase-boundary pause** — no chaining phases autonomously; user review between every phase close and next-phase open.
 
 ## Verification  `[PLAN: new]` `[DOCS: ⏳ pending]`
 

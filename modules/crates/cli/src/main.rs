@@ -102,6 +102,15 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::project::ProjectCommand,
     },
+    /// Session subcommands (M5 / page 14 — First Session Launch).
+    /// `launch` (default tails SSE / `--detach`) + `show` +
+    /// `terminate` + `list` ship at M5/P4 (business logic) + M5/P7
+    /// (CLI body). The clap surface is scaffolded at M5/P1 so shell
+    /// completions name them today.
+    Session {
+        #[command(subcommand)]
+        cmd: commands::session::SessionCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -246,6 +255,7 @@ async fn main() {
         Command::Completion { shell } => commands::completion::run(shell),
         Command::Org { cmd } => commands::org::run(cli.server_url, cmd).await,
         Command::Project { cmd } => commands::project::run(cli.server_url, cmd).await,
+        Command::Session { cmd } => commands::session::run(cli.server_url, cmd).await,
     };
     std::process::exit(code);
 }

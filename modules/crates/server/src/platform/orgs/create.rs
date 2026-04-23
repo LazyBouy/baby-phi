@@ -397,6 +397,7 @@ fn build_system_agents(
         agent_id: memory_extractor_agent.id,
         parallelize: 1,
         blueprint: memory_blueprint,
+        model_config_id: None,
         created_at: now,
     };
 
@@ -420,6 +421,7 @@ fn build_system_agents(
         agent_id: agent_catalog_agent.id,
         parallelize: 1,
         blueprint: catalog_blueprint,
+        model_config_id: None,
         created_at: now,
     };
 

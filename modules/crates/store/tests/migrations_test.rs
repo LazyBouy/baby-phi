@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 4, "every embedded migration recorded");
+    assert_eq!(rows.len(), 5, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -43,6 +43,11 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[3].get("slug").and_then(|v| v.as_str()),
         Some("agents_projects")
+    );
+    assert_eq!(rows[4].get("version").and_then(|v| v.as_i64()), Some(5));
+    assert_eq!(
+        rows[4].get("slug").and_then(|v| v.as_str()),
+        Some("sessions_templates_system_agents")
     );
 
     // A sample table from the initial migration exists and accepts a row

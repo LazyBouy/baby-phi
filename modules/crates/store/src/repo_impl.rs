@@ -24,14 +24,18 @@ use uuid::Uuid;
 
 use domain::audit::{AuditClass, AuditEvent};
 use domain::model::ids::{
-    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, NodeId, OrgId, ProjectId, UserId,
+    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, LoopId, NodeId, OrgId, ProjectId,
+    SessionId, TurnNodeId, UserId,
 };
 use domain::model::nodes::{
-    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject, Memory,
-    Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ResourceRef, Template,
-    ToolAuthorityManifest, User,
+    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
+    LoopRecordNode, Memory, Organization, OutboxObject, PrincipalRef, Project, ProjectShape,
+    ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest, TurnNode, User,
 };
-use domain::model::AgentExecutionLimitsOverride;
+use domain::model::{
+    AgentCatalogEntry, AgentExecutionLimitsOverride, SessionDetail, ShapeBPendingProject,
+    SystemAgentRuntimeStatus,
+};
 use domain::repository::{
     AgentCreationPayload, AgentCreationReceipt, BootstrapClaim, BootstrapCredentialRow,
     OrgCreationPayload, OrgCreationReceipt, ProjectCreationPayload, ProjectCreationReceipt,
@@ -2198,6 +2202,604 @@ impl Repository for SurrealStore {
                 .as_ref()
                 .map(|o| o.id),
         })
+    }
+
+    // ========================================================================
+    // M5/P2 — Session + sidecar + catalog + status surface
+    //
+    // Drift-addendum invariant (D1.1): the `session` + `turn` tables inherit
+    // a mandatory `created_at: string` column from migration 0001. Every
+    // persist path here populates `created_at` alongside the M5 governance
+    // fields — typically the same wall-clock value as `started_at`.
+    //
+    // phi-core leverage: Q1 zero new `use phi_core::*` imports in this file
+    // (every phi-core type transits via the already-wrapped `Session` /
+    // `LoopRecordNode` / `TurnNode` structs). All CRUD flows through
+    // `serde_json::to_value` / `from_value` — no direct phi-core types cross
+    // the SurrealDB boundary at this tier.
+    // ========================================================================
+
+    async fn persist_session(
+        &self,
+        session: &Session,
+        first_loop: &LoopRecordNode,
+    ) -> RepositoryResult<()> {
+        let mut body = strip_id(serde_json::to_value(session).map_err(backend)?);
+        // D1.1 — populate the 0001 scaffold's mandatory `created_at`.
+        if let serde_json::Value::Object(ref mut map) = body {
+            map.entry("created_at")
+                .or_insert(serde_json::Value::String(session.started_at.to_rfc3339()));
+        }
+        // Use CREATE (not UPDATE) — persist_session semantics say a
+        // duplicate session id is a Conflict, not an overwrite. The
+        // CREATE errors if the thing already exists; we translate
+        // that error to `Conflict` at the boundary.
+        self.client()
+            .query("CREATE type::thing('session', $id) CONTENT $body RETURN NONE")
+            .bind(("id", session.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(|e| RepositoryError::Conflict(format!("session insert rejected: {e}")))?;
+        // First loop record in the same tx, by convention.
+        self.append_loop_record(first_loop).await?;
+
+        // runs_session edge (session → project) so page 11's panel
+        // query walks in the right direction. SurrealDB's RELATE
+        // parser doesn't accept `type::thing(...)` in FROM/TO slots
+        // directly — bind via LET first (same idiom as the ownership
+        // edges in `upsert_ownership_raw`).
+        let edge_id = EdgeId::new();
+        self.client()
+            .query(
+                "LET $f = type::thing('session', $sid); \
+                 LET $t = type::thing('project', $pid); \
+                 RELATE $f -> runs_session -> $t \
+                    SET id = type::thing('runs_session', $edge) \
+                    RETURN NONE",
+            )
+            .bind(("sid", session.id.to_string()))
+            .bind(("pid", session.owning_project.to_string()))
+            .bind(("edge", edge_id.to_string()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn append_loop_record(&self, loop_record: &LoopRecordNode) -> RepositoryResult<()> {
+        let body = strip_id(serde_json::to_value(loop_record).map_err(backend)?);
+        self.client()
+            .query("CREATE type::thing('loop_record', $id) CONTENT $body RETURN NONE")
+            .bind(("id", loop_record.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn append_turn(&self, turn: &TurnNode) -> RepositoryResult<()> {
+        let mut body = strip_id(serde_json::to_value(turn).map_err(backend)?);
+        // D1.1 — `turn` table also carries a mandatory `created_at`
+        // from 0001. Use the turn's `started_at` (read off the
+        // phi-core inner) as the wall-clock proxy.
+        if let serde_json::Value::Object(ref mut map) = body {
+            map.entry("created_at").or_insert(serde_json::Value::String(
+                turn.inner.started_at.to_rfc3339(),
+            ));
+        }
+        self.client()
+            .query("CREATE type::thing('turn', $id) CONTENT $body RETURN NONE")
+            .bind(("id", turn.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn append_agent_event(
+        &self,
+        session: SessionId,
+        event: serde_json::Value,
+    ) -> RepositoryResult<()> {
+        // Use the pre-existing `event` scaffold table for the audit
+        // replay trail. Rows are keyed by a fresh NodeId + link the
+        // owning session via a `session_id` field (FLEXIBLE object
+        // absorbs the full phi-core AgentEvent payload as-is).
+        let row = serde_json::json!({
+            "session_id": session.to_string(),
+            "payload": event,
+            "created_at": Utc::now().to_rfc3339(),
+        });
+        let event_id = NodeId::new();
+        self.client()
+            .query("UPDATE type::thing('event', $id) CONTENT $body RETURN NONE")
+            .bind(("id", event_id.to_string()))
+            .bind(("body", row))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn fetch_session(&self, session: SessionId) -> RepositoryResult<Option<SessionDetail>> {
+        let sid = session.to_string();
+        let mut resp = self
+            .client()
+            .query("SELECT * OMIT id FROM type::thing('session', $sid)")
+            .bind(("sid", sid.clone()))
+            .await
+            .map_err(backend)?;
+        let Some(row) = take_first_row(&mut resp, 0).await? else {
+            return Ok(None);
+        };
+        let row = inject_id(row, session)?;
+        let sess: Session = serde_json::from_value(row).map_err(backend)?;
+
+        // Loops.
+        let mut loop_resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM loop_record \
+                 WHERE session_id = $sid ORDER BY loop_index ASC",
+            )
+            .bind(("sid", sid.clone()))
+            .await
+            .map_err(backend)?;
+        let loop_rows: Vec<serde_json::Value> = loop_resp.take(0).map_err(backend)?;
+        let mut loops: Vec<LoopRecordNode> = Vec::with_capacity(loop_rows.len());
+        let mut turns_by_loop: std::collections::BTreeMap<LoopId, Vec<TurnNode>> =
+            std::collections::BTreeMap::new();
+        for mut lr_row in loop_rows {
+            let rid = lr_row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("loop_record missing _rid".into()))?;
+            let lid = LoopId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(lr_row, lid)?;
+            let lr: LoopRecordNode = serde_json::from_value(hydrated).map_err(backend)?;
+            turns_by_loop.insert(lid, Vec::new());
+            loops.push(lr);
+        }
+
+        // Turns (one SELECT, group in-process by `loop_id`).
+        if !loops.is_empty() {
+            let loop_id_strs: Vec<String> = loops.iter().map(|l| l.id.to_string()).collect();
+            let mut turn_resp = self
+                .client()
+                .query(
+                    "SELECT *, record::id(id) AS _rid OMIT id FROM turn \
+                     WHERE loop_id IN $loop_ids ORDER BY turn_index ASC",
+                )
+                .bind(("loop_ids", loop_id_strs))
+                .await
+                .map_err(backend)?;
+            let turn_rows: Vec<serde_json::Value> = turn_resp.take(0).map_err(backend)?;
+            for mut t_row in turn_rows {
+                let rid = t_row
+                    .as_object_mut()
+                    .and_then(|m| m.remove("_rid"))
+                    .and_then(|v| v.as_str().map(str::to_string))
+                    .ok_or_else(|| RepositoryError::Backend("turn missing _rid".into()))?;
+                let tid = TurnNodeId::from_uuid(parse_uuid(&rid)?);
+                let hydrated = inject_id(t_row, tid)?;
+                let tn: TurnNode = serde_json::from_value(hydrated).map_err(backend)?;
+                if let Some(bucket) = turns_by_loop.get_mut(&tn.loop_id) {
+                    bucket.push(tn);
+                }
+            }
+        }
+
+        Ok(Some(SessionDetail {
+            session: sess,
+            loops,
+            turns_by_loop,
+        }))
+    }
+
+    async fn list_sessions_in_project(&self, project: ProjectId) -> RepositoryResult<Vec<Session>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM session \
+                 WHERE owning_project = $pid ORDER BY started_at DESC",
+            )
+            .bind(("pid", project.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("session missing _rid".into()))?;
+            let sid = SessionId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, sid)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_active_sessions_for_agent(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Vec<Session>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM session \
+                 WHERE started_by = $agent AND governance_state = 'running' \
+                 ORDER BY started_at DESC",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("session missing _rid".into()))?;
+            let sid = SessionId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, sid)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn count_active_sessions_for_agent(&self, agent: AgentId) -> RepositoryResult<u32> {
+        // C-M5-5 flip. The M4 stub returned `Ok(0)`; this is the real
+        // query. Mirrors `list_active_sessions_for_agent`'s filter but
+        // uses SurrealDB's `count()` aggregate for O(1) work instead of
+        // materialising the rows.
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT count() AS c FROM session \
+                 WHERE started_by = $agent AND governance_state = 'running' \
+                 GROUP ALL",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        Ok(rows
+            .into_iter()
+            .next()
+            .and_then(|v| v.get("c").and_then(|c| c.as_u64()))
+            .unwrap_or(0) as u32)
+    }
+
+    async fn mark_session_ended(
+        &self,
+        session: SessionId,
+        at: DateTime<Utc>,
+        state: SessionGovernanceState,
+    ) -> RepositoryResult<()> {
+        if state == SessionGovernanceState::Running {
+            return Err(RepositoryError::InvalidArgument(
+                "mark_session_ended requires a terminal state".into(),
+            ));
+        }
+        // Idempotency check: reject already-terminal sessions with
+        // Conflict so callers can treat as "already ended".
+        let mut probe = self
+            .client()
+            .query("SELECT governance_state FROM type::thing('session', $sid)")
+            .bind(("sid", session.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = probe.take(0).map_err(backend)?;
+        let Some(row) = rows.into_iter().next() else {
+            return Err(RepositoryError::NotFound);
+        };
+        let current = row
+            .get("governance_state")
+            .and_then(|v| v.as_str())
+            .unwrap_or("running")
+            .to_string();
+        if current != "running" {
+            return Err(RepositoryError::Conflict(format!(
+                "session {session} already terminal ({current})"
+            )));
+        }
+        self.client()
+            .query(
+                "UPDATE type::thing('session', $sid) SET \
+                 governance_state = $state, ended_at = $at RETURN NONE",
+            )
+            .bind(("sid", session.to_string()))
+            .bind(("state", state.as_str().to_string()))
+            .bind(("at", at.to_rfc3339()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn terminate_session(
+        &self,
+        session: SessionId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        self.mark_session_ended(session, at, SessionGovernanceState::Aborted)
+            .await
+    }
+
+    async fn persist_shape_b_pending(&self, row: &ShapeBPendingProject) -> RepositoryResult<()> {
+        // CREATE (not UPDATE) so the UNIQUE(auth_request_id) index
+        // rejects a duplicate sidecar for the same AR.
+        let body = serde_json::to_value(row).map_err(backend)?;
+        let record_id = NodeId::new();
+        self.client()
+            .query("CREATE type::thing('shape_b_pending_projects', $id) CONTENT $body RETURN NONE")
+            .bind(("id", record_id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(|e| RepositoryError::Conflict(format!("sidecar insert rejected: {e}")))?;
+        Ok(())
+    }
+
+    async fn fetch_shape_b_pending(
+        &self,
+        auth_request: AuthRequestId,
+    ) -> RepositoryResult<Option<ShapeBPendingProject>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT * OMIT id FROM shape_b_pending_projects \
+                 WHERE auth_request_id = $ar LIMIT 1",
+            )
+            .bind(("ar", auth_request.to_string()))
+            .await
+            .map_err(backend)?;
+        let Some(row) = take_first_row(&mut resp, 0).await? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+    }
+
+    async fn delete_shape_b_pending(&self, auth_request: AuthRequestId) -> RepositoryResult<()> {
+        self.client()
+            .query("DELETE shape_b_pending_projects WHERE auth_request_id = $ar")
+            .bind(("ar", auth_request.to_string()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn upsert_agent_catalog_entry(&self, entry: &AgentCatalogEntry) -> RepositoryResult<()> {
+        // Catalog rows upsert on agent_id (migration 0005's UNIQUE
+        // `agent_catalog_entry_identity` index). Delete-by-agent
+        // first so repeated listener fires replace the row rather
+        // than creating a second (the UNIQUE index would reject
+        // anyway, but the DELETE keeps the per-agent-1:1 invariant
+        // the listener contract relies on).
+        let body = strip_id(serde_json::to_value(entry).map_err(backend)?);
+        self.client()
+            .query(
+                "BEGIN TRANSACTION; \
+                 DELETE agent_catalog_entry WHERE agent_id = $agent AND id != type::thing('agent_catalog_entry', $id); \
+                 UPSERT type::thing('agent_catalog_entry', $id) CONTENT $body RETURN NONE; \
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("agent", entry.agent_id.to_string()))
+            .bind(("id", entry.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn list_agent_catalog_entries_in_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AgentCatalogEntry>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM agent_catalog_entry \
+                 WHERE owning_org = $org ORDER BY display_name ASC",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| {
+                    RepositoryError::Backend("agent_catalog_entry missing _rid".into())
+                })?;
+            let id = domain::model::ids::AgentCatalogEntryId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, id)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn get_agent_catalog_entry(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentCatalogEntry>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM agent_catalog_entry \
+                 WHERE agent_id = $agent LIMIT 1",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| RepositoryError::Backend("agent_catalog_entry missing _rid".into()))?;
+        let id = domain::model::ids::AgentCatalogEntryId::from_uuid(parse_uuid(&rid)?);
+        let hydrated = inject_id(row, id)?;
+        Ok(Some(serde_json::from_value(hydrated).map_err(backend)?))
+    }
+
+    async fn upsert_system_agent_runtime_status(
+        &self,
+        status: &SystemAgentRuntimeStatus,
+    ) -> RepositoryResult<()> {
+        // Same 1:1-per-agent invariant as agent_catalog_entry — see
+        // `system_agent_runtime_status_identity` UNIQUE index in
+        // migration 0005. Delete-by-agent then UPSERT.
+        let body = strip_id(serde_json::to_value(status).map_err(backend)?);
+        self.client()
+            .query(
+                "BEGIN TRANSACTION; \
+                 DELETE system_agent_runtime_status WHERE agent_id = $agent AND id != type::thing('system_agent_runtime_status', $id); \
+                 UPSERT type::thing('system_agent_runtime_status', $id) CONTENT $body RETURN NONE; \
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("agent", status.agent_id.to_string()))
+            .bind(("id", status.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn fetch_system_agent_runtime_status_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<SystemAgentRuntimeStatus>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM system_agent_runtime_status \
+                 WHERE owning_org = $org ORDER BY agent_id ASC",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| {
+                    RepositoryError::Backend("system_agent_runtime_status missing _rid".into())
+                })?;
+            let id = domain::model::ids::SystemAgentRuntimeStatusId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, id)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_authority_templates_for_org(
+        &self,
+        _org: OrgId,
+    ) -> RepositoryResult<Vec<Template>> {
+        // ADR-0030: Template rows are platform-level; per-org adoption
+        // lives on the AR's provenance_template. The handler layer
+        // (M5/P5) augments the base list with adoption state.
+        let mut resp = self
+            .client()
+            .query("SELECT *, record::id(id) AS _rid OMIT id FROM template ORDER BY kind ASC")
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("template row missing _rid".into()))?;
+            let tid = domain::model::ids::TemplateId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, tid)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn count_grants_fired_by_adoption(
+        &self,
+        auth_request: AuthRequestId,
+    ) -> RepositoryResult<u32> {
+        let mut resp = self
+            .client()
+            .query("SELECT count() AS c FROM grant WHERE descends_from = $ar GROUP ALL")
+            .bind(("ar", auth_request.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        Ok(rows
+            .into_iter()
+            .next()
+            .and_then(|v| v.get("c").and_then(|c| c.as_u64()))
+            .unwrap_or(0) as u32)
+    }
+
+    async fn list_revoked_adoptions_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>> {
+        // Adoption ARs carry `org:<id>/template:<kind>` as a
+        // resource-slot URI — same prefix filter as
+        // `list_adoption_ars_for_org`. The state guard narrows to the
+        // revoked bucket for page 12's revoked list (R-ADMIN-12-R2).
+        let prefix = format!("org:{}/template:", org);
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM auth_request \
+                 WHERE state = 'revoked' \
+                   AND resource_slots[WHERE string::starts_with(resource.uri, $prefix)] != [] \
+                 ORDER BY submitted_at DESC",
+            )
+            .bind(("prefix", prefix))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("auth_request row missing _rid".into()))?;
+            let ar_id = AuthRequestId::from_uuid(parse_uuid(&rid)?);
+            let arow: AuthRequestRow = serde_json::from_value(row).map_err(backend)?;
+            out.push(arow.into_domain(ar_id)?);
+        }
+        Ok(out)
     }
 }
 

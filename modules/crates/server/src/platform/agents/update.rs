@@ -234,6 +234,7 @@ pub async fn update_agent_profile(
                     agent_id,
                     parallelize: new_parallelize,
                     blueprint: bp,
+                    model_config_id: None,
                     created_at: patch.now,
                 });
                 profile_changed = true;
@@ -277,6 +278,7 @@ pub async fn update_agent_profile(
                     agent_id,
                     parallelize: patch.parallelize.unwrap_or(1),
                     blueprint: new_blueprint.clone(),
+                    model_config_id: None,
                     created_at: patch.now,
                 });
                 profile_changed = true;

@@ -15,9 +15,23 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+// phi-core session-tier types wrapped at M5/P1 per ADR-0029. Aliased
+// where they collide with baby-phi's governance wrap (the wrap
+// struct's name IS `Session` — the alias keeps both reachable in this
+// module). `LoopRecord` and `Turn` don't collide (baby-phi wraps are
+// `LoopRecordNode` and `TurnNode`) but aliasing uniformly pins the
+// phi-core origin on every reference. Split into three `use`
+// statements so the positive close-audit grep
+// `grep -En '^use phi_core::session::model' domain/src/model/nodes.rs`
+// returns exactly **3** lines (matching the M5 plan §Part 1.5 P1
+// prediction).
+use phi_core::session::model::LoopRecord as PhiCoreLoopRecord;
+use phi_core::session::model::Session as PhiCoreSession;
+use phi_core::session::model::Turn as PhiCoreTurn;
+
 use super::ids::{
-    AgentId, AuthRequestId, ConsentId, GrantId, MemoryId, NodeId, OrgId, ProjectId, SessionId,
-    TemplateId, UserId,
+    AgentId, AuthRequestId, ConsentId, GrantId, LoopId, MemoryId, NodeId, OrgId, ProjectId,
+    SessionId, TemplateId, TurnNodeId, UserId,
 };
 
 // ============================================================================
@@ -288,6 +302,13 @@ pub struct AgentProfile {
     /// The phi-core execution blueprint. Source of truth for
     /// `system_prompt`, `thinking_level`, `skills`, etc.
     pub blueprint: phi_core::agents::profile::AgentProfile,
+    /// Per-agent `ModelConfig` binding (M5 / C-M5-5). References a row in
+    /// the owning org's `ModelRuntime` catalogue (M2/P6 surface).
+    /// `None` = inherit from the org snapshot's default model
+    /// (ADR-0023 default path). `#[serde(default)]` so pre-M5 stored
+    /// rows round-trip cleanly.
+    #[serde(default)]
+    pub model_config_id: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -504,7 +525,7 @@ pub struct Template {
 /// Source of truth: `docs/specs/v0/concepts/permissions/02-templates.md`.
 /// The variants match the concept doc's A–F table plus the pre-M2
 /// `SystemBootstrap` shipping template.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TemplateKind {
     /// The platform-install bootstrap template seeded by `--bootstrap-init`.
@@ -795,21 +816,118 @@ scaffold_node!(
     Identity,
     NodeId
 );
-scaffold_node!(
-    /// One logical task/conversation. [PLANNED M5] — phi-core `Session` wraps here.
-    Session,
-    SessionId
-);
-scaffold_node!(
-    /// One `agent_loop()` call. [PLANNED M5].
-    Loop,
-    NodeId
-);
-scaffold_node!(
-    /// One LLM round-trip. [PLANNED M5].
-    Turn,
-    NodeId
-);
+// ============================================================================
+// Session / LoopRecordNode / TurnNode — 3-way wrap of phi-core's session tier.
+//
+// Landed at M5/P1 per ADR-0029. Each wrap carries a nested `inner` field
+// holding the corresponding `phi_core::session::model::*` type verbatim;
+// governance extensions (owning_org, owning_project, started_by, etc.)
+// sit alongside. Nested (not `#[serde(flatten)]`) to avoid field-name
+// collisions between phi-core's `session_id: String` / `agent_id: String`
+// and baby-phi's `id: SessionId` / `started_by: AgentId` newtype UUIDs —
+// the identical discipline M3 used for `OrganizationDefaultsSnapshot`.
+//
+// Compile-time coercion witnesses in the tests module pin the invariant
+// that `inner` holds phi-core's type (see
+// `tests::wraps_carry_phi_core_types`).
+// ============================================================================
+
+/// One logical task/conversation. Wraps `phi_core::session::model::Session`.
+///
+/// `inner` carries phi-core's full Session tree verbatim via serde;
+/// governance extensions (owning_org, started_by, governance_state,
+/// tokens_spent) sit alongside. See [ADR-0029](../../../../../../docs/specs/v0/implementation/m5/decisions/0029-session-persistence-and-recorder-wrap.md).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub id: SessionId,
+    /// The phi-core session tree (session-id, agent-id, loops, formation).
+    pub inner: PhiCoreSession,
+    pub owning_org: OrgId,
+    pub owning_project: ProjectId,
+    pub started_by: AgentId,
+    pub governance_state: SessionGovernanceState,
+    pub started_at: DateTime<Utc>,
+    #[serde(default)]
+    pub ended_at: Option<DateTime<Utc>>,
+    /// Running total of tokens the session consumed across every
+    /// turn. Maintained by `BabyPhiSessionRecorder` at M5/P3 (zero
+    /// at M5/P1 when the wrap lands without the recorder).
+    #[serde(default)]
+    pub tokens_spent: u64,
+}
+
+/// Session lifecycle state. Explicit transitions only (no silent
+/// expiry). `Running` / `Completed` / `Aborted` / `FailedLaunch`.
+///
+/// - `Running` — set at launch; flipped by the recorder on `AgentEnd`.
+/// - `Completed` — natural termination (`AgentEnd.rejection = None`,
+///   final turn hit `StopReason::Stop` with no follow-up).
+/// - `Aborted` — operator-triggered terminate OR rejection from the
+///   input filter OR cancellation-token fire.
+/// - `FailedLaunch` — panic scopeguard fallback (task crashed before
+///   producing a valid `AgentEnd`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionGovernanceState {
+    Running,
+    Completed,
+    Aborted,
+    FailedLaunch,
+}
+
+impl SessionGovernanceState {
+    pub const ALL: [SessionGovernanceState; 4] = [
+        SessionGovernanceState::Running,
+        SessionGovernanceState::Completed,
+        SessionGovernanceState::Aborted,
+        SessionGovernanceState::FailedLaunch,
+    ];
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SessionGovernanceState::Running => "running",
+            SessionGovernanceState::Completed => "completed",
+            SessionGovernanceState::Aborted => "aborted",
+            SessionGovernanceState::FailedLaunch => "failed_launch",
+        }
+    }
+
+    /// True if the session is no longer accepting turns (Completed /
+    /// Aborted / FailedLaunch). `Running` alone counts against the
+    /// per-agent parallelize cap + the platform-wide registry.
+    pub fn is_terminal(&self) -> bool {
+        !matches!(self, SessionGovernanceState::Running)
+    }
+}
+
+/// One `agent_loop()` call. Wraps `phi_core::session::model::LoopRecord`.
+///
+/// Named `LoopRecordNode` (not `LoopRecord`) so the wrap sits alongside
+/// phi-core's `LoopRecord` without a word-boundary collision on the
+/// `check-phi-core-reuse.sh` denylist.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopRecordNode {
+    pub id: LoopId,
+    /// The phi-core loop-record (messages, usage, status, timing).
+    pub inner: PhiCoreLoopRecord,
+    pub session_id: SessionId,
+    /// Zero-based index of this loop within its session.
+    pub loop_index: u32,
+}
+
+/// One LLM round-trip. Wraps `phi_core::session::model::Turn`.
+///
+/// Named `TurnNode` (not `Turn`) for the same denylist-hygiene reason
+/// as `LoopRecordNode`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TurnNode {
+    pub id: TurnNodeId,
+    /// The phi-core turn (input_messages, output_message, tool_results, usage).
+    pub inner: PhiCoreTurn,
+    pub loop_id: LoopId,
+    /// Zero-based index of this turn within its loop.
+    pub turn_index: u32,
+}
 scaffold_node!(
     /// Atomic unit of conversation. [PLANNED M5].
     MessageNode,
@@ -1036,5 +1154,78 @@ mod tests {
         }"#;
         let agent: Agent = serde_json::from_str(pre_m4).expect("deserialize pre-M4 row");
         assert_eq!(agent.role, None);
+    }
+
+    // ---- M5: Session / LoopRecordNode / TurnNode wraps --------------------
+
+    /// Compile-time coercion witnesses. A rename or shape change in
+    /// phi-core's `Session` / `LoopRecord` / `Turn` breaks the baby-phi
+    /// build immediately. Identical discipline to M3's
+    /// `OrganizationDefaultsSnapshot` wrap + M4's `AgentProfile.blueprint`
+    /// wrap. See ADR-0029.
+    #[allow(dead_code)]
+    fn _is_phi_core_session(_: &PhiCoreSession) {}
+    #[allow(dead_code)]
+    fn _is_phi_core_loop_record(_: &PhiCoreLoopRecord) {}
+    #[allow(dead_code)]
+    fn _is_phi_core_turn(_: &PhiCoreTurn) {}
+
+    #[allow(dead_code)]
+    fn _coerces_session_inner(s: &Session) {
+        _is_phi_core_session(&s.inner);
+    }
+    #[allow(dead_code)]
+    fn _coerces_loop_record_inner(r: &LoopRecordNode) {
+        _is_phi_core_loop_record(&r.inner);
+    }
+    #[allow(dead_code)]
+    fn _coerces_turn_inner(t: &TurnNode) {
+        _is_phi_core_turn(&t.inner);
+    }
+
+    #[test]
+    fn session_governance_state_has_four_variants_and_roundtrips() {
+        assert_eq!(SessionGovernanceState::ALL.len(), 4);
+        for s in SessionGovernanceState::ALL {
+            let j = serde_json::to_string(&s).expect("serialize");
+            let back: SessionGovernanceState = serde_json::from_str(&j).expect("deserialize");
+            assert_eq!(back, s);
+        }
+    }
+
+    #[test]
+    fn session_governance_state_is_terminal_matches_running_guard() {
+        assert!(!SessionGovernanceState::Running.is_terminal());
+        assert!(SessionGovernanceState::Completed.is_terminal());
+        assert!(SessionGovernanceState::Aborted.is_terminal());
+        assert!(SessionGovernanceState::FailedLaunch.is_terminal());
+    }
+
+    #[test]
+    fn session_governance_state_wire_names_match_as_str() {
+        // Migration 0005's `session.governance_state` ASSERT clause uses
+        // serde's snake_case form. Pin parity with `as_str()`.
+        for s in SessionGovernanceState::ALL {
+            let serde_form = serde_json::to_value(s)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_string))
+                .expect("serialises as JSON string");
+            assert_eq!(s.as_str(), serde_form);
+        }
+    }
+
+    #[test]
+    fn agent_profile_model_config_id_defaults_to_none_for_pre_m5_rows() {
+        // Pre-M5 agent_profile rows had no `model_config_id` column.
+        // `#[serde(default)]` must keep the round-trip clean.
+        let pre_m5 = serde_json::json!({
+            "id": "00000000-0000-0000-0000-00000000aaaa",
+            "agent_id": "00000000-0000-0000-0000-00000000bbbb",
+            "parallelize": 1,
+            "blueprint": phi_core::agents::profile::AgentProfile::default(),
+            "created_at": "2026-01-01T00:00:00Z"
+        });
+        let profile: AgentProfile = serde_json::from_value(pre_m5).expect("deserialize pre-M5 row");
+        assert_eq!(profile.model_config_id, None);
     }
 }

@@ -17,17 +17,19 @@ use chrono::{DateTime, Utc};
 
 use crate::audit::AuditEvent;
 use crate::model::ids::{
-    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
-    OrgId, ProjectId, SecretId,
+    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, LoopId, McpServerId, ModelProviderId,
+    NodeId, OrgId, ProjectId, SecretId, SessionId, TurnNodeId,
 };
 use crate::model::nodes::{
-    Agent, AgentKind, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
-    Memory, Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ResourceRef, Template,
-    ToolAuthorityManifest, User,
+    Agent, AgentKind, AgentProfile, AgentRole, AuthRequest, AuthRequestState, Channel, Consent,
+    Grant, InboxObject, LoopRecordNode, Memory, Organization, OutboxObject, PrincipalRef, Project,
+    ProjectShape, ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest,
+    TurnNode, User,
 };
 use crate::model::{
-    AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime, PlatformDefaults,
-    SecretCredential, SecretRef, TenantSet,
+    AgentCatalogEntry, AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime,
+    PlatformDefaults, SecretCredential, SecretRef, SessionDetail, ShapeBPendingProject,
+    SystemAgentRuntimeStatus, TenantSet,
 };
 use crate::repository::{
     BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, ProjectShapeCounts, Repository,
@@ -78,6 +80,31 @@ struct State {
     /// Per-agent `ExecutionLimits` override rows, keyed by owning
     /// agent (1:1 per migration 0004's UNIQUE index).
     agent_execution_limits: HashMap<AgentId, AgentExecutionLimitsOverride>,
+    // M5/P2 additions — Session tier + sidecar + catalog + runtime status.
+    /// Governance `Session` rows keyed by session id.
+    sessions: HashMap<SessionId, Session>,
+    /// Governance `LoopRecordNode` rows keyed by loop id.
+    loop_records: HashMap<LoopId, LoopRecordNode>,
+    /// Governance `TurnNode` rows keyed by turn node id.
+    turn_nodes: HashMap<TurnNodeId, TurnNode>,
+    /// `runs_session` edges (session → project). Allows
+    /// [`list_sessions_in_project`] to walk the edge set.
+    runs_session_edges: Vec<(SessionId, ProjectId)>,
+    /// Materialised `phi_core::AgentEvent` stream per session.
+    /// Stored as serde `Value` on the repo boundary to keep
+    /// phi-core types from crossing the trait (Q3 rejection —
+    /// preserves the repo's phi-core-free trait shape).
+    session_agent_events: HashMap<SessionId, Vec<serde_json::Value>>,
+    /// Shape B pending-project sidecar rows, keyed by the AR id.
+    /// UNIQUE per migration 0005's `shape_b_pending_projects_ar`
+    /// index — enforced here via the HashMap key.
+    shape_b_pending_projects: HashMap<AuthRequestId, ShapeBPendingProject>,
+    /// Agent catalogue cache rows — s03 output. UNIQUE per
+    /// `agent_id` per migration 0005.
+    agent_catalog_entries: HashMap<AgentId, AgentCatalogEntry>,
+    /// System-agent runtime-status tiles (page 13 live feed).
+    /// UNIQUE per `agent_id` per migration 0005.
+    system_agent_runtime_status: HashMap<AgentId, SystemAgentRuntimeStatus>,
 }
 
 #[derive(Clone)]
@@ -1481,6 +1508,307 @@ impl Repository for InMemoryRepository {
             default_grant_ids,
             execution_limits_override_id,
         })
+    }
+
+    // ---- M5/P2 — Session + sidecar + catalog + status surface ---------
+
+    async fn persist_session(
+        &self,
+        session: &Session,
+        first_loop: &LoopRecordNode,
+    ) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        if s.sessions.contains_key(&session.id) {
+            return Err(RepositoryError::Conflict(format!(
+                "session {} already persisted",
+                session.id
+            )));
+        }
+        s.sessions.insert(session.id, session.clone());
+        s.loop_records.insert(first_loop.id, first_loop.clone());
+        s.runs_session_edges
+            .push((session.id, session.owning_project));
+        Ok(())
+    }
+
+    async fn append_loop_record(&self, loop_record: &LoopRecordNode) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        if !s.sessions.contains_key(&loop_record.session_id) {
+            return Err(RepositoryError::NotFound);
+        }
+        s.loop_records.insert(loop_record.id, loop_record.clone());
+        Ok(())
+    }
+
+    async fn append_turn(&self, turn: &TurnNode) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        if !s.loop_records.contains_key(&turn.loop_id) {
+            return Err(RepositoryError::NotFound);
+        }
+        s.turn_nodes.insert(turn.id, turn.clone());
+        Ok(())
+    }
+
+    async fn append_agent_event(
+        &self,
+        session: SessionId,
+        event: serde_json::Value,
+    ) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        if !s.sessions.contains_key(&session) {
+            return Err(RepositoryError::NotFound);
+        }
+        s.session_agent_events
+            .entry(session)
+            .or_default()
+            .push(event);
+        Ok(())
+    }
+
+    async fn fetch_session(&self, session: SessionId) -> RepositoryResult<Option<SessionDetail>> {
+        let s = self.lock()?;
+        let Some(sess) = s.sessions.get(&session).cloned() else {
+            return Ok(None);
+        };
+        let mut loops: Vec<LoopRecordNode> = s
+            .loop_records
+            .values()
+            .filter(|r| r.session_id == session)
+            .cloned()
+            .collect();
+        loops.sort_by_key(|r| r.loop_index);
+        let mut turns_by_loop: std::collections::BTreeMap<LoopId, Vec<TurnNode>> =
+            std::collections::BTreeMap::new();
+        for lr in &loops {
+            turns_by_loop.insert(lr.id, Vec::new());
+        }
+        for t in s.turn_nodes.values() {
+            if let Some(bucket) = turns_by_loop.get_mut(&t.loop_id) {
+                bucket.push(t.clone());
+            }
+        }
+        for bucket in turns_by_loop.values_mut() {
+            bucket.sort_by_key(|t| t.turn_index);
+        }
+        Ok(Some(SessionDetail {
+            session: sess,
+            loops,
+            turns_by_loop,
+        }))
+    }
+
+    async fn list_sessions_in_project(&self, project: ProjectId) -> RepositoryResult<Vec<Session>> {
+        let s = self.lock()?;
+        let mut out: Vec<Session> = s
+            .sessions
+            .values()
+            .filter(|sess| sess.owning_project == project)
+            .cloned()
+            .collect();
+        // Newest-first by started_at.
+        out.sort_by_key(|s| std::cmp::Reverse(s.started_at));
+        Ok(out)
+    }
+
+    async fn list_active_sessions_for_agent(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Vec<Session>> {
+        let s = self.lock()?;
+        let out: Vec<Session> = s
+            .sessions
+            .values()
+            .filter(|sess| {
+                sess.started_by == agent && sess.governance_state == SessionGovernanceState::Running
+            })
+            .cloned()
+            .collect();
+        Ok(out)
+    }
+
+    async fn count_active_sessions_for_agent(&self, agent: AgentId) -> RepositoryResult<u32> {
+        let s = self.lock()?;
+        let n = s
+            .sessions
+            .values()
+            .filter(|sess| {
+                sess.started_by == agent && sess.governance_state == SessionGovernanceState::Running
+            })
+            .count();
+        Ok(n as u32)
+    }
+
+    async fn mark_session_ended(
+        &self,
+        session: SessionId,
+        at: DateTime<Utc>,
+        state: SessionGovernanceState,
+    ) -> RepositoryResult<()> {
+        if state == SessionGovernanceState::Running {
+            return Err(RepositoryError::InvalidArgument(
+                "mark_session_ended requires a terminal state".into(),
+            ));
+        }
+        let mut s = self.lock()?;
+        let Some(row) = s.sessions.get_mut(&session) else {
+            return Err(RepositoryError::NotFound);
+        };
+        if row.governance_state.is_terminal() {
+            return Err(RepositoryError::Conflict(format!(
+                "session {} already terminal ({:?})",
+                session, row.governance_state
+            )));
+        }
+        row.governance_state = state;
+        row.ended_at = Some(at);
+        Ok(())
+    }
+
+    async fn terminate_session(
+        &self,
+        session: SessionId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<()> {
+        // Delegate to mark_session_ended — reason + actor live on
+        // the audit event emitted by the handler, not on the
+        // persistent session row.
+        self.mark_session_ended(session, at, SessionGovernanceState::Aborted)
+            .await
+    }
+
+    async fn persist_shape_b_pending(&self, row: &ShapeBPendingProject) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        if s.shape_b_pending_projects
+            .contains_key(&row.auth_request_id)
+        {
+            return Err(RepositoryError::Conflict(format!(
+                "shape_b_pending_projects already exists for ar {}",
+                row.auth_request_id
+            )));
+        }
+        s.shape_b_pending_projects
+            .insert(row.auth_request_id, row.clone());
+        Ok(())
+    }
+
+    async fn fetch_shape_b_pending(
+        &self,
+        auth_request: AuthRequestId,
+    ) -> RepositoryResult<Option<ShapeBPendingProject>> {
+        let s = self.lock()?;
+        Ok(s.shape_b_pending_projects.get(&auth_request).cloned())
+    }
+
+    async fn delete_shape_b_pending(&self, auth_request: AuthRequestId) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        s.shape_b_pending_projects.remove(&auth_request);
+        Ok(())
+    }
+
+    async fn upsert_agent_catalog_entry(&self, entry: &AgentCatalogEntry) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        s.agent_catalog_entries
+            .insert(entry.agent_id, entry.clone());
+        Ok(())
+    }
+
+    async fn list_agent_catalog_entries_in_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AgentCatalogEntry>> {
+        let s = self.lock()?;
+        let mut out: Vec<AgentCatalogEntry> = s
+            .agent_catalog_entries
+            .values()
+            .filter(|e| e.owning_org == org)
+            .cloned()
+            .collect();
+        out.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+        Ok(out)
+    }
+
+    async fn get_agent_catalog_entry(
+        &self,
+        agent: AgentId,
+    ) -> RepositoryResult<Option<AgentCatalogEntry>> {
+        let s = self.lock()?;
+        Ok(s.agent_catalog_entries.get(&agent).cloned())
+    }
+
+    async fn upsert_system_agent_runtime_status(
+        &self,
+        status: &SystemAgentRuntimeStatus,
+    ) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        s.system_agent_runtime_status
+            .insert(status.agent_id, status.clone());
+        Ok(())
+    }
+
+    async fn fetch_system_agent_runtime_status_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<SystemAgentRuntimeStatus>> {
+        let s = self.lock()?;
+        let mut out: Vec<SystemAgentRuntimeStatus> = s
+            .system_agent_runtime_status
+            .values()
+            .filter(|st| st.owning_org == org)
+            .cloned()
+            .collect();
+        out.sort_by_key(|st| st.agent_id);
+        Ok(out)
+    }
+
+    async fn list_authority_templates_for_org(
+        &self,
+        _org: OrgId,
+    ) -> RepositoryResult<Vec<Template>> {
+        // ADR-0030: Template rows are platform-level. Return every
+        // Template row (ordered by kind) — the page 12 handler
+        // augments with per-org adoption state at the HTTP tier.
+        let s = self.lock()?;
+        let mut out: Vec<Template> = s.templates.values().cloned().collect();
+        out.sort_by_key(|t| t.kind);
+        Ok(out)
+    }
+
+    async fn count_grants_fired_by_adoption(
+        &self,
+        auth_request: AuthRequestId,
+    ) -> RepositoryResult<u32> {
+        let s = self.lock()?;
+        let n = s
+            .grants
+            .values()
+            .filter(|g| g.descends_from.as_ref() == Some(&auth_request))
+            .count();
+        Ok(n as u32)
+    }
+
+    async fn list_revoked_adoptions_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<AuthRequest>> {
+        // Adoption ARs carry `org:<id>/template:<kind>` as one of
+        // their `resource_slots[n].resource.uri` values — matches the
+        // SurrealDB-side `list_adoption_ars_for_org` prefix filter.
+        let prefix = format!("org:{}/template:", org);
+        let s = self.lock()?;
+        let mut out: Vec<AuthRequest> = s
+            .auth_requests
+            .values()
+            .filter(|ar| {
+                ar.state == AuthRequestState::Revoked
+                    && ar
+                        .resource_slots
+                        .iter()
+                        .any(|slot| slot.resource.uri.starts_with(&prefix))
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|ar| std::cmp::Reverse(ar.submitted_at));
+        Ok(out)
     }
 }
 

@@ -14,6 +14,7 @@ pub mod composites;
 pub mod composites_m2;
 pub mod composites_m3;
 pub mod composites_m4;
+pub mod composites_m5;
 pub mod edges;
 pub mod fundamentals;
 pub mod ids;
@@ -30,17 +31,22 @@ pub use composites_m4::{
     AgentExecutionLimitsOverride, KeyResult, KeyResultStatus, MeasurementType, Objective,
     ObjectiveStatus, OkrValue, ResourceBoundaries,
 };
+pub use composites_m5::{
+    AgentCatalogEntry, SessionDetail, ShapeBPendingProject, SystemAgentRuntimeStatus,
+};
 pub use edges::{Edge, EDGE_KIND_NAMES};
 pub use fundamentals::Fundamental;
 pub use ids::{
-    AgentId, AuditEventId, AuthRequestId, ConsentId, EdgeId, GrantId, McpServerId, MemoryId,
-    ModelProviderId, NodeId, OrgId, ProjectId, SecretId, SessionId, TemplateId, UserId,
+    AgentCatalogEntryId, AgentId, AuditEventId, AuthRequestId, ConsentId, EdgeId, GrantId, LoopId,
+    McpServerId, MemoryId, ModelProviderId, NodeId, OrgId, ProjectId, SecretId, SessionId,
+    SystemAgentRuntimeStatusId, TemplateId, TurnNodeId, UserId,
 };
 pub use nodes::{
     Agent, AgentKind, AgentProfile, AgentRole, ApproverSlot, ApproverSlotState, AuthRequest,
-    AuthRequestState, Channel, ChannelKind, Consent, Grant, InboxObject, Memory, NodeKind,
-    Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ProjectStatus, ResourceRef,
-    ResourceSlot, ResourceSlotState, Template, TemplateKind, ToolAuthorityManifest, User,
+    AuthRequestState, Channel, ChannelKind, Consent, Grant, InboxObject, LoopRecordNode, Memory,
+    NodeKind, Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ProjectStatus,
+    ResourceRef, ResourceSlot, ResourceSlotState, Session, SessionGovernanceState, Template,
+    TemplateKind, ToolAuthorityManifest, TurnNode, User,
 };
 pub use principal_resource::{Principal, Resource};
 

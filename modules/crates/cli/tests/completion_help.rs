@@ -168,6 +168,34 @@ fn completion_scripts_expose_m4_project_subcommand_tree_on_every_shell() {
 }
 
 #[test]
+fn completion_scripts_expose_m5_session_subcommand_tree_on_every_shell() {
+    // M5/P1 commitment: `phi session {launch, show, terminate, list}`
+    // must all surface on every shell backend. M5/P4 wires the HTTP
+    // handlers; M5/P7 wires the CLI bodies — the clap surface
+    // scaffolds at M5/P1 so shell completions name them today (just
+    // like M4's `phi project` scaffold pattern).
+    //
+    // Binary prefix is `phi`, never `baby-phi`.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok, "completion {shell} exited non-zero");
+        for sub in ["session", "launch", "terminate"] {
+            assert!(
+                stdout.contains(sub),
+                "{shell} completion must surface `{sub}`; got snippet:\n{}",
+                &stdout[..stdout.len().min(800)]
+            );
+        }
+        // Negative: the binary name never surfaces as `baby-phi` in
+        // completion output.
+        assert!(
+            !stdout.contains("baby-phi"),
+            "{shell} completion must not reference `baby-phi` anywhere"
+        );
+    }
+}
+
+#[test]
 fn completion_powershell_emits_nonempty_script() {
     let (ok, stdout, stderr) = run(&["completion", "powershell"]);
     assert!(ok, "completion powershell exit non-zero: {stderr}");

@@ -154,6 +154,7 @@ pub async fn create_agent(
             agent_id,
             parallelize: input.parallelize,
             blueprint: input.blueprint.clone(),
+            model_config_id: None,
             created_at: input.now,
         })
     } else {

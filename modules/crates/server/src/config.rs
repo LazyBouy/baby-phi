@@ -78,6 +78,15 @@ pub struct SessionConfig {
     /// localhost HTTP.
     #[serde(default = "default_secure")]
     pub secure: bool,
+    /// Platform-wide concurrency ceiling on active agent-loop sessions
+    /// (M5 / ADR-0031). Launches beyond this cap return HTTP 503
+    /// `SESSION_WORKER_SATURATED`. Default `16` covers a single-machine
+    /// dev box; operators with larger machines tune up via
+    /// `config/<profile>.toml` override or `PHI_SESSION__MAX_CONCURRENT`.
+    /// Distinct from the per-agent `parallelize` cap (which surfaces as
+    /// 409 `PARALLELIZE_CAP_REACHED` from the agent's blueprint).
+    #[serde(default = "default_max_concurrent")]
+    pub max_concurrent: u32,
 }
 
 fn default_cookie_name() -> String {
@@ -90,6 +99,10 @@ fn default_ttl_seconds() -> u64 {
 
 fn default_secure() -> bool {
     true
+}
+
+fn default_max_concurrent() -> u32 {
+    16
 }
 
 impl ServerConfig {
