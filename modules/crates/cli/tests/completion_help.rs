@@ -196,6 +196,75 @@ fn completion_scripts_expose_m5_session_subcommand_tree_on_every_shell() {
 }
 
 #[test]
+fn completion_scripts_expose_m5_p7_template_subcommand_tree_on_every_shell() {
+    // M5/P7 D5.1 carryover: `phi template {list, approve, deny, adopt,
+    // revoke}` must all surface on every shell backend.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok, "completion {shell} exited non-zero");
+        for sub in ["template", "approve", "deny", "adopt", "revoke"] {
+            assert!(
+                stdout.contains(sub),
+                "{shell} completion must surface `{sub}`; got snippet:\n{}",
+                &stdout[..stdout.len().min(1200)]
+            );
+        }
+    }
+}
+
+#[test]
+fn completion_scripts_expose_m5_p7_system_agent_subcommand_tree_on_every_shell() {
+    // M5/P7 D6.2 carryover: `phi system-agent {list, tune, add, disable,
+    // archive}` must all surface on every shell backend.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok, "completion {shell} exited non-zero");
+        for sub in ["system-agent", "tune", "disable", "archive"] {
+            assert!(
+                stdout.contains(sub),
+                "{shell} completion must surface `{sub}`; got snippet:\n{}",
+                &stdout[..stdout.len().min(1200)]
+            );
+        }
+    }
+}
+
+#[test]
+fn completion_scripts_expose_m5_p7_agent_update_model_config_id_flag() {
+    // M5/P7 (C-M5-5 wire): `phi agent update` exposes a convenience
+    // `--model-config-id` flag alongside `--patch-json`. Confirm the
+    // flag surfaces in the help text + at least one shell's completion
+    // output (completion scripts do not always inline every long flag,
+    // but the help text is canonical).
+    let (ok, stdout, stderr) = run(&["agent", "update", "--help"]);
+    assert!(ok, "agent update --help exited non-zero: {stderr}");
+    assert!(
+        stdout.contains("--model-config-id"),
+        "`phi agent update --help` must expose `--model-config-id`; got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("--patch-json"),
+        "`phi agent update --help` must still expose `--patch-json`; got:\n{stdout}"
+    );
+}
+
+#[test]
+fn completion_session_subcommand_includes_preview() {
+    // M5/P7 CLI polish: session gains a `preview` subcommand wrapping
+    // POST /sessions/preview (D5 inherit). Must surface in shell
+    // completions alongside launch / show / terminate / list.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let (ok, stdout, _) = run(&["completion", shell]);
+        assert!(ok);
+        assert!(
+            stdout.contains("preview"),
+            "{shell} completion must surface `session preview`; got snippet:\n{}",
+            &stdout[..stdout.len().min(1200)]
+        );
+    }
+}
+
+#[test]
 fn completion_powershell_emits_nonempty_script() {
     let (ok, stdout, stderr) = run(&["completion", "powershell"]);
     assert!(ok, "completion powershell exit non-zero: {stderr}");

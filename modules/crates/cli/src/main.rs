@@ -111,6 +111,20 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::session::SessionCommand,
     },
+    /// Authority-template subcommands (M5 / page 12). Ships at
+    /// M5/P7 as a D5.1 carryover.
+    Template {
+        #[command(subcommand)]
+        cmd: commands::template::TemplateCommand,
+    },
+    /// System-agent subcommands (M5 / page 13). Ships at M5/P7 as
+    /// a D6.2 carryover. The binary-facing subcommand name is
+    /// `system-agent` (hyphenated), matching admin-page taxonomy.
+    #[command(name = "system-agent")]
+    SystemAgent {
+        #[command(subcommand)]
+        cmd: commands::system_agent::SystemAgentCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -201,14 +215,24 @@ pub enum AgentCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Update an agent profile (diff-producing). **[M4/P5]**
+    /// Update an agent profile (diff-producing). **[M4/P5 / M5/P7]**
+    ///
+    /// Exactly one of `--patch-json` or `--model-config-id` must be
+    /// supplied. The `--model-config-id` shorthand expands to the
+    /// single-field patch `{"model_config_id": "<id>"}` (M5/P7,
+    /// C-M5-5 wire).
     Update {
         #[arg(long)]
         id: String,
         /// JSON patch body matching the `PATCH
         /// /api/v0/agents/:id/profile` contract.
         #[arg(long = "patch-json")]
-        patch_json: String,
+        patch_json: Option<String>,
+        /// Convenience: bind a new model-runtime id on the agent's
+        /// profile without hand-crafting the patch body. Mutually
+        /// exclusive with `--patch-json`. **[M5/P7]**
+        #[arg(long = "model-config-id")]
+        model_config_id: Option<String>,
         #[arg(long)]
         json: bool,
     },
@@ -256,6 +280,8 @@ async fn main() {
         Command::Org { cmd } => commands::org::run(cli.server_url, cmd).await,
         Command::Project { cmd } => commands::project::run(cli.server_url, cmd).await,
         Command::Session { cmd } => commands::session::run(cli.server_url, cmd).await,
+        Command::Template { cmd } => commands::template::run(cli.server_url, cmd).await,
+        Command::SystemAgent { cmd } => commands::system_agent::run(cli.server_url, cmd).await,
     };
     std::process::exit(code);
 }

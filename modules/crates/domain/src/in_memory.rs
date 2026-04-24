@@ -90,6 +90,10 @@ struct State {
     /// `runs_session` edges (session → project). Allows
     /// [`list_sessions_in_project`] to walk the edge set.
     runs_session_edges: Vec<(SessionId, ProjectId)>,
+    /// `uses_model` edges (agent → model_runtime). M5/P4 writer.
+    /// The in-memory impl stores `(agent, model_runtime, edge_id)`
+    /// tuples; tests query the list directly for C-M5-2 assertions.
+    uses_model_edges: Vec<(AgentId, NodeId, EdgeId)>,
     /// Materialised `phi_core::AgentEvent` stream per session.
     /// Stored as serde `Value` on the repo boundary to keep
     /// phi-core types from crossing the trait (Q3 rejection —
@@ -1674,6 +1678,17 @@ impl Repository for InMemoryRepository {
         // persistent session row.
         self.mark_session_ended(session, at, SessionGovernanceState::Aborted)
             .await
+    }
+
+    async fn write_uses_model_edge(
+        &self,
+        agent: AgentId,
+        model_runtime: NodeId,
+    ) -> RepositoryResult<EdgeId> {
+        let edge_id = EdgeId::new();
+        let mut s = self.lock()?;
+        s.uses_model_edges.push((agent, model_runtime, edge_id));
+        Ok(edge_id)
     }
 
     async fn persist_shape_b_pending(&self, row: &ShapeBPendingProject) -> RepositoryResult<()> {

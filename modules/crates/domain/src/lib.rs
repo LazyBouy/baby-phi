@@ -21,6 +21,7 @@ pub mod events;
 pub mod model;
 pub mod permissions;
 pub mod repository;
+pub mod session_recorder;
 pub mod templates;
 
 #[cfg(any(test, feature = "in-memory-repo"))]

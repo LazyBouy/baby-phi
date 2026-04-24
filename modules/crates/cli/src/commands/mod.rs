@@ -12,3 +12,5 @@ pub mod platform_defaults;
 pub mod project;
 pub mod secrets;
 pub mod session;
+pub mod system_agent;
+pub mod template;

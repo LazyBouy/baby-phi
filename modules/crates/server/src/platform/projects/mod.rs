@@ -33,7 +33,10 @@ pub mod create;
 pub mod detail;
 pub mod resolvers;
 
-pub use resolvers::{RepoActorResolver, RepoAdoptionArResolver};
+pub use resolvers::{
+    RepoActorResolver, RepoAdoptionArResolver, RepoTemplateCAdoptionArResolver,
+    RepoTemplateDAdoptionArResolver,
+};
 
 use domain::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId};
 

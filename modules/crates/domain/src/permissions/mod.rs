@@ -43,6 +43,6 @@ pub use catalogue::{CatalogueLookup, StaticCatalogue};
 pub use decision::{Decision, DeniedReason, FailedStep};
 pub use engine::check;
 pub use expansion::{expand_resource_to_fundamentals, ResolvedGrant};
-pub use manifest::{CheckContext, Manifest, ToolCall};
+pub use manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
 pub use metrics::{NoopMetrics, PermissionCheckMetrics};
 pub use selector::Selector;

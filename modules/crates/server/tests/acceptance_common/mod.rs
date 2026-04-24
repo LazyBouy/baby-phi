@@ -78,6 +78,11 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
         audit: Arc::new(store::SurrealAuditEmitter::new(repo)),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
+        session_registry: server::state::new_session_registry(),
+        // Test default matches `config/default.toml`. Acceptance
+        // tests rarely exercise the saturation cap; launch-suite
+        // tests that DO need it build their own AppState inline.
+        session_max_concurrent: 16,
     };
 
     let app: Router = if with_metrics {

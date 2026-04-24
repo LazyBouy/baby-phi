@@ -43,6 +43,12 @@ chrono      = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
 futures     = "0.3"
 
+# M5/P4 — Session launch + cancellation
+# `dashmap` holds the per-worker session-registry keyed on SessionId;
+# `tokio-util` brings `CancellationToken` for in-flight terminate.
+dashmap     = "6"
+tokio-util  = { version = "0.7", features = ["rt"] }
+
 # Storage
 surrealdb = { version = "2", features = ["kv-rocksdb"] }
 

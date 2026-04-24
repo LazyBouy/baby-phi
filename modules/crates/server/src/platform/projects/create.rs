@@ -88,7 +88,11 @@ pub const SHAPE_B_AR_KIND: &str = "#shape:b:project_creation";
 
 /// Common input for both shapes. The shape-specific branch is carried
 /// on the `shape` field.
-#[derive(Debug, Clone)]
+///
+/// `Serialize + Deserialize` land at M5/P4 so Shape B's sidecar
+/// (C-M5-6) can round-trip the input through the
+/// `shape_b_pending_projects` table without a bespoke wire shape.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CreateProjectInput {
     pub org_id: OrgId,
     pub project_id: ProjectId,
@@ -467,6 +471,26 @@ async fn submit_shape_b(
         .await
         .map_err(|e| ProjectError::Repository(e.to_string()))?;
 
+    // C-M5-6 — persist the sidecar so the Approved branch can
+    // rehydrate the original input without re-validating. We wrap
+    // the input + the owning-org set into a single JSON payload
+    // (the composite's schema is FLEXIBLE per migration 0005 so
+    // the shape can evolve without a migration 0006).
+    let payload_json = serde_json::json!({
+        "input": serde_json::to_value(&input).map_err(|e| {
+            ProjectError::Repository(format!("shape B sidecar payload serialise failed: {e}"))
+        })?,
+        "owning_orgs": vec![org_a, org_b],
+    });
+    let sidecar = domain::model::composites_m5::ShapeBPendingProject {
+        auth_request_id: ar_id,
+        payload: payload_json,
+        created_at: input.now,
+    };
+    repo.persist_shape_b_pending(&sidecar)
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+
     let co_owner_orgs = vec![org_b];
     let approver_ids = [approver_a, approver_b];
     let event = project_creation_pending(
@@ -633,32 +657,52 @@ pub async fn approve_pending_shape_b(
 
     // Terminal — either we materialise (Approved) OR we emit a
     // denied-audit and the caller sees Denied/Partial.
+    //
+    // C-M5-6 close — Approved branch. The P2 `shape_b_pending_projects`
+    // sidecar (populated at submit time) carries the full
+    // `CreateProjectInput`; read it, call `materialise_project`, and
+    // delete the sidecar. The project row + every edge land in the
+    // same compound tx the materialise path already runs.
     if should_materialize_project_from_ar_state(next.state) {
-        // Reconstruct the CreateProjectInput to drive materialise_project.
-        // We pull the stored AR's scope for the project_id + owning-org
-        // ids; the user-facing input fields (name, lead, etc.) are NOT
-        // on the AR — at M4 we reload them from a cheap lookup that
-        // follows the `project:<id>` URI back to the Shape B submit
-        // metadata the orchestrator bundled into the AR. For now, we
-        // require the caller to re-supply the input via a separate
-        // shadow record; M4's minimal implementation uses a
-        // round-tripped `CreateProjectInput` serde-embedded in the AR's
-        // justification. The production-ready path (C-M5 follow-up)
-        // adds a dedicated `shape_b_pending` composite; at M4 we embed
-        // a JSON sidecar on the AR's justification to keep the shape
-        // small. The materialise path below is therefore left as a
-        // **trait-object-injected callback** on the approval handler —
-        // acceptance tests supply a closure that rebuilds the input.
-        //
-        // This is scaffolded for the wire, with the approval outcome
-        // returning `Terminal { project: None }` until M4/P6b wires
-        // the embed + reconstruction.
-        emit_terminal_audit(audit.as_ref(), &next, &input).await?;
-        let _ = event_bus; // avoid unused-warning
+        let sidecar = repo
+            .fetch_shape_b_pending(input.ar_id)
+            .await
+            .map_err(|e| ProjectError::Repository(e.to_string()))?
+            .ok_or_else(|| {
+                ProjectError::Repository(format!(
+                    "shape B sidecar missing for approved AR {}; cannot materialise",
+                    input.ar_id
+                ))
+            })?;
+        let rebuilt_input: CreateProjectInput =
+            serde_json::from_value(sidecar.payload.get("input").cloned().unwrap_or_default())
+                .map_err(|e| {
+                    ProjectError::Repository(format!("shape B sidecar payload malformed: {e}"))
+                })?;
+        let owning_orgs: Vec<OrgId> = sidecar
+            .payload
+            .get("owning_orgs")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+        let materialised = materialise_project(
+            repo.clone(),
+            audit.clone(),
+            event_bus.clone(),
+            rebuilt_input,
+            owning_orgs,
+        )
+        .await?;
+
+        // Idempotent — delete the sidecar once materialise succeeds.
+        // If delete fails (e.g. concurrent delete), swallow the error:
+        // the material project is durable + a stale sidecar row is
+        // harmless (the next attempt returns `NotFound` → 409).
+        let _ = repo.delete_shape_b_pending(input.ar_id).await;
+
         return Ok(ApprovalOutcome::Terminal {
             ar_id: input.ar_id,
             state: next.state,
-            project: None,
+            project: Some(materialised),
         });
     }
 

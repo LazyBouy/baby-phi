@@ -9,3 +9,6 @@ pub mod model_providers;
 pub mod orgs;
 pub mod projects;
 pub mod secrets;
+pub mod sessions;
+pub mod system_agents;
+pub mod templates;

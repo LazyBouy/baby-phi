@@ -218,6 +218,9 @@ pub struct UpdateAgentProfileRequest {
     pub parallelize: Option<u32>,
     #[serde(default)]
     pub blueprint: Option<PhiCoreAgentProfile>,
+    /// Per-agent `ModelConfig` binding (C-M5-5).
+    #[serde(default)]
+    pub model_config_id: Option<String>,
     #[serde(default)]
     pub execution_limits: ExecutionLimitsPatchWire,
 }
@@ -246,6 +249,7 @@ pub async fn update(
             display_name: body.display_name,
             parallelize: body.parallelize,
             blueprint: body.blueprint,
+            model_config_id: body.model_config_id,
             execution_limits: body.execution_limits.into(),
             actor: session.agent_id,
             now: Utc::now(),

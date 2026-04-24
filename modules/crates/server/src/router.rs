@@ -117,7 +117,64 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::projects::approve_pending),
         )
         .route("/projects/:id", get(handlers::projects::show))
-        .route("/projects/:id/okrs", patch(handlers::projects::update_okrs));
+        .route("/projects/:id/okrs", patch(handlers::projects::update_okrs))
+        // M5/P4 — session surface (6 routes).
+        .route(
+            "/orgs/:org_id/projects/:project_id/sessions",
+            post(handlers::sessions::launch),
+        )
+        .route(
+            "/orgs/:org_id/projects/:project_id/sessions/preview",
+            post(handlers::sessions::preview),
+        )
+        .route(
+            "/projects/:project_id/sessions",
+            get(handlers::sessions::list_in_project),
+        )
+        .route("/sessions/:id", get(handlers::sessions::show))
+        .route(
+            "/sessions/:id/terminate",
+            post(handlers::sessions::terminate),
+        )
+        .route("/sessions/:id/tools", get(handlers::sessions::tools))
+        // M5/P5 — authority-template surface (5 routes).
+        .route(
+            "/orgs/:org_id/authority-templates",
+            get(handlers::templates::list),
+        )
+        .route(
+            "/orgs/:org_id/authority-templates/:kind/approve",
+            post(handlers::templates::approve),
+        )
+        .route(
+            "/orgs/:org_id/authority-templates/:kind/deny",
+            post(handlers::templates::deny),
+        )
+        .route(
+            "/orgs/:org_id/authority-templates/:kind/adopt",
+            post(handlers::templates::adopt),
+        )
+        .route(
+            "/orgs/:org_id/authority-templates/:kind/revoke",
+            post(handlers::templates::revoke),
+        )
+        // M5/P6 — system-agent surface (5 routes).
+        .route(
+            "/orgs/:org_id/system-agents",
+            get(handlers::system_agents::list).post(handlers::system_agents::add),
+        )
+        .route(
+            "/orgs/:org_id/system-agents/:agent_id",
+            patch(handlers::system_agents::tune),
+        )
+        .route(
+            "/orgs/:org_id/system-agents/:agent_id/disable",
+            post(handlers::system_agents::disable),
+        )
+        .route(
+            "/orgs/:org_id/system-agents/:agent_id/archive",
+            post(handlers::system_agents::archive),
+        );
 
     Router::new()
         .route("/healthz/live", get(health::live))

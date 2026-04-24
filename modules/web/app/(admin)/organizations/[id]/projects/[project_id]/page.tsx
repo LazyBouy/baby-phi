@@ -23,6 +23,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { forwardSessionCookieHeader } from "@/lib/api/forward-cookie";
+import { listSessionsInProjectApi, type SessionHeaderWire } from "@/lib/api/sessions";
+
 import { getProjectDetailAction, patchOkrsAction } from "./actions";
 import type {
   KeyResultWire,
@@ -81,6 +84,18 @@ export default async function ProjectDetailPage({ params }: Params) {
   const objectives = project.objectives;
   const keyResults = project.key_results;
   const lead = detail.roster.find((m) => m.project_role === "lead");
+
+  // M5/P7 "Recent sessions" retrofit: the server-side
+  // `ProjectDetail.recent_sessions` is still `Vec::new()` (detail.rs
+  // intentionally kept for M4 wire stability). Fetch the real list
+  // alongside the detail and render it below — replaces the M4
+  // placeholder without rebuilding the detail wire contract.
+  const sessionHeaders = await forwardSessionCookieHeader();
+  const sessionsRes = await listSessionsInProjectApi(
+    sessionHeaders,
+    project.id,
+  );
+  const recent: SessionHeaderWire[] = sessionsRes.ok ? sessionsRes.value : [];
 
   return (
     <section style={{ padding: "2rem", maxWidth: "56rem" }}>
@@ -186,18 +201,30 @@ export default async function ProjectDetailPage({ params }: Params) {
       </p>
 
       <h2>Recent sessions</h2>
-      {detail.recent_sessions.length === 0 ? (
+      <p style={{ fontSize: "0.85rem", opacity: 0.7 }}>
+        <Link
+          href={`/organizations/${params.id}/projects/${project.id}/sessions/new`}
+        >
+          Launch a new session →
+        </Link>
+      </p>
+      {recent.length === 0 ? (
         <p>
           <em>
-            No sessions yet. The first session launched via{" "}
-            <code>phi session launch</code> will appear here at M5 (see
-            C-M5-3 in the base build plan).
+            No sessions yet. Launch the first session from the link
+            above (C-M5-3 wire: `phi session launch`).
           </em>
         </p>
       ) : (
         <ul>
-          {detail.recent_sessions.map((s) => (
-            <li key={s.session_id}>{s.summary}</li>
+          {recent.map((s) => (
+            <li key={s.id}>
+              <code>{s.id}</code> · <strong>{s.governance_state}</strong>{" "}
+              · started {new Date(s.started_at).toLocaleString()}
+              {s.ended_at
+                ? ` · ended ${new Date(s.ended_at).toLocaleString()}`
+                : ""}
+            </li>
           ))}
         </ul>
       )}

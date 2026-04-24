@@ -2,10 +2,20 @@
 
 # ADR-0031 — Session cancellation + concurrency bounds
 
-**Status: Proposed** — drafted at M5/P0; flips to **Accepted** at
-M5/P4 close once the `session_registry` + `tokio_util::CancellationToken`
-plumbing + `[session] max_concurrent` cap + terminate/abort acceptance
-tests all land green.
+**Status: Accepted** (flipped at M5/P4 close, 2026-04-23).
+
+Ratification evidence:
+- `AppState::session_registry` = `Arc<DashMap<SessionId, CancellationToken>>`
+  shipped in [`server::state`](../../../../../../modules/crates/server/src/state.rs).
+- `session_max_concurrent` (default 16) on `AppState` drives the
+  D3 `SESSION_WORKER_SATURATED` 503 gate in
+  [`sessions::launch::launch_session`](../../../../../../modules/crates/server/src/platform/sessions/launch.rs).
+- `sessions::terminate` fires `token.cancel()` + removes the
+  registry entry + emits `DomainEvent::SessionAborted`; acceptance
+  test `terminate_twice_returns_already_terminal_on_second_call`
+  pins the idempotent-second-call contract.
+- `tokio-util` workspace dep added at
+  `Cargo.toml:[workspace.dependencies]`; `dashmap` alongside.
 
 ## Context
 

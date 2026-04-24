@@ -95,8 +95,9 @@ pub async fn run(server_url_override: Option<String>, cmd: AgentCommand) -> i32 
         AgentCommand::Update {
             id,
             patch_json,
+            model_config_id,
             json,
-        } => update_impl(server_url_override, &id, &patch_json, json).await,
+        } => update_impl(server_url_override, &id, patch_json, model_config_id, json).await,
         AgentCommand::RevertLimits { id, json } => {
             revert_limits_impl(server_url_override, &id, json).await
         }
@@ -459,7 +460,8 @@ async fn create_impl(server_url_override: Option<String>, input: CreateCliInput)
 async fn update_impl(
     server_url_override: Option<String>,
     id: &str,
-    patch_json: &str,
+    patch_json: Option<String>,
+    model_config_id: Option<String>,
     json: bool,
 ) -> i32 {
     let base = match resolve_base_url(server_url_override) {
@@ -476,12 +478,23 @@ async fn update_impl(
             return EXIT_PRECONDITION_FAILED;
         }
     };
-    let body: serde_json::Value = match serde_json::from_str(patch_json) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("phi: --patch-json is not valid JSON: {e}");
+    let body: serde_json::Value = match (patch_json.as_deref(), model_config_id.as_deref()) {
+        (Some(_), Some(_)) => {
+            eprintln!("phi: --patch-json and --model-config-id are mutually exclusive");
             return EXIT_PRECONDITION_FAILED;
         }
+        (None, None) => {
+            eprintln!("phi: exactly one of --patch-json / --model-config-id is required");
+            return EXIT_PRECONDITION_FAILED;
+        }
+        (Some(raw), None) => match serde_json::from_str(raw) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("phi: --patch-json is not valid JSON: {e}");
+                return EXIT_PRECONDITION_FAILED;
+            }
+        },
+        (None, Some(mcid)) => serde_json::json!({ "model_config_id": mcid }),
     };
     let url = format!("{base}/api/v0/agents/{}/profile", urlencode(id));
     let res = match client.patch(&url).json(&body).send().await {

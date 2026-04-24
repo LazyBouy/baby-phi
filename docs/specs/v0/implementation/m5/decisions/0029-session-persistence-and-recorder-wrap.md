@@ -2,13 +2,21 @@
 
 # ADR-0029 — Session persistence + SessionRecorder wrap
 
-**Status: Accepted (in part)** — the 3-way Session / LoopRecordNode /
-TurnNode wrap (§D29.1) landed at M5/P1 with serde round-trip +
-compile-time coercion witnesses green. The `BabyPhiSessionRecorder`
-(§D29.2) + related recorder decisions (§D29.3–D29.5) remain
-**Proposed**; they flip to Accepted at M5/P3 close once the recorder
-wrap + 8 new `DomainEvent` variants ship. P1 status note: ADR
-ratified in part (wrap) and deferred in part (recorder).
+**Status: Accepted** (flipped at M5/P3 close, 2026-04-23).
+
+Ratification history:
+- **P1 close (2026-04-22)** — §D29.1 (the 3-way Session /
+  LoopRecordNode / TurnNode wrap) ratified. Serde round-trip +
+  compile-time coercion witnesses green.
+- **P3 close (2026-04-23)** — §D29.2 (`BabyPhiSessionRecorder` wrap)
+  + §D29.3 (reject `BasicAgent`) + §D29.4 (reject
+  `save_session`/`load_session`) + §D29.5 (reject
+  `include_streaming_events = true`) all ratified. Implementation
+  in [`domain/src/session_recorder.rs`](../../../../../../modules/crates/domain/src/session_recorder.rs)
+  with 3 tests covering the AgentStart→TurnStart→TurnEnd→AgentEnd
+  trace + re-entry de-duplication + default-scope invariant. phi-core
+  import count now at **19** (17 pre-P3 + `SessionRecorder` +
+  `AgentEvent` in `session_recorder.rs`).
 
 ## Context
 

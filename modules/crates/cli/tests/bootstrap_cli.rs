@@ -36,6 +36,8 @@ async fn spawn_server(credentials: &[&str]) -> (String, tokio::task::JoinHandle<
         audit: Arc::new(domain::audit::NoopAuditEmitter),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
+        session_registry: server::state::new_session_registry(),
+        session_max_concurrent: 16,
     });
     let port = free_port();
     let addr: SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();

@@ -460,6 +460,20 @@ Applies to every phase of every milestone M5 onward (and retroactively to any M2
 
 **Closing protocol.** Every phase close produces, in this order: (a) a 4-aspect confidence report, (b) archive-plan compliance walk ticking each deliverable, (c) addendum update landing any ⚠ drift items, (d) pause for user review before opening the next phase. No phase chains autonomously past its own close.
 
+**Phase-open gates (inaugurated at M5/P2 close, standing for M6+).** The drift addenda catch *P0 intent vs P<N> reality*. A second, equally load-bearing category is *decisions pinned at P0 pending confirmation at a later phase* (e.g. an "assumed default, confirm at P4" ceiling). Both categories must be consulted before a future phase opens, or the plan body + code + decisions drift apart silently.
+
+Every milestone plan archive's Drift addenda section therefore carries a second subsection titled `## Phase-open gates` — append-only, organised by future phase. Each entry has:
+
+- **Pre-P<N> reading list** — the drift addendum entries this phase inherits as invariants (with one-line reason per entry explaining why the item is load-bearing for this specific phase).
+- **Pre-P<N> decisions to confirm** — Part 3 / Part 11 open-question items marked "assumed default, confirm at P<N>". Each either flips to ✅ confirmed at phase open or lands as a ⚠ overridden-decision addendum (new drift entry).
+- **Carry-forward invariants** — operational invariants the phase must honour (phi-core import counts, ADR status flips, C-M<N>-X carryover close targets).
+
+**Phase-open ritual.** Before starting a phase's first implementation edit: (a) walk the Pre-P<N> reading list + re-read each cited addendum entry, (b) confirm each pending decision with the user (or accept the default and mark ✅), (c) verify carry-forward invariants still hold (grep + ADR statuses). Any item that cannot be confirmed blocks phase open — the reviewer pauses for user alignment or updates the plan archive (as an addendum drift entry) before proceeding.
+
+**Why this matters in full.** Without phase-open gates, a reader who walks only §Part 4 §P<N> goals misses decisions pinned in §Part 3 / §Part 11 + invariants pinned in prior phases' addenda. The gate subsection aggregates everything into a single forward-pointer per phase. Future phases append their own future-phase gate blocks as their carryovers become apparent.
+
+**Closing protocol, extended.** Every phase close produces, in this order: (a) 4-aspect confidence report, (b) archive-plan compliance walk, (c) **drift addendum update**, (d) **phase-open gate update for the next phase** (populate the Pre-P<N+1> gate with any new reading-list entries + any new carry-forward invariants), (e) pause for user review. Every phase open produces, in this order: (a) walk the Pre-P<N> gate, (b) confirm all pending decisions, (c) verify carry-forward invariants, (d) open implementation work.
+
 **Standing guardrails (carry across every phase of every milestone M5+).** Pinned here so future milestone planning rounds inherit them without re-discovery:
 - **phi-core leverage** — Q1/Q2/Q3 walked up-front at each milestone's P0; per-phase close audits check exact import counts + compile-time witnesses + CI `check-phi-core-reuse.sh` green.
 - **CLI naming** — binary is `phi` (never `baby-phi`). Every new CLI subcommand carries a completion-regression test on all four shells (bash, zsh, fish, powershell) + a negative assertion that `baby-phi` never surfaces in completion output.

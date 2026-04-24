@@ -43,6 +43,11 @@ jsonwebtoken = { workspace = true }
 tower-cookies = { workspace = true }
 metrics     = { workspace = true }
 
+# M5/P4 — session launch + cancellation.
+dashmap     = { workspace = true }
+tokio-util  = { workspace = true }
+futures     = { workspace = true }
+
 [dev-dependencies]
 domain      = { workspace = true, features = ["in-memory-repo"] }
 tokio       = { workspace = true }

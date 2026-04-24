@@ -97,6 +97,13 @@ pub struct UpdateAgentPatch {
     // Mutable profile-row fields.
     pub parallelize: Option<u32>,
     pub blueprint: Option<PhiCoreAgentProfile>,
+    /// Per-agent `ModelConfig` binding (M5 / C-M5-5). When `Some`,
+    /// the update validates the supplied id against the owning
+    /// org's `ModelRuntime` catalogue and rejects with 409
+    /// `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` if the agent has any
+    /// `Running`-state sessions. Setting `Some(String::new())`
+    /// explicitly is rejected — use `None` (unchanged) instead.
+    pub model_config_id: Option<String>,
 
     // ExecutionLimits override path.
     pub execution_limits: ExecutionLimitsPatch,
@@ -164,16 +171,50 @@ pub async fn update_agent_profile(
         }
     }
 
-    // ModelConfig change + the `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE`
-    // 409 code path: at M4 phi-core's `AgentProfile` has no
-    // `model_config` field and baby-phi has not yet added a governance
-    // extension for per-agent model binding. Per-agent model selection
-    // is deferred to M5; the error-code enum variant + the
-    // `count_active_sessions_for_agent` stub stay wired so M5 can
-    // attach the check in one spot without restructuring this
-    // orchestrator. The `blueprint.config_id` field on phi-core's
-    // `AgentProfile` is a stable identity for loop_id composition,
-    // NOT a ModelConfig reference — it stays out of this gating.
+    // ---- C-M5-5 flip: ModelConfig change + active-session gate ----------
+    //
+    // At M5/P4 the `model_config_id` field on `AgentProfile` is
+    // live. Validate the new binding against the owning org's
+    // `ModelRuntime` catalogue; reject with 409
+    // `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` if the agent is
+    // currently running any sessions. The flip honours the P2
+    // invariant that `count_active_sessions_for_agent` is no
+    // longer a stub — real counts flow through.
+    //
+    // The `blueprint.config_id` field on phi-core's `AgentProfile`
+    // is a stable identity for loop_id composition, NOT a
+    // ModelConfig reference — it stays orthogonal to this gating
+    // (ADR-0029 §D29.3).
+    if let Some(new_model_config_id) = patch.model_config_id.as_ref() {
+        if new_model_config_id.trim().is_empty() {
+            return Err(AgentError::ImmutableFieldChanged("model_config_id"));
+        }
+        // Validate the id resolves to an active runtime row in the
+        // catalogue.
+        let runtimes = repo
+            .list_model_providers(true)
+            .await
+            .map_err(|e| AgentError::Repository(e.to_string()))?;
+        let rt = runtimes
+            .iter()
+            .find(|r| r.id.to_string() == *new_model_config_id)
+            .ok_or(AgentError::ImmutableFieldChanged(
+                "model_config_id (unknown model runtime)",
+            ))?;
+        if rt.archived_at.is_some() {
+            return Err(AgentError::ImmutableFieldChanged(
+                "model_config_id (model runtime archived)",
+            ));
+        }
+        // Active-session gate.
+        let active = repo
+            .count_active_sessions_for_agent(agent_id)
+            .await
+            .map_err(|e| AgentError::Repository(e.to_string()))?;
+        if active > 0 {
+            return Err(AgentError::ActiveSessionsBlockModelChange);
+        }
+    }
 
     // ---- Apply ExecutionLimits patch --------------------------------------
     let (limits_source_after, limits_changed) = match &patch.execution_limits {
@@ -286,11 +327,45 @@ pub async fn update_agent_profile(
         }
     }
 
+    // ---- Apply `model_config_id` (C-M5-5 change arm) --------------------
+    if let Some(new_model_config_id) = patch.model_config_id.as_ref() {
+        match next_profile.as_mut() {
+            Some(p) => {
+                if p.model_config_id.as_deref() != Some(new_model_config_id.as_str()) {
+                    p.model_config_id = Some(new_model_config_id.clone());
+                    profile_changed = true;
+                }
+            }
+            None => {
+                // Profile didn't exist; create one carrying the new
+                // binding + a default blueprint.
+                let bp = patch.blueprint.clone().unwrap_or_default();
+                next_profile = Some(AgentProfile {
+                    id: NodeId::new(),
+                    agent_id,
+                    parallelize: patch.parallelize.unwrap_or(1),
+                    blueprint: bp,
+                    model_config_id: Some(new_model_config_id.clone()),
+                    created_at: patch.now,
+                });
+                profile_changed = true;
+            }
+        }
+    }
+
     if profile_changed {
         if let Some(profile_row) = next_profile.as_ref() {
-            repo.upsert_agent_profile(profile_row)
-                .await
-                .map_err(|e| AgentError::Repository(e.to_string()))?;
+            // If the agent had NO prior profile row, the UPSERT
+            // path's UPDATE arm is a no-op (M5/P2 drift D2.1
+            // family). Use `create_agent_profile` for the
+            // fresh-row case; `upsert_agent_profile` for
+            // existing-row mutation.
+            let write_result = if current_profile.is_some() {
+                repo.upsert_agent_profile(profile_row).await
+            } else {
+                repo.create_agent_profile(profile_row).await
+            };
+            write_result.map_err(|e| AgentError::Repository(e.to_string()))?;
         }
     }
 

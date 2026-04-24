@@ -2539,6 +2539,32 @@ impl Repository for SurrealStore {
             .await
     }
 
+    async fn write_uses_model_edge(
+        &self,
+        agent: AgentId,
+        model_runtime: NodeId,
+    ) -> RepositoryResult<EdgeId> {
+        // D2.2 — LET-first RELATE pattern. Inline `type::thing(...)`
+        // in RELATE slots hits the SurrealDB parser "unexpected `::`"
+        // error (see plan archive §P2 drift addendum).
+        let edge_id = EdgeId::new();
+        self.client()
+            .query(
+                "LET $a = type::thing('agent', $agent);\n\
+                 LET $m = type::thing('model_runtime', $runtime);\n\
+                 RELATE $a -> uses_model -> $m \
+                    SET id = type::thing('uses_model', $edge) RETURN NONE;\n",
+            )
+            .bind(("agent", agent.to_string()))
+            .bind(("runtime", model_runtime.to_string()))
+            .bind(("edge", edge_id.to_string()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(edge_id)
+    }
+
     async fn persist_shape_b_pending(&self, row: &ShapeBPendingProject) -> RepositoryResult<()> {
         // CREATE (not UPDATE) so the UNIQUE(auth_request_id) index
         // rejects a duplicate sidecar for the same AR.

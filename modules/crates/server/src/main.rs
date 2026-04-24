@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use axum_server::tls_rustls::RustlsConfig;
 use clap::{Parser, Subcommand};
-use domain::events::EventBus;
 use server::bootstrap::generate_bootstrap_credential;
 use server::{build_router, telemetry, with_prometheus, AppState, ServerConfig, SessionKey};
 use store::SurrealStore;
@@ -88,28 +87,23 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let repo: Arc<dyn domain::Repository> = Arc::new(store);
     let audit: Arc<dyn domain::audit::AuditEmitter> =
         Arc::new(store::SurrealAuditEmitter::new(repo.clone()));
-    // M4/P3: in-process event bus + Template A fire-listener. The
-    // listener subscribes once; every `apply_project_creation` commit
-    // emits `HasLeadEdgeCreated` on the bus → listener issues the lead
-    // grant via the pure-fn + persists it.
-    let event_bus = Arc::new(domain::events::InProcessEventBus::new());
-    let template_a_listener = Arc::new(domain::events::TemplateAFireListener::new(
-        repo.clone(),
-        audit.clone(),
-        Arc::new(server::platform::projects::RepoAdoptionArResolver::new(
-            repo.clone(),
-        )),
-        Arc::new(server::platform::projects::RepoActorResolver::new(
-            repo.clone(),
-        )),
-    ));
-    event_bus.subscribe(template_a_listener);
+    // M4/P3 + M5/P3: in-process event bus with 5 listeners subscribed
+    // (Template A + C + D fire listeners + memory-extraction stub +
+    // agent-catalog stub). See `state::build_event_bus_with_m5_listeners`.
+    let event_bus_impl =
+        server::state::build_event_bus_with_m5_listeners(repo.clone(), audit.clone());
+    let event_bus: Arc<dyn domain::events::EventBus> = event_bus_impl;
+    // M5/P4: per-worker session registry (cancellation + concurrency cap).
+    let session_registry = server::state::new_session_registry();
+    let session_max_concurrent = cfg.session.max_concurrent;
     let state = AppState {
         repo,
         session,
         audit,
         master_key,
         event_bus,
+        session_registry,
+        session_max_concurrent,
     };
     let app = with_prometheus(build_router(state));
 

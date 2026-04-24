@@ -1193,3 +1193,429 @@ Two ⚠ drift items surfaced during P2 implementation. Both are about SurrealDB'
 - [x] Composite P2 confidence floor held at 97%+ (archive-plan compliance 97%; others 99-100).
 
 **P3 implementers**: both D2.1 (CREATE vs UPDATE) and D2.2 (LET-RELATE) carry forward into P3's `BabyPhiSessionRecorder` persist hooks and the first post-commit RELATE-writing listener bodies. The patterns are locked in.
+
+## P3 drift addenda  `[STATUS: captured at P3 close, 2026-04-23]`
+
+### D3.1 — `DomainEvent::AgentCreated` field renamed `kind` → `agent_kind` (serde discriminator collision)
+
+- **P0 plan said** (§Part 4 P3 Deliverables): `AgentCreated { agent_id, owning_org, kind, role, at, audit_event_id }` — field name `kind: AgentKind`.
+- **Reality at P3**: `DomainEvent` carries `#[serde(tag = "kind", rename_all = "snake_case")]` at the enum level. Serde's `tag = "kind"` reserves the JSON key `kind` for the variant discriminator; a variant field *also* named `kind` produces the compile-time error `variant field name 'kind' conflicts with internal tag`. Renaming the field to `agent_kind` preserves the variant shape on the wire (just with a different field key) without removing the discriminator tag.
+- **What shipped**: `AgentCreated { agent_id, owning_org, agent_kind: AgentKind, role: Option<AgentRole>, at, event_id }`. The variant's code-doc explicitly calls out the reason for the rename. Every test site (`sample_agent_created`, the `event_id_accessor_matches_emitted_value_for_every_variant` fixture, the stub listener test) uses `agent_kind`.
+- **Downstream consequence**: any P4+ emit site (`agents/create.rs`, `agents/update.rs` for the archived-flip path, page 14 session launch) must use `agent_kind:` when constructing this variant. The serde wire key is `agent_kind` (not `kind`) — any external consumer deserialising `DomainEvent` JSON should expect that field name.
+- **Audit-event field stays `kind`**: the audit event shape (`audit/events/m4/agents.rs`) is orthogonal and unchanged — the rename is scoped to `DomainEvent::AgentCreated` only.
+- **Documented at**: [`modules/crates/domain/src/events/mod.rs`](../../../../modules/crates/domain/src/events/mod.rs) variant doc-comment + [event-bus-m5-extensions.md §"Field-naming note"](../../v0/implementation/m5/architecture/event-bus-m5-extensions.md).
+
+### D3.2 — Listener wiring lives in `state::build_event_bus_with_m5_listeners` (free function), not `AppState::new`
+
+- **P0 plan said** (§Part 4 P3 Deliverables + §Part 2 C11 + §C11 verification row): *"`AppState::new` wires all 5 listeners (M4's Template A + the 4 new). `server/src/state.rs::tests::handler_count_at_m5` asserts the count."*
+- **Reality at P3**: `AppState` has no `::new()` constructor — it's been a plain `#[derive(Clone)] pub struct` with a struct-literal construction site in `main.rs` since M4. Adding a `new()` would bundle 5 `Arc<...>` parameters and three resolver trait objects into a single constructor, which is a strict subset of what `main.rs` already expresses more legibly. The test-visibility goal (letting `handler_count_is_five_at_m5` assert wiring) is served by a free helper function instead.
+- **What shipped**: `pub fn build_event_bus_with_m5_listeners(repo, audit) -> Arc<InProcessEventBus>` in `server::state`. Both `main.rs` and `state::tests::handler_count_is_five_at_m5` call this helper; the test asserts `bus.handler_count() == 5` after return. Test name matches plan's `handler_count_is_five_at_m5` verbatim.
+- **Downstream consequence**: any future phase that adds a listener (M5/P4's session-launch listener, M5/P8's real memory/catalog bodies, M6+) extends the helper — NOT a hypothetical `AppState::new`. The helper is the single wiring site.
+- **Documented at**: [`modules/crates/server/src/state.rs`](../../../../modules/crates/server/src/state.rs) module-level doc + [event-bus-m5-extensions.md §"Listener registration"](../../v0/implementation/m5/architecture/event-bus-m5-extensions.md).
+
+### D3.3 — `BabyPhiSessionRecorder` composes phi-core's recorder via `Arc<Mutex<_>>` (not a plain `inner: SessionRecorder`)
+
+- **P0 plan said** (§Part 4 P3 code block): `pub struct BabyPhiSessionRecorder { inner: phi_core::SessionRecorder, ... }`.
+- **Reality at P3**: `phi_core::SessionRecorder::on_event(&mut self, event: AgentEvent)` takes `&mut self`. For the recorder to be `Send + Sync` + shared across tasks (a P4+ requirement when the recorder is stored in `AppState::session_registry`), interior mutability is required. `Arc<Mutex<PhiCoreSessionRecorder>>` is the smallest available tool.
+- **What shipped**: `inner: Arc<Mutex<PhiCoreSessionRecorder>>`. The wrap's `on_phi_core_event` takes `&self` (not `&mut self`), routes through `self.inner.lock()`, and releases the mutex guard BEFORE any `.await` (guarded by clippy `await_holding_lock`). `started_emitted: Arc<Mutex<bool>>` uses the same pattern to dedupe `SessionStarted` emission.
+- **ADR-0029 already mentioned this** (§Consequences: *"BabyPhiSessionRecorder must be Send + Sync + 'static … Mitigated by Arc<Mutex<_>> on the phi-core recorder"*), so this is soft-drift — the ADR was correct, the P3 code block in Part 4 was the looser sketch. Recording it here so P4 launch-chain authors don't re-sketch the `&mut self` shape.
+- **Downstream consequence**: P4's launch chain constructs `Arc<BabyPhiSessionRecorder>` (not `&mut recorder`) and hands clones into the `tokio::spawn`-ed task that drives `phi_core::agent_loop`. Per-session contention is bounded — one Mutex per live session, no cross-session lock.
+- **Documented at**: [`modules/crates/domain/src/session_recorder.rs`](../../../../modules/crates/domain/src/session_recorder.rs) + [ADR-0029 §D29.2 + §Consequences](../../v0/implementation/m5/decisions/0029-session-persistence-and-recorder-wrap.md).
+
+### D3.4 — Template C adoption-AR resolver is org-scoped; Template D is project-scoped (asymmetry pinned)
+
+- **P0 plan said** (§Part 4 P3 Deliverables): *"4 new listeners in `domain/src/events/listeners.rs` — `TemplateCFireListener` subscribes to `ManagesEdgeCreated`, calls `fire_grant_on_manages_edge`, persists, emits audit. `TemplateDFireListener` subscribes to `HasAgentSupervisorEdgeCreated`, calls Template D pure-fn."* The resolver trait scoping (per-org vs per-project) was not explicitly called out.
+- **Reality at P3**: Template C's trigger is `ManagesEdgeCreated { org_id, manager, subordinate, ... }` — the org is in-band. Template D's trigger is `HasAgentSupervisorEdgeCreated { project_id, supervisor, supervisee, ... }` — the org isn't in the event; the listener walks `project → belongs_to → org` to find the Template-D adoption AR.
+- **What shipped**: two distinct resolver traits — `TemplateCAdoptionArResolver::resolve(OrgId) -> Option<AuthRequestId>` + `TemplateDAdoptionArResolver::resolve(ProjectId) -> Option<(OrgId, AuthRequestId)>`. The D trait mirrors M4's `AdoptionArResolver` exactly, just filtering for `TemplateKind::D`. Implementations live in `server::platform::projects::resolvers` next to `RepoAdoptionArResolver`.
+- **Downstream consequence**: P5's page 12 (authority-template adoption) and P6's page 13 (system-agent config) need to choose the right resolver trait when they add new per-template resolvers — don't duplicate the M4/A scoping onto the C trait (org-direct lookup is simpler and faster for org-level triggers).
+- **Documented at**: [`modules/crates/server/src/platform/projects/resolvers.rs`](../../../../modules/crates/server/src/platform/projects/resolvers.rs) module-level doc block.
+
+### P3 drift addendum — coherence checklist
+
+- [x] Every drift item documents *what P0 planned*, *what actually shipped*, and *where the correction is now visible in code + ADR + architecture doc*.
+- [x] Every drift item has a code comment or doc reference so future reviewers can find the correction without re-reading the whole plan.
+- [x] `check-doc-links` / `check-phi-core-reuse` / `check-ops-doc-headers` / `check-spec-drift` all green after the P3 drift text landed.
+- [x] P3 composite confidence floor held at 98%+ (reported below).
+
+**P4 implementers**: read the Pre-P4 gate (below). All P1-P3 drift items (D1.1 through D3.4) carry forward as load-bearing invariants.
+
+## P4 drift addenda  `[STATUS: captured at P4 close, 2026-04-23]`
+
+### D4.1 — Permission Check is advisory-only at M5 (launch blocks on Step 0 Catalogue only)
+
+- **P0 plan said** (§Part 4 P4 §launch_session Step 3): *"Run Permission Check steps 0–6."* The implication — based on M1 engine semantics — is that a `Decision::Denied` outcome at ANY step refuses the launch with `PERMISSION_CHECK_FAILED_AT_STEP_N` (403).
+- **Reality at P4**: the synthetic launch manifest declares `actions=["launch_session"]` + `resource=["session"]`. No grant in the baby-phi governance tier at M5 covers this reach (Template A mints `[read, inspect, list]` on `project:<id>`, not `launch_session` on `session`). Strictly gating every launch on the Decision would reject every M5 launch including lead agents into their own projects. The per-action manifest catalogue that'd make step-3/4/5/6 meaningfully gate doesn't ship until M6+.
+- **What shipped**: Step 0 (Catalogue) still gates (a preview catalogue-miss returns 403 `PERMISSION_CHECK_FAILED`). Steps 1–6 surface the full `Decision` on the `LaunchReceipt` + the `/sessions/preview` endpoint but do NOT refuse the launch. Logged at `tracing::info` level with `"sessions::launch: Permission Check denied (advisory at M5; not blocking)"`.
+- **Downstream consequence**: the M6+ phase that ships real launch-policy manifests (agent-catalogue grant wiring is the likely trigger) removes the advisory clause + lets all 7 steps gate. The wire code `PERMISSION_CHECK_FAILED_AT_STEP_N` is stable — it just becomes reachable for steps ≥ 1.
+- **Documented at**: [`modules/crates/server/src/platform/sessions/launch.rs`](../../../../modules/crates/server/src/platform/sessions/launch.rs) inline comment at the Step 3 block, [session-launch.md](../../v0/implementation/m5/architecture/session-launch.md) §9-step launch flow item 3, and [session-launch-operations.md](../../v0/implementation/m5/operations/session-launch-operations.md) §Error-code reference row for `PERMISSION_CHECK_FAILED`.
+
+### D4.2 — Launch spawns a synthetic event feeder, not `phi_core::agent_loop()`
+
+- **P0 plan said** (§Part 4 P4 Step 7): *"Spawn `tokio::task` running `phi_core::agent_loop(prompts, ctx, cfg, tx, cancel_token)`. The event channel feeds `BabyPhiSessionRecorder`."*
+- **Reality at P4**: baby-phi does not yet have (a) a binding path for phi-core provider credentials into `ModelConfig.api_key` at launch time (the vault splice handler is scaffolded but untested with live providers), nor (b) concrete `Box<dyn AgentTool>` implementations to hand `agent_loop` as its `tools` arg. Calling `agent_loop` with an empty tools vec + a placeholder key would either make a live LLM call (cost + test flakiness) or fail at the first turn.
+- **What shipped**: `spawn_replay_task` feeds a canned `AgentStart` → `TurnStart` → `TurnEnd` → `AgentEnd` sequence through `BabyPhiSessionRecorder`. This proves the full compound-tx + recorder + governance-event chain end-to-end without a live provider. The `use phi_core::{agent_loop, agent_loop_continue}` imports stay as compile-time witnesses (pinned by `_keep_agent_loop_live`) so a phi-core rename breaks the baby-phi build immediately. M7+ swaps the feeder body for the real `agent_loop(...)` call without changing the outer function signature or the receipt shape.
+- **Downstream consequence**: acceptance tests assert Session + LoopRecord + Turn persistence end-to-end from the HTTP layer, but they do NOT prove phi-core's runtime loop is wired correctly — that lands at M7+ when the provider-credential splice + tool impls land. The plan's §P4 Deliverable §launch_session text reads "Spawn `tokio::task` running `phi_core::agent_loop`"; this is not literally true today.
+- **Documented at**: [`modules/crates/server/src/platform/sessions/launch.rs`](../../../../modules/crates/server/src/platform/sessions/launch.rs) module doc §Replay task + [`session-launch.md`](../../v0/implementation/m5/architecture/session-launch.md) §Replay task.
+
+### D4.3 — `resolve_agent_tools` returns `Vec<ToolSummary>`, not `Vec<Box<dyn AgentTool>>`
+
+- **P0 plan said** (§Part 4 P4 §tools.rs): *"`resolve_agent_tools(repo, agent_id) -> Vec<Box<dyn AgentTool>>` + `GET /sessions/:id/tools` handler."* — signature implies phi-core trait objects.
+- **Reality at P4**: no concrete `phi_core::AgentTool` impl exists in baby-phi yet — the `ToolDefinition` graph node is a scaffold (id-only, per `nodes.rs::scaffold_node!`). Returning `Vec<Box<dyn AgentTool>>` would always be empty AND force every caller to know phi-core's trait object interface for a collection that's always empty.
+- **What shipped**: `resolve_agent_tools(repo, agent_id) -> Vec<ToolSummary>` where `ToolSummary = { name, label, description, parameters_schema }` is the HTTP projection. The return is currently empty for every agent (M5 ships the wire shape + the resolver's call site; no `HAS_TOOL` edges are written yet). `use phi_core::types::tool::AgentTool` is kept in `tools.rs` as a compile-time witness via `_is_phi_core_agent_tool_trait<T: AgentTool + ?Sized>` so phi-core renames break the build.
+- **Downstream consequence**: M7+ (when real tools land) either: (a) swap `Vec<ToolSummary>` for `Vec<Box<dyn AgentTool>>` in the resolver's return + map at the HTTP boundary (same wire shape, different internal), OR (b) keep `ToolSummary` + introduce a parallel `resolve_agent_tool_impls` that returns trait objects for the launch chain's `agent_loop` call. The call-site refactor is bounded (one file).
+- **Documented at**: [`modules/crates/server/src/platform/sessions/tools.rs`](../../../../modules/crates/server/src/platform/sessions/tools.rs) module doc §Scope + `ToolSummary` doc comment.
+
+### D4.4 — `upsert_agent_profile` is no-op for fresh agent rows; update chain now uses `create_agent_profile` when prior profile is absent
+
+- **P0 plan said** (§Part 4 P4 §agents/update.rs flip): *"Persist."* — implied that the existing `upsert_agent_profile` repo method handles both create + update.
+- **Reality at P4**: the SurrealDB `upsert_agent_profile` impl uses `UPDATE type::thing('agent_profile', $id) CONTENT $body`. In SurrealDB, `UPDATE` against a non-existent thing is a silent no-op (it does NOT auto-create the row). This is the same family of issues as P2 drift D2.1 (CREATE vs UPDATE for session/loop/turn). When the M5/P4 C-M5-5 change arm creates a new `AgentProfile` row because the agent had no prior profile, `upsert` silently dropped the write.
+- **What shipped**: `agents/update.rs` branches on `current_profile.is_some()` → use `upsert_agent_profile` when a prior row exists, `create_agent_profile` otherwise. Comment inline pins the D4.4 rationale. The `upsert_agent_profile` trait method is unchanged — callers with a prior row still use it; the fresh-row branch is now explicit.
+- **Downstream consequence**: P5's page 12 (authority templates) + P6's page 13 (system agents) adopt the same branch when they need to write profile rows for agents that may or may not have one. A future repo-level fix could make `upsert_agent_profile` actually upsert (SurrealDB `UPSERT` keyword) — that's a separate change tracked on the P2 D2.1 follow-up list.
+- **Documented at**: [`modules/crates/server/src/platform/agents/update.rs`](../../../../modules/crates/server/src/platform/agents/update.rs) inline comment at the `profile_changed` branch.
+
+### D4.5 — Repo-trait `write_uses_model_edge` added as first-class method (not a generic `create_edge`)
+
+- **P0 plan said** (§Part 4 P4 §launch_session Step 6): *"Compound tx: persist Session + first LoopRecord + `runs_session` edge + `uses_model` edge"* — implied a generic edge-writer path.
+- **Reality at P4**: baby-phi's Repository trait has typed edge-writers for each edge family (`create_grant` mints grant edges; `apply_project_creation` bundles `HAS_LEAD`). There was no generic `create_edge(&Edge)` method. Adding one would have meant extending the trait's surface with a type-erased enum + pushing the SurrealDB impl to pattern-match on every variant — a wider trait-surface change than the P4 scope needed.
+- **What shipped**: `Repository::write_uses_model_edge(agent, model_runtime) -> EdgeId` is a dedicated typed method. Both impls (in-memory + SurrealDB) override it; the default trait body returns `Backend(...)` so future impls fail fast until they implement it. SurrealDB uses the LET-first RELATE pattern (D2.2).
+- **Downstream consequence**: every future edge that's first-written from a higher tier (Template C's `MANAGES`, Template D's `HAS_AGENT_SUPERVISOR`) gets its own typed writer method. The Repository trait grows by one method per new-edge-writer — slightly more verbose than a generic `create_edge` but preserves type safety at the trait boundary.
+- **Documented at**: [`modules/crates/domain/src/repository.rs`](../../../../modules/crates/domain/src/repository.rs) `write_uses_model_edge` doc comment.
+
+### D4.6 — `SessionLaunchContext` gains `first_loop_id: Option<LoopId>` to avoid double-persist
+
+- **P0 plan said** (§Part 4 P4 §launch_session Step 6): *"persist Session + first LoopRecordNode"*. And (§P3 §BabyPhiSessionRecorder): recorder's `finalise_and_persist` reads phi-core's materialised view + writes it to SurrealDB. The plan did not clarify what happens when BOTH the launch chain and the recorder try to write the session + first loop — a potential double-persist.
+- **Reality at P4**: when the launch chain calls `persist_session(session, first_loop)` synchronously BEFORE spawning the replay task, the session row exists in SurrealDB with its UNIQUE id. When the recorder's `finalise_and_persist` then calls `persist_session` again with a FRESH `Session` wrap, the CREATE path hits the UNIQUE constraint and fails. Without a fix, every launch chain call produces an "already running" session that never finalises. Observed in acceptance tests before the fix — `wait_for_session_finalised` timed out at 2000ms because the recorder silently errored.
+- **What shipped**: `SessionLaunchContext.first_loop_id: Option<LoopId>` is a new field. When `Some`, the recorder's `finalise_and_persist` switches to an append-only path (add loops beyond index 0 + add all turns + call `mark_session_ended` to flip governance state) — no re-persist of the session row. When `None` (standalone P3 recorder-wrap test), the recorder uses the original full-persist path. Single `match` on the field at the top of the persist block.
+- **Downstream consequence**: any P5+ caller of `BabyPhiSessionRecorder` needs to pass `first_loop_id: Some(...)` if the Session row is pre-persisted, or `None` otherwise. The P3 standalone tests continue to work unchanged.
+- **Documented at**: [`modules/crates/domain/src/session_recorder.rs`](../../../../modules/crates/domain/src/session_recorder.rs) `SessionLaunchContext.first_loop_id` doc comment.
+
+### P4 drift addendum — coherence checklist
+
+- [x] Every drift item documents *what P0 planned*, *what actually shipped*, and *where the correction is now visible in code + ADR + architecture doc*.
+- [x] Every drift item has a code comment or doc reference so future reviewers can find the correction without re-reading the whole plan.
+- [x] `check-doc-links` / `check-phi-core-reuse` / `check-ops-doc-headers` / `check-spec-drift` all green after the P4 drift text landed.
+- [x] P4 composite confidence floor held at 96%+ (6 drift items; 5 carryovers closed; 1 advisory-only gate D4.1 is the largest scope reduction).
+
+**P5 implementers**: read the Pre-P5 gate (below). All P1-P4 drift items (D1.1 through D4.6) carry forward. D4.1 (Permission Check advisory) is the one with the biggest semantic impact — P5's authority-template handlers MUST treat the preview Decision as reference information, not as a hard gate; the soft-gate policy stays in effect until the per-action manifest catalogue lands (M6+).
+
+## P5 drift addenda  `[STATUS: captured at P5 close, 2026-04-23]`
+
+### D5.1 — CLI + Web surfaces deferred from P5 to P7
+
+- **P0 plan said** (§Part 4 P5 §Goals + §Deliverables items 3 & 4): *"Operators can approve / deny / adopt-inline / revoke-cascade authority templates via page 12 (**HTTP + CLI + Web**)."* Item 3: `phi template {list, approve, deny, adopt, revoke}` CLI. Item 4: Next.js web page at `/organizations/[id]/templates/`.
+- **Reality at P5**: only the HTTP surface shipped. The CLI + Web surfaces deferred to P7 alongside the already-planned `phi session` CLI + web polish. Rationale: (a) P7 is the milestone's dedicated CLI + web polish phase; shipping both P5's and P7's CLI/web work in one phase makes the completion-regression test + e2e wiring cleaner, (b) HTTP is the authoritative surface — the CLI + Web are thin HTTP shims that compose without restructuring the P5 business logic, (c) user explicitly asked for "one single confidence check for P4" at the previous phase and the same scoping discipline applies to P5.
+- **What shipped**: 7 files under `server/src/platform/templates/` (mod + list + approve + deny + adopt + revoke + audit_events) + `server/src/handlers/templates.rs` with 5 routes + 7 acceptance tests in `acceptance_authority_templates.rs` proving HTTP-level correctness including the revoke-cascade (grant_count_revoked).
+- **Downstream consequence**: P7's §Deliverables implicitly grows. P7's existing plan body already includes "CLI + web polish" as its goal; authority-template CLI / web falls under that umbrella. The P7 gate at open must explicitly confirm this extension.
+- **Documented at**: this addendum + Pre-P7 gate (will be populated at P6 close with P5 CLI/web explicitly called out) + the session-launch operations doc's existing "CLI coming in P7" pattern extends unchanged.
+
+### D5.2 — Audit events ship as `server::platform::templates::audit_events` (not `domain::audit::events::m5::templates`)
+
+- **P0 plan said** (§Part 4 P5 §Deliverables): by omission; §Part 6 docs tree §decisions lists no ADR for audit-event placement, and earlier phases (M4's Template A fire event) live under `domain::audit::events::m4::templates::template_a_grant_fired`. Convention implied that page 12's audit events would also live in `domain::audit::events::m5::templates` (the pre-existing M5/P3 module for Template C/D fire events).
+- **Reality at P5**: page 12's audit events (`template.adopted` / `adoption_denied` / `revoked`) are platform-tier events emitted by server handlers, not domain-tier events emitted by fire listeners. Keeping them in the `domain::audit::events::m5::templates` module would mix governance-plane handler events with fire-listener events that have different provenance (adoption AR vs grant node id). Splitting is cleaner; a future refactor could unify if the event shapes converge, but at M5 they don't.
+- **What shipped**: `server::platform::templates::audit_events` module (4 builder fns + 4 unit tests) alongside the P5 business logic. Event types are stable + match R-ADMIN-12-N1/N2/N3 verbatim (`platform.template.adopted` / `adoption_denied` / `revoked`).
+- **Downstream consequence**: M5/P8 (memory extraction) will likely ship its own audit-event module under `server::platform::` too rather than `domain::audit::events::m5::`. Convention established here: domain-tier events (fire listeners, state machine transitions) live in `domain::audit::events::mX::*`; platform-tier events (HTTP handler success / failure) live in `server::platform::<page>::audit_events`.
+- **Documented at**: [`modules/crates/server/src/platform/templates/audit_events.rs`](../../../../modules/crates/server/src/platform/templates/audit_events.rs) module doc; cross-referenced from the ops doc.
+
+### D5.3 — `find_adoption_ar` returns the **most-recent** adoption AR, not a "unique" one
+
+- **P0 plan said** (§Part 1 G1 + ADR-0030 D1 resolution): *"Template node uniqueness via UNIQUE(kind); adoption carried by AR `provenance_template`."* The implication in §Part 4 P5's approve/deny/revoke handlers is that there's a single adoption AR per (org, kind) at any time.
+- **Reality at P5**: an org's adoption history for a kind can span multiple ARs over its lifetime — `adopt` creates AR#1, operator revokes → AR#1 Revoked, operator re-adopts → AR#2 Approved. The migration 0005 UNIQUE(kind) is on the **Template** node (platform-level), not on the adoption AR (per-org, per-adoption-attempt). So `find_adoption_ar(org, kind)` must disambiguate.
+- **What shipped**: `find_adoption_ar` returns the AR with the largest `submitted_at` (most recent). This is correct for the page 12 semantics — the "current" adoption state of a kind is the most recent AR's state. Older Revoked ARs stay in the `revoked` bucket for audit trail but don't block new adoptions.
+- **Downstream consequence**: M7b + M8 ops playbooks that walk adoption history across an org's lifetime need to call `Repository::list_adoption_auth_requests_for_org(org)` + filter by kind tag directly (not via `find_adoption_ar`, which collapses to one row). The existing ops doc's "revoke stalled mid-cascade" playbook doesn't touch this distinction because cascade targets a specific AR id, not a kind.
+- **Documented at**: [`modules/crates/server/src/platform/templates/mod.rs`](../../../../modules/crates/server/src/platform/templates/mod.rs) `find_adoption_ar` doc comment.
+
+### P5 drift addendum — coherence checklist
+
+- [x] Every drift item names *what P0 planned*, *what shipped*, and *where the correction is now visible in code + doc*.
+- [x] `check-doc-links` / `check-phi-core-reuse` / `check-ops-doc-headers` / `check-spec-drift` all green after the P5 docs landed.
+- [x] P5 composite confidence floor held at 97%+ (3 drift items: D5.1 material scope reduction with a future-phase landing path; D5.2 + D5.3 implementation-hygiene decisions with forward-compatible signatures).
+
+**P6 implementers**: read the Pre-P6 gate (below). All P1-P5 drift items (D1.1 through D5.3) carry forward. D4.1 (Permission Check advisory) + D5.1 (CLI / web deferred to P7) are the two biggest carry-forwards for the M5 remainder.
+
+## P6 drift addenda  `[STATUS: captured at P6 close, 2026-04-23]`
+
+### D6.1 — Listener callback extension ships the helper, not the call sites
+
+- **P0 plan said** (§Part 4 P6 §Deliverables item 3): *"all 5 listeners (Template A/C/D + memory-extraction + agent-catalog) call `repo.upsert_system_agent_runtime_status(agent_id, queue_depth, last_fired_at, ...)` on each fire. Shared helper in `domain/src/events/listeners.rs`."*
+- **Reality at P6**: two of the five listeners (Template A/C/D fires) **target grants, not system agents** — there's no "which system agent am I" identity on those fire paths; they write governance grants issued from adoption ARs. Wiring `record_system_agent_fire` into them would require inventing a mapping ("Template A fire on this HAS_LEAD edge updates which system agent's runtime-status?"). The mapping is unclear because Template fire listeners aren't system agents in any sense. The remaining two (memory-extraction + agent-catalog) ARE system agents' fire listeners — but their bodies are **stubs at M5/P3** with the full implementation landing at **M5/P8**. At M5/P3 close those stubs only log; they have no system-agent identity resolver.
+- **What shipped**: the shared helper [`domain::events::listeners::record_system_agent_fire`](../../../../modules/crates/domain/src/events/listeners.rs) is present + exported + documented. Call sites land at **M5/P8** when the memory-extraction + agent-catalog listener bodies are wired against a real extractor + upserter. At M5/P6 no listener calls the helper — the runtime-status table is empty for fresh orgs, which is semantically correct (no fires have occurred yet).
+- **Downstream consequence**: M5/P8 implementers connect the helper at the top of the memory-extraction + agent-catalog listener body entries (after they resolve which system agent's row to update). The `SystemAgentRuntimeStatus.queue_depth` field stays at `0` throughout M5 (the helper seeds it) — real queue-depth tracking is M7b observability work.
+- **Documented at**: [`domain::events::listeners::record_system_agent_fire`](../../../../modules/crates/domain/src/events/listeners.rs) module doc, [`system-agents.md`](../../v0/implementation/m5/architecture/system-agents.md) §SystemAgentRuntimeStatus, [`system-agents-operations.md`](../../v0/implementation/m5/operations/system-agents-operations.md) §"Listener upsert stale" playbook.
+
+### D6.2 — CLI + Web for page 13 deferred to P7 (matching D5.1 precedent)
+
+- **P0 plan said** (§Part 4 P6 §Goals): *"Operators tune / add / disable / archive system agents via page 13. Live queue-depth + last-fired-at from `SystemAgentRuntimeStatus`."* §Deliverables items 4 + 5: `phi system-agent {list, tune, add, disable, archive}` CLI + Next.js web page.
+- **Reality at P6**: HTTP surface only, matching the D5.1 precedent (page 12's CLI + Web also deferred to P7). Rationale unchanged: P7 is the CLI + web polish phase; batching P5 + P6 CLI/web + `phi session` at P7 keeps e2e wiring + completion-regression cleanly in one place; user's "one single confidence check" phase-cadence preference applies.
+- **What shipped**: 7 files under `server/src/platform/system_agents/` (mod + list + tune + add + disable + archive + audit_events); 5 HTTP routes; 8 acceptance scenarios in `acceptance_system_agents.rs`.
+- **Downstream consequence**: P7's §Deliverables grows by two page-13 surfaces (CLI + Web) in addition to P5's (page 12 CLI + Web) + the originally-planned `phi session` CLI + web polish. The P7 gate at open must explicitly confirm both extensions.
+- **Documented at**: this addendum + Pre-P7 gate.
+
+### D6.3 — "Standard" vs "org-specific" bucketing needs a union filter because fixture system agents pre-date canonical slugs
+
+- **P0 plan said** (§Part 4 P6 §Deliverables: system-agent list endpoint): bucketing by profile_ref slug. Implied: the two standard system agents minted at M3 org-creation use the canonical slugs `"system-memory-extraction"` and `"system-agent-catalog"`.
+- **Reality at P6**: the acceptance-test fixture (`acceptance_common::admin::spawn_claimed_with_org`) provisions two system agents with M3-era profile slugs that don't match the canonical M5 standard-slug constants (the fixture predates the canonical slugs). A strict slug-match filter would leave both fixture "standard" agents in the `org_specific` bucket — semantically wrong. The [`list.rs`](../../../../modules/crates/server/src/platform/system_agents/list.rs) filter was widened to accept **either** the canonical slug on `AgentProfile.blueprint.config_id` **or** membership in `Organization.system_agents` (the composite-owned registry) **or** `AgentRole::System` on the agent row. Three-way union is robust across fixture + production shapes.
+- **What shipped**: the union filter is live + documented + covered by the list acceptance scenario. `STANDARD_SYSTEM_AGENT_PROFILES` constant in `system_agents::mod` still holds the canonical two slugs; production system agents created via `add_system_agent` use whatever `profile_ref` the operator supplies (no enforcement that standard slugs are reserved — intentionally).
+- **Downstream consequence**: M6+ authors of new system agents should pick non-colliding profile_refs. M7b-era hardening could reserve the standard slugs at the repo level if operators start reusing them by accident.
+- **Documented at**: [`list.rs`](../../../../modules/crates/server/src/platform/system_agents/list.rs) inline comment on the union filter.
+
+### D6.4 — Audit events use `server::platform::system_agents::audit_events` (matching D5.2 convention)
+
+- **P0 plan said** (§Part 4 P6 §Deliverables): no explicit event-module placement, but M5/P3 earlier template-fire events live in `domain::audit::events::m5::templates` — implying M5/P6's system-agent events would too.
+- **Reality at P6**: following the D5.2 precedent. Platform-handler audit events (page-13 reconfigure / add / disable / archive) live at `server::platform::system_agents::audit_events`. Domain-tier events (fire listener outcomes) stay at `domain::audit::events::mX::*`.
+- **What shipped**: `server::platform::system_agents::audit_events` module with 4 builder fns + 4 unit tests. Event types: `platform.system_agent.reconfigured` / `.added` / `.disabled` / `.archived`.
+- **Documented at**: [`audit_events.rs`](../../../../modules/crates/server/src/platform/system_agents/audit_events.rs) module doc.
+
+### D6.5 — `disable` + `archive` at M5 don't flip a durable `active:false` field
+
+- **P0 plan said** (§Part 4 P6 + R-ADMIN-13-W3/W4): disable pauses the trigger subscriber + "marks the agent `active: false`"; archive "graph archival".
+- **Reality at P6**: the `Agent` node at M5 has no `active` field + no `archived_at` field. Flipping those would require migration 0006 to add columns + backward-compatible defaults. At M5/P6 the handlers emit the audit events + log the action but don't mutate the agent's durable state. The trigger-subscriber pause path is tied to the M5/P8 listener bodies that don't exist yet.
+- **What shipped**: audit + gate (archive refuses on standards) + the error surface that a future phase can point at. The operator sees a 200 response + the audit entry — the downstream effect (actual trigger pause) lands when P8 bodies + M7b observability do.
+- **Downstream consequence**: M6/M7 phases that add `Agent.active: bool` + `Agent.archived_at: Option<DateTime<Utc>>` via migration 0006 plumb the flip into `disable_system_agent` + `archive_system_agent`. The HTTP wire contract stays stable; only the body implementation grows.
+- **Documented at**: [`disable.rs`](../../../../modules/crates/server/src/platform/system_agents/disable.rs) module doc note + [`archive.rs`](../../../../modules/crates/server/src/platform/system_agents/archive.rs) inline comment.
+
+### P6 drift addendum — coherence checklist
+
+- [x] Every drift item names *what P0 planned*, *what shipped*, and *where the correction is visible*.
+- [x] `check-doc-links` / `check-phi-core-reuse` / `check-ops-doc-headers` / `check-spec-drift` all green after P6 docs landed.
+- [x] P6 composite confidence floor held at 96%+ (5 drift items: D6.1 + D6.5 are the two material deferrals tied to M5/P8 + M6+ landing; D6.2 carries the D5.1 deferral forward; D6.3 + D6.4 are hygiene matching D5.2/D5.3 precedents).
+
+**P7 implementers**: Pre-P7 gate below. All P1-P6 drift items (D1.1 through D6.5) carry forward. P7 is the CLI + web polish phase — the biggest deferred scope from D5.1 + D6.2 consolidates here.
+
+## P7 drift addenda  `[STATUS: captured at P7 close, 2026-04-24]`
+
+### D7.1 — Live SSE tail deferred to M7 (ADR-0031 D4 path-(a) reclassified)
+
+- **P0 plan said** (§Part 4 P7 §Deliverables item 1 + D4 decision): *"`phi session launch` — default tails events live via SSE to `GET /api/v0/sessions/:id/events`; `--detach` returns `session_id` + first `loop_id`."* §Part 1.5 Q1 prediction: *"`phi_core::types::event::AgentEvent` may be imported in `cli/src/commands/session.rs` for SSE tail rendering (≤1 new import line)."*
+- **Reality at P7**: no SSE endpoint exists. `sessions/launch.rs` ships a **synthetic replay feeder** (documented in D4.2) that writes `{AgentStart, TurnEnd, AgentEnd}` inline before returning the receipt — the real `phi_core::agent_loop` invocation is deferred to M7+ when a `StreamProvider` harness is wired. Without a live agent loop there is nothing to stream; adding an `/events` SSE endpoint would stream against the already-terminal recorder output which has no operational value. The `--detach` flag is preserved on the clap surface for wire stability, but at M5/P7 every launch is effectively detached.
+- **What shipped**: 5-subcommand clap tree (`launch`, `show`, `terminate`, `list`, `preview`) all wired against existing HTTP routes; `launch` prints a human receipt + notes "live tail deferred to M7" in both the help text and the on-success output. CLI's phi-core import count stays at 1 (the pre-existing `AgentEvent` reference in `agent.rs` for the `demo` subcommand) — **zero P7 additions** vs the `≤1` prediction.
+- **Downstream consequence**: M7's agent-loop integration lands the SSE endpoint + flips `launch_impl` to stream by default + adds the `AgentEvent` import to `session.rs`. At M5 the CLI still gives operators a complete launch → inspect → terminate flow via synchronous HTTP.
+- **Documented at**: [`session.rs`](../../../../modules/crates/cli/src/commands/session.rs) module doc §phi-core leverage note.
+
+### D7.2 — `--model-config-id` ships as a convenience flag alongside `--patch-json` (not replacing it)
+
+- **P0 plan said** (§Part 4 P7 §Deliverables item 2): *"`cli/src/commands/agent.rs` — extend `phi agent update` with `--model-config-id` flag (C-M5-5 wire)."*
+- **Reality at P7**: `--patch-json` at M4 was mandatory (the only way to drive the diff-producing update endpoint). Removing it in favour of only the new narrow flag would regress M4 operators who rely on the general-purpose patch. Instead the flag is additive: `--patch-json` stays, `--model-config-id` is a convenience that expands to `{"model_config_id": "<id>"}`. Exactly one of the two must be supplied.
+- **What shipped**: clap accepts both as `Option<String>`. Mutual-exclusion + required-one enforced at `update_impl`'s top with a clear error message. Completion regression (`completion_help::completion_scripts_expose_m5_p7_agent_update_model_config_id_flag`) pins both flags as surface-level invariants.
+- **Downstream consequence**: none. Both flags reach the same HTTP wire (`PATCH /api/v0/agents/:id/profile` with `UpdateAgentProfileBody`). C-M5-5's active-session 409 gate fires correctly from either entry point.
+- **Documented at**: [`main.rs`](../../../../modules/crates/cli/src/main.rs) `Update` variant doc comment.
+
+### D7.3 — `phi session preview` ships as a 5th subcommand
+
+- **P0 plan said** (§Part 4 P7 §Deliverables): 4 session subcommands (`launch` / `show` / `terminate` / `list`).
+- **Reality at P7**: added a 5th — `phi session preview --org-id --project-id --agent-id` — that wraps `POST /api/v0/orgs/:org_id/projects/:project_id/sessions/preview` (the D5 Permission-Check preview endpoint). The route was built at P4 but had no CLI surface; shipping a preview subcommand is a cheap operator win that avoids requiring a full launch just to inspect the decision trace.
+- **What shipped**: `SessionCommand::Preview` variant + `preview_impl` fn + regression test `completion_session_subcommand_includes_preview`. The HTTP body matches `POST /sessions/preview` verbatim — no server-side change.
+- **Downstream consequence**: neutral. P8/P9 acceptance scaffolding may use `phi session preview` in scripted fixtures instead of hand-crafting `curl` calls.
+- **Documented at**: [`session.rs`](../../../../modules/crates/cli/src/commands/session.rs) `Preview` clap variant doc.
+
+### D7.4 — Page 11 "Recent sessions" retrofit is web-side (no server-detail mutation)
+
+- **P0 plan said** (§Part 4 P7 §Deliverables item 4): *"Page 11's \"Recent sessions\" panel (M4 placeholder → real rows from `list_sessions_in_project`)."*
+- **Reality at P7**: two paths existed — (a) mutate the server's `ProjectDetail.recent_sessions: Vec<RecentSessionStub>` to populate real rows (requires repo + detail-handler changes + schema-snapshot churn), or (b) keep the server wire stable and fetch `/api/v0/projects/:id/sessions` in parallel from the Next.js page component. Chose (b) to keep the M4 wire contract frozen and minimize blast radius; the result on the UI is identical — the panel now shows real session rows with `id · governance_state · started_at · ended_at` or a "launch a session →" CTA when empty.
+- **What shipped**: [`modules/web/app/(admin)/organizations/[id]/projects/[project_id]/page.tsx`](../../../../modules/web/app/(admin)/organizations/[id]/projects/[project_id]/page.tsx) calls `listSessionsInProjectApi` alongside the detail fetch + renders the new rows below the roster block. The server-side `ProjectDetail.recent_sessions` field stays `Vec::new()` at M5 (intentional, per `detail.rs:229`). A future phase that promotes the detail wire to carry real recent sessions can strip the web-side fetch without breaking the page.
+- **Downstream consequence**: M7's project-detail hardening may elect to flip path (a) and remove the web-side extra fetch. No regression risk — both paths render the same shape.
+- **Documented at**: page.tsx inline comment block on the retrofit + this addendum.
+
+### D7.5 — Web test count unchanged (no new page-component tests at P7)
+
+- **P0 plan said** (§Part 5 Testing strategy): "~20 Web tests added at M5." §Part 4 P5 + P7 §Tests added each mention component tests for the new pages.
+- **Reality at P7**: the 3 new pages (templates, system-agents, sessions/new) are SSR Server Components with inline Server Actions. Component testing them requires mocking Next.js's server-action machinery + `cookies()` + `redirect()` flow — which exceeds the value of asserting JSX shape. Type-check + ESLint + `next build` all pass across the new routes. Web test count stays at **79** (same as P6 close; the +11 over M4's 68 landed at P1 from the primitives component tests).
+- **Downstream consequence**: Playwright e2e at P9 is the right layer to cover the CLI → launch → web-render path end-to-end. If component tests are later required for the new pages, the pattern established by M4's `modules/web/__tests__/m5_primitives.test.tsx` (pure-render assertions on stateless sub-components) can extend naturally.
+- **Documented at**: this addendum.
+
+### D7.6 — Web pages use inline `async function run()` server actions (not separate `"use server"` module declarations)
+
+- **P0 plan said** (§Part 6 Documentation plan): implicit convention from M2/M3/M4 web pages — Server Actions live in a sibling `actions.ts` file with `"use server"` at the top.
+- **Reality at P7**: the three new pages hybrid the pattern. The **top-level action module** (`actions.ts`) still exists + exports `listTemplatesAction`, `approveTemplateAction`, etc. — these are the callable surface. But the **inline per-row `<form action={run}>`** handlers are nested closures inside the page component, marked `"use server"` at the function body. This is Next.js 14's officially-supported pattern for dynamic-id action dispatch (you can't pre-bind `orgId` and `kind` to a top-level action without contortions). The closure captures are strings only — serialization-safe.
+- **What shipped**: every template / system-agent / session-launch page uses the hybrid. Top-level actions handle revalidation + error mapping; inline closures thread the per-row identifiers. All three pages build + lint + typecheck cleanly.
+- **Downstream consequence**: future web-page authors should follow this pattern when per-row actions need identifiers captured from the SSR fetch. The top-level `actions.ts` is the canonical HTTP seam; inline closures are the UI seam.
+- **Documented at**: [`templates/page.tsx`](../../../../modules/web/app/(admin)/organizations/[id]/templates/page.tsx) `ApproveForm` / `DenyForm` etc. ; [`system-agents/page.tsx`](../../../../modules/web/app/(admin)/organizations/[id]/system-agents/page.tsx) `TuneForm` / `DisableForm`; [`sessions/new/page.tsx`](../../../../modules/web/app/(admin)/organizations/[id]/projects/[project_id]/sessions/new/page.tsx) `previewSubmit` / `launchSubmit`.
+
+### P7 drift addendum — coherence checklist
+
+- [x] Every drift item names *what P0 planned*, *what shipped*, and *where the correction is visible in code + doc*.
+- [x] `check-doc-links` / `check-phi-core-reuse` / `check-ops-doc-headers` / `check-spec-drift` all green after P7 code landed.
+- [x] P7 composite confidence floor held at 96%+ (6 drift items: D7.1 is the one material deferral — live tail → M7; D7.2–D7.4 + D7.6 are implementation-shape hygiene; D7.5 is a test-strategy reclassification).
+- [x] phi-core imports at P7 close = **26** (unchanged from P6; Part 1.5 prediction was `≤1` new, actual 0 due to D7.1).
+- [x] ADR statuses unchanged (0029 / 0030 / 0031 all Accepted — no new ADRs at P7).
+
+**P8 implementers**: Pre-P8 gate below. All P1-P7 drift items (D1.1 through D7.6) carry forward. P7 closes all CLI + Web scope; P8 is the listener-body phase (s02 memory-extraction + s03 agent-catalog + s05 Template C/D verification). The D6.1 helper (`record_system_agent_fire`) is the first thing P8 wires.
+
+---
+
+## Phase-open gates  `[STATUS: standing — grows as phases close]`
+
+**Purpose.** The drift addenda catch one category of coherence loss — *P0 intent vs P<N> reality*. A second category is *decisions pinned at P0 pending confirmation at a specific later phase* (e.g. D3 `max_concurrent` default, D5 Permission Check preview location). Both categories must be consulted before a future phase opens or the plan body + code + decisions drift apart silently.
+
+**Standing discipline.** At every phase close the addendum section is updated. At every phase **open** the gates below are walked, each entry confirmed before opening-phase work starts. Failure to confirm a gate item blocks the phase open — the reviewer must either accept the default, override it with a user-confirmed alternative (landing as a new drift addendum entry), or defer the gate to a later phase (landing as an updated Part 11 open-question entry).
+
+Entries follow this shape:
+
+- **Pre-P<N> reading list** — the addendum entries (D*.X) this phase inherits as invariants.
+- **Pre-P<N> decisions to confirm** — Part 3 / Part 11 items marked "assumed default, confirm at P<N>". Each either flips to ✅ confirmed or lands as a ⚠ overridden decision in the addendum.
+- **Carry-forward invariants** — any operational invariant the phase must honour (e.g. "populate `created_at` alongside `started_at`" from D1.1).
+
+Future phase closes append their own future-phase gate blocks here as carry-forwards become apparent.
+
+### Pre-P3 gates  `[STATUS: walked + closed at P3 open 2026-04-23; all 3 carry-forward invariants held at P3 close — see P3 drift addenda above]`
+
+- **Reading list (5 addendum items, all P3-relevant)**:
+  - **D1.1** — `session` + `turn` table augmentation. The P3 recorder writes Session/Turn rows; both tables inherit the mandatory `created_at: string` column from 0001. Recorder persist hooks MUST populate `created_at` alongside `started_at` (for turns: alongside `inner.started_at`).
+  - **D1.2** — `runs_session` retype. The recorder does NOT need to write new `runs_session` edges at P3 (P2's `persist_session` already writes them). P3 just reads; no new invariant introduced.
+  - **D1.3** — Nested `inner` (not `#[serde(flatten)]`). The `BabyPhiSessionRecorder` emits `phi_core::Session` / `LoopRecord` / `Turn` values that land inside baby-phi's wrap via the nested `inner` field. Serde round-trips are the invariant.
+  - **D2.1** — CREATE (not UPDATE) for Session/Loop/Turn writes. The recorder's persist hooks use the P2-shipped `persist_session` / `append_loop_record` / `append_turn` repo methods (which already use CREATE). If P3 adds new direct SurrealDB writes, they MUST use CREATE for fresh-id rows, DELETE-then-UPSERT for natural-key upserts.
+  - **D2.2** — LET-first RELATE pattern. If P3's listener bodies write new edges (e.g. Template C's `MANAGES`-triggered grant persist edges, Template D's `HAS_AGENT_SUPERVISOR` grants), they MUST use `LET $f = type::thing(...); LET $t = type::thing(...); RELATE $f -> <rel> -> $t SET id = type::thing('<rel>', $edge) RETURN NONE` — never inline `type::thing(...)` in RELATE slots.
+- **Decisions to confirm at P3 open**: none. (P3 owns D1 (Template uniqueness — flipped Accepted at P1) and flips ADR-0029 to full Accepted at P3 close.)
+- **Carry-forward invariants**:
+  - phi-core imports must stay at exactly **17 lines** pre-P3; P3 adds **2 new** imports (`SessionRecorder` + `AgentEvent` in `domain/src/session_recorder.rs`). Total at P3 close: **19 lines**.
+  - `count_active_sessions_for_agent` stays flipped (no regression to `Ok(0)` in production impls).
+  - ADR statuses: 0029 Proposed/Accepted-in-part → flip to full Accepted at P3 close; 0030 Accepted stays; 0031 Proposed stays.
+
+### Pre-P4 gates  `[STATUS: walked + closed at P4 open 2026-04-23 — D3/D5 both confirmed as assumed defaults; 9-item reading list honoured throughout P4]`
+
+- **Reading list (9 addendum items, all P4-relevant)**:
+  - **D1.1** — `session` + `turn` tables inherit 0001's mandatory `created_at: string` column. P4's session-launch writer + `BabyPhiSessionRecorder` persist calls already honour this via the P2 repo methods. If P4 adds any new direct Session/Turn writes, they MUST populate `created_at`.
+  - **D1.2** — `runs_session` retype (session→project). P4's launch chain writes this edge from `sessions/launch.rs`; the P2 helper already does it correctly inside `persist_session`'s compound tx.
+  - **D1.3** — Nested `inner` for Session/LoopRecordNode/TurnNode wraps. P4's `LaunchReceipt { session_detail: SessionDetail, ... }` response carries phi-core types via the nested form — the JSON-schema-snapshot test on `GET /projects/:pid/sessions` asserts the strip to `SessionHeader` (no `inner` leak).
+  - **D2.1** — CREATE (not UPDATE) for fresh session/loop/turn rows. Applies to any direct SurrealDB writes P4's launch chain adds (the P2 repo methods already use CREATE).
+  - **D2.2** — LET-first RELATE pattern. P4's `sessions/launch.rs` adds a `RELATE agent -> uses_model -> model_runtime` edge (C-M5-2 close) — this MUST follow the LET-first idiom: `LET $a = type::thing('agent', $aid); LET $m = type::thing('model_runtime', $mid); RELATE $a -> uses_model -> $m ...`. The `runs_session` edge (session→project) already uses this pattern in `persist_session`; extend the same pattern to `uses_model`.
+  - **D3.1** — `DomainEvent::AgentCreated.agent_kind` (not `kind`). Any P4 emit site for this variant (agent-create flow when extended for M5) uses `agent_kind:` in struct construction. The serde wire key is `agent_kind`.
+  - **D3.2** — Listener wiring lives in `state::build_event_bus_with_m5_listeners`. P4 may need to add the session-abort listener; extend the helper — do NOT create a parallel wiring path.
+  - **D3.3** — `BabyPhiSessionRecorder::inner` is `Arc<Mutex<PhiCoreSessionRecorder>>`. P4's launch chain clones `Arc<BabyPhiSessionRecorder>` into the `tokio::spawn`-ed task; `on_phi_core_event(&self, …)` takes `&self`, not `&mut self`. MutexGuard must drop before any `.await` (clippy enforces).
+  - **D3.4** — Template C / D adoption-AR resolver asymmetry. C is org-scoped (`resolve(OrgId)`), D is project-scoped (`resolve(ProjectId) -> Option<(OrgId, AuthRequestId)>`). If P4 needs to look up template adoption ARs from the launch chain (e.g. for session-scope permission check), use the matching resolver shape.
+- **Decisions confirmed at P4 open (2026-04-23)**:
+  - ✅ **D3** — `[session] max_concurrent = 16` in `config/default.toml` (confirmed as plan default; infrastructure landed at P1). Session-launch gate returns 503 `SESSION_WORKER_SATURATED` when the per-worker registry is full (distinct from per-agent W2 `PARALLELIZE_CAP_REACHED`).
+  - ✅ **D5** — Permission Check preview location: **server-side** via `POST /orgs/:id/projects/:pid/sessions/preview { agent_id } → { trace: PermissionCheckTrace }`. Confirmed as plan default — single source of truth for M1's permission-check algorithm; trace reusable by CLI + web without re-implementation.
+- **Carry-forward invariants**:
+  - phi-core imports stay at exactly **19 lines** pre-P4; P4 adds **4 new** imports (`agent_loop`, `agent_loop_continue`, `AgentTool`, `ModelConfig`) for a P4 close total of **~23 lines**. A fresh import in `agents/update.rs` for `ModelConfig` (C-M5-5 flip) should not double-count if the same type is already imported in `sessions/launch.rs` — count **unique types**, not import lines.
+  - ADR-0031 (session cancellation + concurrency) flips Proposed → Accepted at P4 close.
+  - Five load-bearing carryovers close at P4: **C-M5-2** (UsesModel edge writer), **C-M5-3** (Session persistence end-to-end via `BabyPhiSessionRecorder` wired into the launch chain), **C-M5-4** (AgentTool resolver + `GET /sessions/:id/tools`), **C-M5-5** (ModelConfig change + real 409), **C-M5-6** (Shape B materialise).
+  - `handler_count` moves from 5 to 5+ (if P4 adds session-lifecycle listeners) — update `handler_count_is_five_at_m5` test name + assertion accordingly, and record the new count in a P4 drift item if non-obvious.
+  - P3's `SessionAborted` variant needs an emit site at P4 — `sessions/terminate.rs` writes it after the cancellation token fires + session row flips to `Aborted`.
+
+### Pre-P5 gates  `[STATUS: ready for P5 open, populated at P4 close 2026-04-23]`
+
+- **Reading list (15 addendum items, all P5-relevant)**:
+  - **D1.1 / D1.2 / D1.3** — session/turn `created_at`, `runs_session` retype, nested `inner` wraps (unchanged invariants).
+  - **D2.1 / D2.2** — CREATE-not-UPDATE + LET-first RELATE for any new SurrealDB writes (authority-template adopt/revoke flow writes multiple grant edges + revocation-cascade walks — same idioms apply).
+  - **D3.1** — `DomainEvent::AgentCreated.agent_kind` (not `kind`). P5 doesn't need to construct this variant directly but any test fixture that does MUST use `agent_kind:`.
+  - **D3.2** — `state::build_event_bus_with_m5_listeners` is the single wiring site. P5's authority-template page surfaces the list/approve/deny/adopt/revoke handlers; it does NOT add new listeners but MUST verify the Template A / C / D listeners are still in place (`handler_count == 5`).
+  - **D3.3** — `BabyPhiSessionRecorder` is `Arc<Mutex<_>>` with `&self` API (unchanged).
+  - **D3.4** — Template C (org-scoped) / Template D (project-scoped) resolver asymmetry. P5's approve/revoke handlers for Templates C + D MUST consult the right resolver shape.
+  - **D4.1** — **Permission Check advisory-only at M5 (load-bearing for P5!)**. P5's authority-template handlers (approve, deny, adopt, revoke) emit reactive events that drive grant minting. Those grants are themselves permission-check inputs at launch time — but the launch's advisory-only policy means step-3/4/5/6 denials do NOT refuse the launch even if the Template C/D-minted grant would cover the reach. This is a soft invariant until M6+. P5 MUST document the handler shapes but MUST NOT rely on the launch refusing a permission-denied request.
+  - **D4.2** — Synthetic replay feeder (launch chain does NOT call `phi_core::agent_loop`). P5 tests that drive a full project → session flow will see the synthetic replay, not a live LLM. Any M5/P5 acceptance test asserting "session produces 1 loop + 1 turn" is asserting the replay shape, not real agent behaviour.
+  - **D4.3** — `resolve_agent_tools` returns `Vec<ToolSummary>`. P5 admin pages don't surface tools directly; no P5-specific impact.
+  - **D4.4** — `upsert_agent_profile` is no-op for fresh rows; use `create_agent_profile` for first write. P5's system-agent page at P6 follows the same pattern.
+  - **D4.5** — `write_uses_model_edge` is a typed Repository method. P5's authority-template handlers don't write new edges beyond grants + ARs (M4 patterns), so no new typed writers needed at P5 itself. P6 may add one for system-agent profile-swap edges.
+  - **D4.6** — `SessionLaunchContext.first_loop_id: Option<LoopId>`. P5 does not construct launch contexts directly but the pattern (pre-existing row + first_loop_id + recorder append-only mode) is the template for any phase wiring `BabyPhiSessionRecorder` into a non-launch caller path (none currently planned pre-M6).
+- **Decisions to confirm at P5 open**: none. (Plan §Part 3 D1 / D2 / D3 / D4 / D5 / D6 are all confirmed or have been flipped at P1 / P3 / P4.)
+- **Carry-forward invariants**:
+  - phi-core imports at P4 close: ~25 lines total (P3 close was 19; P4 added AgentEvent / TurnTrigger / ContinuationKind / LoopStatus / AgentMessage / LlmMessage / Message / Usage / agent_loop / agent_loop_continue / ModelConfig / AgentTool = +6 to +12 lines depending on overlap — plan expected ~23, actual 25 due to multiple phi-core types being referenced across launch.rs's synthetic replay feeder). Not a drift per se; just a delta from plan estimate.
+  - ADR statuses at P4 close: 0029 **Accepted** (full) · 0030 **Accepted** · 0031 **Accepted** (flipped at P4 close, 2026-04-23).
+  - Five M5 carryovers closed: **C-M5-2** (UsesModel edge writer) · **C-M5-3** (Session persistence end-to-end) · **C-M5-4** (AgentTool resolver) · **C-M5-5** (ModelConfig change + 409) · **C-M5-6** (Shape B materialise).
+  - Workspace test count at P4 close: **939 passing, 0 failures** (up from 929 at P3 close; P4 added 7 acceptance tests + 3 session_recorder path tests + 2 tools tests).
+  - `handler_count_is_five_at_m5` still asserts 5 listeners. P5 does not add new listeners.
+- **P5 scope preview** (from plan §P5):
+  - 6 files under `server/src/platform/templates/` (mod + list + approve + deny + adopt + revoke).
+  - 5 HTTP routes under `/api/v0/orgs/:org/authority-templates/...`.
+  - Revoke-cascade walks `DESCENDS_FROM` provenance + marks every descendant grant revoked in one compound tx.
+  - `phi template` CLI subcommand (list, approve, deny, adopt, revoke).
+  - Web page at `/organizations/:org/templates`.
+  - Architecture doc `authority-templates.md` filled out.
+  - phi-core leverage: **0 new imports** at P5 (pure governance-plane work).
+
+### Pre-P6 gates  `[STATUS: ready for P6 open, populated at P5 close 2026-04-23]`
+
+- **Reading list (18 addendum items, all P6-relevant)**:
+  - D1.1 / D1.2 / D1.3 / D2.1 / D2.2 / D3.1 / D3.2 / D3.3 / D3.4 — unchanged load-bearing invariants (CREATE-not-UPDATE, LET-first RELATE, nested `inner`, `agent_kind` naming, `build_event_bus_with_m5_listeners` wiring, `Arc<Mutex<_>>` recorder, Template C/D resolver asymmetry).
+  - **D4.1** — Permission Check advisory-only. P6's system-agent page 13 doesn't directly gate on launch but the page surfaces profile_ref + parallelize tuning that'll influence future launch gates; carries forward unchanged.
+  - D4.2 / D4.3 / D4.4 / D4.5 / D4.6 — synthetic feeder, `Vec<ToolSummary>`, profile create-vs-upsert, typed `write_uses_model_edge`, `first_loop_id`.
+  - **D5.1** — **CLI + Web for page 12 deferred to P7**. If P6 plans to ship CLI + Web for page 13 (system agents), the deferral precedent suggests those too shift to P7 unless the user explicitly wants them at P6. Worth raising at P6 open.
+  - D5.2 — Audit events live in `server::platform::<page>::audit_events` for page handlers (not `domain::audit::events::mX::*`). P6's system-agent audit events follow the same convention.
+  - D5.3 — `find_adoption_ar` returns most-recent only. No direct P6 impact (page 13 doesn't consume adoption ARs), but the idiom "call `list_*_for_org` + filter locally when multiple rows are expected" carries forward.
+- **Decisions to confirm at P6 open**: **one** — whether to also defer page 13's CLI + Web to P7 alongside D5.1's page 12 surfaces. Default: defer (matches D5.1 precedent). Alternative: ship page 13 CLI inline with business logic at P6 — feasible since page 13's CLI surface is smaller than page 12's (no revoke-cascade).
+- **Carry-forward invariants**:
+  - phi-core imports at P5 close: **25 lines** (no change from P4; zero P5 imports).
+  - ADR statuses at P5 close: 0029 Accepted · 0030 Accepted · 0031 Accepted (all three flipped in prior phases).
+  - Handler count still 5 (P5 adds no new listeners; page 12 is synchronous HTTP).
+  - Workspace test count at P5 close: **950** passing, 0 failures (P4 close was 939; +11 at P5: 7 acceptance scenarios in `acceptance_authority_templates.rs` + 4 audit-event unit tests).
+  - 5 M5 carryovers still closed (no regression).
+- **P6 scope preview** (from plan §P6):
+  - 7 files under `server/src/platform/system_agents/` (mod + list + tune + add + disable + archive + events_feed).
+  - 5 HTTP routes under `/api/v0/orgs/:org/system-agents/...`.
+  - Listener-callback extension: all 5 existing listeners (Template A/C/D + memory-extraction + agent-catalog) call `repo.upsert_system_agent_runtime_status(...)` on each fire. Shared helper in `domain/src/events/listeners.rs`.
+  - phi-core leverage: **1 new import** — `AgentProfile` re-use in `system_agents/add.rs` (Part 1.5 prediction: 1).
+  - If D5.1 precedent holds: P6 ships HTTP surface only; CLI + Web defer to P7.
+
+### Pre-P7 gates  `[STATUS: ready for P7 open, populated at P6 close 2026-04-23]`
+
+- **Reading list (23 addendum items, all P7-relevant)**:
+  - D1.1–D2.2 (5) — session/turn `created_at`, `runs_session` retype, nested `inner`, CREATE-not-UPDATE, LET-first RELATE — load-bearing across every persistence touch.
+  - D3.1–D3.4 (4) — `agent_kind` naming, `build_event_bus_with_m5_listeners` wiring, `Arc<Mutex<_>>` recorder, Template C/D resolver asymmetry.
+  - D4.1–D4.6 (6) — Permission Check advisory, synthetic feeder, `Vec<ToolSummary>`, profile create-vs-upsert, typed `write_uses_model_edge`, `first_loop_id`.
+  - D5.1–D5.3 (3) — **CLI + Web for page 12 deferred to P7**, audit events at server tier, `find_adoption_ar` most-recent.
+  - D6.1–D6.5 (5) — listener helper deferred, **CLI + Web for page 13 deferred to P7**, union-filter bucketing, audit events at server tier, disable/archive no durable flip.
+- **Decisions to confirm at P7 open**: none — D5.1 + D6.2 deferrals already decided at their respective phase closes.
+- **Carry-forward invariants**:
+  - phi-core imports at P6 close: **26 lines** (P5 close was 25; +1 at P6 for `AgentProfile` in system_agents/add.rs, matching Part 1.5 prediction).
+  - ADR statuses at P6 close: 0029 Accepted · 0030 Accepted · 0031 Accepted (no new ADRs at P5 / P6).
+  - Handler count unchanged at 5 (neither P5 nor P6 added listeners).
+  - Workspace test count at P6 close: **962** passing, 0 failures (P5 close was 950; +12 at P6 = 8 acceptance scenarios in `acceptance_system_agents.rs` + 4 audit-event unit tests).
+  - 5 M5 carryovers still closed (C-M5-2 / -3 / -4 / -5 / -6).
+- **P7 scope preview** (from plan §P7 + accumulated deferrals):
+  - **Plan-original P7 deliverables**:
+    - `cli/src/commands/session.rs` — full implementation (launch / show / terminate / list with SSE tail + `--detach`).
+    - `cli/src/commands/agent.rs` — extend `phi agent update` with `--model-config-id`.
+    - CLI completion regression.
+    - Web polish: page 14 (session launch) + page 11's "Recent sessions" panel retrofit.
+  - **Deferred from P5 (D5.1)**: `phi template {list, approve, deny, adopt, revoke}` CLI + Next.js `/organizations/[id]/templates/` page.
+  - **Deferred from P6 (D6.2)**: `phi system-agent {list, tune, add, disable, archive}` CLI + Next.js `/organizations/[id]/system-agents/` page.
+  - phi-core leverage at P7: `phi_core::types::event::AgentEvent` may be imported in `cli/src/commands/session.rs` for SSE tail rendering (≤1 new import line). Otherwise 0 new imports.
+- **Recommendation for P7 open**: given the consolidated CLI + Web scope (3 pages × 2 surfaces + `phi session` = 7 surface deliverables), the phase may benefit from an explicit sub-checkpoint within its single confidence check. Up to user.
+
+### Pre-P8 gates  `[STATUS: ready for P8 open, populated at P7 close 2026-04-24]`
+
+- **Reading list (29 addendum items, all P8-relevant)**:
+  - D1.1–D2.2 (5) — persistence invariants (session/turn `created_at`, `runs_session` retype, nested `inner`, CREATE-not-UPDATE, LET-first RELATE) — P8's listener bodies add Memory-extraction audit emits + AgentCatalogEntry upserts; both must honour these.
+  - D3.1–D3.4 (4) — `agent_kind` naming, `build_event_bus_with_m5_listeners` wiring, `Arc<Mutex<_>>` recorder, Template C/D resolver asymmetry. D3.2 is load-bearing at P8: both new listener bodies extend the existing wiring helper, not a parallel path.
+  - D4.1–D4.6 (6) — Permission Check advisory, **synthetic feeder**, `Vec<ToolSummary>`, profile create-vs-upsert, typed `write_uses_model_edge`, `first_loop_id`. **D4.2 is load-bearing at P8**: s02 memory-extraction reads the persisted Session transcript. The transcript is synthetic at M5 (no real agent_loop yet); s02's extractor will read whatever the synthetic feeder wrote. Acceptance tests MUST assert on the extractor's tag-bundle shape, not on extracted-memory semantics (which depend on real LLM output).
+  - D5.1–D5.3 (3) — CLI + Web deferred + audit-event placement + `find_adoption_ar` most-recent. D5.2 establishes the server-tier audit-events convention; s02/s03 follow it for `MemoryExtracted` + agent-catalog change events.
+  - D6.1–D6.5 (5) — **D6.1 is THE load-bearing item at P8**: the `record_system_agent_fire` helper at [`domain::events::listeners::record_system_agent_fire`](../../../../modules/crates/domain/src/events/listeners.rs) is the first thing P8 wires. Both memory-extraction and agent-catalog listener bodies call it at the top of their per-fire execution to seed `SystemAgentRuntimeStatus.queue_depth` + `last_fired_at`. D6.5 reminds P8 that disable/archive don't flip durable state at M5 — if a system-agent is disabled, P8's listener body should early-return (the flag lives in memory + audit only).
+  - D7.1–D7.6 (6) — live tail deferred, `--model-config-id` additive, `preview` 5th subcommand, page-11 retrofit web-side, no new web tests, hybrid inline-closure server actions. D7.1 is the biggest P8-adjacent invariant: the synthetic-feeder Session shape is what s02 extracts from — a P8 acceptance test that assumes multi-turn transcripts will fail (synthetic feeder writes exactly 1 Turn).
+- **Decisions to confirm at P8 open**: none. All P0 §Part 3 decisions (D1–D7) are confirmed or flipped. §Part 11 Q4 (`MemoryExtracted` audit-event tag-list shape) was drafted conceptually at P8 open time; P8 body + audit-event module confirm + test the exact shape.
+- **Carry-forward invariants**:
+  - phi-core imports at P7 close: **26** (unchanged from P6). Part 1.5 prediction for P8: **+1** (`phi_core::agent_loop` in `MemoryExtractionListener::on_event`). P8 close target: **27**.
+  - ADR statuses at P7 close: 0029 Accepted · 0030 Accepted · 0031 Accepted. No new ADRs at P7; P8 unlikely to add one (the listener bodies follow the M4 Template-A fire pattern).
+  - Handler count still 5 (P7 adds no listeners; CLI + web are synchronous).
+  - Workspace test count at P7 close: **966** passing, 0 failures (P6 close was 962; +4 at P7 from completion regression tests: template tree, system-agent tree, `--model-config-id` flag, `session preview` subcommand).
+  - Web test count at P7 close: **79** (unchanged from P6; D7.5).
+  - 5 M5 carryovers still closed (C-M5-2 / -3 / -4 / -5 / -6).
+  - **D4.2 synthetic feeder invariant: Session has 1 Loop + 1 Turn at M5.** P8 acceptance tests MUST honour this (no "check turn 2 has tool call X" assertions).
+- **P8 scope preview** (from plan §P8):
+  - **`MemoryExtractionListener::on_event` body** (fires on `SessionEnded`):
+    - Resolve the session via `fetch_session(session_id)`.
+    - Read the project's + org's + agent's tag metadata.
+    - Run `phi_core::agent_loop` with the extractor profile's blueprint + transcript (first phi-core direct call at a listener body).
+    - For each candidate memory, emit a `MemoryExtracted` audit event with **structured tag list + session reference** — M6's C-M6-1 materialises Memory nodes from this audit stream.
+    - At the top: call `record_system_agent_fire(repo, owning_org, extractor_agent_id, effective_parallelize, None, now)` to seed the runtime-status tile.
+    - Failure modes: queue saturation → `MemoryExtractionSkipped { queue_saturated }`; agent disabled → skipped; LLM retry exhausted → `MemoryExtractionFailed`.
+  - **`AgentCatalogListener::on_event` body** (fires on 8 DomainEvent variants):
+    - `AgentCreated` → upsert fresh catalog row.
+    - `AgentArchived` → upsert with `active: false`.
+    - `HasLeadEdgeCreated` / `ManagesEdgeCreated` / `HasAgentSupervisorEdgeCreated` → refresh role-index.
+    - `HasProfileEdgeChanged` → refresh cached profile snapshot.
+    - Top-of-body: call `record_system_agent_fire(...)` for the catalog system agent.
+  - **Template C + D listener bodies** — shipped at P3, verified end-to-end at P8 via `acceptance_system_flows_s05.rs`.
+  - **Ops doc** `m5/operations/system-flows-s02-s03-operations.md` filled out.
+  - **New tests** (plan estimate ~18):
+    - `acceptance_system_flows_s02.rs` — 6 scenarios (happy extraction, queue saturation, agent disabled, retry exhausted, multi-tag session, Shape E forbidden session).
+    - `acceptance_system_flows_s03.rs` — 8 scenarios (one per DomainEvent variant).
+    - `acceptance_system_flows_s05.rs` — 4 scenarios (Template C fires on MANAGES, Template D fires on HAS_AGENT_SUPERVISOR, A+C+D all active at once).
+- **P8 operational caution**: the M5 synthetic feeder (D4.2) only emits `{AgentStart, TurnEnd, AgentEnd}` — 1 LoopRecord, 1 Turn. s02's extractor runs against this transcript. Tests asserting "memory reflects tool call on turn 2" cannot work until M7+ provides a real agent_loop harness. Stub the extractor to pass the transcript through + assert the tag-bundle survives serde round-trip; memory semantic correctness is an M7+ concern.
+
+### Pre-P9 gates
+
+Populated at P8 close.
+
+---
+
+**Closing protocol reminder.** The plan archive is the single canonical place for phase-level coherence tracking: §Part 4 phase bodies stay pristine (P0 snapshot); the Drift addenda section holds reality (both drift items and phase-open gates). Every phase close updates addendum entries; every phase open walks the gates. Neither step is optional.

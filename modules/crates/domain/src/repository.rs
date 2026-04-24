@@ -1115,6 +1115,34 @@ pub trait Repository: Send + Sync + 'static {
         at: DateTime<Utc>,
     ) -> RepositoryResult<()>;
 
+    /// Write the `UsesModel` edge that binds `agent` to the model
+    /// runtime identified by `model_runtime` (as a generic
+    /// [`NodeId`] because the edge's `to` slot carries the raw
+    /// node id; callers pass `ModelProviderId::as_uuid` wrapped in
+    /// `NodeId::from_uuid`).
+    ///
+    /// M5/P4 first-writer — closes C-M5-2. Migration 0005 retyped
+    /// the `uses_model` RELATION to `agent → model_runtime` (from
+    /// the legacy `agent → model_config`); this method is the
+    /// idiomatic call site for the retype.
+    ///
+    /// SurrealDB impls MUST use the LET-first RELATE pattern (per
+    /// the M5/P2 drift addendum D2.2) — `LET $a = type::thing(...);
+    /// LET $m = type::thing(...); RELATE $a -> uses_model -> $m
+    /// SET id = type::thing('uses_model', $edge) RETURN NONE`.
+    /// Returns the [`EdgeId`] so the caller can thread it through
+    /// audit / Launch receipts.
+    async fn write_uses_model_edge(
+        &self,
+        agent: AgentId,
+        model_runtime: NodeId,
+    ) -> RepositoryResult<EdgeId> {
+        let _ = (agent, model_runtime);
+        Err(RepositoryError::Backend(
+            "write_uses_model_edge not implemented by this Repository impl".into(),
+        ))
+    }
+
     /// Persist the Shape B pending-project payload sidecar. Called
     /// from `POST /projects` at submit time, alongside the AR
     /// creation in the same compound tx. Closes C-M5-6 at M5/P4.
