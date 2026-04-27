@@ -127,6 +127,7 @@ async fn create_agent_profile_persists_row() {
             parallelize: 4,
             blueprint,
             model_config_id: None,
+            mock_response: None,
             created_at: Utc::now(),
         })
         .await
@@ -157,6 +158,39 @@ async fn create_agent_profile_persists_row() {
         prompts.first().and_then(|p| p.clone()).as_deref(),
         Some("You are Alice."),
         "phi-core blueprint fields must round-trip through SurrealDB"
+    );
+}
+
+#[tokio::test]
+async fn agent_profile_mock_response_roundtrips_through_repo() {
+    // CH-02 / ADR-0032 D32.2 — the new `mock_response` governance
+    // field must survive a full create → get_agent_profile_for_agent
+    // round-trip against a migrated SurrealDB.
+    let (store, _dir) = fresh_store().await;
+    let agent_id = AgentId::new();
+    let profile_id = NodeId::new();
+    store
+        .create_agent_profile(&AgentProfile {
+            id: profile_id,
+            agent_id,
+            parallelize: 1,
+            blueprint: phi_core::agents::profile::AgentProfile::default(),
+            model_config_id: None,
+            mock_response: Some("Test fixture response".into()),
+            created_at: Utc::now(),
+        })
+        .await
+        .unwrap();
+
+    let round_tripped = store
+        .get_agent_profile_for_agent(agent_id)
+        .await
+        .unwrap()
+        .expect("profile exists after create");
+    assert_eq!(
+        round_tripped.mock_response.as_deref(),
+        Some("Test fixture response"),
+        "mock_response must round-trip through SurrealDB via migration 0006"
     );
 }
 

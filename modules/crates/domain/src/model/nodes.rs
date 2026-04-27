@@ -309,6 +309,15 @@ pub struct AgentProfile {
     /// rows round-trip cleanly.
     #[serde(default)]
     pub model_config_id: Option<String>,
+    /// Optional dev/test override of the MockProvider response at M5
+    /// (CH-02 / ADR-0032 D32.2). `None` → `provider_for` returns
+    /// `MockProvider::text("Acknowledged.")`; `Some(s)` →
+    /// `MockProvider::text(s)`. Governance field on the baby-phi
+    /// wrapper; never placed on `blueprint` (phi-core inner). Bypassed
+    /// at M7 when real providers dispatch via `ProviderRegistry`.
+    /// `#[serde(default)]` so pre-CH-02 stored rows round-trip cleanly.
+    #[serde(default)]
+    pub mock_response: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -1227,5 +1236,44 @@ mod tests {
         });
         let profile: AgentProfile = serde_json::from_value(pre_m5).expect("deserialize pre-M5 row");
         assert_eq!(profile.model_config_id, None);
+    }
+
+    #[test]
+    fn agent_profile_mock_response_defaults_to_none_for_pre_ch02_rows() {
+        // Pre-CH-02 agent_profile rows had no `mock_response` column
+        // (ADR-0032 D32.2 added it at migration 0006). `#[serde(default)]`
+        // must keep the round-trip clean.
+        let pre_ch02 = serde_json::json!({
+            "id": "00000000-0000-0000-0000-00000000cccc",
+            "agent_id": "00000000-0000-0000-0000-00000000dddd",
+            "parallelize": 1,
+            "blueprint": phi_core::agents::profile::AgentProfile::default(),
+            "model_config_id": null,
+            "created_at": "2026-01-01T00:00:00Z"
+        });
+        let profile: AgentProfile =
+            serde_json::from_value(pre_ch02).expect("deserialize pre-CH-02 row");
+        assert_eq!(profile.mock_response, None);
+    }
+
+    #[test]
+    fn agent_profile_mock_response_roundtrip_preserves_some_value() {
+        // Post-CH-02 rows with an explicit mock_response must survive
+        // a serialize → deserialize cycle.
+        let original = AgentProfile {
+            id: NodeId::new(),
+            agent_id: AgentId::new(),
+            parallelize: 1,
+            blueprint: phi_core::agents::profile::AgentProfile::default(),
+            model_config_id: None,
+            mock_response: Some("Test fixture response".to_string()),
+            created_at: chrono::Utc::now(),
+        };
+        let j = serde_json::to_string(&original).expect("serialize");
+        let back: AgentProfile = serde_json::from_str(&j).expect("deserialize");
+        assert_eq!(
+            back.mock_response,
+            Some("Test fixture response".to_string())
+        );
     }
 }

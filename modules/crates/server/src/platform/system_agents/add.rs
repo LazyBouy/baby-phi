@@ -142,6 +142,7 @@ pub async fn add_system_agent(
         parallelize: input.parallelize,
         blueprint,
         model_config_id: None,
+        mock_response: None,
         created_at: input.now,
     };
 

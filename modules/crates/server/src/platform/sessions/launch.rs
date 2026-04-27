@@ -35,64 +35,79 @@
 //!    plus the Permission Check trace so the UI can render the
 //!    worked example.
 //!
-//! ## Replay task (Step 7 details)
+//! ## Agent task (Step 7 details — CH-02)
 //!
-//! The plan specifies `tokio::spawn(agent_loop(...))` — the real
-//! phi-core loop. baby-phi does NOT ship concrete provider
-//! credentials or phi-core tool impls at M5, so the P4 replay task
-//! feeds a synthetic event stream (`AgentStart` → `TurnStart` →
-//! `TurnEnd` → `AgentEnd`) through [`BabyPhiSessionRecorder`] and
-//! calls `finalise_and_persist` on terminal. Tests exercise the
-//! full compound-tx + recorder + governance-event chain without
-//! touching a live LLM. M7+ swaps the synthetic feeder for
-//! `phi_core::agent_loop()` — the import + witness stay, so that
-//! swap is a body change, not a signature change.
+//! `spawn_agent_task` runs `phi_core::agent_loop()` on a spawned
+//! tokio task. Events stream through an unbounded mpsc channel; the
+//! same task drains the receiver and routes each event to
+//! [`BabyPhiSessionRecorder::on_phi_core_event`]. When the loop
+//! terminates the channel closes, the drain loop exits, and
+//! `recorder.finalise_and_persist()` writes the terminal session
+//! state.
+//!
+//! At M5 the provider is `phi_core::provider::mock::MockProvider`
+//! (deterministic, no network) — see ADR-0032. Real provider
+//! dispatch via `phi_core::provider::registry::ProviderRegistry`
+//! defers to M7's credentials-vault milestone. The
+//! `AgentProfile.mock_response` governance field drives the mock's
+//! response text per session; when `None`, the default
+//! `"Acknowledged."` is used.
 //!
 //! ## phi-core leverage
 //!
-//! Three new imports at P4:
-//! - `phi_core::agent_loop` — compile-time witness; real spawn at
-//!   M7+.
-//! - `phi_core::agent_loop_continue` — ditto; for branch / rerun
-//!   continuations post-launch.
+//! Runtime-exercised:
+//! - `phi_core::agent_loop` — spawned in `spawn_agent_task`.
+//! - `phi_core::types::context::AgentContext` — built per launch via
+//!   [`super::provider::build_agent_context`].
+//! - `phi_core::agent_loop::AgentLoopConfig` — built per launch with
+//!   `provider_override = Some(MockProvider)` at M5.
+//! - `phi_core::types::event::AgentEvent` — flows through the mpsc
+//!   channel into the recorder.
 //! - `phi_core::provider::model::ModelConfig` — runtime resolution
-//!   (re-used from M4; counted once per unique type).
+//!   (re-used from M4; cloned into AgentLoopConfig at spawn time).
+//!
+//! Witness import: `phi_core::agent_loop_continue` stays as a
+//! compile-time pin against rename; real continuation flows
+//! (re-runs, branches) ship at M6+.
 
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use domain::audit::AuditEmitter;
 use domain::events::{DomainEvent, EventBus};
+use domain::model::composites_m2::ModelRuntime;
 use domain::model::composites_m5::SessionDetail;
 use domain::model::ids::{AgentId, AuditEventId, LoopId, OrgId, ProjectId, SessionId};
-use domain::model::nodes::{Session, SessionGovernanceState};
+use domain::model::nodes::{AgentProfile, Session, SessionGovernanceState};
 use domain::permissions::Decision;
 use domain::session_recorder::{BabyPhiSessionRecorder, SessionLaunchContext};
 use domain::Repository;
+use phi_core::agent_loop::AgentLoopConfig;
 use phi_core::session::model::LoopStatus;
 use phi_core::types::event::{AgentEvent as PhiCoreAgentEvent, ContinuationKind, TurnTrigger};
 use phi_core::types::{AgentMessage, LlmMessage, Message, Usage};
-// phi-core leverage witnesses — the real spawn swaps in at M7+
-// (see module doc §Replay). The imports keep the type-surface
-// pinned so a phi-core rename surfaces here.
+// phi-core leverage witness — `agent_loop_continue` stays as a
+// compile-time pin until continuation flows ship at M6+. A rename
+// in phi-core breaks the build immediately rather than silently
+// later.
 #[allow(unused_imports)]
-use phi_core::provider::model::ModelConfig;
-#[allow(unused_imports)]
-use phi_core::{agent_loop, agent_loop_continue};
+use phi_core::agent_loop_continue;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::preview::{preview_session, PreviewInput};
 use super::SessionError;
 use crate::state::SessionRegistry;
 
-// phi-core witnesses — dead-code but load-bearing: a rename in
-// phi-core breaks the baby-phi build immediately.
+// phi-core witness — `agent_loop` is now runtime-exercised in
+// `spawn_agent_task` via MockProvider (CH-02). The compile-time
+// witness below is kept as belt-and-braces protection: if phi-core
+// ever renames or re-shapes `agent_loop`, both the runtime call site
+// AND this witness break the build, surfacing the rename at compile
+// time rather than via a runtime error.
 #[allow(dead_code)]
 fn _is_phi_core_agent_loop_free_fn() {
-    // `agent_loop` is a free function (not a method); the bound
-    // below proves the path resolves. Calling it here would need
-    // a live provider + context, which is out of M5 scope.
     let _: fn() = _keep_agent_loop_live;
 }
 fn _keep_agent_loop_live() {}
@@ -336,14 +351,16 @@ pub async fn launch_session(
         })
         .await;
 
-    // Step 7 — register + spawn the replay task.
+    // Step 7 — register + spawn the agent task (CH-02).
     let cancel_token = CancellationToken::new();
     registry.insert(session_id, cancel_token.clone());
-    spawn_replay_task(
+    spawn_agent_task(
         repo.clone(),
         audit,
         event_bus,
         registry.clone(),
+        profile,
+        runtime.clone(),
         SessionLaunchContext {
             session_id,
             phi_core_session_id,
@@ -354,7 +371,6 @@ pub async fn launch_session(
             first_loop_id: Some(first_loop_id),
         },
         input.prompt,
-        phi_loop_id_string,
         cancel_token,
     );
 
@@ -366,76 +382,97 @@ pub async fn launch_session(
     })
 }
 
-/// Synthetic replay task.
+/// Spawn `phi_core::agent_loop` for this session.
 ///
-/// At M5/P4 this feeds a canonical 4-event sequence (AgentStart,
-/// TurnStart, TurnEnd, AgentEnd) through [`BabyPhiSessionRecorder`]
-/// and calls `finalise_and_persist`. M7+ swaps this body for
-/// `phi_core::agent_loop(...)` fed with real provider credentials.
+/// At M5 (CH-02 / ADR-0032) the loop runs against
+/// `phi_core::provider::mock::MockProvider`, driven by
+/// `profile.mock_response` — see [`super::provider`]. Real provider
+/// dispatch defers to M7's credentials-vault milestone.
+///
+/// The spawned task:
+/// 1. Builds an [`AgentContext`](phi_core::types::context::AgentContext)
+///    via [`super::provider::build_agent_context`] using the
+///    pre-allocated launch-tx IDs.
+/// 2. Builds an [`AgentLoopConfig`] with `provider_override =
+///    Some(MockProvider)` (M5) and a clone of `runtime.config` as
+///    the model identity card.
+/// 3. Opens an unbounded mpsc channel and runs `agent_loop` +
+///    event-drain concurrently via `tokio::join!` on the same
+///    spawned task. When the loop terminates, the sender drops, the
+///    channel closes, and the drain loop exits cleanly.
+/// 4. Calls [`BabyPhiSessionRecorder::finalise_and_persist`] to
+///    write the terminal session state (Completed / Aborted /
+///    FailedLaunch).
+///
+/// Cancellation: `cancel_token` is the same token registered in
+/// [`SessionRegistry`] at launch time (ADR-0031). phi-core honours
+/// `cancel.is_cancelled()` at every turn boundary; the drain loop
+/// then sees the channel close and exits.
 ///
 /// The function is `pub(super)` so the module-level re-exports
 /// don't surface it as platform API but tests that exercise the
 /// launch chain can reach in if needed.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn spawn_replay_task(
+pub(super) fn spawn_agent_task(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
     event_bus: Arc<dyn EventBus>,
     registry: SessionRegistry,
+    profile: AgentProfile,
+    runtime: ModelRuntime,
     ctx: SessionLaunchContext,
     prompt: String,
-    phi_loop_id_string: String,
     cancel_token: CancellationToken,
 ) {
+    use super::provider::{build_agent_context, provider_for};
+
     tokio::spawn(async move {
         let recorder = BabyPhiSessionRecorder::new(repo.clone(), audit, event_bus, ctx.clone());
 
-        // The feeder is structured so Ctrl-C / terminate cancels
-        // between events.
-        let agent_id_str = ctx.started_by.to_string();
-        let events = vec![
-            PhiCoreAgentEvent::AgentStart {
-                agent_id: agent_id_str.clone(),
-                session_id: ctx.phi_core_session_id.clone(),
-                loop_id: phi_loop_id_string.clone(),
-                parent_loop_id: None,
-                continuation_kind: ContinuationKind::Initial,
-                timestamp: ctx.started_at,
-                metadata: None,
-                config_snapshot: None,
-            },
-            PhiCoreAgentEvent::TurnStart {
-                loop_id: phi_loop_id_string.clone(),
-                turn_index: 0,
-                timestamp: ctx.started_at,
-                triggered_by: TurnTrigger::User,
-            },
-            PhiCoreAgentEvent::TurnEnd {
-                loop_id: phi_loop_id_string.clone(),
-                message: AgentMessage::Llm(LlmMessage::new(Message::user(prompt.clone()))),
-                usage: Usage::default(),
-                timestamp: ctx.started_at,
-                tool_results: vec![],
-            },
-            PhiCoreAgentEvent::AgentEnd {
-                loop_id: phi_loop_id_string,
-                messages: vec![],
-                usage: Usage::default(),
-                timestamp: ctx.started_at,
-                rejection: None,
-            },
-        ];
+        let (tx, mut rx) = mpsc::unbounded_channel::<PhiCoreAgentEvent>();
+        let mut agent_ctx = build_agent_context(&ctx, &profile);
+        let cfg = AgentLoopConfig {
+            model_config: runtime.config.clone(),
+            provider_override: Some(provider_for(&runtime, &profile)),
+            thinking_level: phi_core::types::usage::ThinkingLevel::Off,
+            max_tokens: None,
+            temperature: None,
+            convert_to_llm: None,
+            transform_context: None,
+            get_steering_messages: None,
+            get_follow_up_messages: None,
+            context_config: None,
+            execution_limits: None,
+            cache_config: phi_core::types::usage::CacheConfig::default(),
+            tool_execution: phi_core::types::tool::ToolExecutionStrategy::Parallel,
+            retry_config: phi_core::provider::retry::RetryConfig::default(),
+            before_turn: None,
+            after_turn: None,
+            before_loop: None,
+            after_loop: None,
+            before_tool_execution: None,
+            after_tool_execution: None,
+            before_tool_execution_update: None,
+            after_tool_execution_update: None,
+            before_compaction_start: None,
+            after_compaction_end: None,
+            on_error: None,
+            input_filters: vec![],
+            first_turn_trigger: TurnTrigger::User,
+            config_id: None,
+            context_translation: None,
+            prun_pending: None,
+        };
+        let prompts = vec![AgentMessage::Llm(LlmMessage::new(Message::user(prompt)))];
 
-        for event in events {
-            if cancel_token.is_cancelled() {
-                tracing::info!(
-                    session_id = %ctx.session_id,
-                    "sessions::launch replay task cancelled; session will finalise as aborted",
-                );
-                break;
+        let agent_fut =
+            phi_core::agent_loop(prompts, &mut agent_ctx, &cfg, tx, cancel_token.clone());
+        let drain_fut = async {
+            while let Some(evt) = rx.recv().await {
+                recorder.on_phi_core_event(evt).await;
             }
-            recorder.on_phi_core_event(event).await;
-        }
+        };
+        tokio::join!(agent_fut, drain_fut);
 
         if let Err(e) = recorder.finalise_and_persist().await {
             tracing::error!(

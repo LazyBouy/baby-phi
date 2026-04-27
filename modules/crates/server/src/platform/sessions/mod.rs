@@ -33,6 +33,7 @@ use domain::repository::RepositoryError;
 pub mod launch;
 pub mod list;
 pub mod preview;
+pub(crate) mod provider;
 pub mod show;
 pub mod terminate;
 pub mod tools;

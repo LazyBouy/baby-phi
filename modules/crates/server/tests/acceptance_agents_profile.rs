@@ -238,6 +238,7 @@ async fn update_blueprint_temperature_changes_profile() {
         parallelize: 1,
         blueprint: Default::default(),
         model_config_id: None,
+        mock_response: None,
         created_at: Utc::now(),
     };
     org.admin

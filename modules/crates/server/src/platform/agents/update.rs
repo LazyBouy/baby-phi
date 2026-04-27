@@ -276,6 +276,7 @@ pub async fn update_agent_profile(
                     parallelize: new_parallelize,
                     blueprint: bp,
                     model_config_id: None,
+                    mock_response: None,
                     created_at: patch.now,
                 });
                 profile_changed = true;
@@ -320,6 +321,7 @@ pub async fn update_agent_profile(
                     parallelize: patch.parallelize.unwrap_or(1),
                     blueprint: new_blueprint.clone(),
                     model_config_id: None,
+                    mock_response: None,
                     created_at: patch.now,
                 });
                 profile_changed = true;
@@ -346,6 +348,7 @@ pub async fn update_agent_profile(
                     parallelize: patch.parallelize.unwrap_or(1),
                     blueprint: bp,
                     model_config_id: Some(new_model_config_id.clone()),
+                    mock_response: None,
                     created_at: patch.now,
                 });
                 profile_changed = true;

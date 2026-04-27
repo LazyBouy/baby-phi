@@ -398,6 +398,7 @@ fn build_system_agents(
         parallelize: 1,
         blueprint: memory_blueprint,
         model_config_id: None,
+        mock_response: None,
         created_at: now,
     };
 
@@ -422,6 +423,7 @@ fn build_system_agents(
         parallelize: 1,
         blueprint: catalog_blueprint,
         model_config_id: None,
+        mock_response: None,
         created_at: now,
     };
 

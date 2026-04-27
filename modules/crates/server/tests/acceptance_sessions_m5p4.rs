@@ -77,6 +77,7 @@ async fn ensure_agent_profile(
         parallelize: 2,
         blueprint: phi_core::agents::profile::AgentProfile::default(),
         model_config_id,
+        mock_response: None,
         created_at: Utc::now(),
     };
     // M5/P4 — use `create_agent_profile` (not `upsert_*`) so the
@@ -214,15 +215,16 @@ async fn launch_happy_path_persists_session_and_writes_uses_model_edge() {
     let body: Value = res.json().await.unwrap();
     let session_id = body["session_id"].as_str().unwrap().to_string();
 
-    // Wait for the synthetic replay to finalise (recorder writes the
-    // 1 loop + 1 turn via finalise_and_persist).
+    // Wait for the agent task (CH-02 — phi_core::agent_loop driven by
+    // MockProvider) to finalise. The recorder writes 1 loop + 1 turn
+    // via finalise_and_persist.
     let show_url = project.url(&format!("/api/v0/sessions/{}", session_id));
     let finalised = wait_for_session_finalised(&ceo_client(&project), show_url, 2_000).await;
 
     assert_eq!(
         finalised["session"]["governance_state"].as_str().unwrap(),
         "completed",
-        "session finalises to completed after replay task runs",
+        "session finalises to completed after agent task runs",
     );
     assert_eq!(
         finalised["loops"].as_array().unwrap().len(),
@@ -232,6 +234,92 @@ async fn launch_happy_path_persists_session_and_writes_uses_model_edge() {
     let loop_id = finalised["loops"][0]["id"].as_str().unwrap();
     let turns = finalised["turns_by_loop"][loop_id].as_array().unwrap();
     assert_eq!(turns.len(), 1, "one TurnNode persisted (C-M5-3 proof)");
+
+    // CH-02 proof — these assertions only pass when phi_core::agent_loop
+    // actually runs (not the previous synthetic feeder). The synthetic
+    // feeder fabricated TurnEnd with a user message; the real loop
+    // produces an assistant message via MockProvider plus user-prompted
+    // input_messages.
+    let turn = &turns[0];
+    assert_eq!(
+        turn["inner"]["triggered_by"].as_str().unwrap(),
+        "User",
+        "CH-02: real agent_loop tags the first turn triggered_by=User",
+    );
+    let turn_json = serde_json::to_string(turn).expect("serialise turn");
+    assert!(
+        turn_json.contains("hello world"),
+        "CH-02: input_messages must contain the user prompt; got: {turn_json}",
+    );
+    assert!(
+        turn_json.contains("Acknowledged."),
+        "CH-02: output_message must contain the default MockProvider response \
+         when AgentProfile.mock_response is None; got: {turn_json}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 3b. Launch with per-profile mock_response override (CH-02 / ADR-0032 D32.2).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn launch_with_mock_response_override_drives_agent_output() {
+    use domain::model::ids::NodeId;
+    use domain::model::nodes::AgentProfile;
+
+    let project = spawn_claimed_with_org_and_project(false).await;
+    let repo: Arc<dyn Repository> = project.claimed_org.admin.acc.store.clone();
+
+    let runtime_id = seed_model_runtime(repo.clone()).await;
+    // Seed the AgentProfile manually with a non-None mock_response.
+    let custom = "Custom CH-02 fixture response — proves per-profile override flows through.";
+    let profile = AgentProfile {
+        id: NodeId::new(),
+        agent_id: project.project_lead,
+        parallelize: 2,
+        blueprint: phi_core::agents::profile::AgentProfile::default(),
+        model_config_id: Some(runtime_id.to_string()),
+        mock_response: Some(custom.to_string()),
+        created_at: Utc::now(),
+    };
+    repo.create_agent_profile(&profile)
+        .await
+        .expect("create profile");
+
+    let launch_url = project.url(&format!(
+        "/api/v0/orgs/{}/projects/{}/sessions",
+        project.org_id(),
+        project.project_id
+    ));
+    let res = ceo_client(&project)
+        .post(launch_url)
+        .json(&json!({
+            "agent_id": project.project_lead.to_string(),
+            "prompt": "test prompt for override",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status().as_u16(), 201);
+    let session_id = res.json::<Value>().await.unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let show_url = project.url(&format!("/api/v0/sessions/{}", session_id));
+    let finalised = wait_for_session_finalised(&ceo_client(&project), show_url, 2_000).await;
+
+    let loop_id = finalised["loops"][0]["id"].as_str().unwrap();
+    let turn = &finalised["turns_by_loop"][loop_id][0];
+    let turn_json = serde_json::to_string(turn).expect("serialise turn");
+    assert!(
+        turn_json.contains(custom),
+        "AgentProfile.mock_response override must reach MockProvider's text response; got: {turn_json}",
+    );
+    assert!(
+        !turn_json.contains("Acknowledged."),
+        "default MockProvider response must NOT appear when override is Some; got: {turn_json}",
+    );
 }
 
 // ---------------------------------------------------------------------------

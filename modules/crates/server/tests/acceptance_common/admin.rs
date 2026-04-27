@@ -270,6 +270,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         parallelize: 1,
         blueprint: sys0_blueprint,
         model_config_id: None,
+        mock_response: None,
         created_at: Utc::now(),
     };
     let sys1_profile = AgentProfile {
@@ -278,6 +279,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         parallelize: 1,
         blueprint: sys1_blueprint,
         model_config_id: None,
+        mock_response: None,
         created_at: Utc::now(),
     };
     let sys_ids = [sys0_agent.id, sys1_agent.id];
