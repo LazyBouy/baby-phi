@@ -362,6 +362,25 @@ pub trait Repository: Send + Sync + 'static {
     /// re-validate `kind` / `role` / `owning_org`.
     async fn upsert_agent(&self, agent: &Agent) -> RepositoryResult<()>;
 
+    /// CH-01 / ADR-0034 D34.3 — flip the durable [`Agent::active`] flag in
+    /// place. Returns `RepositoryError::NotFound` if the agent row is
+    /// missing. Used by the system-agent disable handler at P3 to make
+    /// disable a durable state-flip rather than an audit-only emission;
+    /// AgentCatalogListener (CH-22) reads the resulting `active` value
+    /// when computing `SystemAgentRuntimeStatus.is_paused`.
+    async fn set_agent_active(&self, agent_id: AgentId, active: bool) -> RepositoryResult<()>;
+
+    /// CH-01 / ADR-0034 D34.3 — set [`Agent::archived_at`] in place.
+    /// `Some(t)` archives at time `t`; `None` clears the column
+    /// (un-archive path; not exercised at M5 but shipped for symmetry).
+    /// Returns `RepositoryError::NotFound` if the agent row is missing.
+    /// Used by the system-agent archive handler at P3.
+    async fn set_agent_archived_at(
+        &self,
+        agent_id: AgentId,
+        archived_at: Option<DateTime<Utc>>,
+    ) -> RepositoryResult<()>;
+
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()>;
     /// Fetch the (single) [`AgentProfile`] row whose `agent_id == agent`.
     /// At M4 the schema enforces 1:1 via a UNIQUE index in migration

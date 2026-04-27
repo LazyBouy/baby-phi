@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # Per-chunk planning template
 
@@ -56,6 +56,32 @@ Additional mandatory sub-fields:
 - **Forbidden-duplication greps** — exact commands that must return 0 hits. Example: *`grep -rn "^struct AgentProfile" modules/crates/ | grep -v "phi_core::"` — expect 0.*
 
 Per [`baby-phi/CLAUDE.md`](../../../../../../CLAUDE.md) §"phi-core Leverage" rules 1–5. `scripts/check-phi-core-reuse.sh` MUST stay green at chunk close.
+
+### §3.B — K8s microservice readiness check
+
+**Binding rule (codified by CH-01 / forward-scope Q8 — every chunk applies):** the chunk plan evaluates whether its changes introduce new K8s-deployment hurdles. The full rationale + strategic context lives in [`m7b/architecture/k8s-microservices-readiness.md`](../../m7b/architecture/k8s-microservices-readiness.md); the tactical ledger of deferred items is at [`m7b/architecture/deferred-from-ch-k8s-prep.md`](../../m7b/architecture/deferred-from-ch-k8s-prep.md). Pre-CH-01 chunks (CH-02, CH-K8S-PREP) are grandfathered.
+
+**Mandatory 7-axis evaluation table** (chunk plan fills in for its surface):
+
+| Axis | What to check | This chunk's surface | New blocker introduced? | Action |
+|---|---|---|---|---|
+| **A1** | New in-process state (`DashMap`, `RwLock`, `AtomicBool`, `Mutex`, `OnceCell`, `RefCell`, etc.) — pod-local by definition | … | yes / no | If yes, file CHK8S-D-XX entry; consider trait-shaping now |
+| **A2** | New IPC channel (`mpsc`, `broadcast`, `oneshot`, `watch`, `Notify`) — pod-local by definition | … | yes / no | If yes, file CHK8S-D-XX |
+| **A3** | New pod-local resource (file handle, listener socket, sub-process, lock file, on-disk cache) | … | yes / no | If yes, file CHK8S-D-XX |
+| **A4** | Migration runner / first-apply race | … | yes / no | If migration added, cross-ref existing CHK8S-D-05 (leader-election lock) — generally not aggravated by single column-add migrations |
+| **A5** | Trait-shape requirement (does the new surface need to be trait-objects-friendly for future broker / Redis / remote-DB swap?) | … | yes / no | If yes and not already trait-shaped, ship trait now |
+| **A6** | Cross-pod state sharing (does this introduce data that must be visible across pods?) | … | yes / no | If yes, ensure storage backend is durable (SurrealDB persisted), not in-process cache |
+| **A7** | Audit hash-chain symmetry (does the chunk add a new audit writer that breaks single-writer guarantee or sidesteps the existing emitter?) | … | yes / no | If yes, file CHK8S-D-XX (single-writer integrity is load-bearing for the audit chain) |
+
+**Conforming-criteria check against ADR-0033 (CH-K8S-PREP):**
+- D33.1 (`SessionRegistry` trait) — does this chunk touch the registry? If yes, does it preserve trait-object dispatch?
+- D33.2 (`SurrealStore::open_remote`) — does this chunk add storage operations that work on both `open_embedded` and `open_remote`?
+- D33.3 (SIGTERM graceful shutdown) — does this chunk add new `tokio::spawn` tasks that the SIGTERM handler must drain?
+- D33.4 (`EventBus.shutdown` + `drain`) — does this chunk add new `EventBus` emitters or listeners?
+
+**Conclusion paragraph.** State the chunk's overall K8s posture in one sentence: *"K8s-neutral"* (no new blockers), *"K8s-positive"* (existing blockers improved), or *"K8s-negative"* (new blockers introduced — list them with their CHK8S-D-XX ledger references).
+
+**Mid-flight discovery.** If a phase surfaces a K8s blocker not anticipated in this section, pause via `AskUserQuestion` and add a new ledger entry before the phase closes — identical pattern to the §2 concept-contradiction discovery rule.
 
 ### §4 — Drifts closed
 

@@ -285,6 +285,85 @@ async fn disable_with_confirm_succeeds_and_surfaces_was_standard_flag() {
     // was_standard is false for a custom profile_ref.
     assert_eq!(body["was_standard"], false);
     assert!(body["audit_event_id"].as_str().is_some());
+
+    // CH-01 / ADR-0034 D34.4 — disable must flip the durable
+    // `active = false` field on the agent row. Closes drift D6.5.
+    use domain::Repository;
+    let agent = org
+        .admin
+        .acc
+        .store
+        .get_agent(agent_id)
+        .await
+        .expect("get_agent")
+        .expect("agent row exists");
+    assert!(
+        !agent.active,
+        "disable handler must flip durable active to false (D34.4 / D6.5)"
+    );
+    assert!(
+        agent.archived_at.is_none(),
+        "disable does NOT archive — archived_at must remain None"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 6b. CH-01 / ADR-0034 D34.4 — archive happy-path durable flip
+// ---------------------------------------------------------------------------
+//
+// Standard system agents are rejected (test 7 below). Custom (non-standard)
+// system agents archive successfully + must flip durable
+// `archived_at = Some(now)` on the agent row.
+#[tokio::test]
+async fn archive_with_confirm_succeeds_and_flips_durable_archived_at() {
+    let org = spawn_claimed_with_org(false).await;
+    let add: Value = ceo_client(&org)
+        .post(list_url(&org))
+        .json(&json!({
+            "display_name": "to-archive",
+            "profile_ref": "custom-archive-test-profile",
+            "parallelize": 1,
+            "trigger": "session_end",
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let agent_id: domain::model::ids::AgentId =
+        serde_json::from_value(add["agent_id"].clone()).unwrap();
+
+    let res = ceo_client(&org)
+        .post(org.url(&format!(
+            "/api/v0/orgs/{}/system-agents/{}/archive",
+            org.org_id, agent_id
+        )))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status().as_u16(), 200);
+    let body: Value = res.json().await.unwrap();
+    assert!(body["archived_at"].as_str().is_some());
+    assert!(body["audit_event_id"].as_str().is_some());
+
+    use domain::Repository;
+    let agent = org
+        .admin
+        .acc
+        .store
+        .get_agent(agent_id)
+        .await
+        .expect("get_agent")
+        .expect("agent row exists");
+    assert!(
+        agent.archived_at.is_some(),
+        "archive handler must flip durable archived_at to Some(now) (D34.4 / D6.5)"
+    );
+    // Archive does not also disable in M5 — concept docs treat them
+    // as distinct lifecycle states. (`active` may still be true on
+    // an archived row; the catalog listener treats archived as a
+    // terminal state regardless of `active`.)
 }
 
 // ---------------------------------------------------------------------------

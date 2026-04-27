@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # M5.1 Drift catalogue — index
 
@@ -87,7 +87,7 @@ fixed.
 | D6.2 | CLI + Web for page 13 deferred from P6 to P7 | MEDIUM | A | system-agents | N/A | **remediated** | P7 (historical) | [D6.2.md](D6.2.md) |
 | D6.3 | System-agent bucketing needs 3-way union filter | MEDIUM | B | system-agents | N/A | discovered | TBD | [D6.3.md](D6.3.md) |
 | D6.4 | System-agent audit events at `server::platform::system_agents::audit_events` | LOW | C | system-agents | N/A | discovered | TBD | [D6.4.md](D6.4.md) |
-| D6.5 | disable/archive don't flip durable `active`/`archived_at` | **HIGH** | **A** | agent; system-agents | N/A | discovered | TBD | [D6.5.md](D6.5.md) |
+| D6.5 | disable/archive don't flip durable `active`/`archived_at` | **HIGH** | **A** | agent; system-agents | N/A | remediated | CH-01 ✓ | [D6.5.md](D6.5.md) |
 | D7.1 | Live SSE tail deferred to M7 | **HIGH** | **A** | permissions/05 | direct-reuse (planned) | discovered | TBD | [D7.1.md](D7.1.md) |
 | D7.2 | `--model-config-id` additive (alongside `--patch-json`) | LOW | B | agent | N/A | discovered | TBD | [D7.2.md](D7.2.md) |
 | D7.3 | `phi session preview` as 5th subcommand | LOW | C | permissions/04 | N/A | discovered | TBD | [D7.3.md](D7.3.md) |
@@ -115,8 +115,8 @@ fixed.
 | D-new-19 | audit_class composition (strictest wins) not enforced | MEDIUM | B | permissions/07 | N/A | discovered | TBD | [D-new-19.md](D-new-19.md) |
 | D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | discovered | TBD | [D-new-20.md](D-new-20.md) |
 | D-new-21 | Edge-count documentation mismatch | LOW | B | ontology | N/A | discovered | TBD | [D-new-21.md](D-new-21.md) |
-| D-new-22 | Agent role immutability post-creation not enforced | MEDIUM | B | agent | N/A | discovered | TBD | [D-new-22.md](D-new-22.md) |
-| D-new-23 | Human Agents lack Identity-assignment guard | LOW | C | human-agent | N/A | discovered | TBD (w/ D-new-01) | [D-new-23.md](D-new-23.md) |
+| D-new-22 | Agent role immutability post-creation not enforced | MEDIUM | B | agent | N/A | remediated | CH-01 ✓ | [D-new-22.md](D-new-22.md) |
+| D-new-23 | Human Agents lack Identity-assignment guard | LOW | C | human-agent | N/A | scoped | CH-01 review + CH-16 closure | [D-new-23.md](D-new-23.md) |
 | D-new-24 | Channel node schema incomplete | LOW | B | human-agent; ontology | N/A | discovered | M7 | [D-new-24.md](D-new-24.md) |
 | D-new-25 | InboxObject/OutboxObject missing AgentMessage embedding | MEDIUM | B | ontology | N/A | discovered | M6+ | [D-new-25.md](D-new-25.md) |
 | D-new-26 | Task node fully scaffolded | LOW | C | project | N/A | discovered | later | [D-new-26.md](D-new-26.md) |

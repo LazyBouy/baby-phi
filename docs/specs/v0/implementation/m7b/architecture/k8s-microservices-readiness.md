@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # K8s-microservices readiness — research precursor for M7b
 
@@ -209,3 +209,21 @@ That file is the **tactical** scoping input to M7b plan-open; this readiness doc
 If single-pod throughput becomes a real bottleneck before M7b opens, that triggers a renegotiation: the user opens an early-mini-milestone (e.g., M5.5) using this doc as input. **No K8s implementation work happens off the back of this doc alone** — every code change in Steps 1-10 needs its own per-chunk plan inside M7b's scope, following the M5.1/P4 chunk-lifecycle discipline.
 
 > ⚠ **Closing reminder (repeats §1 scope fence):** this is a research-only precursor. The actual K8s microservice evaluation, carve-out, and new-service development is **explicitly deferred to milestone M7b**. The four prep refactors (P-1..P-4) that ship alongside this doc are single-pod-safe and do not constitute a K8s rollout.
+
+---
+
+## 11. Per-chunk readiness check rule (CH-01+)
+
+**Codified by CH-01 / forward-scope §7 Q8 (2026-04-27).** From CH-01 onward, every chunk plan includes a §3.B "K8s microservice readiness check" section that evaluates 7 deployability axes (A1 in-process state · A2 IPC channel · A3 pod-local resource · A4 migration runner / first-apply race · A5 trait-shape requirement · A6 cross-pod state · A7 audit hash-chain symmetry) and verifies the four ADR-0033 conforming criteria (D33.1–D33.4). Any new K8s blocker introduced by the chunk creates a new `CHK8S-D-XX` entry in the tactical ledger ([`deferred-from-ch-k8s-prep.md`](./deferred-from-ch-k8s-prep.md)) before chunk seal, with provenance citing the originating chunk.
+
+**Why this rule exists:** to prevent silent K8s-deployment-debt accumulation between M5 and M7b plan-open. Each chunk pre-positions its trait surfaces incrementally instead of forcing a big-bang refactor at M7b. The CH-K8S-PREP precedent (P-1..P-4 prep refactors that pre-positioned `SessionRegistry`, `EventBus.shutdown/drain`, `SurrealStore::open_remote`, and SIGTERM handling) demonstrated this incremental approach works; Q8 generalises it to every subsequent chunk.
+
+**Cross-references for the rule:**
+- [`m5_1/process/per-chunk-planning-template.md`](../../m5_1/process/per-chunk-planning-template.md) §3.B — the template every chunk plan fills in.
+- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §7 Q8 — the binding planning decision.
+- [`deferred-from-ch-k8s-prep.md`](./deferred-from-ch-k8s-prep.md) — the live ledger where new entries land.
+- [`m5_2/decisions/0033-k8s-prep-refactors.md`](../../m5_2/decisions/0033-k8s-prep-refactors.md) §D33.1–D33.4 — the conforming-impl criteria each chunk verifies it doesn't break.
+
+**Pre-rule chunks grandfathered:** CH-02 and CH-K8S-PREP do not retroactively need §3.B. CH-K8S-PREP itself originated the 7-axis evaluation embedded in this doc and ADR-0033.
+
+**This rule is an expansion of, not a replacement for, the strategic deferral in §10 above.** Per-chunk readiness checks ensure no chunk silently accumulates new K8s blockers; M7b plan-open still owns the actual carve-out work.

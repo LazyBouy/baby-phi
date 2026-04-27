@@ -43,6 +43,8 @@ fn sample_agent() -> Agent {
         owning_org: None,
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     }
 }
 
@@ -445,6 +447,8 @@ async fn get_admin_agent_finds_human_agent_after_create() {
         owning_org: None,
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     store.create_agent(&llm).await.expect("llm");
     assert!(store.get_admin_agent().await.expect("get").is_none());
@@ -1053,6 +1057,8 @@ async fn agent_llm_kind_and_owning_org_roundtrips() {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     store.create_agent(&agent).await.unwrap();
     let got = store.get_agent(agent.id).await.unwrap().expect("row");
@@ -1524,6 +1530,8 @@ fn bootstrap_claim_for(
             owning_org: None,
             role: None,
             created_at: now,
+            active: true,
+            archived_at: None,
         },
         channel: Channel {
             id: channel_id,
@@ -1665,6 +1673,8 @@ async fn apply_bootstrap_claim_is_idempotent_failure_when_agent_id_collides() {
             owning_org: None,
             role: None,
             created_at: Utc::now(),
+            active: true,
+            archived_at: None,
         })
         .await
         .unwrap();

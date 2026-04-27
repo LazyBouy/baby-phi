@@ -148,6 +148,8 @@ pub async fn create_organization(
         // M4 will set `Some(AgentRole::Executive)` from the wizard.
         role: None,
         created_at: input.now,
+        active: true,
+        archived_at: None,
     };
     let ceo_channel = Channel {
         id: NodeId::new(),
@@ -383,6 +385,8 @@ fn build_system_agents(
         // dashboard behaviour (counted under `unclassified`).
         role: None,
         created_at: now,
+        active: true,
+        archived_at: None,
     };
     let mut memory_blueprint: PhiCoreAgentProfile = base.clone();
     memory_blueprint.name = Some("memory-extractor".into());
@@ -409,6 +413,8 @@ fn build_system_agents(
         owning_org: Some(org_id),
         role: None,
         created_at: now,
+        active: true,
+        archived_at: None,
     };
     let mut catalog_blueprint: PhiCoreAgentProfile = base.clone();
     catalog_blueprint.name = Some("agent-catalog".into());

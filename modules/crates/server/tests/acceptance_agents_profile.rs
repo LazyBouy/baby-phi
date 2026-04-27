@@ -53,6 +53,8 @@ async fn seed_agent_with_role(org: &ClaimedOrg, role: AgentRole, name: &str) -> 
         owning_org: Some(org.org_id),
         role: Some(role),
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let id = agent.id;
     org.admin.acc.store.create_agent(&agent).await.unwrap();
@@ -338,6 +340,69 @@ async fn update_rejects_parallelize_ceiling_breach() {
     assert_eq!(res.status().as_u16(), 400);
     let err: Value = res.json().await.unwrap();
     assert_eq!(err["code"].as_str(), Some("PARALLELIZE_CEILING_EXCEEDED"));
+}
+
+#[tokio::test]
+async fn update_rejects_role_change_with_immutable_field_changed() {
+    // CH-01 / D-new-22 — `agent.md` §"Agent Roles" mandates *"Role is
+    // immutable post-creation; role transitions go through separate
+    // flows."* The HTTP wire format `UpdateAgentProfileRequest` does
+    // not include `role` (so a PATCH-with-role-in-body silently drops
+    // the field), but internal Rust callers of `update_agent_profile`
+    // could still pass `new_role: Some(...)` through `UpdateAgentPatch`.
+    // This test pins the rust-level guard at update.rs:136-138 so a
+    // future refactor cannot inadvertently allow role-change.
+    use server::platform::agents::update::{
+        update_agent_profile, ExecutionLimitsPatch, UpdateAgentPatch,
+    };
+    use server::platform::agents::AgentError;
+
+    let org = spawn_claimed_with_org(false).await;
+    // Seed a Human agent with role = Member; attempt to flip to Admin.
+    let agent_id = seed_agent_with_role(&org, AgentRole::Member, "iris-member").await;
+    let actor_id = org.ceo_agent_id;
+    let outcome = update_agent_profile(
+        org.admin.acc.store.clone(),
+        std::sync::Arc::new(store::SurrealAuditEmitter::new(org.admin.acc.store.clone())),
+        agent_id,
+        UpdateAgentPatch {
+            new_kind: None,
+            new_role: Some(AgentRole::Admin),
+            new_owning_org: None,
+            display_name: None,
+            parallelize: None,
+            blueprint: None,
+            model_config_id: None,
+            execution_limits: ExecutionLimitsPatch::Unchanged,
+            actor: actor_id,
+            now: Utc::now(),
+        },
+    )
+    .await;
+
+    match outcome {
+        Err(AgentError::ImmutableFieldChanged(field)) => {
+            assert_eq!(
+                field, "role",
+                "rejection must name `role` as the immutable field"
+            );
+        }
+        other => panic!(
+            "expected AgentError::ImmutableFieldChanged(\"role\"), got {:?}",
+            other
+        ),
+    }
+
+    // Defensive — the agent's role must still be Member (no partial flip).
+    let after = org
+        .admin
+        .acc
+        .store
+        .get_agent(agent_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after.role, Some(AgentRole::Member));
 }
 
 #[tokio::test]

@@ -54,6 +54,8 @@ fn make_agent(org: OrgId) -> Agent {
         owning_org: Some(org),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     }
 }
 

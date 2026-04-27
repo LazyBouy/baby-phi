@@ -65,6 +65,11 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "agent_profile_mock_response",
         sql: include_str!("../migrations/0006_agent_profile_mock_response.surql"),
     },
+    Migration {
+        version: 7,
+        slug: "agent_active_archived",
+        sql: include_str!("../migrations/0007_agent_active_archived.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

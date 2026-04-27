@@ -37,6 +37,8 @@ fn agent_with_role(org: OrgId, kind: AgentKind, role: Option<AgentRole>) -> Agen
         owning_org: Some(org),
         role,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     }
 }
 

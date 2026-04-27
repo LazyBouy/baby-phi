@@ -150,6 +150,8 @@ async fn show_unrelated_viewer_returns_403() {
             owning_org: Some(other_org_id),
             role: None,
             created_at: Utc::now(),
+            active: true,
+            archived_at: None,
         })
         .await
         .unwrap();

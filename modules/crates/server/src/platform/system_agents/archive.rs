@@ -61,10 +61,14 @@ pub async fn archive_system_agent(
         return Err(SystemAgentError::StandardNotArchivable(input.agent_id));
     }
 
-    // M5/P6 ships the gate + the audit emit; durable soft-archive
-    // field on the agent row lands in D6.1 drift alongside the
-    // `active: false` flip. Re-archive is idempotent at M5 because
-    // there's no durable state to conflict with.
+    // CH-01 / ADR-0034 D34.4 — durable state-flip BEFORE audit emit.
+    // `archived_at = Some(input.now)` marks the row as terminally
+    // soft-deleted; AgentCatalogListener (CH-22) reads this when
+    // computing tile state. Re-archive is idempotent because we
+    // overwrite with the latest timestamp; the flow rejects standard
+    // system agents earlier so there's no state conflict.
+    repo.set_agent_archived_at(input.agent_id, Some(input.now))
+        .await?;
 
     let event = super::audit_events::system_agent_archived(
         input.actor,

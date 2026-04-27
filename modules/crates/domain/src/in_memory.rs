@@ -247,6 +247,30 @@ impl Repository for InMemoryRepository {
         Ok(())
     }
 
+    async fn set_agent_active(&self, agent_id: AgentId, active: bool) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        let agent = state
+            .agents
+            .get_mut(&agent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        agent.active = active;
+        Ok(())
+    }
+
+    async fn set_agent_archived_at(
+        &self,
+        agent_id: AgentId,
+        archived_at: Option<DateTime<Utc>>,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+        let agent = state
+            .agents
+            .get_mut(&agent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        agent.archived_at = archived_at;
+        Ok(())
+    }
+
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
         self.lock()?
             .agent_profiles

@@ -63,6 +63,8 @@ async fn list_agents_in_org_filters_by_owning_org() {
                 owning_org: Some(org_a),
                 role: None,
                 created_at: Utc::now(),
+                active: true,
+                archived_at: None,
             })
             .await
             .unwrap();
@@ -75,6 +77,8 @@ async fn list_agents_in_org_filters_by_owning_org() {
             owning_org: Some(org_b),
             role: None,
             created_at: Utc::now(),
+            active: true,
+            archived_at: None,
         })
         .await
         .unwrap();
@@ -112,6 +116,8 @@ async fn list_active_auth_requests_for_org_terminal_adoption_excluded() {
         owning_org: Some(org),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     store.create_organization(&minimal_org(org)).await.unwrap();
     store.create_agent(&ceo_agent).await.unwrap();

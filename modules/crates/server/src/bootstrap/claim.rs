@@ -162,6 +162,8 @@ pub async fn execute_claim(
         owning_org: None,
         role: None,
         created_at: now,
+        active: true,
+        archived_at: None,
     };
     let channel = Channel {
         id: channel_id,

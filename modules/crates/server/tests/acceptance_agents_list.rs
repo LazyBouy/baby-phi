@@ -34,6 +34,8 @@ async fn seed_agent(org: &ClaimedOrg, kind: AgentKind, role: AgentRole, name: &s
         owning_org: Some(org.org_id),
         role: Some(role),
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let id = agent.id;
     org.admin

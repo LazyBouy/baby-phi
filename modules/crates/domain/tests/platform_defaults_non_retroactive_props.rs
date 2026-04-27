@@ -83,6 +83,8 @@ proptest! {
                     owning_org: None,
                     role: None,
                     created_at: Utc::now(),
+                    active: true,
+                    archived_at: None,
                 };
                 repo.create_agent(&a).await.unwrap();
                 agent_ids.push(a.id);

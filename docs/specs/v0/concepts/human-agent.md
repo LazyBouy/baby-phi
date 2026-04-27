@@ -1,5 +1,6 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-09 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-01 review (2026-04-27): §"No Identity" claim re-read; remains accurate — Human Agents do not have a system-computed Identity node. The runtime guard preventing identity assignment is deferred to CH-16 (when D-new-01 lands the Identity writers); D-new-23 lifecycle entry confirms scope held at `scoped`. -->
 
 # Human Agent
 

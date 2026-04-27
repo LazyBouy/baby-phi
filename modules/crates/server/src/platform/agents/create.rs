@@ -133,6 +133,8 @@ pub async fn create_agent(
         owning_org: Some(org.id),
         role: input.role,
         created_at: input.now,
+        active: true,
+        archived_at: None,
     };
     let inbox = InboxObject {
         id: NodeId::new(),

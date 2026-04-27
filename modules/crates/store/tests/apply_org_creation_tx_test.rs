@@ -62,6 +62,8 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let ceo_channel = Channel {
         id: NodeId::new(),
@@ -100,6 +102,8 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let sys1_agent = Agent {
         id: AgentId::new(),
@@ -108,6 +112,8 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     // Role-specific phi-core blueprints — each one proves transit of
     // `phi_core::AgentProfile` through the compound tx.

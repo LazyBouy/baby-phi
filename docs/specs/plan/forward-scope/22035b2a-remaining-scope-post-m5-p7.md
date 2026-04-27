@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # Forward-scope inventory — remaining work from M5/P7 close to baby-phi concept-aligned target
 
@@ -263,6 +263,22 @@ Scope markers for drifts explicitly deferred past M5 close. Each maps to its tar
 - **Source chunk plan**: [`forward-scope/ab49f22b-k8s-microservices-readiness-plan.md`](./ab49f22b-k8s-microservices-readiness-plan.md) (verbatim copy of the approved CH-K8S-PREP plan).
 - Target: M7b production-hardening milestone (per `baby-phi/CLAUDE.md` § Scope).
 
+### M6+-OPEN-01 — AgentProfile cardinality re-evaluation (1:1 → N:1 template-sharing) (added 2026-04-27 by CH-01)
+
+- **Status: open question — may or may not be pursued; not a committed deferred-scope item.** Distinguished from the `M*-DEFERRED-*` markers above (which are scope items that *will* happen) by the `OPEN` prefix introduced under §7 Q8 below.
+- **Origin**: surfaced during CH-01 chunk-open by user during plan review (2026-04-27). User questioned why `domain::Agent` ↔ `domain::AgentProfile` is 1:1 instead of N:1 (multiple agents share one profile / template-sharing). Investigation confirmed the current 1:1 cardinality is concept-mandated by [`ontology.md`](../../v0/concepts/ontology.md) line 92 (*"Agent | HAS_PROFILE | AgentProfile | 1:1 | Blueprint identity"*) + [`agent.md`](../../v0/concepts/agent.md) §"Soul" lines 157–169 (*"The Soul is the agent's genetics — defined at creation, never mutated"*) + schema UNIQUE constraint at [`migrations/0001_initial.surql`](../../../../modules/crates/store/migrations/0001_initial.surql) line 131 (`DEFINE INDEX agent_profile_agent_id ... FIELDS agent_id UNIQUE`).
+- **Question to evaluate**: should baby-phi adopt N:1 template-sharing (multiple agents share one profile row) instead of the current 1:1 model? Argument FOR: profiles are templates ("intern coder", "research assistant"), template-sharing fits standard infrastructure patterns (Kubernetes ConfigMaps, Helm values), ephemeral `AgentContext` makes profile sharing structurally feasible without disrupting runtime semantics. Argument AGAINST: concept-mandated profile-as-genetics in `agent.md` §Soul; per-agent governance fields naturally belong on the profile row (`parallelize`, `model_config_id`, `mock_response`); audit clarity (one profile change = one agent's change, not "now visible to 5 agents"); org-level isolation (each agent's profile lives in its owning org's roster).
+- **Required if pursued**:
+  - Concept-doc amendment to `agent.md` §"Soul" + `ontology.md` cardinality line.
+  - New ADR documenting the redesign rationale + migration plan.
+  - Schema migration: drop the UNIQUE constraint; introduce `uses_profile: FROM agent TO agent_profile` 1:N edge; relocate per-agent governance fields to either Agent-side columns or `agent_profile_override` table.
+  - Refactor of `apply_agent_creation`, `upsert_agent_profile`, `get_agent_profile_for_agent`, `in_memory.rs` validation, `repo_impl.rs` upsert tx.
+  - Decision about where per-agent overrides live in a shared-profile world (`parallelize`, `model_config_id`, `mock_response`).
+  - Data migration to re-key existing per-agent profile rows.
+- **Scope-defer rationale**: the redesign requires concept-doc amendment first; baby-phi's M5 scope is to align code with current concepts (M5.1 governing principle: *"concepts = source of truth, code aligns to them"*). Concept re-evaluation is a separate workflow that should not be conflated with drift remediation.
+- **Target**: M6 plan-open (when "Memory contract + Memory operations" lands and the data model is being revisited anyway), or as a standalone concept re-evaluation chunk before then if the user prioritises. **Decision-maker is the user at M6 plan-open** — this entry exists to make the question recoverable, not to commit to action.
+- **Provenance**: CH-01 plan [`build/2aa37c80-ch-01-agent-durable-lifecycle.md`](./../build/2aa37c80-ch-01-agent-durable-lifecycle.md) §P1 conceptual context (R1 sub-section).
+
 ---
 
 ## §4 — Chunk dependency graph
@@ -394,6 +410,18 @@ Each decision below is binding for P4 template drafting + all subsequent per-chu
 **Decided:** **Same ExitPlanMode ritual for every chunk including doc-only chunks (CH-19 + CH-20).** P4 template does not fork by chunk type. Doc-only chunks approve quickly since there's no code to review, but the planning + close ritual is uniform.
 
 **Scope impact:** P4 template remains single-format; no "lighter doc-only variant".
+
+### Q8 — K8s microservice readiness rule (added 2026-04-27 by CH-01)
+
+**Decided:** Every chunk plan §3.B evaluates the 7 K8s-deployability axes (A1 in-process state · A2 IPC channel · A3 pod-local resource · A4 migration runner / first-apply race · A5 trait-shape requirement · A6 cross-pod state · A7 audit hash-chain symmetry) and verifies the four ADR-0033 conforming criteria (D33.1–D33.4). Any new K8s blocker introduced by the chunk creates a new `CHK8S-D-XX` entry in [`m7b/architecture/deferred-from-ch-k8s-prep.md`](../../v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md) before chunk seal, with provenance citing the originating chunk.
+
+**Scope impact:** [`per-chunk-planning-template.md`](../../v0/implementation/m5_1/process/per-chunk-planning-template.md) gains a new mandatory §3.B section. CH-01 is the first chunk to apply (and ratifies the rule by codifying it across this Q8, the per-chunk template, the strategic doc, and the ledger guidance).
+
+**Why it matters:** prevent silent K8s-deployment-debt accumulation between M5 and M7b plan-open. Each chunk pre-positions its trait surfaces incrementally instead of in a big-bang refactor at M7b. The CH-K8S-PREP precedent (4 prep refactors that pre-positioned `SessionRegistry`, `EventBus.shutdown/drain`, `SurrealStore::open_remote`, and SIGTERM handling) demonstrated this incremental approach works; Q8 generalises it.
+
+**Pre-Q8 chunks grandfathered:** CH-02 and CH-K8S-PREP do not retroactively need §3.B (CH-K8S-PREP itself originated the 7-axis evaluation in [ADR-0033](../../v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md)).
+
+**Open-question variant — `M6+-OPEN-*` markers in §3.** When a chunk plan-time review surfaces a *concept re-evaluation candidate* (a question whether the concept itself should be reconsidered, not a code-vs-concept drift), it is captured in §3 with the `M6+-OPEN-NN` prefix to distinguish from committed `DEFERRED-*` markers. CH-01 added the first such marker (`M6+-OPEN-01 — AgentProfile cardinality re-evaluation`).
 
 ---
 

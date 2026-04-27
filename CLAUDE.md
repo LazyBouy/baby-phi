@@ -93,6 +93,7 @@ phi is a **consumer** of phi-core, not a parallel implementation. Every surface 
 - `server::session::SessionClaims` (HTTP cookie JWT) vs `phi_core::session::Session` (persisted execution trace) — see `implementation/m1/architecture/server-topology.md`.
 - `domain::model::ToolDefinition` (permission metadata node) vs `phi_core::types::tool::AgentTool` (runtime trait) — see `implementation/m1/architecture/graph-model.md`.
 - `server::config::ServerConfig` (HTTP infrastructure TOML) vs `phi_core::config::schema::AgentConfig` (agent blueprint YAML/TOML/JSON with `${VAR}`) — see `implementation/m1/architecture/overview.md`.
+- `domain::Agent` (governance principal — identity, kind, role, org membership, lifecycle: `active`, `archived_at`) vs `phi_core::Agent` (runtime trait — prompting/state/control interface) and `phi_core::BasicAgent` (runtime in-memory impl of that trait) — wholly orthogonal layers. baby-phi tracks *who the agent is in the org*; phi-core executes the runtime loop. Connection at session-launch time is **ID-only**: `domain::AgentId.to_string()` flows into `phi_core::types::context::AgentContext.agent_id` via `sessions/provider.rs::build_agent_context`. baby-phi is per-request stateless; it never instantiates `phi_core::Agent` / `BasicAgent`. (Per ADR-0034 §D34.6; revisit only if a future milestone introduces long-lived in-memory chat agents.) See `docs/specs/v0/concepts/phi-core-mapping.md` §"Connection point" for full integration flow.
 
 When the line is unclear, err toward reuse and ask in review.
 

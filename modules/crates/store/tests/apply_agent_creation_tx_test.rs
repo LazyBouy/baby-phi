@@ -50,6 +50,8 @@ fn make_agent(org: OrgId, kind: AgentKind, role: Option<AgentRole>) -> Agent {
         owning_org: Some(org),
         role,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     }
 }
 

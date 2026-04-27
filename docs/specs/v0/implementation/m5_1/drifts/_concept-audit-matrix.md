@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # M5.1/P2 — Concept-audit matrix
 
@@ -45,7 +45,7 @@ testable claim extracted from a concept doc.
 |---|---|---|---|---|---|
 | Roles | 6 AgentRole variants | honored | `nodes.rs:229-236` | — | N/A |
 | Roles | `is_valid_for(kind)` cross-kind guard | honored | `nodes.rs:266-271` | — | N/A |
-| Roles | Role immutable post-creation | partially-honored | no enforcement in handlers visible | D-new-22 | N/A |
+| Roles | Role immutable post-creation | honored | rust-level guard at `update.rs:133-141` rejects `new_role.is_some()` returning `ImmutableFieldChanged("role")`; HTTP wire `UpdateAgentProfileRequest` does not include `role` (silent-drop); pinned by acceptance test `update_rejects_role_change_with_immutable_field_changed` (CH-01 P4) | **D-new-22 (remediated 2026-04-27 via CH-01)** | N/A |
 | Parallelized Sessions | `AgentProfile.parallelize: u32` | honored | `nodes.rs:301` | — | wrap |
 | Participation | HAS_AGENT edge, Project → Agent | honored | `edges.rs:196-198` | — | N/A |
 | Identity (Emergent) | 4-field Identity node (self_description/lived/witnessed/embedding) | contradicted | `nodes.rs:813-818` id-only scaffold | **D-new-01 HIGH** | N/A |
@@ -113,7 +113,7 @@ testable claim extracted from a concept doc.
 | Memory-extraction listener fires on session_end | Body reads transcript, writes memories | partially-honored | listener stub; body at P8 | D4.2 + D6.1 (existing) | direct-reuse (planned) |
 | Agent-catalog listener fires on 8 events | Body upserts catalog rows | partially-honored | stub | D4.2 + D6.1 | N/A |
 | Runtime-status telemetry | queue_depth, last_fired_at populated | contradicted | helper shipped; zero call sites; tiles empty | **D6.1** (existing) | N/A |
-| Disable/archive durable | active:false, archived_at | contradicted | no durable fields on Agent | **D6.5** (existing) | N/A |
+| Disable/archive durable | active:false, archived_at | honored | migration 0007 added `agent.active: bool DEFAULT true` + `agent.archived_at: option<string>`; repo methods `set_agent_active` + `set_agent_archived_at` flip them; system-agent `disable.rs` + `archive.rs` handlers wired (durable write BEFORE audit emit per ADR-0034 D34.4); acceptance tests verify both round-trip via `repo.get_agent` | **D6.5 (remediated 2026-04-27 via CH-01)** | N/A |
 
 ### `concepts/token-economy.md`
 

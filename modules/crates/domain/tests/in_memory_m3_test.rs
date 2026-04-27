@@ -43,6 +43,8 @@ fn agent_in(org: OrgId, kind: AgentKind) -> Agent {
         owning_org: Some(org),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     }
 }
 
@@ -112,6 +114,8 @@ async fn list_active_auth_requests_for_org_filters_by_org_and_state() {
         owning_org: Some(org),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     })
     .await
     .unwrap();

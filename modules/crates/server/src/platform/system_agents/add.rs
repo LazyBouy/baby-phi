@@ -117,6 +117,8 @@ pub async fn add_system_agent(
         owning_org: Some(input.org_id),
         role: Some(AgentRole::System),
         created_at: input.now,
+        active: true,
+        archived_at: None,
     };
     let inbox = InboxObject {
         id: NodeId::new(),

@@ -398,6 +398,8 @@ async fn seed_unrelated_org_with_project(
         owning_org: Some(other_org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let ceo_inbox = InboxObject {
         id: NodeId::new(),

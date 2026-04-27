@@ -1,5 +1,6 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-01 amendment (2026-04-27): §"Operator can disable" + §"Archive flow" claims now flip durable state on the agent row — `active = false` (disable) and `archived_at = Some(now)` (archive). Implemented via migration 0007 + repo methods set_agent_active / set_agent_archived_at; system-agent disable / archive handlers wired at modules/crates/server/src/platform/system_agents/{disable,archive}.rs. AgentCatalogListener (CH-22 body, future) reads `Agent.active`. See ADR-0034. -->
 
 # System Agents — Standard Catalogue
 

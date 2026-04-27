@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- Status: CONCEPTUAL -->
 
 # phi-core Type Mapping
@@ -78,12 +79,41 @@ Every public phi-core struct/enum falls into one of four categories:
 
 | Type | Classification | Maps To |
 |------|---------------|---------|
-| `AgentProfile` | **Node** | **AgentProfile** |
+| `AgentProfile` (struct) | **Node** | **AgentProfile** (wrapped at `domain::AgentProfile.blueprint`) |
 | `SystemPrompt` | **Node** | **SystemPrompt** |
 | `PromptBlockDef` | **Node** | **PromptBlock** |
-| `BasicAgent` | **Node** (partial) | **Agent** runtime state |
+| `Agent` (trait) | **Runtime-only** | The stateless execution interface (`prompt_messages_with_sender`, `continue_loop_with_sender`, state access). NOT a node; NOT instantiated by baby-phi (see §"Connection point" below). |
+| `BasicAgent` (struct) | **Runtime-only** | Concrete in-memory impl of the `Agent` trait for callers wanting a stateful long-lived wrapper. baby-phi does NOT persist `BasicAgent` state — baby-phi is per-request stateless and uses `phi_core::agent_loop()` (free function) directly. baby-phi's `domain::Agent` is the orthogonal **governance** counterpart (identity / role / org membership / lifecycle), not a wrap of `BasicAgent`. |
 | `SubAgentTool` | Runtime-only | Creates DELEGATES_TO edges |
 | Remaining types | Value Object or Runtime-only | See Appendix A |
+
+#### Connection point — `domain::Agent` ↔ phi-core runtime types (governance vs runtime separation)
+
+baby-phi's [`domain::Agent`](../../../modules/crates/domain/src/model/nodes.rs) is a governance node (identity, role, org membership, lifecycle fields like `active` / `archived_at` — added by CH-01) — it has **no field overlap** with `phi_core::Agent` (the trait, which has no struct fields), `phi_core::BasicAgent` (a stateful runtime impl baby-phi never instantiates), or `phi_core::AgentProfile` (a serialisable execution blueprint with no governance fields). The two layers connect at session-launch time via **ID-only delegation** at [`sessions/provider.rs::build_agent_context`](../../../modules/crates/server/src/platform/sessions/provider.rs):
+
+```
+domain::Agent       domain::AgentProfile.blueprint        launched Session/LoopRecord
+       │                       │                                     │
+       │ id.to_string()        │ system_prompt.clone()               │ id.to_string()
+       ▼                       ▼                                     ▼
+  phi_core::types::context::AgentContext {
+      system_prompt: ...,        ← from AgentProfile.blueprint.system_prompt
+      agent_id:    Some(...),    ← from domain::Agent.id  (ID-only flow)
+      session_id:  Some(...),    ← from launched Session.id
+      loop_id:     ...,          ← from launched LoopRecord.id
+      messages:    vec![],
+  }
+```
+
+phi-core never sees `domain::Agent`. It only sees the inputs baby-phi has assembled from governance state. The four explicit connection points:
+- **(a) Permission gating** — `domain::Agent.active` / `archived_at` / `role` checked at session-launch step 1 BEFORE phi-core is invoked. Governance gates the engine.
+- **(b) ID propagation** — `domain::Agent.id.to_string()` becomes `AgentContext.agent_id` for traceability inside emitted events.
+- **(c) Blueprint flow** — `domain::AgentProfile.blueprint.system_prompt` (the phi-core wrap field) becomes `AgentContext.system_prompt`.
+- **(d) Model flow** — `domain::ModelConfig` resolves to `phi_core::provider::model::ModelConfig` for `AgentLoopConfig`.
+
+Why baby-phi doesn't use `phi_core::Agent` (the trait) or `BasicAgent` (the impl): `phi_core::agent_loop()` is a free function and does not require the caller to implement the `Agent` trait. The trait + `BasicAgent` exist for callers who want a stateful long-lived in-memory wrapper (e.g., a CLI chat REPL with state living in process memory). **baby-phi is per-request stateless** — every session is a fresh `agent_loop` invocation; nothing lives in process memory between requests; all state is persisted to SurrealDB via `BabyPhiSessionRecorder`. This boundary is recorded in [ADR-0034](../implementation/m5_2/decisions/0034-agent-durable-lifecycle.md) §D34.6 with a review trigger if a future milestone introduces long-lived in-memory chat agents.
+
+See also: [`baby-phi/CLAUDE.md`](../../../CLAUDE.md) §"Orthogonal surfaces that are NOT phi-core duplicates" — bullet for `domain::Agent` cites this connection point.
 
 ### config/ (28 types)
 

@@ -205,6 +205,8 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let ceo_channel = Channel {
         id: NodeId::new(),
@@ -245,6 +247,8 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let sys1_agent = Agent {
         id: AgentId::new(),
@@ -253,6 +257,8 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         owning_org: Some(org_id),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let sys0_blueprint = phi_core::agents::profile::AgentProfile {
         name: Some("memory-extractor".into()),
@@ -397,6 +403,8 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         owning_org: Some(org_id),
         role: Some(AgentRole::Intern),
         created_at: now,
+        active: true,
+        archived_at: None,
     };
     let lead_inbox = InboxObject {
         id: NodeId::new(),
@@ -431,6 +439,8 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         owning_org: Some(org_id),
         role: Some(AgentRole::Intern),
         created_at: now,
+        active: true,
+        archived_at: None,
     };
     let member_inbox = InboxObject {
         id: NodeId::new(),

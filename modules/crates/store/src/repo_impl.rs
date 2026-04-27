@@ -368,6 +368,55 @@ impl Repository for SurrealStore {
         Ok(())
     }
 
+    async fn set_agent_active(&self, agent_id: AgentId, active: bool) -> RepositoryResult<()> {
+        // Existence check first — SurrealDB's UPDATE on a non-existent
+        // record silently returns an empty result; we surface NotFound
+        // explicitly so the caller (system-agent disable handler at P3)
+        // can map it to AgentError::AgentNotFound.
+        if self.get_agent(agent_id).await?.is_none() {
+            return Err(RepositoryError::NotFound);
+        }
+        self.client()
+            .query(
+                "UPDATE type::thing('agent', $id) SET active = $active \
+                 RETURN NONE",
+            )
+            .bind(("id", agent_id.to_string()))
+            .bind(("active", active))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn set_agent_archived_at(
+        &self,
+        agent_id: AgentId,
+        archived_at: Option<DateTime<Utc>>,
+    ) -> RepositoryResult<()> {
+        if self.get_agent(agent_id).await?.is_none() {
+            return Err(RepositoryError::NotFound);
+        }
+        // Render the Option as Option<String> so the surrealdb driver
+        // serialises None → NONE and Some(t) → RFC3339 string. Matches
+        // the option<string> column declared in migration 0007 +
+        // chrono's serde feature for `DateTime<Utc>`.
+        let archived_at_str: Option<String> = archived_at.map(|t| t.to_rfc3339());
+        self.client()
+            .query(
+                "UPDATE type::thing('agent', $id) SET archived_at = $archived_at \
+                 RETURN NONE",
+            )
+            .bind(("id", agent_id.to_string()))
+            .bind(("archived_at", archived_at_str))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
         let body = strip_id(serde_json::to_value(profile).map_err(backend)?);
         self.client()

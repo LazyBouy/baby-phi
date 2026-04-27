@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # Deferred-from-CH-K8S-PREP — M7b items registry
 
@@ -180,6 +180,31 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 - **Note on provenance:** unlike D-01..D-07 (each cited from a code comment authored in the prep refactor), D-08 is a *gap* the prep refactor noticed but didn't address. It would not surface from a code grep — only from reading the EventBus changes and asking "what about the sibling AuditEmitter trait?". Recorded here so M7b plan-open doesn't miss it.
 
 ---
+
+## 4. Adding new entries (CH-01+)
+
+**Codified by CH-01 / forward-scope §7 Q8 (2026-04-27).** From CH-01 onward, the per-chunk-planning-template's [§3.B "K8s microservice readiness check"](../../m5_1/process/per-chunk-planning-template.md) is the canonical source of new entries to this ledger. When a chunk's §3.B 7-axis evaluation surfaces a new K8s blocker the chunk does not address, a new `CHK8S-D-NN` entry MUST be added here before the chunk seals.
+
+**Numbering.** Pick the next free number after the current highest in §3 (current high: `CHK8S-D-08`). Numbering is monotonic; no gaps.
+
+**Required fields per entry** (mirror the existing CHK8S-D-01 through CHK8S-D-08 shape):
+- **Item title** — one line, summarising the deferral.
+- **Provenance** — exact file + line where the deferral was originally noted (code comment, test module doc, etc.) OR the chunk plan §3.B row that surfaced it.
+- **Why deferred** — short paragraph: technical reason the chunk did not address it.
+- **What M7b owes** — clear sub-task description: what M7b needs to deliver.
+- **Cross-references** — links to relevant ADRs, sibling drifts, concept docs.
+- **Originating chunk** — `CH-NN` plan token + path. New for CH-01+ entries (CH-K8S-PREP entries pre-date this convention but their provenance is implicit via the prep refactors).
+
+**Provenance discipline.** Every CH-01+ entry's *Originating chunk* field cites the chunk plan path (e.g., `build/2aa37c80-ch-01-agent-durable-lifecycle.md`). This makes back-tracing the deferral history mechanical.
+
+**Index update.** Add the new entry to §2 Index alongside the existing rows. Keep the index sorted by entry number (ascending).
+
+**Example workflow.** A future chunk's §3.B 7-axis table identifies a new in-process `OnceCell` cache that becomes pod-local. The chunk author cannot trait-shape it within the chunk's scope. They:
+1. Pick `CHK8S-D-09` (next free).
+2. Write the entry with provenance citing the chunk plan §3.B row + the file:line of the new `OnceCell`.
+3. Add a row to §2 Index.
+4. Reference `CHK8S-D-09` from the chunk plan's §3.B conclusion paragraph ("Chunk introduces 1 new K8s blocker; filed as CHK8S-D-09").
+5. Chunk seals as K8s-negative (one new blocker), with the ledger entry the durable record.
 
 ## 5. Closing scope fence reminder
 

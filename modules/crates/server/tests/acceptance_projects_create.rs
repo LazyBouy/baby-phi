@@ -52,6 +52,8 @@ async fn seed_llm(store: &Arc<dyn Repository>, org: OrgId, name: &str) -> AgentI
         owning_org: Some(org),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let id = agent.id;
     store.create_agent(&agent).await.unwrap();
@@ -68,6 +70,8 @@ async fn seed_human(store: &Arc<dyn Repository>, org: OrgId, name: &str) -> Agen
         owning_org: Some(org),
         role: None,
         created_at: Utc::now(),
+        active: true,
+        archived_at: None,
     };
     let id = agent.id;
     store.create_agent(&agent).await.unwrap();

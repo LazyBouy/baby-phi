@@ -198,6 +198,24 @@ pub struct Agent {
     #[serde(default)]
     pub role: Option<AgentRole>,
     pub created_at: DateTime<Utc>,
+    /// CH-01 / ADR-0034 D34.1 — durable disable flag. `false` = the agent
+    /// is disabled (system-agent disable handler flipped it). Pre-CH-01
+    /// rows deserialise as `true` via `default_agent_active`; new agents
+    /// land as `true` since `apply_agent_creation` constructs the struct
+    /// directly. AgentCatalogListener (CH-22 body) reads this to compute
+    /// `SystemAgentRuntimeStatus.is_paused`.
+    #[serde(default = "default_agent_active")]
+    pub active: bool,
+    /// CH-01 / ADR-0034 D34.2 — optional archive timestamp. `None` = not
+    /// archived. Set by the system-agent archive handler. Pre-CH-01 rows
+    /// deserialise as `None`. Stored as RFC3339 string in SurrealDB
+    /// (matching `grant.revoked_at` / `consent.revoked_at` convention).
+    #[serde(default)]
+    pub archived_at: Option<DateTime<Utc>>,
+}
+
+fn default_agent_active() -> bool {
+    true
 }
 
 /// Human vs LLM agent. Human agents have no `ModelConfig` / `ExecutionLimits`

@@ -2,13 +2,13 @@
 //! (R-ADMIN-13-W3).
 //!
 //! Disable is distinct from archive: the Agent row stays + the
-//! profile_ref stays — the `active` flag (carried on the runtime
-//! status row's last_error or on a dedicated field in M6+) flips
-//! false. Re-enable is a future phase.
+//! profile_ref stays — only the durable `active: bool` flag flips
+//! to `false`. Re-enable is a future phase.
 //!
-//! At M5/P6 this ships the handler + audit emission but DOES NOT
-//! flip a durable `active: false` field on the agent — see
-//! drift D6.1.
+//! CH-01 / ADR-0034 D34.4 — the durable `active: false` flip lands
+//! BEFORE the audit emit so the persisted state is correct even if
+//! audit emission fails (audit is replayable; durable state is
+//! authoritative). Closes drift D6.5.
 
 use std::sync::Arc;
 
@@ -70,6 +70,11 @@ pub async fn disable_system_agent(
     let profile = repo.get_agent_profile_for_agent(input.agent_id).await?;
     let profile_ref = profile.and_then(|p| p.blueprint.config_id);
     let was_standard = is_standard_system_agent(profile_ref.as_deref());
+
+    // CH-01 / ADR-0034 D34.4 — durable state-flip BEFORE audit emit.
+    // If audit emission later fails, the persisted state is still
+    // correct; audit is replayable, durable state is authoritative.
+    repo.set_agent_active(input.agent_id, false).await?;
 
     let event = super::audit_events::system_agent_disabled(
         input.actor,

@@ -1,6 +1,7 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-22 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- M4/P0 amendment: expanded Agent Taxonomy with §Agent Roles to cover the 6-variant AgentRole enum. Human-side roles (Executive / Admin / Member) added alongside the pre-existing LLM-side roles (Intern / Contract / System). Pins the is_valid_for(kind) rule. -->
+<!-- CH-01 amendment (2026-04-27): durable lifecycle fields `active: bool` and `archived_at: Option<DateTime>` added to the Agent struct (migration 0007). §Roles role-immutability rule is now ratified by an acceptance test (modules/crates/server/tests/acceptance_agents_profile.rs::update_rejects_role_change_with_immutable_field_changed). See ADR-0034 for the governance-vs-runtime boundary rationale. -->
 
 # Agent
 

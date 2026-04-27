@@ -539,6 +539,8 @@ mod tests {
             owning_org: Some(OrgId::new()),
             role: None,
             created_at,
+            active: true,
+            archived_at: None,
         }
     }
 
@@ -600,6 +602,8 @@ mod tests {
             owning_org: Some(OrgId::new()),
             role: r,
             created_at: Utc::now(),
+            active: true,
+            archived_at: None,
         };
         let agents = vec![
             with_role(AgentKind::Human, Some(AgentRole::Executive)),
