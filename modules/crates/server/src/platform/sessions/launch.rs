@@ -99,6 +99,7 @@ use tokio_util::sync::CancellationToken;
 use super::preview::{preview_session, PreviewInput};
 use super::SessionError;
 use crate::state::SessionRegistry;
+type SharedSessionRegistry = Arc<dyn SessionRegistry>;
 
 // phi-core witness — `agent_loop` is now runtime-exercised in
 // `spawn_agent_task` via MockProvider (CH-02). The compile-time
@@ -144,7 +145,7 @@ pub async fn launch_session(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
     event_bus: Arc<dyn EventBus>,
-    registry: SessionRegistry,
+    registry: SharedSessionRegistry,
     max_concurrent: u32,
     input: LaunchInput,
 ) -> Result<LaunchReceipt, SessionError> {
@@ -417,7 +418,7 @@ pub(super) fn spawn_agent_task(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
     event_bus: Arc<dyn EventBus>,
-    registry: SessionRegistry,
+    registry: SharedSessionRegistry,
     profile: AgentProfile,
     runtime: ModelRuntime,
     ctx: SessionLaunchContext,

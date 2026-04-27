@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use super::SessionError;
 use crate::state::SessionRegistry;
+type SharedSessionRegistry = Arc<dyn SessionRegistry>;
 
 /// Input for [`terminate_session`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +47,7 @@ pub async fn terminate_session(
     repo: Arc<dyn Repository>,
     _audit: Arc<dyn AuditEmitter>,
     event_bus: Arc<dyn EventBus>,
-    registry: SessionRegistry,
+    registry: SharedSessionRegistry,
     input: TerminateInput,
 ) -> Result<TerminateOutcome, SessionError> {
     if input.reason.trim().is_empty() {
@@ -81,7 +82,7 @@ pub async fn terminate_session(
     // `remove` returns the previously-stored token so we can cancel
     // it; a missing entry means the launch chain already cleaned up
     // (e.g. the task completed between the fetch and this line).
-    if let Some((_, token)) = registry.remove(&input.session_id) {
+    if let Some(token) = registry.remove(&input.session_id) {
         token.cancel();
     }
 

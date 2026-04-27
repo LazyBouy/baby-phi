@@ -22,20 +22,95 @@ use crate::session::SessionKey;
 ///
 /// Every successful `sessions::launch` inserts an entry. `terminate`
 /// and natural session-end remove it. A launch that would grow the
-/// map beyond `config.session.max_concurrent` fails with 503 code
-/// `SESSION_WORKER_SATURATED`.
+/// registry beyond `config.session.max_concurrent` fails with 503
+/// code `SESSION_WORKER_SATURATED`.
 ///
-/// `DashMap` gives lock-free per-key access. The governance-plane
-/// event bus is the only cross-session coordination surface. It
-/// already uses snapshot-and-release semantics (ADR-0028).
-pub type SessionRegistry = Arc<DashMap<SessionId, CancellationToken>>;
+/// Trait-shaped per CH-K8S-PREP P-1 / ADR-0033 so the M7b Redis-backed
+/// shared registry (per ADR-0031 §D31.1) can be a new impl rather
+/// than a multi-file refactor. The default impl
+/// [`InProcessSessionRegistry`] wraps `DashMap` for lock-free per-key
+/// access — same single-pod semantics as before.
+pub trait SessionRegistry: Send + Sync {
+    /// Register a live session's cancellation token.
+    fn insert(&self, session_id: SessionId, token: CancellationToken);
 
-/// Construct an empty [`SessionRegistry`]. Callers (boot site,
-/// acceptance tests) use this rather than importing `dashmap`
+    /// Atomically remove and return the cancellation token for a
+    /// session. Returns `None` if the session is not registered (e.g.
+    /// already terminated, or never launched).
+    fn remove(&self, session_id: &SessionId) -> Option<CancellationToken>;
+
+    /// Current count of live sessions tracked by this registry.
+    /// Used at launch time to enforce the platform-wide concurrency
+    /// ceiling (`session_max_concurrent` / ADR-0031 §D31.2).
+    fn len(&self) -> usize;
+
+    /// `true` when no sessions are tracked. Default impl uses `len`;
+    /// concrete impls may override for cheaper checks.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Fire `cancel()` on every live cancellation token without
+    /// removing the entries — each `spawn_agent_task` removes its own
+    /// entry when `agent_loop` returns post-cancellation.
+    ///
+    /// Used by the graceful-shutdown handler (CH-K8S-PREP P-3 / ADR-0031
+    /// §D31.5). At M7b's broker-backed impl this fans out a "cancel"
+    /// message over the shared store so cancellation is global.
+    fn cancel_all(&self);
+}
+
+/// In-process [`SessionRegistry`] impl backed by `DashMap` for
+/// lock-free per-key access. The single-pod default since M5;
+/// remains the dev/CI default after CH-K8S-PREP P-1.
+///
+/// At M7b, a sibling `RedisSessionRegistry` impl will satisfy the
+/// trait against a shared store so cancellation tokens flow across
+/// pods.
+pub struct InProcessSessionRegistry {
+    inner: DashMap<SessionId, CancellationToken>,
+}
+
+impl InProcessSessionRegistry {
+    pub fn new() -> Self {
+        Self {
+            inner: DashMap::new(),
+        }
+    }
+}
+
+impl Default for InProcessSessionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SessionRegistry for InProcessSessionRegistry {
+    fn insert(&self, session_id: SessionId, token: CancellationToken) {
+        self.inner.insert(session_id, token);
+    }
+
+    fn remove(&self, session_id: &SessionId) -> Option<CancellationToken> {
+        self.inner.remove(session_id).map(|(_k, v)| v)
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn cancel_all(&self) {
+        for entry in self.inner.iter() {
+            entry.value().cancel();
+        }
+    }
+}
+
+/// Construct an empty in-process [`SessionRegistry`]. Callers (boot
+/// site, acceptance tests) use this rather than importing `dashmap`
 /// directly so the dependency is confined to the server crate's
 /// `[dependencies]` block.
-pub fn new_session_registry() -> SessionRegistry {
-    Arc::new(DashMap::new())
+pub fn new_session_registry() -> Arc<dyn SessionRegistry> {
+    Arc::new(InProcessSessionRegistry::new())
 }
 
 /// Shared application state injected into every axum handler via
@@ -69,7 +144,7 @@ pub struct AppState {
     pub audit: Arc<dyn AuditEmitter>,
     pub master_key: Arc<MasterKey>,
     pub event_bus: Arc<dyn EventBus>,
-    pub session_registry: SessionRegistry,
+    pub session_registry: Arc<dyn SessionRegistry>,
     /// Platform-wide concurrency ceiling. When
     /// `session_registry.len() >= max_concurrent`, a new launch is
     /// refused with 503 `SESSION_WORKER_SATURATED`. Default 16
@@ -138,6 +213,44 @@ mod tests {
     use super::*;
     use domain::audit::NoopAuditEmitter;
     use domain::in_memory::InMemoryRepository;
+
+    #[test]
+    fn in_process_session_registry_round_trips_through_trait_object() {
+        // CH-K8S-PREP P-1 / ADR-0033 — confirms trait-object dispatch
+        // preserves DashMap insert/remove/len semantics so the M7b
+        // Redis-backed swap is a new impl, not a refactor.
+        let registry: Arc<dyn SessionRegistry> = new_session_registry();
+        assert_eq!(registry.len(), 0, "fresh registry is empty");
+
+        let session_id = SessionId::new();
+        let token = CancellationToken::new();
+        registry.insert(session_id, token.clone());
+        assert_eq!(registry.len(), 1, "len reflects the inserted entry");
+
+        let removed = registry
+            .remove(&session_id)
+            .expect("remove returns the inserted token");
+        assert!(
+            !removed.is_cancelled(),
+            "remove yields the original token, not a cancelled clone"
+        );
+        assert_eq!(registry.len(), 0, "len drops back to zero after remove");
+
+        // Cancelling the returned token must affect the original
+        // (Arc-shared internals) — proves remove returns a live
+        // handle, not a snapshot.
+        removed.cancel();
+        assert!(
+            token.is_cancelled(),
+            "the original token sees the cancellation through the Arc"
+        );
+
+        // Removing an unknown id is a no-op.
+        assert!(
+            registry.remove(&SessionId::new()).is_none(),
+            "remove on an unknown session_id yields None"
+        );
+    }
 
     #[tokio::test]
     async fn handler_count_is_five_at_m5() {

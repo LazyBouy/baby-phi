@@ -50,7 +50,7 @@ dashmap     = "6"
 tokio-util  = { version = "0.7", features = ["rt"] }
 
 # Storage
-surrealdb = { version = "2", features = ["kv-rocksdb"] }
+surrealdb = { version = "2", features = ["kv-rocksdb", "kv-mem", "protocol-ws"] }
 
 # Config
 config = "0.14"

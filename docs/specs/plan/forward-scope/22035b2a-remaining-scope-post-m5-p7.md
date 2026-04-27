@@ -255,6 +255,14 @@ Scope markers for drifts explicitly deferred past M5 close. Each maps to its tar
 - Drifts: **D-new-15** (archive transition + `inspect_archived` retrieval gate).
 - Target: M7b production-hardening milestone.
 
+### M7b-DEFERRED-02 — K8s microservices carve-out (added 2026-04-24 by CH-K8S-PREP)
+- Drifts: none from the M5.1 catalogue (all 8 items are sourced from CH-K8S-PREP prep refactors, not concept-vs-code drift).
+- **Strategic input**: [`v0/implementation/m7b/architecture/k8s-microservices-readiness.md`](../../v0/implementation/m7b/architecture/k8s-microservices-readiness.md) — 8 K8s blockers, 7 microservice boundaries, 10-step migration order, ~35 engineer-day rough estimate.
+- **Tactical input**: [`v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md`](../../v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md) — 8 specific items the CH-K8S-PREP prep refactors named M7b as the owner of (CHK8S-D-01 through CHK8S-D-08), each with provenance + M7b sub-task assignment.
+- **Trait contracts to satisfy**: per [ADR-0033](../../v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md) §D33.1 / §D33.2 / §D33.4 conforming-impl criteria. M7b adapter chunks must satisfy these contracts; new ADRs may supersede each sub-decision as backend choices land.
+- **Source chunk plan**: [`forward-scope/ab49f22b-k8s-microservices-readiness-plan.md`](./ab49f22b-k8s-microservices-readiness-plan.md) (verbatim copy of the approved CH-K8S-PREP plan).
+- Target: M7b production-hardening milestone (per `baby-phi/CLAUDE.md` § Scope).
+
 ---
 
 ## §4 — Chunk dependency graph

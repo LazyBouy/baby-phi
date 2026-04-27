@@ -16,7 +16,7 @@
 //! [`MigrationError::Apply`]; callers must abort startup rather than serve
 //! traffic against a half-migrated DB.
 
-use surrealdb::engine::local::Db;
+use surrealdb::engine::any::Any;
 use surrealdb::Surreal;
 
 /// One forward-only migration.
@@ -85,7 +85,7 @@ pub enum MigrationError {
 /// in ascending order. Returns the list of newly-applied versions so the
 /// caller can log or surface them.
 pub async fn run_migrations(
-    db: &Surreal<Db>,
+    db: &Surreal<Any>,
     migrations: &[Migration],
 ) -> Result<Vec<i64>, MigrationError> {
     validate_ordering(migrations)?;
@@ -120,7 +120,7 @@ fn validate_ordering(migrations: &[Migration]) -> Result<(), MigrationError> {
 /// migration (`0001_initial.surql`) also `DEFINE TABLE`s it; running this
 /// here lets the runner read from the ledger before the first migration has
 /// applied.
-async fn bootstrap_ledger_table(db: &Surreal<Db>) -> Result<(), MigrationError> {
+async fn bootstrap_ledger_table(db: &Surreal<Any>) -> Result<(), MigrationError> {
     db.query(
         "DEFINE TABLE IF NOT EXISTS _migrations SCHEMAFULL;
          DEFINE FIELD IF NOT EXISTS version    ON _migrations TYPE int;
@@ -135,7 +135,7 @@ async fn bootstrap_ledger_table(db: &Surreal<Db>) -> Result<(), MigrationError> 
     Ok(())
 }
 
-async fn read_applied_versions(db: &Surreal<Db>) -> Result<Vec<i64>, MigrationError> {
+async fn read_applied_versions(db: &Surreal<Any>) -> Result<Vec<i64>, MigrationError> {
     let mut resp = db
         .query("SELECT version FROM _migrations")
         .await
@@ -146,7 +146,7 @@ async fn read_applied_versions(db: &Surreal<Db>) -> Result<Vec<i64>, MigrationEr
     Ok(rows)
 }
 
-async fn apply_one(db: &Surreal<Db>, migration: &Migration) -> Result<(), MigrationError> {
+async fn apply_one(db: &Surreal<Any>, migration: &Migration) -> Result<(), MigrationError> {
     // Apply the migration's DDL. We deliberately do NOT wrap it in a
     // BEGIN/COMMIT since SurrealDB does not support DDL inside transactions
     // in the embedded backend; instead we rely on the `_migrations` ledger
@@ -204,18 +204,17 @@ mod tests {
     //! independent.
 
     use super::*;
-    use surrealdb::engine::local::RocksDb;
+    use surrealdb::engine::any::connect;
     use tempfile::TempDir;
 
     /// Fixture: a fresh RocksDB-backed store in a tempdir. The `TempDir`
     /// handle is returned so it drops (and deletes the dir) when the test
     /// ends.
-    async fn fresh_db() -> (Surreal<Db>, TempDir) {
+    async fn fresh_db() -> (Surreal<Any>, TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("db").to_string_lossy().to_string();
-        let db = Surreal::new::<RocksDb>(path.as_str())
-            .await
-            .expect("open rocksdb");
+        let uri = format!("rocksdb://{path}");
+        let db = connect(uri.as_str()).await.expect("open rocksdb");
         db.use_ns("test").use_db("test").await.expect("ns/db");
         (db, dir)
     }

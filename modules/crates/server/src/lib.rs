@@ -12,6 +12,7 @@ pub mod health;
 pub mod platform;
 pub mod router;
 pub mod session;
+pub mod shutdown;
 pub mod state;
 pub mod telemetry;
 

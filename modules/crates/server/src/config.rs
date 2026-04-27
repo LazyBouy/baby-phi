@@ -18,6 +18,11 @@ pub struct ServerConfig {
     pub storage: StorageConfig,
     pub telemetry: TelemetryConfig,
     pub session: SessionConfig,
+    /// Graceful-shutdown configuration (CH-K8S-PREP P-3). Defaults
+    /// preserve M5/CH-02 behaviour for legacy configs that omit the
+    /// `[shutdown]` block.
+    #[serde(default)]
+    pub shutdown: ShutdownConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -39,10 +44,46 @@ pub struct TlsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
-    /// Path to the SurrealDB RocksDB data directory.
+    /// Path to the SurrealDB RocksDB data directory (used when
+    /// [`StorageConfig::mode`] is `Embedded` — the default).
     pub data_dir: PathBuf,
     pub namespace: String,
     pub database: String,
+    /// Backend selection (CH-K8S-PREP P-2 / ADR-0033). `Embedded` (the
+    /// default) opens RocksDB at `data_dir`. `Remote` uses
+    /// [`StorageRemoteConfig::uri`] to connect to a standalone SurrealDB
+    /// server — the typical M7b path for K8s deployments where storage
+    /// is externalised. Override via `PHI_STORAGE__MODE=remote` +
+    /// `PHI_STORAGE__REMOTE__URI=ws://...`.
+    #[serde(default = "default_storage_mode")]
+    pub mode: StorageMode,
+    /// Remote-mode configuration. Only consulted when [`mode`] is
+    /// `Remote`; defaults work for the embedded path so legacy configs
+    /// keep round-tripping.
+    #[serde(default)]
+    pub remote: StorageRemoteConfig,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum StorageMode {
+    #[default]
+    Embedded,
+    Remote,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct StorageRemoteConfig {
+    /// SurrealDB connection URI (e.g. `ws://surreal.svc:8000`,
+    /// `wss://surreal.example.com`, `memory://` for in-memory tests).
+    /// Empty by default; required when `mode = "remote"` (boot fails
+    /// fast otherwise).
+    #[serde(default)]
+    pub uri: String,
+}
+
+fn default_storage_mode() -> StorageMode {
+    StorageMode::Embedded
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -103,6 +144,30 @@ fn default_secure() -> bool {
 
 fn default_max_concurrent() -> u32 {
     16
+}
+
+/// Graceful-shutdown configuration (CH-K8S-PREP P-3 / ADR-0031 §D31.5
+/// / ADR-0033). Tunable via `PHI_SHUTDOWN__TIMEOUT_SECS`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ShutdownConfig {
+    /// Maximum seconds the SIGTERM handler waits for live agent-loop
+    /// tasks to drain before reporting `DrainTimeout`. Defaults to 30
+    /// per ADR-0031 §D31.2's grace-period baseline (matches K8s'
+    /// default `terminationGracePeriodSeconds`).
+    #[serde(default = "default_shutdown_timeout_secs")]
+    pub timeout_secs: u64,
+}
+
+impl Default for ShutdownConfig {
+    fn default() -> Self {
+        Self {
+            timeout_secs: default_shutdown_timeout_secs(),
+        }
+    }
+}
+
+fn default_shutdown_timeout_secs() -> u64 {
+    crate::shutdown::DEFAULT_SHUTDOWN_TIMEOUT_SECS
 }
 
 impl ServerConfig {

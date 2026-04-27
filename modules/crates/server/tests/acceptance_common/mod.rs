@@ -40,6 +40,13 @@ fn free_port() -> u16 {
 pub struct Acceptance {
     pub base_url: String,
     pub store: Arc<SurrealStore>,
+    /// The same `Arc<dyn SessionRegistry>` the live server's
+    /// `AppState` holds — exposed so tests can exercise CH-K8S-PREP
+    /// P-3 graceful-shutdown against the running server. Read only
+    /// by `acceptance_shutdown.rs` at present; other test binaries
+    /// link the harness without using this field.
+    #[allow(dead_code)]
+    pub session_registry: Arc<dyn server::state::SessionRegistry>,
     pub _tmp: TempDir,
     pub _join: JoinHandle<()>,
 }
@@ -72,13 +79,14 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
 
     let store = Arc::new(store);
     let repo: Arc<dyn domain::Repository> = store.clone();
+    let session_registry = server::state::new_session_registry();
     let state = AppState {
         repo: repo.clone(),
         session: SessionKey::for_tests(TEST_SESSION_SECRET),
         audit: Arc::new(store::SurrealAuditEmitter::new(repo)),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
-        session_registry: server::state::new_session_registry(),
+        session_registry: Arc::clone(&session_registry),
         // Test default matches `config/default.toml`. Acceptance
         // tests rarely exercise the saturation cap; launch-suite
         // tests that DO need it build their own AppState inline.
@@ -103,6 +111,7 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
     Acceptance {
         base_url,
         store,
+        session_registry,
         _tmp: tmp,
         _join: join,
     }

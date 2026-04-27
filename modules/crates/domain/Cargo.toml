@@ -19,6 +19,10 @@ chrono      = { workspace = true }
 async-trait = { workspace = true }
 futures     = { workspace = true }
 blake3      = { workspace = true }
+# tokio enters runtime deps at CH-K8S-PREP P-4 — `EventBus::drain`
+# poll-loop in `events/bus.rs` uses `tokio::time::sleep`. Was
+# previously dev-only.
+tokio       = { workspace = true }
 
 [features]
 # Opt-in in-memory Repository fake for tests in other crates (server,
@@ -29,7 +33,6 @@ in-memory-repo = []
 
 [dev-dependencies]
 proptest = { workspace = true }
-tokio    = { workspace = true }
 trybuild = { workspace = true }
 # Enable the in-memory repository for domain's own integration tests.
 domain   = { path = ".", features = ["in-memory-repo"] }
