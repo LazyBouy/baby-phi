@@ -148,6 +148,7 @@ Each phase documented as:
 - **Tests** — new tests added, existing tests expected to still pass.
 - **Concept-alignment check** — which §2 table rows this phase transitions status on; how verified.
 - **phi-core leverage check** — which §3 table rows this phase transitions action on; how verified.
+- **User-facing doc updates** (post-Q9 / CH-22) — which §3.C rows this phase satisfies. Doc updates are first-class deliverables, not after-the-fact appendices. A phase that ships code making a §3.C-listed doc stale must include the doc update in its Deliverables list. Phases that touch zero user-facing docs say so explicitly.
 - **Confidence target** — ≥ X% composite (defaults: P0/scaffolding 100%, content phases ≥ 97%, seal ≥ 99%).
 - **Pause discipline** — any known-upfront fork point where the phase MUST halt for `AskUserQuestion` before continuing.
 

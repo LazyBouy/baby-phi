@@ -208,6 +208,7 @@ Eight mandatory steps. Each step has explicit entry + exit criteria. No step ski
 - **phi-core leverage non-negotiable** — `scripts/check-phi-core-reuse.sh` green at every step that touches code (guardrail 6).
 - **Audit mandatory** — every chunk closes with Step 6 audit before Step 8 seal (guardrail 7).
 - **Confidence pinned to concepts** — every close reports the two % with named numerators/denominators; composite = min; no rounding (guardrail 9).
+- **User-facing docs stay synchronised with code** (post-Q9 / CH-22) — every chunk fills §3.C of the plan template; every code-side change to a feature whose architecture / operations / user-guide docs exist must either update those docs in-chunk OR cite an explicit successor chunk for the deferred update. Open-ended "we'll catch up later" deferrals fail the §10 Docs aspect.
 
 ## Failure modes & escape hatches
 

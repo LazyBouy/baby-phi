@@ -423,6 +423,18 @@ Each decision below is binding for P4 template drafting + all subsequent per-chu
 
 **Open-question variant — `M6+-OPEN-*` markers in §3.** When a chunk plan-time review surfaces a *concept re-evaluation candidate* (a question whether the concept itself should be reconsidered, not a code-vs-concept drift), it is captured in §3 with the `M6+-OPEN-NN` prefix to distinguish from committed `DEFERRED-*` markers. CH-01 added the first such marker (`M6+-OPEN-01 — AgentProfile cardinality re-evaluation`).
 
+### Q9 — User-facing documentation strategy (added 2026-04-27 by CH-22)
+
+**Decided:** Every chunk plan §3.C evaluates a 3-tier user-facing-doc impact map (architecture / operations / user-guide under `docs/specs/v0/implementation/<milestone>/`) and either (a) updates the affected files in-chunk, or (b) explicitly defers each one with a successor-chunk reference (or `M<n>-tag-close` for milestone batches). Open-ended deferrals are not permitted. Pre-Q9 chunks (CH-01, CH-02, CH-K8S-PREP, CH-22) are grandfathered — their backfill bundled in CH-22's seal.
+
+**Scope impact:** [`per-chunk-planning-template.md`](../../v0/implementation/m5_1/process/per-chunk-planning-template.md) gains a new mandatory §3.C section + §10 Docs aspect extended to cover the user-facing tier. [`chunk-lifecycle-checklist.md`](../../v0/implementation/m5_1/process/chunk-lifecycle-checklist.md) Step 8 sub-action 6.B applies the §3.C map at seal. CH-22 is the codifying chunk; CH-23 onward apply the rule from chunk-open.
+
+**Why it matters:** prevents the silent erosion that surfaced post-CH-01 / CH-02 / CH-22 — namely that chunks updated governance docs (drifts / ADRs / concept-audit matrix) but skipped the milestone-era user-facing tier (operator runbooks, walkthroughs, CLI reference, troubleshooting). Without an explicit per-chunk gate, operators reading those docs build an out-of-date mental model. The 3-tier evaluation surfaces the gap at plan time so the doc updates land as deliverables in §7 phases — not as after-the-fact appendices.
+
+**Pre-Q9 chunks grandfathered:** CH-01, CH-02, CH-K8S-PREP, CH-22. Their backfill (bundled with CH-22's seal commit) updated `m5/architecture/{system-agents,event-bus-m5-extensions,session-launch}.md`, `m5/operations/{system-agents,session-launch,system-flows-s02-s03}-operations.md`, and `m5/user-guide/{system-agents-walkthrough,first-session-walkthrough,cli-reference-m5,troubleshooting}.md` with `<!-- CH-XX amendment -->` sections. Stub user-guide docs (P6 / P7 / P9 deferrals from the M5 plan archive) keep their stubs for prose; CH-22 backfill added only the operator-visible changes the chunks introduced — full prose closes at M5-tag-close per the existing M5 plan.
+
+**Relationship to Q8 (K8s readiness).** Same pattern: a binding cross-cutting rule that every chunk applies, captured in a dedicated template section (Q8 → §3.B; Q9 → §3.C), enforced at the §10 close criteria. The two rules are orthogonal — Q8 governs deployment portability, Q9 governs reader fidelity.
+
 ---
 
 ---
