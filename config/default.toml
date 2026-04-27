@@ -35,3 +35,12 @@ secure = true
 # `parallelize` cap (409 `PARALLELIZE_CAP_REACHED`, which comes from
 # the agent's blueprint).
 max_concurrent = 16
+
+# Per-listener tuning (CH-22 / ADR-0035).
+[listeners.catalog]
+# Audit emission mode for the agent-catalog listener.
+#   silent (default): no audit event per fire — production lean.
+#   debug: emit `agent_catalog_refreshed` (Silent class) on every fire
+#          for end-to-end traceability during dev / acceptance tests.
+# Override via env: PHI_LISTENERS__CATALOG__AUDIT_MODE=debug.
+audit_mode = "silent"

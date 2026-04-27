@@ -3,7 +3,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use domain::audit::AuditEmitter;
 use domain::events::{
-    AgentCatalogListener, EventBus, InProcessEventBus, MemoryExtractionListener,
+    AgentCatalogListener, CatalogAuditMode, EventBus, InProcessEventBus, MemoryExtractionListener,
     TemplateAFireListener, TemplateCFireListener, TemplateDFireListener,
 };
 use domain::model::ids::SessionId;
@@ -168,6 +168,7 @@ pub struct AppState {
 pub fn build_event_bus_with_m5_listeners(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    catalog_audit_mode: CatalogAuditMode,
 ) -> Arc<InProcessEventBus> {
     let bus = Arc::new(InProcessEventBus::new());
 
@@ -202,8 +203,13 @@ pub fn build_event_bus_with_m5_listeners(
         audit.clone(),
     )));
 
-    // Agent catalog (M5/P3 stub).
-    bus.subscribe(Arc::new(AgentCatalogListener::new(repo, audit)));
+    // Agent catalog (CH-22 — body shipped; audit_mode wired via
+    // `[listeners.catalog]` config block).
+    bus.subscribe(Arc::new(AgentCatalogListener::new(
+        repo,
+        audit,
+        catalog_audit_mode,
+    )));
 
     bus
 }
@@ -256,12 +262,12 @@ mod tests {
     async fn handler_count_is_five_at_m5() {
         let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
         let audit: Arc<dyn AuditEmitter> = Arc::new(NoopAuditEmitter);
-        let bus = build_event_bus_with_m5_listeners(repo, audit);
+        let bus = build_event_bus_with_m5_listeners(repo, audit, CatalogAuditMode::default());
         assert_eq!(
             bus.handler_count(),
             5,
-            "M5/P3 wires Template A + C + D + MemoryExtraction (stub) \
-             + AgentCatalog (stub) — exactly 5 subscribers",
+            "M5/P3 + CH-22 wire Template A + C + D + MemoryExtraction (stub) \
+             + AgentCatalog (body) — exactly 5 subscribers",
         );
     }
 }

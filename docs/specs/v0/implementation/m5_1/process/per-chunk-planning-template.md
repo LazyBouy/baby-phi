@@ -1,4 +1,5 @@
 <!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Post-CH-22 addition (2026-04-27): §3.C "User-facing documentation impact map" is now mandatory; §10 "Docs aspect" extended to cover the user-facing doc tier (architecture / operations / user-guide). Reason: the milestone-era pattern shipped three peer doc trees per milestone, but chunks were silently dropping that tier — operators got stale docs. Pre-CH-22 chunks (CH-01, CH-02, CH-K8S-PREP, CH-22) are grandfathered with backfill bundled in this codification commit. -->
 
 # Per-chunk planning template
 
@@ -83,6 +84,28 @@ Per [`baby-phi/CLAUDE.md`](../../../../../../CLAUDE.md) §"phi-core Leverage" ru
 
 **Mid-flight discovery.** If a phase surfaces a K8s blocker not anticipated in this section, pause via `AskUserQuestion` and add a new ledger entry before the phase closes — identical pattern to the §2 concept-contradiction discovery rule.
 
+### §3.C — User-facing documentation impact map
+
+**Binding rule (codified post-CH-22):** every chunk evaluates which user-facing docs (architecture / operations / user-guide tier under `docs/specs/v0/implementation/<milestone>/`) its changes affect, and either (a) updates them in-chunk, or (b) explicitly defers each one with a stated reason and a successor chunk reference. Pre-CH-22 chunks (CH-01, CH-02, CH-K8S-PREP, CH-22) are grandfathered — their backfill is bundled with the codification commit.
+
+The mandate applies because the milestone-era pattern was three peer doc trees per milestone (`mX/architecture/`, `mX/operations/`, `mX/user-guide/`). When chunks replaced milestones as the unit of work, they kept governance-tier doc updates (drifts, ADRs, concept-audit matrix) but silently dropped the user-facing tier. Without an explicit per-chunk gate, the user-facing docs go stale relative to the code — operators reading them get an out-of-date mental model.
+
+**Mandatory 3-tier evaluation table** (chunk plan fills in for its surface):
+
+| Tier | File pattern | This chunk touches? | Action |
+|---|---|---|---|
+| **Architecture** | `docs/specs/v0/implementation/<milestone>/architecture/<feature>.md` — design, data flow, phi-core leverage call-outs | list each file; mark "no change" if the design didn't shift | (a) update in-chunk OR (b) defer with reason + successor-chunk reference |
+| **Operations** | `docs/specs/v0/implementation/<milestone>/operations/<feature>-operations.md` — error-code reference, audit-event dictionary, incident playbooks, metrics | list each file; mark "no change" if no new codes / playbooks land | (a) update in-chunk OR (b) defer |
+| **User-guide** | `docs/specs/v0/implementation/<milestone>/user-guide/{<feature>-walkthrough,cli-reference-mN,troubleshooting}.md` — operator tours, CLI commands, stable error codes | list each file; mark "no change" if no operator-visible behaviour shifts | (a) update in-chunk OR (b) defer |
+
+**Rules:**
+- Every doc the chunk's code makes stale MUST appear in the table — no "we'll find out at seal time."
+- "Defer" decisions need a successor chunk ID (or `M<n>-tag-close` for milestone batches), not just a reason. Open-ended deferrals are not permitted; they reproduce exactly the gap this rule closes.
+- Doc updates run as deliverables in §7 phases (typically the seal phase). They are not after-the-fact appendices.
+- The §10 "Docs aspect" close criterion now covers BOTH governance docs (drifts/ADRs/matrix — the existing scope) AND this user-facing tier. A chunk that ships code but skips a §3.C doc with no defer-decision fails Docs aspect.
+
+**Mid-flight discovery.** If a phase makes a doc stale that wasn't anticipated in §3.C, pause via `AskUserQuestion` and add a row to the table before the phase closes — same pattern as §2 concept-contradiction discovery and §3.B K8s-blocker discovery.
+
 ### §4 — Drifts closed
 
 List every drift file in [`../drifts/`](../drifts/) this chunk transitions to `remediated` / `renegotiated` / `accepted-as-is`:
@@ -165,7 +188,9 @@ Composite 4-aspect + 2 confidence % ritual. **Source of truth: concept docs.** N
 
 **4 aspects (each graded pass / fail):**
 - **Code aspect** — all phases' deliverables shipped; cargo test workspace passes; clippy green under `RUSTFLAGS="-Dwarnings"`; fmt --check green.
-- **Docs aspect** — every affected doc updated (status tags, verified headers, concept-audit matrix rows, drift-file lifecycle entries).
+- **Docs aspect** — every affected doc updated. Two scopes:
+  - *Governance tier*: status tags, verified headers, concept-audit matrix rows, drift-file lifecycle entries, ADR status flips.
+  - *User-facing tier* (post-CH-22): every row of the §3.C impact map either updated in-chunk or carrying an explicit defer-decision with successor-chunk reference.
 - **phi-core leverage aspect** — §3 import-count delta matches prediction ± documented variance; all forbidden-duplication greps return 0; `check-phi-core-reuse.sh` green.
 - **Concept alignment aspect** — every §2 row's target-status at chunk-close achieved; none remain `contradicted`.
 

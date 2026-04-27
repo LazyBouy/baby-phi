@@ -111,11 +111,16 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     let repo: Arc<dyn domain::Repository> = Arc::new(store);
     let audit: Arc<dyn domain::audit::AuditEmitter> =
         Arc::new(store::SurrealAuditEmitter::new(repo.clone()));
-    // M4/P3 + M5/P3: in-process event bus with 5 listeners subscribed
-    // (Template A + C + D fire listeners + memory-extraction stub +
-    // agent-catalog stub). See `state::build_event_bus_with_m5_listeners`.
-    let event_bus_impl =
-        server::state::build_event_bus_with_m5_listeners(repo.clone(), audit.clone());
+    // M4/P3 + M5/P3 + CH-22: in-process event bus with 5 listeners
+    // subscribed (Template A + C + D fire listeners + memory-extraction
+    // stub + agent-catalog body). The catalog listener's audit-emission
+    // mode is wired from `[listeners.catalog] audit_mode` (ADR-0035).
+    // See `state::build_event_bus_with_m5_listeners`.
+    let event_bus_impl = server::state::build_event_bus_with_m5_listeners(
+        repo.clone(),
+        audit.clone(),
+        cfg.listeners.catalog.audit_mode,
+    );
     let event_bus: Arc<dyn domain::events::EventBus> = event_bus_impl;
     // M5/P4: per-worker session registry (cancellation + concurrency cap).
     let session_registry = server::state::new_session_registry();

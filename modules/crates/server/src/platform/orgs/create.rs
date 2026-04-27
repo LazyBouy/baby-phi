@@ -61,8 +61,9 @@ use chrono::{DateTime, Utc};
 
 use domain::audit::events::m3::orgs as org_events;
 use domain::audit::{AuditClass, AuditEmitter};
+use domain::events::{DomainEvent, EventBus};
 use domain::model::composites_m3::{ConsentPolicy, OrganizationDefaultsSnapshot, TokenBudgetPool};
-use domain::model::ids::{AgentId, GrantId, NodeId, OrgId};
+use domain::model::ids::{AgentId, AuditEventId, GrantId, NodeId, OrgId};
 use domain::model::nodes::{
     Agent, AgentKind, AgentProfile, Channel, ChannelKind, Grant, InboxObject, Organization,
     OutboxObject, PrincipalRef, ResourceRef, TemplateKind,
@@ -121,6 +122,7 @@ pub struct CreateInput {
 pub async fn create_organization(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    event_bus: Arc<dyn EventBus>,
     input: CreateInput,
 ) -> Result<CreatedOrg, OrgError> {
     // 1. Shape validation.
@@ -275,6 +277,33 @@ pub async fn create_organization(
     let audit_event_ids = emit_audit_batch(&*audit, events)
         .await
         .map_err(|e: ApiError| OrgError::AuditEmit(e.message))?;
+
+    // CH-22 — emit `AgentCreated` for the CEO + each provisioned
+    // system agent so the catalog listener seeds catalog rows for
+    // the org's day-zero principals. ADR-0028 fail-safe: emit AFTER
+    // commit + audit, so a listener fault never invalidates the org.
+    event_bus
+        .emit(DomainEvent::AgentCreated {
+            agent_id: ceo_agent.id,
+            owning_org: org_id,
+            agent_kind: ceo_agent.kind,
+            role: ceo_agent.role,
+            at: input.now,
+            event_id: AuditEventId::new(),
+        })
+        .await;
+    for (sys_agent, _profile) in &system_agents {
+        event_bus
+            .emit(DomainEvent::AgentCreated {
+                agent_id: sys_agent.id,
+                owning_org: org_id,
+                agent_kind: sys_agent.kind,
+                role: sys_agent.role,
+                at: input.now,
+                event_id: AuditEventId::new(),
+            })
+            .await;
+    }
 
     Ok(CreatedOrg {
         org_id: receipt.org_id,

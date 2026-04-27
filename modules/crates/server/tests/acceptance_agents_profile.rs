@@ -364,6 +364,7 @@ async fn update_rejects_role_change_with_immutable_field_changed() {
     let outcome = update_agent_profile(
         org.admin.acc.store.clone(),
         std::sync::Arc::new(store::SurrealAuditEmitter::new(org.admin.acc.store.clone())),
+        std::sync::Arc::new(domain::events::InProcessEventBus::new()),
         agent_id,
         UpdateAgentPatch {
             new_kind: None,

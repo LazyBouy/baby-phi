@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
 
 # Chunk lifecycle checklist
 
@@ -28,7 +28,7 @@ Eight mandatory steps. Each step has explicit entry + exit criteria. No step ski
      | tail -5
    ```
    Record the next sequential free number in §5. Never allocate mid-chunk.
-5. Fill §1 through §12 using the exact field labels from the template.
+5. Fill §1 through §12 using the exact field labels from the template. **Post-CH-22 addition**: §3.C "User-facing documentation impact map" now mandates a 3-tier (architecture / operations / user-guide) evaluation; every doc the chunk's code makes stale MUST appear with either an in-chunk update plan or an explicit defer-decision (successor-chunk ID required, no open-ended deferrals).
 6. For every drift cited in §4, open its drift file and confirm its current `Status` is `scoped` (or `classified` if newly discovered; transition to `scoped` happens in Step 2).
 7. Draft §11 post-chunk audit plan — agent count per chunk size, prompt text, audit aspect coverage.
 
@@ -187,6 +187,7 @@ Eight mandatory steps. Each step has explicit entry + exit criteria. No step ski
 4. Update [`../drifts/README.md`](../drifts/README.md) index: status column for each drift refreshed.
 5. Flip any `Proposed` ADRs drafted in plan §5 to `Accepted` (if the chunk covers them holistically).
 6. Update the concept-audit matrix at [`../drifts/_concept-audit-matrix.md`](../drifts/_concept-audit-matrix.md): any row the chunk transitioned from `contradicted` to `honored` gets its Status column updated + Code-evidence column refreshed.
+6.B. **Apply the §3.C user-facing-doc map** (post-CH-22): for each row marked "update in-chunk", confirm the architecture / operations / user-guide files cited carry the chunk's amendments + bumped `<!-- Last verified: -->` headers. For each "defer" row, confirm the successor chunk ID is recorded (or `M<n>-tag-close` if batched). Open-ended deferrals fail Docs aspect.
 7. Update `cargo test --workspace` baseline count reference in the top-level chunk-plan verification recipe (if it shifted).
 8. Commit with message citing the chunk ID + forward-scope row + list of drift files transitioned.
 

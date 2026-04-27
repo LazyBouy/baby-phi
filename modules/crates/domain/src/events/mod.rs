@@ -60,7 +60,7 @@ pub mod listeners;
 pub use bus::{EventBus, EventHandler, InProcessEventBus};
 pub use listeners::{
     record_system_agent_fire, ActorResolver, AdoptionArResolver, AgentCatalogListener,
-    MemoryExtractionListener, TemplateAFireListener, TemplateCAdoptionArResolver,
+    CatalogAuditMode, MemoryExtractionListener, TemplateAFireListener, TemplateCAdoptionArResolver,
     TemplateCFireListener, TemplateDAdoptionArResolver, TemplateDFireListener,
 };
 

@@ -83,7 +83,7 @@ fixed.
 | D5.1 | CLI + Web for page 12 deferred from P5 to P7 | MEDIUM | A | permissions/07 | N/A | **remediated** | P7 (historical) | [D5.1.md](D5.1.md) |
 | D5.2 | Template audit events at `server::platform::templates::audit_events` | MEDIUM | B | permissions/02, 07 | N/A | discovered | TBD | [D5.2.md](D5.2.md) |
 | D5.3 | `find_adoption_ar` returns most-recent (not unique) | MEDIUM | B | permissions/02, 07 | N/A | discovered | TBD | [D5.3.md](D5.3.md) |
-| D6.1 | `record_system_agent_fire` helper has zero call sites | **HIGH** | **A** | system-agents; coordination | N/A | discovered | M5.2/P8b | [D6.1.md](D6.1.md) |
+| D6.1 | `record_system_agent_fire` helper has zero call sites | **HIGH** | **A** | system-agents; coordination | N/A | in-chunk-plan (CH-22 ✓; CH-21 pending) | CH-21 + CH-22 | [D6.1.md](D6.1.md) |
 | D6.2 | CLI + Web for page 13 deferred from P6 to P7 | MEDIUM | A | system-agents | N/A | **remediated** | P7 (historical) | [D6.2.md](D6.2.md) |
 | D6.3 | System-agent bucketing needs 3-way union filter | MEDIUM | B | system-agents | N/A | discovered | TBD | [D6.3.md](D6.3.md) |
 | D6.4 | System-agent audit events at `server::platform::system_agents::audit_events` | LOW | C | system-agents | N/A | discovered | TBD | [D6.4.md](D6.4.md) |

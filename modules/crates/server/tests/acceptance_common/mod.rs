@@ -21,6 +21,7 @@ use std::time::Duration;
 use axum::Router;
 use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
 use axum_prometheus::PrometheusMetricLayer;
+use domain::events::EventBus;
 use server::bootstrap::{generate_bootstrap_credential, GeneratedCredential};
 use server::{build_router, AppState, SessionKey};
 use store::SurrealStore;
@@ -47,6 +48,13 @@ pub struct Acceptance {
     /// link the harness without using this field.
     #[allow(dead_code)]
     pub session_registry: Arc<dyn server::state::SessionRegistry>,
+    /// The same `Arc<dyn EventBus>` the live server's `AppState`
+    /// holds. Tests that need to observe listener side effects
+    /// (CH-22 — agent-catalog listener subscribes here) can call
+    /// `event_bus.subscribe(...)` after `spawn` returns. The default
+    /// bus has no subscribers; existing tests are unaffected.
+    #[allow(dead_code)]
+    pub event_bus: Arc<dyn EventBus>,
     pub _tmp: TempDir,
     pub _join: JoinHandle<()>,
 }
@@ -80,12 +88,13 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
     let store = Arc::new(store);
     let repo: Arc<dyn domain::Repository> = store.clone();
     let session_registry = server::state::new_session_registry();
+    let event_bus: Arc<dyn EventBus> = Arc::new(domain::events::InProcessEventBus::new());
     let state = AppState {
         repo: repo.clone(),
         session: SessionKey::for_tests(TEST_SESSION_SECRET),
         audit: Arc::new(store::SurrealAuditEmitter::new(repo)),
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
-        event_bus: Arc::new(domain::events::InProcessEventBus::new()),
+        event_bus: Arc::clone(&event_bus),
         session_registry: Arc::clone(&session_registry),
         // Test default matches `config/default.toml`. Acceptance
         // tests rarely exercise the saturation cap; launch-suite
@@ -112,6 +121,7 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
         base_url,
         store,
         session_registry,
+        event_bus,
         _tmp: tmp,
         _join: join,
     }

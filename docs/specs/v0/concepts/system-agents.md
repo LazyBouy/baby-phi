@@ -1,6 +1,7 @@
 <!-- Status: CONCEPTUAL -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- CH-01 amendment (2026-04-27): §"Operator can disable" + §"Archive flow" claims now flip durable state on the agent row — `active = false` (disable) and `archived_at = Some(now)` (archive). Implemented via migration 0007 + repo methods set_agent_active / set_agent_archived_at; system-agent disable / archive handlers wired at modules/crates/server/src/platform/system_agents/{disable,archive}.rs. AgentCatalogListener (CH-22 body, future) reads `Agent.active`. See ADR-0034. -->
+<!-- CH-22 amendment (2026-04-27): §"Agent Catalog Agent" body shipped — AgentCatalogListener::on_event upserts agent_catalog_entry rows on 8 trigger variants (AgentCreated, AgentArchived, HasProfileEdgeChanged, HasLeadEdgeCreated, ManagesEdgeCreated, HasAgentSupervisorEdgeCreated, SessionStarted, SessionEnded; SessionAborted is a documented no-op) and advances the catalog system agent's system_agent_runtime_status tile via record_system_agent_fire (drift D6.1 second call site; CH-21 closes the first). ADR-0034 §D34.5 conforming criteria honored: listener consults Agent.active via repo.get_agent (D34.5 #1), archive wins ties (D34.5 #2+#3), listener is read-only on agent lifecycle (D34.5 #4). Six production emit sites wired (ADR-0035 §D35.5). See ADR-0035. -->
 
 # System Agents — Standard Catalogue
 

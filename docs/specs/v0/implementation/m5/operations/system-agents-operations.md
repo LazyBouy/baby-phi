@@ -1,4 +1,6 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-01 amendment (2026-04-27): disable / archive flip durable agent-row state — disable-then-bug-out semantics no longer "audit-only". See §"CH-01 amendment" below. -->
+<!-- CH-22 amendment (2026-04-27): new `[listeners.catalog] audit_mode` config + `agent_catalog_refreshed` audit event (Debug mode only). New "catalog row stale" + "runtime-status tile not advancing" playbooks. See §"CH-22 amendment" below. -->
 
 # Operations — Page 13 system agents config
 
@@ -73,7 +75,44 @@ counters. M7b adds per-agent:
 - `phi_system_agent_fires_total{agent_id, outcome}` counter.
 - `phi_system_agent_last_error{agent_id}` gauge/bool.
 
+## CH-01 amendment — durable disable/archive (2026-04-27)
+
+Pre-CH-01: `disable.rs` + `archive.rs` emitted audit events but did not mutate any column on the agent row. CH-01 ships migration 0007 with `agent.active: bool` + `agent.archived_at: option<string>` and rewires both handlers to flip those columns BEFORE the audit emit (ADR-0034 §D34.4 ordering rule).
+
+Operator-visible consequences:
+
+- A successful `POST /system-agents/:id/disable` is now idempotent at the durable level — re-issuing returns `200` and re-writes `active = false` (no state conflict).
+- `POST /system-agents/:id/archive` writes `archived_at = Some(Utc::now())` and is also idempotent (later archive overwrites the timestamp). Standard system agents (memory-extraction + agent-catalog) still hard-fail with `409 STANDARD_SYSTEM_AGENT_NOT_ARCHIVABLE`.
+- Audit-emit failures **do not roll back** the durable flip. If you see `AUDIT_EMIT_ERROR` after a successful disable/archive, the durable state IS correct — replay the audit chain rather than re-running the handler.
+- The `agent_catalog_entry.active` column is the consumer of these durable fields (see CH-22 amendment + ADR-0034 §D34.5).
+
+## CH-22 amendment — agent-catalog listener body shipped (2026-04-27)
+
+### New config block
+
+```toml
+[listeners.catalog]
+audit_mode = "silent"   # default; "debug" emits per-fire audit events
+```
+
+Override via `PHI_LISTENERS__CATALOG__AUDIT_MODE=debug`. Debug mode is intended for dev / acceptance investigations — production should leave it Silent (catalog refresh fires up to 8× per session and would 10–100× audit-log volume).
+
+### New audit-event row
+
+| Event | Class | Triggered by | Fields |
+|---|---|---|---|
+| `agent_catalog_refreshed` | Silent | `AgentCatalogListener` per fire (Debug mode only) | `refreshed_agent_id`, `triggering_event_id`, `triggering_event_kind` |
+
+### New incident playbooks
+
+- **Catalog row missing for a known agent.** Hit `GET /api/v0/orgs/:org/agents/:id` then check `repo.get_agent_catalog_entry(agent_id)` — if `None`, the listener never fired for this agent. Likely causes: (a) the agent was created via a code path that bypasses the production HTTP handlers (test fixture / direct repo call); (b) `state.event_bus` had no `AgentCatalogListener` subscribed at boot — verify [`build_event_bus_with_m5_listeners`](../../../../../../modules/crates/server/src/state.rs) ran. Recovery: emit a synthetic `DomainEvent::AgentCreated` from a maintenance task (M7b retry fabric will formalise this).
+- **Catalog row's `active` column out of sync with durable agent state.** The listener computes `catalog_active = agent.active && agent.archived_at.is_none()` per fire. If the catalog row says `active = true` but the agent row's durable `active = false` or `archived_at = Some`, a fire was missed. Re-trigger by issuing a no-op profile patch (which emits `HasProfileEdgeChanged`) or by emitting `DomainEvent::AgentArchived` from a maintenance task.
+- **Runtime-status tile for the catalog system agent stale.** `record_system_agent_fire` updates the tile on every catalog-listener fire. If `last_fired_at` lags real activity, either (a) no agent-lifecycle events are being emitted from the production handlers (confirm via debug-mode audit emit), or (b) the catalog system agent isn't resolvable from `org.system_agents` — verify exactly one entry has `display_name == "agent-catalog"`.
+- **`agent_catalog_refreshed` flooding the audit log.** Operator left `audit_mode = "debug"` in production. Flip it back to `silent` via `PHI_LISTENERS__CATALOG__AUDIT_MODE=silent` + restart. Existing debug-mode rows are `AuditClass::Silent` (30-day retention) so they will age out.
+
 ## Cross-references
 
 - [System agents architecture](../architecture/system-agents.md).
 - [System flows s02 + s03 operations](system-flows-s02-s03-operations.md).
+- [ADR-0034](../../m5_2/decisions/0034-agent-durable-lifecycle.md) — durable lifecycle (CH-01).
+- [ADR-0035](../../m5_2/decisions/0035-agent-catalog-listener-audit-mode.md) — audit-mode + emit-site wiring (CH-22).

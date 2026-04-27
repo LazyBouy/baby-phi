@@ -1,4 +1,5 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-22 amendment (2026-04-27): s03 (agent-catalog) listener body shipped — no longer P8-stub. See §"CH-22 amendment — s03 status update" below. CH-21 (s02 memory-extraction) still pending. -->
 
 # Operations — System flows s02 (memory extraction) + s03 (agent catalog) + s05 (template C/D fires)
 
@@ -35,8 +36,32 @@ materialises `Memory` nodes from the audit stream per the
 Draft the `MemoryExtracted` tag shape at P8 + confirm at P8 close
 so the audit replay is consumable by M6 without re-extraction.
 
+## CH-22 amendment — s03 status update (2026-04-27)
+
+s03 (agent-catalog) is no longer P8-stubbed. The listener body landed at CH-22 and is wired into the production HTTP path via 6 emit sites (ADR-0035 §D35.5). Catalog rows now mutate on every agent-lifecycle event from `agents/create`, `agents/update`, `system_agents/{add,disable,archive}`, and `orgs/create`. Runtime-status tile for the catalog system agent advances on every fire (drift D6.1 second call site; CH-21 ships the first call site for memory-extraction).
+
+s02 (memory-extraction) and s05 (Template C/D fires) status is unchanged from M5/P8 plan:
+
+- **s02** — Listener body still pending; CH-21 owns. Listener subscription exists; body is a stub that logs on `SessionEnded`.
+- **s05** — Listener bodies shipped at M5/P3 (Template C + D fire-listeners). CH-22 did not touch.
+
+### Failure modes (s03, post-CH-22)
+
+The placeholder s03 failure modes from the M5/P8 stub are superseded by the production-grade playbooks in [system-agents operations](system-agents-operations.md) §"CH-22 amendment". Specifically:
+
+- "Catalog upsert on stale edge — idempotent" → confirmed by ADR-0035 §D35.5 (upsert keyed on `agent_id`'s UNIQUE INDEX from migration 0005).
+- "Catalog row missing for known agent" → see system-agents-operations.md playbook.
+- "Runtime-status tile stale" → see system-agents-operations.md playbook.
+
+### s02 failure modes
+
+Still planned at CH-21 close — placeholder list (queue saturation, agent disabled, LLM API error → 3× backoff retry, idempotent re-replay) carries forward unchanged.
+
 ## Cross-references
 
 - [Event bus M5 extensions](../architecture/event-bus-m5-extensions.md).
+- [System agents operations](system-agents-operations.md) — production playbooks for s03 catalog refresh.
+- [ADR-0035](../../m5_2/decisions/0035-agent-catalog-listener-audit-mode.md) — CH-22 audit-mode + emit-site wiring.
 - [M5 plan §P8](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [CH-22 plan](../../../../plan/build/c5f201bb-ch-22-agent-catalog-listener-body.md).
 - [Base plan §M6 §Carryovers from M5](../../../../plan/build/36d0c6c5-build-plan-v01.md).

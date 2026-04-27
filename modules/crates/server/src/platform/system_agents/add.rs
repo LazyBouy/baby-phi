@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use domain::audit::AuditEmitter;
+use domain::events::{DomainEvent, EventBus};
 use domain::model::ids::{AgentId, AuditEventId, NodeId, OrgId};
 use domain::model::nodes::{Agent, AgentKind, AgentProfile, AgentRole, InboxObject, OutboxObject};
 use domain::repository::AgentCreationPayload;
@@ -79,6 +80,7 @@ pub struct AddOutcome {
 pub async fn add_system_agent(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    event_bus: Arc<dyn EventBus>,
     input: AddInput,
 ) -> Result<AddOutcome, SystemAgentError> {
     if input.display_name.trim().is_empty() {
@@ -173,6 +175,20 @@ pub async fn add_system_agent(
         .emit(event)
         .await
         .map_err(|e| SystemAgentError::AuditEmit(e.to_string()))?;
+
+    // CH-22 — emit `AgentCreated` so the catalog listener seeds a
+    // catalog row for the new system agent. ADR-0028 fail-safe:
+    // emit AFTER commit + audit.
+    event_bus
+        .emit(DomainEvent::AgentCreated {
+            agent_id,
+            owning_org: input.org_id,
+            agent_kind: AgentKind::Llm,
+            role: Some(AgentRole::System),
+            at: input.now,
+            event_id: AuditEventId::new(),
+        })
+        .await;
 
     Ok(AddOutcome {
         agent_id,

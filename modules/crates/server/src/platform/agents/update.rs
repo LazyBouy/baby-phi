@@ -47,6 +47,7 @@ use domain::audit::events::m4::agents::{
     agent_profile_updated, AgentProfilePatchDiff, ExecutionLimitsSource,
 };
 use domain::audit::AuditEmitter;
+use domain::events::{DomainEvent, EventBus};
 use domain::model::composites_m4::AgentExecutionLimitsOverride;
 use domain::model::ids::{AgentId, AuditEventId, NodeId};
 use domain::model::nodes::{Agent, AgentKind, AgentProfile, AgentRole};
@@ -126,6 +127,7 @@ pub struct UpdatedAgent {
 pub async fn update_agent_profile(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    event_bus: Arc<dyn EventBus>,
     agent_id: AgentId,
     patch: UpdateAgentPatch,
 ) -> Result<UpdatedAgent, AgentError> {
@@ -430,6 +432,24 @@ pub async fn update_agent_profile(
         .emit(event)
         .await
         .map_err(|e| AgentError::AuditEmit(e.to_string()))?;
+
+    // CH-22 — emit `HasProfileEdgeChanged` only when the profile row
+    // actually changed (not on display_name-only or limits-only edits).
+    // The catalog listener uses this signal to refresh
+    // `profile_snapshot` on the catalog row.
+    if profile_changed {
+        if let Some(new_profile) = next_profile.as_ref() {
+            event_bus
+                .emit(DomainEvent::HasProfileEdgeChanged {
+                    agent_id,
+                    old_profile_id: current_profile.as_ref().map(|p| p.id),
+                    new_profile_id: new_profile.id,
+                    at: patch.now,
+                    event_id: AuditEventId::new(),
+                })
+                .await;
+        }
+    }
 
     Ok(UpdatedAgent {
         agent_id,

@@ -1,4 +1,6 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-02 amendment (2026-04-24): `phi agent update --mock-response <str>` flag added (per-profile MockProvider override). -->
+<!-- CH-22 amendment (2026-04-27): catalog listener body shipped — `audit_mode` is server-side config (not a CLI flag), see `[listeners.catalog]` in config/default.toml. No new CLI surface. -->
 
 # CLI reference — M5 surfaces
 
@@ -36,12 +38,12 @@ SIGINT (which sends `terminate`). `--detach` returns
 - `phi system-agent disable --org-id <uuid> --agent-id <uuid>`
 - `phi system-agent archive --org-id <uuid> --agent-id <uuid>`
 
-## `phi agent update` — `--model-config-id` extension (C-M5-5)
+## `phi agent update` — `--model-config-id` extension (C-M5-5) + `--mock-response` (CH-02)
 
-Adds `--model-config-id <str>` flag to the existing `phi agent
-update` command. Validates against the org's ModelRuntime
-catalogue; returns `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` (409) if
-the agent has running sessions.
+Adds two flags to the existing `phi agent update` command:
+
+- `--model-config-id <str>` — validates against the org's ModelRuntime catalogue; returns `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` (409) if the agent has running sessions.
+- `--mock-response <str>` — pin a deterministic MockProvider response for this agent (CH-02 / ADR-0032). Pass `null` (or omit) to revert to the platform default `"Acknowledged."`. Useful for acceptance tests that need stable agent output without spinning up a real LLM provider.
 
 ## Exit codes
 

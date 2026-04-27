@@ -1,4 +1,5 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-02 amendment (2026-04-24): synthetic feeder replaced with real `agent_loop()` + MockProvider; "Terminate-mid-turn not reflecting" playbook updated; new "MockProvider deterministic output" caveat. See §"CH-02 amendment" below. -->
 
 # Operations — Page 14 first session launch
 
@@ -77,8 +78,35 @@ status. M7b adds:
 - `phi_sessions_replay_duration_seconds` histogram.
 - `phi_sessions_terminate_total{reason_class}` counter.
 
+## CH-02 amendment — real `agent_loop()` + MockProvider (2026-04-24)
+
+The "M5 synthetic replay feeder completes in a few ms so terminate often races finalise" caveat under "Terminate-mid-turn not reflecting" is **stale** post-CH-02. The actual flow is now:
+
+- `phi_core::agent_loop()` runs inside the spawned task.
+- `MockProvider` returns a deterministic response (default `"Acknowledged."`, or the agent profile's `mock_response` override) but the loop still cycles through the real `AgentStart → TurnStart → MessageUpdate → TurnEnd → AgentEnd` event sequence with phi-core's runtime tick.
+- Cancellation tokens are honoured by phi-core's loop — terminate-mid-turn now produces a real `AgentEnd { rejection: Some("cancelled") }` event, which the recorder maps to `governance_state = Aborted`.
+
+### Updated playbook — Terminate-mid-turn not reflecting
+
+If a terminate races to completion you can confirm via `GET /api/v0/sessions/:id` — `governance_state` will be `Aborted` (mid-turn cancel) or `Completed` (finalise won the race). Both are correct. Pre-CH-02 the synthetic feeder always won the race; post-CH-02 the outcome depends on where in the loop the cancel arrives.
+
+### New failure modes from MockProvider path
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| All sessions return identical text `"Acknowledged."` | Default `MockProvider::text()` response — operator hasn't set `mock_response` on the agent profile | Pin a custom response via `PATCH /api/v0/agents/:id/profile` with `mock_response: "<your text>"` |
+| Acceptance test asserting specific message text fails post-upgrade | Pre-CH-02 tests asserted the synthetic 4-event sequence's canned strings | Update the assertion to the MockProvider output (default `"Acknowledged."` or the profile's `mock_response`) |
+| Session row's `tokens_spent` is 0 | MockProvider doesn't accumulate token usage — at M5 token accounting is a no-op | Real provider integration (M7+) re-enables token-spend assertions |
+| `phi_core::agent_loop` panics propagate to `SESSION_REPLAY_PANIC` 500 | Same path as M5/P4; CH-02 didn't widen this surface | Check server logs; loop panics indicate a bug in phi-core itself or in the recorder's event handling |
+
+### Real LLM providers
+
+Real providers (Anthropic / OpenAI / etc.) are deferred to M7. M5/CH-02 ships only the `MockProvider` standin. ADR-0032 documents the deferral path.
+
 ## Cross-references
 
 - [Session launch architecture](../architecture/session-launch.md).
 - [ADR-0031](../decisions/0031-session-cancellation-and-concurrency.md).
+- [ADR-0032](../../m5_2/decisions/0032-mock-provider-at-m5.md) — MockProvider at M5.
 - [M5 plan §P4](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [CH-02 plan](../../../../plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md).

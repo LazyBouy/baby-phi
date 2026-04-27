@@ -1,4 +1,5 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-02 amendment (2026-04-24): synthetic 4-event feeder replaced with real `phi_core::agent_loop()` driven by `MockProvider` (deterministic, no network). Drift D4.2 closed at CH-02 chunk-seal. See §"CH-02 amendment" below + ADR-0032. -->
 
 # Page 14 — First Session Launch architecture
 
@@ -100,9 +101,41 @@ plan archive.
 | **C-M5-5** — ModelConfig change + 409 gate | `platform::agents::update_agent_profile` validates `model_config_id` + checks `count_active_sessions_for_agent` → `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` |
 | **C-M5-6** — Shape B materialise | `approve_pending_shape_b` Approved branch reads `shape_b_pending_projects` sidecar + calls `materialise_project` + deletes sidecar |
 
+## CH-02 amendment — real `agent_loop()` + MockProvider wiring (2026-04-24)
+
+The "Synthetic-feeder drift" callout above is **closed** post-CH-02. M5/P4's `spawn_replay_task` was a 4-event canned sequence; CH-02 replaces it with a runtime call to `phi_core::agent_loop(...)` driven by [`phi_core::provider::mock::MockProvider`](../../../../../../../phi-core/src/provider/mock.rs) (deterministic, no network). The outer 9-step launch flow is unchanged in shape — only the inner spawned task body changed.
+
+### What CH-02 added
+
+1. **New helper** [`platform/sessions/provider.rs`](../../../../../../modules/crates/server/src/platform/sessions/provider.rs) — `provider_for(profile)` returns an `Arc<dyn StreamProvider>`. At M5 always returns a `MockProvider::text(profile.mock_response.unwrap_or("Acknowledged."))`. M7+ swaps to `ProviderRegistry::resolve()` against the org's runtime catalogue, with no change to the call site.
+2. **Per-profile mock-response governance field** — `domain::AgentProfile.mock_response: Option<String>` (added in [`domain/src/model/nodes.rs`](../../../../../../modules/crates/domain/src/model/nodes.rs)) lets operators pin deterministic test outputs per agent. Migration `0006_agent_profile_mock_response.surql` adds the column. The field lives on the baby-phi wrapper, NOT on the phi-core inner `blueprint` (the wrap pattern from ADR-0015).
+3. **Hot-path phi-core leverage** — `phi_core::agent_loop`, `MockProvider`, `StreamProvider`, `AgentContext`, `AgentLoopConfig` are all directly used at runtime. The previous compile-time witness pattern at `_keep_agent_loop_live` is retired.
+4. **Real agent-loop event stream** — `BabyPhiSessionRecorder` now consumes the actual phi-core event sequence (variable in shape, not the canned 4-event run). Final `AgentEnd` still triggers `finalise_and_persist`.
+
+### What CH-02 did NOT change
+
+- The compound tx commit (Step 6) is unchanged.
+- `SessionRegistry` cancellation semantics are unchanged.
+- The `LaunchReceipt` shape is unchanged.
+- Real LLM providers (Anthropic / OpenAI / etc.) defer to M7 — `MockProvider` is the only shipped variant at M5.
+
+### Operator consequence
+
+The recorder's persisted turn shape now reflects MockProvider's deterministic outputs. The default response is `"Acknowledged."`; operators can pin a custom string per-agent via `mock_response` on the agent profile (set via `PATCH /api/v0/agents/:id/profile` with `mock_response: "..."`). This affects acceptance-test expectations — pre-CH-02 tests that asserted exact synthetic message text need updating to the new MockProvider output.
+
+### Drift transitions at CH-02 close
+
+- **D4.2** (HIGH, `leverage-violation`) — `discovered → in-chunk-plan → remediated`. The phi-core agent_loop is now on a hot execution path, not a compile witness.
+
+### ADR
+
+- [ADR-0032](../../m5_2/decisions/0032-mock-provider-at-m5.md) — MockProvider as the at-M5 stand-in; deferral path to real providers at M7.
+
 ## Cross-references
 
 - [ADR-0029](../decisions/0029-session-persistence-and-recorder-wrap.md) — session persistence + recorder wrap.
 - [ADR-0031](../decisions/0031-session-cancellation-and-concurrency.md) — session cancellation + concurrency.
+- [ADR-0032](../../m5_2/decisions/0032-mock-provider-at-m5.md) — CH-02 MockProvider decision.
 - [Event bus M5 extensions](./event-bus-m5-extensions.md) — governance events emitted by launch + terminate.
 - [Session persistence](./session-persistence.md) — the 3-way wrap pattern.
+- [CH-02 plan](../../../../plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md).

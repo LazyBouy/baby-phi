@@ -94,6 +94,7 @@ pub async fn add(
     let outcome = add_system_agent(
         state.repo.clone(),
         state.audit.clone(),
+        state.event_bus.clone(),
         AddInput {
             org_id,
             display_name: body.display_name,
@@ -128,6 +129,7 @@ pub async fn disable(
     let outcome = disable_system_agent(
         state.repo.clone(),
         state.audit.clone(),
+        state.event_bus.clone(),
         DisableInput {
             org_id,
             agent_id,
@@ -153,6 +155,7 @@ pub async fn archive(
     let outcome = archive_system_agent(
         state.repo.clone(),
         state.audit.clone(),
+        state.event_bus.clone(),
         ArchiveInput {
             org_id,
             agent_id,

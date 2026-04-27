@@ -1,4 +1,6 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-01 amendment (2026-04-27): disable + archive handlers now flip durable agent-row state (`active = false` on disable; `archived_at = Some(now)` on archive). See §"CH-01 amendment" below + ADR-0034. -->
+<!-- CH-22 amendment (2026-04-27): AgentCatalogListener body shipped — see §"CH-22 amendment" below. Six production emit sites wired (ADR-0035 §D35.5). -->
 
 # Page 13 — System Agents Config architecture
 
@@ -93,9 +95,55 @@ One new direct import at P6 — matches Part 1.5 prediction:
 
 Post-P6 workspace total: **26 lines** (P5 close was 25; +1 at P6).
 
+## CH-01 amendment — durable lifecycle columns (2026-04-27)
+
+Migration [`0007_agent_active_archived.surql`](../../../../../../modules/crates/store/migrations/0007_agent_active_archived.surql) adds two durable columns to the `agent` row:
+
+- `active: bool DEFAULT true` — flipped to `false` by `system_agents/disable.rs`.
+- `archived_at: option<string>` (RFC3339 datetime) — set by `system_agents/archive.rs` to `Some(Utc::now())` on archive.
+
+Repo-trait additions (both backends — [`SurrealStore`](../../../../../../modules/crates/store/src/repo_impl.rs) + [`InMemoryRepository`](../../../../../../modules/crates/domain/src/in_memory.rs) implement):
+
+```rust
+async fn set_agent_active(&self, agent_id: AgentId, active: bool) -> RepositoryResult<()>;
+async fn set_agent_archived_at(&self, agent_id: AgentId, archived_at: Option<DateTime<Utc>>) -> RepositoryResult<()>;
+```
+
+Both return `RepositoryError::NotFound` if the agent row is missing — explicit existence check because SurrealDB's bare `UPDATE` on a missing record silently returns empty.
+
+**Ordering rule (ADR-0034 §D34.4):** `disable.rs` and `archive.rs` flip durable state BEFORE emitting their audit event. Durable state is authoritative; audit is replayable. If audit emit fails after a successful durable flip, the persisted state is still correct — operators re-derive the missing audit row by replaying. The reverse order would leave the audit log "ahead" of reality.
+
+Tests: [`store/tests/repo_agent_lifecycle_test.rs`](../../../../../../modules/crates/store/tests/repo_agent_lifecycle_test.rs) (cross-backend contract); [`acceptance_system_agents.rs::archive_with_confirm_succeeds_and_flips_durable_archived_at`](../../../../../../modules/crates/server/tests/acceptance_system_agents.rs).
+
+## CH-22 amendment — AgentCatalogListener body shipped (2026-04-27)
+
+The M5/P3 stub at [`listeners.rs`](../../../../../../modules/crates/domain/src/events/listeners.rs) is replaced by a full body:
+
+1. **Trigger set unchanged** — same 8 `DomainEvent` variants (`AgentCreated`, `AgentArchived`, `HasProfileEdgeChanged`, `HasLeadEdgeCreated`, `ManagesEdgeCreated`, `HasAgentSupervisorEdgeCreated`, `SessionStarted`, `SessionEnded`). `SessionAborted` stays a documented no-op.
+2. **Per-fire mutation** — body reads the durable `Agent` row via `repo.get_agent(agent_id)`, computes `catalog_active = agent.active && agent.archived_at.is_none()` (ADR-0034 §D34.5 archive-wins-ties), and upserts the `agent_catalog_entry` row.
+3. **D6.1 second call site** — body calls [`record_system_agent_fire`](../../../../../../modules/crates/domain/src/events/listeners.rs) AFTER the catalog upsert, with the catalog system agent's id as target. The runtime-status tile for the catalog system agent advances on every fire. CH-21 (memory-extraction listener) ships the first call site for this drift.
+4. **Audit mode (ADR-0035)** — listener gains a `CatalogAuditMode` enum (Silent / Debug). Default is Silent — production audit logs stay lean. Operators flip to Debug via `[listeners.catalog] audit_mode = "debug"` (TOML) or `PHI_LISTENERS__CATALOG__AUDIT_MODE=debug` (env). Debug mode emits one `agent_catalog_refreshed` audit event per fire, audit-class `Silent` (30-day retention).
+
+**Production emit sites wired (ADR-0035 §D35.5).** Without these, the listener body would have been dead code from the production HTTP path's perspective:
+
+| Handler | Emit |
+|---|---|
+| [`agents/create.rs`](../../../../../../modules/crates/server/src/platform/agents/create.rs) | `AgentCreated` |
+| [`agents/update.rs`](../../../../../../modules/crates/server/src/platform/agents/update.rs) | `HasProfileEdgeChanged` (only when profile row mutated) |
+| [`system_agents/add.rs`](../../../../../../modules/crates/server/src/platform/system_agents/add.rs) | `AgentCreated` |
+| [`system_agents/disable.rs`](../../../../../../modules/crates/server/src/platform/system_agents/disable.rs) | `AgentArchived` (variant doc broadly covers "soft-deleted / disabled") |
+| [`system_agents/archive.rs`](../../../../../../modules/crates/server/src/platform/system_agents/archive.rs) | `AgentArchived` |
+| [`orgs/create.rs`](../../../../../../modules/crates/server/src/platform/orgs/create.rs) | `AgentCreated` × 3 (CEO + memory-extractor + agent-catalog) |
+
+All 6 emits run AFTER the durable commit + audit emit (ADR-0028 fail-safe order). The 4 HTTP handlers thread `state.event_bus.clone()` into the orchestrators they call.
+
+**Tests:** 15 unit tests in [`listeners.rs::tests`](../../../../../../modules/crates/domain/src/events/listeners.rs) covering all 8 variants + audit-mode flag + ADR-0034 §D34.5 conforming criteria; 2 acceptance scenarios in [`acceptance_system_flows_s03.rs`](../../../../../../modules/crates/server/tests/acceptance_system_flows_s03.rs).
+
 ## Cross-references
 
 - [requirements/admin/13-system-agents-config.md](../../../requirements/admin/13-system-agents-config.md).
 - [Event bus M5 extensions](./event-bus-m5-extensions.md) — `DomainEvent::SessionEnded` + edge variants drive the listener fires the runtime-status tiles upsert on.
 - [ADR-0023](../../m3/decisions/0023-system-agents-inherit-from-org-snapshot.md) — organization defaults pattern drives trigger effective-parallelize resolution.
+- [ADR-0034](../../m5_2/decisions/0034-agent-durable-lifecycle.md) — durable lifecycle columns + governance/runtime boundary (CH-01).
+- [ADR-0035](../../m5_2/decisions/0035-agent-catalog-listener-audit-mode.md) — audit-mode + production emit-site wiring (CH-22).
 - [M5 plan §P6](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).

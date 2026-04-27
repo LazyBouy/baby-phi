@@ -10,6 +10,7 @@
 
 use std::path::PathBuf;
 
+use domain::events::CatalogAuditMode;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -23,6 +24,11 @@ pub struct ServerConfig {
     /// `[shutdown]` block.
     #[serde(default)]
     pub shutdown: ShutdownConfig,
+    /// Per-listener tuning (CH-22 / ADR-0035). Defaults preserve the
+    /// production silent-audit behaviour for configs that omit the
+    /// `[listeners.*]` blocks.
+    #[serde(default)]
+    pub listeners: ListenersConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -168,6 +174,43 @@ impl Default for ShutdownConfig {
 
 fn default_shutdown_timeout_secs() -> u64 {
     crate::shutdown::DEFAULT_SHUTDOWN_TIMEOUT_SECS
+}
+
+/// Per-listener configuration block (CH-22 / ADR-0035). Currently
+/// only the agent-catalog listener has tunables; the structure is
+/// shaped so future listeners (memory-extraction at CH-21, etc.)
+/// slot in without a rename.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ListenersConfig {
+    #[serde(default)]
+    pub catalog: ListenerCatalogConfig,
+}
+
+/// Tunables for [`domain::events::AgentCatalogListener`].
+///
+/// `audit_mode` defaults to `silent` (no audit emission) to keep
+/// production audit logs lean — catalog refresh is observability data,
+/// not governance-relevant. Operators flip to `debug` for end-to-end
+/// traceability during dev or acceptance testing.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ListenerCatalogConfig {
+    #[serde(default, deserialize_with = "deserialize_catalog_audit_mode")]
+    pub audit_mode: CatalogAuditMode,
+}
+
+fn deserialize_catalog_audit_mode<'de, D>(de: D) -> Result<CatalogAuditMode, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let raw = String::deserialize(de)?;
+    match raw.as_str() {
+        "silent" => Ok(CatalogAuditMode::Silent),
+        "debug" => Ok(CatalogAuditMode::Debug),
+        other => Err(D::Error::custom(format!(
+            "unknown listeners.catalog.audit_mode {other:?}; expected \"silent\" or \"debug\""
+        ))),
+    }
 }
 
 impl ServerConfig {

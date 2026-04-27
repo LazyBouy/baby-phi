@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use domain::audit::AuditEmitter;
+use domain::events::{DomainEvent, EventBus};
 use domain::model::ids::{AgentId, AuditEventId, OrgId};
 use domain::model::nodes::AgentRole;
 use domain::Repository;
@@ -44,6 +45,7 @@ pub struct DisableOutcome {
 pub async fn disable_system_agent(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    event_bus: Arc<dyn EventBus>,
     input: DisableInput,
 ) -> Result<DisableOutcome, SystemAgentError> {
     if !input.confirm {
@@ -89,6 +91,19 @@ pub async fn disable_system_agent(
         .emit(event)
         .await
         .map_err(|e| SystemAgentError::AuditEmit(e.to_string()))?;
+
+    // CH-22 — `DomainEvent::AgentArchived` covers both archive AND
+    // disable per the variant doc ("soft-deleted / disabled"). The
+    // listener reads `agent.active && archived_at.is_none()`; since
+    // disable flipped `active = false`, the catalog row's `active`
+    // computes to false on the listener fire.
+    event_bus
+        .emit(DomainEvent::AgentArchived {
+            agent_id: input.agent_id,
+            at: input.now,
+            event_id: AuditEventId::new(),
+        })
+        .await;
 
     Ok(DisableOutcome {
         agent_id: input.agent_id,

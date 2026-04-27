@@ -5,4 +5,5 @@
 //! (session lifecycle, system-agent tuning, memory extraction) join
 //! this module as their phases open.
 
+pub mod agent_catalog;
 pub mod templates;

@@ -1,4 +1,5 @@
-<!-- Last verified: 2026-04-23 by Claude Code -->
+<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- CH-01 + CH-22 amendments (2026-04-27): durable disable/archive semantics + agent-catalog audit-mode + new "catalog row stale" symptom. See §"CH-01 + CH-22 amendments" below. Full M5/P9 stable-code table still deferred to M5-tag-close. -->
 
 # User guide — Troubleshooting (M5)
 
@@ -41,6 +42,16 @@ Full table in [`../../m4/user-guide/troubleshooting.md`](../../m4/user-guide/tro
 - `AUDIT_EMIT_FAILED` (500)
 - `UNAUTHENTICATED` (401)
 - `INTERNAL` (500)
+
+## CH-01 + CH-22 amendments — symptoms & fixes (2026-04-27)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `phi system-agent disable` returns `200` but the agent still appears "active" in old monitoring tooling | Pre-CH-01 tooling reads only the audit log (which has always recorded the disable) but not the durable `agent.active` column | Update the tool to read the new `active` field on the agent row. Both `phi agent show --json` and `GET /api/v0/orgs/:org/agents/:id` now include `{active, archived_at}`. |
+| `AUDIT_EMIT_ERROR` after a disable / archive request | Audit-emit path failed AFTER the durable column flip | Durable state IS correct — replay the audit chain rather than re-issuing the request. (CH-01 / ADR-0034 §D34.4 ordering rule.) |
+| `agent_catalog_entry` row missing for a known agent | Listener never fired for this agent (likely created via test fixture / direct repo call that bypasses production HTTP handlers) | See [system-agents operations §"Catalog row missing"](../operations/system-agents-operations.md). |
+| Audit log flooded with `agent_catalog_refreshed` events in production | `[listeners.catalog] audit_mode = "debug"` left enabled (typically post-investigation) | Set `PHI_LISTENERS__CATALOG__AUDIT_MODE=silent` and restart. Old debug-mode rows are `AuditClass::Silent` (30-day retention) and will age out. |
+| Catalog system agent's runtime-status tile shows stale `last_fired_at` | Either (a) no agent-lifecycle events being emitted from production handlers (run a test write to verify), or (b) the catalog system agent isn't resolvable from `org.system_agents` (verify exactly one entry has `display_name == "agent-catalog"`) | See [system-agents operations §"Runtime-status tile stale"](../operations/system-agents-operations.md). |
 
 ## Cross-references
 

@@ -38,6 +38,7 @@ use phi_core::context::execution::ExecutionLimits;
 
 use domain::audit::events::m4::agents::agent_created;
 use domain::audit::AuditEmitter;
+use domain::events::{DomainEvent, EventBus};
 use domain::model::composites_m4::AgentExecutionLimitsOverride;
 use domain::model::ids::{AgentId, AuditEventId, GrantId, NodeId, OrgId};
 use domain::model::nodes::{Agent, AgentKind, AgentProfile, AgentRole, InboxObject, OutboxObject};
@@ -94,6 +95,7 @@ pub struct CreatedAgent {
 pub async fn create_agent(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    event_bus: Arc<dyn EventBus>,
     input: CreateAgentInput,
 ) -> Result<CreatedAgent, AgentError> {
     // ---- Shape validation -------------------------------------------------
@@ -235,6 +237,22 @@ pub async fn create_agent(
         .emit(event)
         .await
         .map_err(|e| AgentError::AuditEmit(e.to_string()))?;
+
+    // CH-22 — emit `AgentCreated` so the agent-catalog listener can
+    // populate the catalog row + advance the catalog system agent's
+    // runtime-status tile. ADR-0028 fail-safe: emit AFTER the
+    // commit + audit, so a listener fault never invalidates the
+    // durable creation.
+    event_bus
+        .emit(DomainEvent::AgentCreated {
+            agent_id: receipt.agent_id,
+            owning_org: org.id,
+            agent_kind: agent.kind,
+            role: agent.role,
+            at: input.now,
+            event_id: AuditEventId::new(),
+        })
+        .await;
 
     Ok(CreatedAgent {
         agent_id: receipt.agent_id,

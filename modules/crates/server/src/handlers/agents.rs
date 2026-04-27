@@ -145,6 +145,7 @@ pub async fn create(
     let outcome = create_agent(
         state.repo.clone(),
         state.audit.clone(),
+        state.event_bus.clone(),
         CreateAgentInput {
             org_id,
             display_name: body.display_name,
@@ -241,6 +242,7 @@ pub async fn update(
     let outcome = update_agent_profile(
         state.repo.clone(),
         state.audit.clone(),
+        state.event_bus.clone(),
         agent_id,
         UpdateAgentPatch {
             new_kind: None,

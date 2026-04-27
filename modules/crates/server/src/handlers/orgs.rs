@@ -122,6 +122,7 @@ pub async fn create(
     let outcome = create_organization(
         state.repo.clone(),
         state.audit.clone(),
+        state.event_bus.clone(),
         CreateInput {
             display_name: body.display_name,
             vision: body.vision,

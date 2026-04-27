@@ -4,7 +4,7 @@
 //! [`TemplateAFireListener`] — that reacts to
 //! [`DomainEvent::HasLeadEdgeCreated`] by minting the lead's grant.
 //!
-//! M5/P3 extends the set with four more:
+//! M5/P3 + CH-22 extend the set with four more:
 //! - [`TemplateCFireListener`] — full body; reacts to
 //!   [`DomainEvent::ManagesEdgeCreated`], calls
 //!   [`crate::templates::c::fire_grant_on_manages_edge`], persists the
@@ -13,9 +13,15 @@
 //!   [`DomainEvent::HasAgentSupervisorEdgeCreated`], calls
 //!   [`crate::templates::d::fire_grant_on_has_agent_supervisor`].
 //! - [`MemoryExtractionListener`] — **stub at M5/P3**. Subscribes to
-//!   [`DomainEvent::SessionEnded`]; body lands at M5/P8.
-//! - [`AgentCatalogListener`] — **stub at M5/P3**. Subscribes to 8
-//!   DomainEvent variants; body lands at M5/P8.
+//!   [`DomainEvent::SessionEnded`]; body lands at CH-21.
+//! - [`AgentCatalogListener`] — **CH-22 body shipped**. Subscribes to
+//!   8 DomainEvent variants; on each fire upserts the
+//!   `agent_catalog_entry` row and advances the catalog system
+//!   agent's `system_agent_runtime_status` tile via
+//!   [`record_system_agent_fire`] (drift D6.1 second call site).
+//!   Honors ADR-0034 §D34.5 — consults `Agent.active` /
+//!   `Agent.archived_at` via [`Repository::get_agent`] (archive wins
+//!   ties) and is read-only on agent lifecycle.
 //!
 //! All five listeners share the same fail-safe semantics (ADR-0028):
 //! events emit AFTER the owning compound-tx commits; listener errors
@@ -28,10 +34,40 @@ use chrono::{DateTime, Utc};
 
 use crate::audit::AuditEmitter;
 use crate::events::{DomainEvent, EventHandler};
-use crate::model::composites_m5::SystemAgentRuntimeStatus;
-use crate::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId, SystemAgentRuntimeStatusId};
+use crate::model::composites_m5::{AgentCatalogEntry, SystemAgentRuntimeStatus};
+use crate::model::ids::{
+    AgentCatalogEntryId, AgentId, AuthRequestId, OrgId, ProjectId, SystemAgentRuntimeStatusId,
+};
 use crate::templates::a::{fire_grant_on_lead_assignment, FireArgs};
 use crate::Repository;
+
+/// Stable display-name slug for the per-org agent-catalog system agent
+/// provisioned at M3 org creation (`build_system_agents` in
+/// `server::platform::orgs::create`). The listener resolves the
+/// catalog system agent by walking
+/// [`Organization::system_agents`](crate::model::nodes::Organization::system_agents)
+/// and matching on this name. Tests that bypass the M3 provisioner
+/// must reproduce the same display name to be observed by the
+/// listener.
+pub const AGENT_CATALOG_SYSTEM_AGENT_DISPLAY_NAME: &str = "agent-catalog";
+
+/// Audit emission mode for the agent-catalog listener (ADR-0035 / CH-22).
+///
+/// The listener fires on up to 8 `DomainEvent` variants per session
+/// lifecycle. Emitting an audit event on every fire would 10–100×
+/// audit-log volume on busy orgs without governance benefit (catalog
+/// refresh is observability data, not permission-relevant). Default
+/// is [`CatalogAuditMode::Silent`] — no audit emission. Operators
+/// flip to [`CatalogAuditMode::Debug`] (via
+/// `[listeners.catalog] audit_mode = "debug"` in `config/<profile>.toml`
+/// or `PHI_LISTENERS__CATALOG__AUDIT_MODE=debug`) for end-to-end
+/// traceability during dev or acceptance testing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CatalogAuditMode {
+    #[default]
+    Silent,
+    Debug,
+}
 
 /// Shared helper every page-13-aware listener uses to upsert its
 /// `SystemAgentRuntimeStatus` tile on each fire (M5/P6 +
@@ -494,49 +530,248 @@ impl EventHandler for MemoryExtractionListener {
     }
 }
 
-/// Agent-catalog listener — **stub at M5/P3**.
+/// Agent-catalog listener — body shipped at CH-22.
 ///
-/// Subscribes to the 8 DomainEvent variants that drive catalog
+/// Subscribes to the 8 `DomainEvent` variants that drive catalog
 /// upserts (`AgentCreated`, `AgentArchived`, `HasProfileEdgeChanged`,
 /// `HasLeadEdgeCreated`, `ManagesEdgeCreated`,
 /// `HasAgentSupervisorEdgeCreated`, `SessionStarted`, `SessionEnded`).
-/// The upsert body lands at M5/P8.
+/// `SessionAborted` is in the subscription set but is a documented
+/// no-op (not part of the plan's trigger set — preserves the M5/P3
+/// stub semantics so an aborted session does not cause a catalog
+/// row to be created).
+///
+/// On every fire the body:
+/// 1. Reads the canonical [`Agent`](crate::model::nodes::Agent) row
+///    via [`Repository::get_agent`] (ADR-0034 §D34.5 #1 — never infer
+///    lifecycle from the event payload).
+/// 2. Computes `catalog_active = agent.active && agent.archived_at.is_none()`
+///    (D34.5 #2 + #3 — archive wins ties).
+/// 3. Upserts the `agent_catalog_entry` row via
+///    [`Repository::upsert_agent_catalog_entry`].
+/// 4. Resolves the catalog system agent for the agent's org and
+///    advances its `system_agent_runtime_status` tile via
+///    [`record_system_agent_fire`] (drift D6.1 second call site).
+/// 5. When [`CatalogAuditMode::Debug`] is configured, emits an
+///    `agent_catalog_refreshed` audit event for the fire (ADR-0035).
+///
+/// The body is read-only on agent lifecycle (D34.5 #4) — it never
+/// calls [`Repository::set_agent_active`] /
+/// [`Repository::set_agent_archived_at`].
 pub struct AgentCatalogListener {
-    _repo: Arc<dyn Repository>,
-    _audit: Arc<dyn AuditEmitter>,
+    repo: Arc<dyn Repository>,
+    audit: Arc<dyn AuditEmitter>,
+    audit_mode: CatalogAuditMode,
 }
 
 impl AgentCatalogListener {
-    pub fn new(repo: Arc<dyn Repository>, audit: Arc<dyn AuditEmitter>) -> Self {
+    pub fn new(
+        repo: Arc<dyn Repository>,
+        audit: Arc<dyn AuditEmitter>,
+        audit_mode: CatalogAuditMode,
+    ) -> Self {
         Self {
-            _repo: repo,
-            _audit: audit,
+            repo,
+            audit,
+            audit_mode,
         }
+    }
+
+    /// Walk `org.system_agents` and return the first entry whose
+    /// `display_name` matches [`AGENT_CATALOG_SYSTEM_AGENT_DISPLAY_NAME`].
+    /// Returns `None` if the org cannot be loaded, has no system
+    /// agents, or none match. Up to 2 lookups in the M5 baseline
+    /// (memory-extractor + agent-catalog).
+    async fn resolve_catalog_system_agent(&self, org_id: OrgId) -> Option<AgentId> {
+        let org = self.repo.get_organization(org_id).await.ok().flatten()?;
+        for sys_agent_id in &org.system_agents {
+            if let Ok(Some(sys_agent)) = self.repo.get_agent(*sys_agent_id).await {
+                if sys_agent.display_name == AGENT_CATALOG_SYSTEM_AGENT_DISPLAY_NAME {
+                    return Some(*sys_agent_id);
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Pull `(agent_id, event_at)` out of any of the 8 subscribed
+/// variants. Returns `None` for `SessionAborted` (documented no-op
+/// per the plan) so the caller can early-return.
+fn agent_id_and_timestamp_for(event: &DomainEvent) -> Option<(AgentId, DateTime<Utc>)> {
+    match event {
+        DomainEvent::AgentCreated { agent_id, at, .. } => Some((*agent_id, *at)),
+        DomainEvent::AgentArchived { agent_id, at, .. } => Some((*agent_id, *at)),
+        DomainEvent::HasProfileEdgeChanged { agent_id, at, .. } => Some((*agent_id, *at)),
+        DomainEvent::HasLeadEdgeCreated { lead, at, .. } => Some((*lead, *at)),
+        DomainEvent::ManagesEdgeCreated { manager, at, .. } => Some((*manager, *at)),
+        DomainEvent::HasAgentSupervisorEdgeCreated { supervisor, at, .. } => {
+            Some((*supervisor, *at))
+        }
+        DomainEvent::SessionStarted {
+            agent_id,
+            started_at,
+            ..
+        } => Some((*agent_id, *started_at)),
+        DomainEvent::SessionEnded {
+            agent_id, ended_at, ..
+        } => Some((*agent_id, *ended_at)),
+        DomainEvent::SessionAborted { .. } => None,
     }
 }
 
 #[async_trait]
 impl EventHandler for AgentCatalogListener {
     async fn on_event(&self, event: &DomainEvent) {
-        // All handled variants are recognised at P3 so the log line
-        // confirms the wiring; the actual catalog upsert ships at P8.
-        match event {
-            DomainEvent::AgentCreated { .. }
-            | DomainEvent::AgentArchived { .. }
-            | DomainEvent::HasProfileEdgeChanged { .. }
-            | DomainEvent::HasLeadEdgeCreated { .. }
-            | DomainEvent::ManagesEdgeCreated { .. }
-            | DomainEvent::HasAgentSupervisorEdgeCreated { .. }
-            | DomainEvent::SessionStarted { .. }
-            | DomainEvent::SessionEnded { .. } => {
-                tracing::debug!(
+        let Some((agent_id, event_at)) = agent_id_and_timestamp_for(event) else {
+            // SessionAborted: documented no-op per CH-22 plan.
+            return;
+        };
+
+        // ADR-0034 D34.5 #1 — consult the durable Agent row via the repo.
+        let agent = match self.repo.get_agent(agent_id).await {
+            Ok(Some(a)) => a,
+            Ok(None) => {
+                tracing::warn!(
+                    agent = %agent_id,
                     event_kind = event.kind(),
                     event_id = %event.event_id(),
-                    "AgentCatalogListener (stub): upsert body ships at M5/P8",
+                    "AgentCatalogListener: agent row missing — skipping catalog upsert",
                 );
+                return;
             }
-            DomainEvent::SessionAborted { .. } => {
-                // Not in the P8 trigger set per the plan.
+            Err(e) => {
+                tracing::error!(
+                    agent = %agent_id,
+                    event_id = %event.event_id(),
+                    error = %e,
+                    "AgentCatalogListener: get_agent failed — skipping catalog upsert",
+                );
+                return;
+            }
+        };
+
+        // The catalog row is org-scoped; orphan agents (no owning_org)
+        // pre-date M3's org-creation invariant and have no place in
+        // the catalog. Log + skip.
+        let Some(org_id) = agent.owning_org else {
+            tracing::warn!(
+                agent = %agent_id,
+                event_id = %event.event_id(),
+                "AgentCatalogListener: agent has no owning_org — skipping catalog upsert",
+            );
+            return;
+        };
+
+        // ADR-0034 D34.5 #2+#3 — archive wins ties.
+        let catalog_active = agent.active && agent.archived_at.is_none();
+
+        // Read existing entry to preserve fields the current event
+        // does not refresh (profile_snapshot, last_seen_at outside
+        // session lifecycle, the row's id).
+        let existing = self
+            .repo
+            .get_agent_catalog_entry(agent_id)
+            .await
+            .ok()
+            .flatten();
+
+        let profile_snapshot = match event {
+            DomainEvent::HasProfileEdgeChanged { .. } => {
+                match self.repo.get_agent_profile_for_agent(agent_id).await {
+                    Ok(Some(profile)) => serde_json::to_value(&profile.blueprint).ok(),
+                    _ => existing.as_ref().and_then(|e| e.profile_snapshot.clone()),
+                }
+            }
+            _ => existing.as_ref().and_then(|e| e.profile_snapshot.clone()),
+        };
+
+        // last_seen_at — refreshed only on session lifecycle; otherwise
+        // preserved (or seeded to event_at on first creation).
+        let last_seen_at = match event {
+            DomainEvent::SessionStarted { .. } | DomainEvent::SessionEnded { .. } => event_at,
+            _ => existing
+                .as_ref()
+                .map(|e| e.last_seen_at)
+                .unwrap_or(event_at),
+        };
+
+        let entry = AgentCatalogEntry {
+            id: existing
+                .as_ref()
+                .map(|e| e.id)
+                .unwrap_or_else(AgentCatalogEntryId::new),
+            agent_id,
+            owning_org: org_id,
+            display_name: agent.display_name.clone(),
+            kind: agent.kind,
+            role: agent.role.map(|r| r.as_str().to_string()),
+            active: catalog_active,
+            profile_snapshot,
+            last_seen_at,
+            updated_at: event_at,
+        };
+
+        if let Err(e) = self.repo.upsert_agent_catalog_entry(&entry).await {
+            tracing::error!(
+                agent = %agent_id,
+                event_id = %event.event_id(),
+                error = %e,
+                "AgentCatalogListener: upsert_agent_catalog_entry failed — catalog stale",
+            );
+            return;
+        }
+
+        // Drift D6.1 second call site — the catalog system agent's
+        // runtime-status tile advances on every fire (whether the
+        // refreshed agent IS the catalog system agent itself or not;
+        // the catalog system agent is the actor of every catalog
+        // refresh).
+        let Some(catalog_sys_agent_id) = self.resolve_catalog_system_agent(org_id).await else {
+            tracing::warn!(
+                org = %org_id,
+                event_id = %event.event_id(),
+                "AgentCatalogListener: catalog system agent unresolvable for org — \
+                 skipping runtime-status tile + audit (catalog upsert succeeded)",
+            );
+            return;
+        };
+
+        let effective_parallelize = self
+            .repo
+            .get_agent_profile_for_agent(catalog_sys_agent_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|p| p.parallelize)
+            .unwrap_or(1);
+
+        record_system_agent_fire(
+            self.repo.as_ref(),
+            org_id,
+            catalog_sys_agent_id,
+            effective_parallelize,
+            None,
+            event_at,
+        )
+        .await;
+
+        if self.audit_mode == CatalogAuditMode::Debug {
+            let audit_event = crate::audit::events::m5::agent_catalog::agent_catalog_refreshed(
+                catalog_sys_agent_id,
+                org_id,
+                agent_id,
+                event.event_id(),
+                event.kind(),
+                event_at,
+            );
+            if let Err(e) = self.audit.emit(audit_event).await {
+                tracing::error!(
+                    agent = %agent_id,
+                    event_id = %event.event_id(),
+                    error = %e,
+                    "AgentCatalogListener: debug-mode audit emit failed",
+                );
             }
         }
     }
@@ -894,36 +1129,600 @@ mod tests {
             .await;
     }
 
-    #[tokio::test]
-    async fn agent_catalog_listener_is_a_noop_at_p3() {
+    // ========================================================================
+    // CH-22 P2 — AgentCatalogListener behavioural tests
+    //
+    // The previous `agent_catalog_listener_is_a_noop_at_p3` test was
+    // deleted: its contract (the listener silently logs on every
+    // variant) no longer holds — the body upserts the catalog row +
+    // advances the runtime-status tile.
+    //
+    // Tests cover:
+    //   - all 8 trigger variants + the SessionAborted no-op
+    //   - ADR-0034 §D34.5 conforming criteria 1-4 (durable read,
+    //     archive-wins-ties, listener read-only on lifecycle)
+    //   - CatalogAuditMode flag (silent default + debug emission)
+    //   - drift D6.1 second call site (runtime-status tile advance)
+    //   - missing-agent + role-index refresh edge cases
+    // ========================================================================
+
+    use crate::audit::AuditClass;
+    use crate::model::nodes::{Agent, AgentKind, AgentProfile, AgentRole, Organization};
+    use crate::model::ConsentPolicy;
+    use chrono::{Duration, TimeZone};
+
+    struct CatalogFixture {
+        repo: Arc<dyn Repository>,
+        audit: Arc<CapturingAudit>,
+        org_id: OrgId,
+        catalog_sys_agent_id: AgentId,
+        subject_agent_id: AgentId,
+    }
+
+    /// Build a 1-org fixture with the catalog system agent registered
+    /// in `org.system_agents` and a Human "subject" agent whose
+    /// catalog row will be exercised by the tests.
+    async fn catalog_fixture() -> CatalogFixture {
         let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
-        let audit: Arc<dyn AuditEmitter> = Arc::new(NoopAuditEmitter);
-        let listener = Arc::new(AgentCatalogListener::new(repo.clone(), audit.clone()));
-        let bus = InProcessEventBus::new();
-        bus.subscribe(listener);
-        // Three of the 8 subscribed variants.
-        bus.emit(DomainEvent::AgentCreated {
-            agent_id: AgentId::new(),
-            owning_org: OrgId::new(),
-            agent_kind: crate::model::nodes::AgentKind::Llm,
-            role: None,
+        let audit = Arc::new(CapturingAudit::default());
+        let now = Utc::now();
+        let org_id = OrgId::new();
+        let catalog_sys_agent_id = AgentId::new();
+        let subject_agent_id = AgentId::new();
+
+        // Catalog system agent — must use the canonical display_name
+        // for the listener's resolver to pick it up.
+        let catalog_sys_agent = Agent {
+            id: catalog_sys_agent_id,
+            kind: AgentKind::Llm,
+            display_name: AGENT_CATALOG_SYSTEM_AGENT_DISPLAY_NAME.to_string(),
+            owning_org: Some(org_id),
+            role: Some(AgentRole::System),
+            created_at: now,
+            active: true,
+            archived_at: None,
+        };
+        repo.create_agent(&catalog_sys_agent).await.unwrap();
+
+        // Subject agent.
+        let subject = Agent {
+            id: subject_agent_id,
+            kind: AgentKind::Human,
+            display_name: "test-subject".to_string(),
+            owning_org: Some(org_id),
+            role: Some(AgentRole::Member),
+            created_at: now,
+            active: true,
+            archived_at: None,
+        };
+        repo.create_agent(&subject).await.unwrap();
+
+        // Org listing the catalog system agent.
+        let org = Organization {
+            id: org_id,
+            display_name: "test-org".to_string(),
+            vision: None,
+            mission: None,
+            consent_policy: ConsentPolicy::Implicit,
+            audit_class_default: AuditClass::Logged,
+            authority_templates_enabled: vec![],
+            defaults_snapshot: None,
+            default_model_provider: None,
+            system_agents: vec![catalog_sys_agent_id],
+            created_at: now,
+        };
+        repo.create_organization(&org).await.unwrap();
+
+        CatalogFixture {
+            repo,
+            audit,
+            org_id,
+            catalog_sys_agent_id,
+            subject_agent_id,
+        }
+    }
+
+    fn make_catalog_listener(
+        f: &CatalogFixture,
+        mode: CatalogAuditMode,
+    ) -> Arc<AgentCatalogListener> {
+        Arc::new(AgentCatalogListener::new(
+            f.repo.clone(),
+            f.audit.clone() as Arc<dyn AuditEmitter>,
+            mode,
+        ))
+    }
+
+    fn agent_created_event(agent_id: AgentId, org: OrgId) -> DomainEvent {
+        DomainEvent::AgentCreated {
+            agent_id,
+            owning_org: org,
+            agent_kind: AgentKind::Human,
+            role: Some(AgentRole::Member),
             at: Utc::now(),
             event_id: AuditEventId::new(),
-        })
-        .await;
-        bus.emit(DomainEvent::AgentArchived {
-            agent_id: AgentId::new(),
+        }
+    }
+
+    fn agent_archived_event(agent_id: AgentId) -> DomainEvent {
+        DomainEvent::AgentArchived {
+            agent_id,
             at: Utc::now(),
             event_id: AuditEventId::new(),
-        })
-        .await;
-        bus.emit(DomainEvent::HasProfileEdgeChanged {
-            agent_id: AgentId::new(),
+        }
+    }
+
+    fn has_profile_changed_event(agent_id: AgentId) -> DomainEvent {
+        DomainEvent::HasProfileEdgeChanged {
+            agent_id,
             old_profile_id: None,
             new_profile_id: crate::model::ids::NodeId::new(),
             at: Utc::now(),
             event_id: AuditEventId::new(),
-        })
-        .await;
+        }
+    }
+
+    fn session_started_event(agent_id: AgentId, started_at: DateTime<Utc>) -> DomainEvent {
+        DomainEvent::SessionStarted {
+            session_id: crate::model::ids::SessionId::new(),
+            agent_id,
+            project_id: ProjectId::new(),
+            started_at,
+            event_id: AuditEventId::new(),
+        }
+    }
+
+    fn session_ended_event(agent_id: AgentId, ended_at: DateTime<Utc>) -> DomainEvent {
+        DomainEvent::SessionEnded {
+            session_id: crate::model::ids::SessionId::new(),
+            agent_id,
+            project_id: ProjectId::new(),
+            ended_at,
+            duration_ms: 0,
+            turn_count: 0,
+            tokens_spent: 0,
+            event_id: AuditEventId::new(),
+        }
+    }
+
+    // ---- (1) AgentCreated upserts a fresh row -----------------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_upserts_row_on_agent_created() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+
+        listener
+            .on_event(&agent_created_event(f.subject_agent_id, f.org_id))
+            .await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row was upserted");
+        assert!(entry.active, "newly-created agent is active");
+        assert_eq!(entry.display_name, "test-subject");
+        assert_eq!(entry.kind, AgentKind::Human);
+        assert_eq!(entry.role.as_deref(), Some("member"));
+        assert_eq!(entry.owning_org, f.org_id);
+    }
+
+    // ---- (2) AgentArchived flips active when the durable column does -----
+
+    #[tokio::test]
+    async fn agent_catalog_listener_flips_active_on_agent_archived() {
+        let f = catalog_fixture().await;
+        // Pre-seed durable lifecycle to mirror the disable+archive
+        // handler's writes (CH-01) — the listener consults these.
+        f.repo
+            .set_agent_active(f.subject_agent_id, false)
+            .await
+            .unwrap();
+        f.repo
+            .set_agent_archived_at(f.subject_agent_id, Some(Utc::now()))
+            .await
+            .unwrap();
+
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        listener
+            .on_event(&agent_archived_event(f.subject_agent_id))
+            .await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row exists");
+        assert!(
+            !entry.active,
+            "archived agent's catalog row reflects active=false"
+        );
+    }
+
+    // ---- (3) Archive wins when active=true but archived_at=Some ----------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_archive_wins_when_active_true_but_archived_at_some() {
+        let f = catalog_fixture().await;
+        // Pre-seed: durable row says active=true but archived_at=Some.
+        // ADR-0034 §D34.5 #3 — archive wins ties.
+        f.repo
+            .set_agent_archived_at(f.subject_agent_id, Some(Utc::now()))
+            .await
+            .unwrap();
+        // Note: set_agent_active intentionally NOT called — the row's
+        // active stays at its CREATE-time value of true.
+
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        listener
+            .on_event(&agent_created_event(f.subject_agent_id, f.org_id))
+            .await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row exists");
+        let durable = f
+            .repo
+            .get_agent(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("subject row exists");
+        assert!(
+            durable.active && durable.archived_at.is_some(),
+            "fixture: durable shows active=true + archived_at=Some",
+        );
+        assert!(
+            !entry.active,
+            "ADR-0034 D34.5 #3: archived_at=Some forces catalog active=false \
+             regardless of agent.active",
+        );
+    }
+
+    // ---- (4) Listener is read-only on agent lifecycle (D34.5 #4) --------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_is_read_only_on_lifecycle() {
+        let f = catalog_fixture().await;
+        // Subject starts active=true + archived_at=None (fixture default).
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+
+        // Emit the AgentArchived signal — the listener must NOT
+        // write back to agent.active or agent.archived_at.
+        listener
+            .on_event(&agent_archived_event(f.subject_agent_id))
+            .await;
+
+        let durable = f
+            .repo
+            .get_agent(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("subject row exists");
+        assert!(
+            durable.active,
+            "ADR-0034 D34.5 #4: listener never writes Agent.active",
+        );
+        assert!(
+            durable.archived_at.is_none(),
+            "ADR-0034 D34.5 #4: listener never writes Agent.archived_at",
+        );
+    }
+
+    // ---- (5) HasProfileEdgeChanged refreshes profile_snapshot ------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_refreshes_profile_snapshot_on_has_profile_edge_changed() {
+        let f = catalog_fixture().await;
+
+        // Seed an AgentProfile so get_agent_profile_for_agent succeeds.
+        let blueprint = phi_core::agents::profile::AgentProfile {
+            name: Some("test-subject-profile".to_string()),
+            system_prompt: Some("you are a test subject".to_string()),
+            ..Default::default()
+        };
+        let profile = AgentProfile {
+            id: crate::model::ids::NodeId::new(),
+            agent_id: f.subject_agent_id,
+            parallelize: 2,
+            blueprint,
+            model_config_id: None,
+            mock_response: None,
+            created_at: Utc::now(),
+        };
+        f.repo.create_agent_profile(&profile).await.unwrap();
+
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        listener
+            .on_event(&has_profile_changed_event(f.subject_agent_id))
+            .await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row exists");
+        let snapshot = entry
+            .profile_snapshot
+            .expect("profile_snapshot populated on HasProfileEdgeChanged");
+        assert_eq!(
+            snapshot.get("system_prompt").and_then(|v| v.as_str()),
+            Some("you are a test subject"),
+            "snapshot carries the refreshed blueprint's system_prompt",
+        );
+    }
+
+    // ---- (6 + 7) Session lifecycle touches last_seen_at -----------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_touches_last_seen_at_on_session_started() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        let t1 = Utc.with_ymd_and_hms(2026, 4, 27, 10, 15, 30).unwrap();
+
+        listener
+            .on_event(&session_started_event(f.subject_agent_id, t1))
+            .await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row exists");
+        assert_eq!(
+            entry.last_seen_at, t1,
+            "SessionStarted bumps last_seen_at to event time",
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_catalog_listener_touches_last_seen_at_on_session_ended() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        let t2 = Utc.with_ymd_and_hms(2026, 4, 27, 11, 30, 0).unwrap();
+
+        listener
+            .on_event(&session_ended_event(f.subject_agent_id, t2))
+            .await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row exists");
+        assert_eq!(
+            entry.last_seen_at, t2,
+            "SessionEnded bumps last_seen_at to event time",
+        );
+    }
+
+    // ---- (8) HasLeadEdgeCreated touches updated_at -----------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_role_index_refresh_on_has_lead_edge_created() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        let event_at = Utc::now();
+        let event = DomainEvent::HasLeadEdgeCreated {
+            project: ProjectId::new(),
+            lead: f.subject_agent_id,
+            at: event_at,
+            event_id: AuditEventId::new(),
+        };
+
+        listener.on_event(&event).await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row touched on HasLeadEdgeCreated");
+        assert_eq!(entry.updated_at, event_at);
+    }
+
+    // ---- (9) ManagesEdgeCreated touches updated_at ------------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_role_index_refresh_on_manages_edge_created() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        let event_at = Utc::now();
+        let event = DomainEvent::ManagesEdgeCreated {
+            org_id: f.org_id,
+            manager: f.subject_agent_id,
+            subordinate: AgentId::new(),
+            at: event_at,
+            event_id: AuditEventId::new(),
+        };
+
+        listener.on_event(&event).await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row touched on ManagesEdgeCreated");
+        assert_eq!(entry.updated_at, event_at);
+    }
+
+    // ---- (10) HasAgentSupervisorEdgeCreated touches updated_at -----------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_role_index_refresh_on_has_agent_supervisor_edge_created() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        let event_at = Utc::now();
+        let event = DomainEvent::HasAgentSupervisorEdgeCreated {
+            project_id: ProjectId::new(),
+            supervisor: f.subject_agent_id,
+            supervisee: AgentId::new(),
+            at: event_at,
+            event_id: AuditEventId::new(),
+        };
+
+        listener.on_event(&event).await;
+
+        let entry = f
+            .repo
+            .get_agent_catalog_entry(f.subject_agent_id)
+            .await
+            .unwrap()
+            .expect("catalog row touched on HasAgentSupervisorEdgeCreated");
+        assert_eq!(entry.updated_at, event_at);
+    }
+
+    // ---- (11) SessionAborted is a documented no-op -----------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_silently_ignores_session_aborted() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Debug);
+
+        let event = DomainEvent::SessionAborted {
+            session_id: crate::model::ids::SessionId::new(),
+            reason: "operator-cancel".to_string(),
+            terminated_by: f.subject_agent_id,
+            at: Utc::now(),
+            event_id: AuditEventId::new(),
+        };
+        listener.on_event(&event).await;
+
+        assert!(
+            f.repo
+                .get_agent_catalog_entry(f.subject_agent_id)
+                .await
+                .unwrap()
+                .is_none(),
+            "SessionAborted does not create a catalog row",
+        );
+        assert!(
+            f.audit.events.lock().unwrap().is_empty(),
+            "SessionAborted does not emit even in debug mode",
+        );
+    }
+
+    // ---- (12) Debug mode emits agent_catalog_refreshed -------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_emits_audit_in_debug_mode() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Debug);
+        let trigger_event = agent_created_event(f.subject_agent_id, f.org_id);
+        let trigger_event_id = trigger_event.event_id();
+
+        listener.on_event(&trigger_event).await;
+
+        let events = f.audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1, "exactly one debug-mode audit emission");
+        let evt = &events[0];
+        assert_eq!(evt.event_type, "agent_catalog_refreshed");
+        assert_eq!(evt.org_scope, Some(f.org_id));
+        assert_eq!(evt.actor_agent_id, Some(f.catalog_sys_agent_id));
+        assert_eq!(
+            evt.diff["after"]["triggering_event_id"]
+                .as_str()
+                .map(str::to_string),
+            Some(trigger_event_id.to_string()),
+        );
+        assert_eq!(
+            evt.diff["after"]["triggering_event_kind"].as_str(),
+            Some("agent_created"),
+        );
+    }
+
+    // ---- (13) Silent default emits nothing -------------------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_silent_in_default_mode() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::default());
+
+        listener
+            .on_event(&agent_created_event(f.subject_agent_id, f.org_id))
+            .await;
+
+        assert!(
+            f.audit.events.lock().unwrap().is_empty(),
+            "Silent mode (default) emits no audit events",
+        );
+        // Catalog row still upserted — silence applies only to the
+        // audit chain, not the catalog mutation.
+        assert!(
+            f.repo
+                .get_agent_catalog_entry(f.subject_agent_id)
+                .await
+                .unwrap()
+                .is_some(),
+            "Silent mode still upserts the catalog row",
+        );
+    }
+
+    // ---- (14) Missing-agent path is warn-and-skip ------------------------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_skips_when_agent_row_missing() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Debug);
+
+        // Emit AgentArchived for an id that doesn't exist in the repo.
+        let phantom = AgentId::new();
+        listener.on_event(&agent_archived_event(phantom)).await;
+
+        assert!(
+            f.repo
+                .get_agent_catalog_entry(phantom)
+                .await
+                .unwrap()
+                .is_none(),
+            "no catalog row created for missing agent",
+        );
+        assert!(
+            f.audit.events.lock().unwrap().is_empty(),
+            "no audit emitted when agent row is missing (warn-and-skip path)",
+        );
+    }
+
+    // ---- (15) Runtime-status tile advances on every fire (D6.1) ----------
+
+    #[tokio::test]
+    async fn agent_catalog_listener_runtime_status_tile_advances_on_fire() {
+        let f = catalog_fixture().await;
+        let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
+        let before = Utc::now() - Duration::seconds(1);
+
+        listener
+            .on_event(&agent_created_event(f.subject_agent_id, f.org_id))
+            .await;
+
+        let tiles = f
+            .repo
+            .fetch_system_agent_runtime_status_for_org(f.org_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            tiles.len(),
+            1,
+            "exactly one runtime-status tile after one fire",
+        );
+        let tile = &tiles[0];
+        assert_eq!(
+            tile.agent_id, f.catalog_sys_agent_id,
+            "tile is keyed on the catalog system agent (D6.1 second call site)",
+        );
+        let last_fired = tile.last_fired_at.expect("last_fired_at populated");
+        assert!(
+            last_fired >= before,
+            "last_fired_at advanced after listener fired",
+        );
     }
 }

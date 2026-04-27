@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use domain::audit::AuditEmitter;
+use domain::events::{DomainEvent, EventBus};
 use domain::model::ids::{AgentId, AuditEventId, OrgId};
 use domain::model::nodes::AgentRole;
 use domain::Repository;
@@ -36,6 +37,7 @@ pub struct ArchiveOutcome {
 pub async fn archive_system_agent(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
+    event_bus: Arc<dyn EventBus>,
     input: ArchiveInput,
 ) -> Result<ArchiveOutcome, SystemAgentError> {
     let agent = repo
@@ -82,6 +84,19 @@ pub async fn archive_system_agent(
         .emit(event)
         .await
         .map_err(|e| SystemAgentError::AuditEmit(e.to_string()))?;
+
+    // CH-22 — emit `AgentArchived` so the catalog listener flips the
+    // catalog row's `active` to false (archived_at = Some triggers
+    // ADR-0034 §D34.5 archive-wins-ties). ADR-0028 fail-safe: emit
+    // after the durable flip + audit so listener faults never
+    // invalidate the persisted state.
+    event_bus
+        .emit(DomainEvent::AgentArchived {
+            agent_id: input.agent_id,
+            at: input.now,
+            event_id: AuditEventId::new(),
+        })
+        .await;
 
     Ok(ArchiveOutcome {
         agent_id: input.agent_id,
