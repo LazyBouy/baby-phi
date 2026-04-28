@@ -1,5 +1,5 @@
-<!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-20 by Claude Code -->
+<!-- Status: § "Node Types — Core Identity" [EXISTS] as of CH-16 (M5.2 / 2026-04-28); other sections still CONCEPTUAL -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-16: Identity row now materialized with 4-field shape — `self_description` / `lived` / `witnessed` / `embedding` — per ADR-0038; § "Node Types — Core Identity" flips from contradicted to honored.) -->
 
 # Ontological Data Model
 

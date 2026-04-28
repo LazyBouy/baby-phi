@@ -163,8 +163,11 @@ pub struct AppState {
 /// - [`TemplateCFireListener`] — M5/P3 (MANAGES → manager grant).
 /// - [`TemplateDFireListener`] — M5/P3 (HAS_AGENT_SUPERVISOR →
 ///   supervisor grant).
-/// - [`MemoryExtractionListener`] — M5/P3 stub (body at M5/P8).
-/// - [`AgentCatalogListener`] — M5/P3 stub (body at M5/P8).
+/// - [`MemoryExtractionListener`] — CH-21 body shipped (heuristic v0;
+///   one Memory + Identity bump + two audits + D6.1 first call site
+///   fire on every non-aborted SessionEnded).
+/// - [`AgentCatalogListener`] — CH-22 body shipped (8-variant catalog
+///   refresh + D6.1 second call site).
 pub fn build_event_bus_with_m5_listeners(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
@@ -197,7 +200,7 @@ pub fn build_event_bus_with_m5_listeners(
         Arc::new(RepoActorResolver::new(repo.clone())),
     )));
 
-    // Memory extraction (M5/P3 stub).
+    // Memory extraction (CH-21 — body shipped; heuristic v0).
     bus.subscribe(Arc::new(MemoryExtractionListener::new(
         repo.clone(),
         audit.clone(),
@@ -266,8 +269,8 @@ mod tests {
         assert_eq!(
             bus.handler_count(),
             5,
-            "M5/P3 + CH-22 wire Template A + C + D + MemoryExtraction (stub) \
-             + AgentCatalog (body) — exactly 5 subscribers",
+            "M5/P3 + CH-21 + CH-22 wire Template A + C + D + \
+             MemoryExtraction (body) + AgentCatalog (body) — exactly 5 subscribers",
         );
     }
 }

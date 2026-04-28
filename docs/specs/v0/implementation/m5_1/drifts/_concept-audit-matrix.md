@@ -48,7 +48,7 @@ testable claim extracted from a concept doc.
 | Roles | Role immutable post-creation | honored | rust-level guard at `update.rs:133-141` rejects `new_role.is_some()` returning `ImmutableFieldChanged("role")`; HTTP wire `UpdateAgentProfileRequest` does not include `role` (silent-drop); pinned by acceptance test `update_rejects_role_change_with_immutable_field_changed` (CH-01 P4) | **D-new-22 (remediated 2026-04-27 via CH-01)** | N/A |
 | Parallelized Sessions | `AgentProfile.parallelize: u32` | honored | `nodes.rs:301` | — | wrap |
 | Participation | HAS_AGENT edge, Project → Agent | honored | `edges.rs:196-198` | — | N/A |
-| Identity (Emergent) | 4-field Identity node (self_description/lived/witnessed/embedding) | contradicted | `nodes.rs:813-818` id-only scaffold | **D-new-01 HIGH** | N/A |
+| Identity (Emergent) | 4-field Identity node (self_description/lived/witnessed/embedding) | honored | CH-16 ships full struct + 4 repo methods + migration 0009 + eager creation in `apply_agent_creation` (ADR-0038) | **D-new-01 HIGH** (remediated) | N/A |
 
 ### `concepts/coordination.md`
 
@@ -62,7 +62,7 @@ testable claim extracted from a concept doc.
 
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
-| No Identity | Human Agents have no system-computed Identity | silent-in-code | No guard preventing `Human → HAS_IDENTITY` edge | D-new-23 | N/A |
+| No Identity | Human Agents have no system-computed Identity | honored | CH-16 BOTH-guards: defensive at `Repository::upsert_identity` + preventive at `apply_agent_creation` (ADR-0039) | D-new-23 (remediated) | N/A |
 | Channel props | channel_id/type/address/status/priority/metadata | partially-honored | `nodes.rs:754-768` has id/agent_id/kind/handle/created_at (missing address/status/priority/metadata) | D-new-24 | N/A |
 | HAS_CHANNEL edge | Human → Channel | honored | `edges.rs:126-130` | — | N/A |
 
@@ -71,7 +71,7 @@ testable claim extracted from a concept doc.
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
 | 37 node types | Exactly 37 NodeKind variants | honored | `nodes.rs:41-136` | — | N/A |
-| Identity ontology | 4-field shape per spec | contradicted | scaffold | D-new-01 | N/A |
+| Identity ontology | 4-field shape per spec | honored | CH-16 ships full struct (ADR-0038 §D38.2) — field names match `agent.md` lines 326-327 verbatim | D-new-01 (remediated) | N/A |
 | InboxObject/OutboxObject | Carry AgentMessage value objects | silent-in-code | minimal (agent_id, created_at) | D-new-25 | N/A |
 | 69 edge types | Per M4/P1 claim | partially-honored | actual count needs recount; docstring claims 69 | D-new-21 | N/A |
 | Grant shape | holder/action/resource/descends_from/delegable | honored | `nodes.rs:597-612` | — | N/A |
@@ -110,9 +110,9 @@ testable claim extracted from a concept doc.
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
 | Two v0 system agents per org | memory-extraction + agent-catalog at org creation | honored | `orgs/create.rs:366-415` | — | wrap |
-| Memory-extraction listener fires on session_end | Body reads transcript, writes memories | partially-honored | listener stub; body at P8 | D4.2 + D6.1 (existing) | direct-reuse (planned) |
+| Memory-extraction listener fires on session_end | Body reads transcript, writes memories | honored at v0 (heuristic body) | CH-21 shipped: `MemoryExtractionListener::on_event` body at [`listeners.rs`](../../../../../../modules/crates/domain/src/events/listeners.rs) mints 1 Memory per non-aborted SessionEnded, derives tags from session, decides `{private,public}` scope, upserts Identity (`witnessed.memories_extracted += 1`), emits `platform.memory.extracted` + `platform.identity.updated` audits, calls `record_system_agent_fire`. LLM-driven supervisor agent body deferred to **M6-DEFERRED-04** per ADR-0040 § Out-of-Scope (4-pool routing + grant enforcement land with the LLM body). | D4.2 (existing) + **D6.1 remediated 2026-04-28 via CH-21** | direct-reuse (deferred to M6) |
 | Agent-catalog listener fires on 8 events | Body upserts catalog rows | honored | CH-22 shipped: `AgentCatalogListener::on_event` body at [`listeners.rs`](../../../../../../modules/crates/domain/src/events/listeners.rs) upserts the catalog row on every trigger variant; `SessionAborted` is a documented no-op. Six production emit sites wired (ADR-0035 D35.5): agents/create + agents/update + system_agents/add + disable + archive + orgs/create. Acceptance test `agent_create_populates_catalog_and_advances_runtime_status_tile` verifies the HTTP path lights up the row. | D4.2 (existing) | N/A |
-| Runtime-status telemetry | queue_depth, last_fired_at populated | partially-honored | CH-22 shipped second call site: `AgentCatalogListener` calls `record_system_agent_fire` on every fire (catalog system agent's tile advances). First call site (memory-extraction listener) ships at CH-21; runtime-status remains empty for memory-extraction's tile until then. Test `agent_catalog_listener_runtime_status_tile_advances_on_fire` pins the second call site. | **D6.1** (in-chunk-plan; CH-22 ✓ + CH-21 pending) | N/A |
+| Runtime-status telemetry | queue_depth, last_fired_at populated | honored | CH-22 + CH-21 shipped both call sites: `AgentCatalogListener` calls `record_system_agent_fire` on every fire (catalog tile advances), and `MemoryExtractionListener` calls it on every non-aborted fire (memory-extractor tile advances). Both system-agent runtime-status tiles are populated. Tests `agent_catalog_listener_runtime_status_tile_advances_on_fire` (CH-22) + `memory_extraction_listener_advances_runtime_status_tile_for_extractor` (CH-21) + acceptance `scenario_3_disabled_extractor_skips_both_extraction_and_telemetry` (CH-21) pin the call sites. | **D6.1 remediated 2026-04-28 via CH-21** | N/A |
 | Disable/archive durable | active:false, archived_at | honored | migration 0007 added `agent.active: bool DEFAULT true` + `agent.archived_at: option<string>`; repo methods `set_agent_active` + `set_agent_archived_at` flip them; system-agent `disable.rs` + `archive.rs` handlers wired (durable write BEFORE audit emit per ADR-0034 D34.4); acceptance tests verify both round-trip via `repo.get_agent` | **D6.5 (remediated 2026-04-27 via CH-01)** | N/A |
 
 ### `concepts/token-economy.md`

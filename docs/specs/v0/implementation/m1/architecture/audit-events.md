@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-20 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-16: adds `platform.identity.created` (Alerted) + `platform.identity.updated` (Logged) audit events; first emitter wired at agents/create.rs + system_agents/add.rs. CH-21: adds `platform.memory.extracted` (Logged) audit event emitted by `MemoryExtractionListener::on_event` body, AND lights the first emitter for `platform.identity.updated` (the listener's `IdentityUpdateTrigger::MemoryExtracted` path). See `m5_2/architecture/memory-extraction-listener.md` + ADR-0040 + ADR-0041.) -->
 
 # Architecture — audit events
 

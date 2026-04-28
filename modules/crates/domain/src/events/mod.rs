@@ -51,7 +51,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::model::ids::{AgentId, AuditEventId, NodeId, OrgId, ProjectId, SessionId};
+use crate::model::ids::{AgentId, AuditEventId, MemoryId, NodeId, OrgId, ProjectId, SessionId};
 use crate::model::nodes::{AgentKind, AgentRole};
 
 pub mod bus;
@@ -62,6 +62,7 @@ pub use listeners::{
     record_system_agent_fire, ActorResolver, AdoptionArResolver, AgentCatalogListener,
     CatalogAuditMode, MemoryExtractionListener, TemplateAFireListener, TemplateCAdoptionArResolver,
     TemplateCFireListener, TemplateDAdoptionArResolver, TemplateDFireListener,
+    MEMORY_EXTRACTION_SYSTEM_AGENT_DISPLAY_NAME,
 };
 
 /// The set of reactive governance events phi emits post-commit.
@@ -186,6 +187,53 @@ pub enum DomainEvent {
         at: DateTime<Utc>,
         event_id: AuditEventId,
     },
+
+    /// CH-16 / ADR-0038 §D38.5 — emitted when an LLM agent's
+    /// [`crate::model::nodes::Identity`] row is reactively updated.
+    /// CH-16 ships the variant + bus-dispatch arms; the first
+    /// production emitter lands at CH-21 (memory-extraction listener
+    /// body) when `MemoryExtracted` triggers a `witnessed` update.
+    /// Future writers (skill-change, rating-received at M6+) plug in
+    /// without touching CH-21's call site.
+    IdentityUpdated {
+        agent_id: AgentId,
+        trigger: IdentityUpdateTrigger,
+        at: DateTime<Utc>,
+        event_id: AuditEventId,
+    },
+
+    /// CH-21 / ADR-0041 §D41.1 — emitted when the
+    /// `MemoryExtractionListener` body extracts a Memory from a
+    /// non-aborted ended session. The variant ships at CH-21 for
+    /// forward-compat; v0 has no consumers (the audit log captures the
+    /// reactive state via `platform.memory.extracted`). Future
+    /// listeners (e.g., a memory-rebalancer in M6+) can subscribe via
+    /// a `Weak<dyn EventBus>` design that breaks the bus-listener Arc
+    /// cycle — out of scope for CH-21 (see ADR-0040 §D40.6).
+    MemoryExtracted {
+        memory_id: MemoryId,
+        session_id: SessionId,
+        owning_agent: AgentId,
+        org_scope: Option<OrgId>,
+        tags: Vec<String>,
+        extracted_at: DateTime<Utc>,
+        event_id: AuditEventId,
+    },
+}
+
+/// CH-16 / ADR-0038 §D38.5 — what triggered the identity update. Keyed
+/// to the four reactive update sources concept-`agent.md` § "Materialization"
+/// enumerates: session end, memory extraction, skill change, rating
+/// received. Listeners can branch on this when a future use case (e.g.
+/// embedding re-derivation, dashboard refresh) wants to react to a
+/// subset of triggers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentityUpdateTrigger {
+    SessionEnded,
+    MemoryExtracted,
+    SkillChanged,
+    RatingReceived,
 }
 
 impl DomainEvent {
@@ -203,6 +251,8 @@ impl DomainEvent {
             DomainEvent::AgentCreated { .. } => "agent_created",
             DomainEvent::AgentArchived { .. } => "agent_archived",
             DomainEvent::HasProfileEdgeChanged { .. } => "has_profile_edge_changed",
+            DomainEvent::IdentityUpdated { .. } => "identity_updated",
+            DomainEvent::MemoryExtracted { .. } => "memory_extracted",
         }
     }
 
@@ -218,7 +268,9 @@ impl DomainEvent {
             | DomainEvent::HasAgentSupervisorEdgeCreated { event_id, .. }
             | DomainEvent::AgentCreated { event_id, .. }
             | DomainEvent::AgentArchived { event_id, .. }
-            | DomainEvent::HasProfileEdgeChanged { event_id, .. } => *event_id,
+            | DomainEvent::HasProfileEdgeChanged { event_id, .. }
+            | DomainEvent::IdentityUpdated { event_id, .. }
+            | DomainEvent::MemoryExtracted { event_id, .. } => *event_id,
         }
     }
 }
@@ -237,7 +289,7 @@ impl EventHandler for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ids::{AuditEventId, NodeId};
+    use crate::model::ids::{AuditEventId, MemoryId, NodeId};
 
     fn roundtrip(evt: &DomainEvent) -> DomainEvent {
         let j = serde_json::to_string(evt).expect("serialize");
@@ -567,6 +619,21 @@ mod tests {
                 at: Utc::now(),
                 event_id: fresh,
             },
+            DomainEvent::IdentityUpdated {
+                agent_id: AgentId::new(),
+                trigger: IdentityUpdateTrigger::SessionEnded,
+                at: Utc::now(),
+                event_id: fresh,
+            },
+            DomainEvent::MemoryExtracted {
+                memory_id: MemoryId::new(),
+                session_id: SessionId::new(),
+                owning_agent: AgentId::new(),
+                org_scope: Some(OrgId::new()),
+                tags: vec![],
+                extracted_at: Utc::now(),
+                event_id: fresh,
+            },
         ];
         for evt in &all {
             assert_eq!(
@@ -575,6 +642,83 @@ mod tests {
                 "event_id accessor mismatch for variant {}",
                 evt.kind()
             );
+        }
+    }
+
+    // ---- CH-16 / ADR-0038 §D38.5 — IdentityUpdated event ------------------
+
+    #[test]
+    fn identity_updated_roundtrips() {
+        let evt = DomainEvent::IdentityUpdated {
+            agent_id: AgentId::new(),
+            trigger: IdentityUpdateTrigger::MemoryExtracted,
+            at: Utc::now(),
+            event_id: AuditEventId::new(),
+        };
+        match roundtrip(&evt) {
+            DomainEvent::IdentityUpdated { trigger, .. } => {
+                assert_eq!(trigger, IdentityUpdateTrigger::MemoryExtracted);
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn identity_updated_kind_is_stable() {
+        let evt = DomainEvent::IdentityUpdated {
+            agent_id: AgentId::new(),
+            trigger: IdentityUpdateTrigger::SkillChanged,
+            at: Utc::now(),
+            event_id: AuditEventId::new(),
+        };
+        assert_eq!(evt.kind(), "identity_updated");
+    }
+
+    // ---- CH-21 / ADR-0041 §D41.1 — MemoryExtracted event ------------------
+
+    fn sample_memory_extracted() -> DomainEvent {
+        DomainEvent::MemoryExtracted {
+            memory_id: MemoryId::new(),
+            session_id: SessionId::new(),
+            owning_agent: AgentId::new(),
+            org_scope: Some(OrgId::new()),
+            tags: vec!["agent:abc".into(), "session:def".into()],
+            extracted_at: Utc::now(),
+            event_id: AuditEventId::new(),
+        }
+    }
+
+    #[test]
+    fn memory_extracted_roundtrips() {
+        let evt = sample_memory_extracted();
+        match roundtrip(&evt) {
+            DomainEvent::MemoryExtracted {
+                tags, org_scope, ..
+            } => {
+                assert_eq!(tags.len(), 2);
+                assert!(tags.iter().any(|t| t.starts_with("agent:")));
+                assert!(org_scope.is_some());
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn memory_extracted_kind_is_stable() {
+        assert_eq!(sample_memory_extracted().kind(), "memory_extracted");
+    }
+
+    #[test]
+    fn identity_update_trigger_serde_round_trip_for_all_variants() {
+        for variant in [
+            IdentityUpdateTrigger::SessionEnded,
+            IdentityUpdateTrigger::MemoryExtracted,
+            IdentityUpdateTrigger::SkillChanged,
+            IdentityUpdateTrigger::RatingReceived,
+        ] {
+            let j = serde_json::to_string(&variant).expect("serialize");
+            let back: IdentityUpdateTrigger = serde_json::from_str(&j).expect("deserialize");
+            assert_eq!(back, variant);
         }
     }
 }

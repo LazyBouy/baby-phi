@@ -422,6 +422,9 @@ async fn seed_unrelated_org_with_project(
             default_grants: vec![],
             initial_execution_limits_override: None,
             catalogue_entries: vec![],
+            // CH-16: other_ceo is Human-kind; concept-`human-agent.md`
+            // §"No Identity" mandates None for Human agents.
+            identity: None,
         })
         .await
         .expect("seed other-org CEO");

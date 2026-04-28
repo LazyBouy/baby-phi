@@ -1,5 +1,5 @@
-<!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Status: §"No Identity" [EXISTS] runtime-enforced as of CH-16 (M5.2 / 2026-04-28); other sections CONCEPTUAL -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-16: §"No Identity" guard now enforced at runtime via BOTH defensive (Repository::upsert_identity) + preventive (apply_agent_creation) per ADR-0039; D-new-23 remediated.) -->
 <!-- CH-01 review (2026-04-27): §"No Identity" claim re-read; remains accurate — Human Agents do not have a system-computed Identity node. The runtime guard preventing identity assignment is deferred to CH-16 (when D-new-01 lands the Identity writers); D-new-23 lifecycle entry confirms scope held at `scoped`. -->
 
 # Human Agent

@@ -1,5 +1,5 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-21 amendment: §"event-driven reactivity / runtime-status telemetry" claim that listener fires advance system-agent runtime-status tiles is now fully honored — both call sites for `record_system_agent_fire` are in production (catalog from CH-22, memory-extractor from CH-21). Drift D6.1 terminally remediated.) -->
 
 # Multi-Agent Coordination
 

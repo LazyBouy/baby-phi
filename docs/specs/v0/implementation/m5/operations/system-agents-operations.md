@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-21 amendment: drift D6.1 terminally remediated — memory-extraction-agent runtime-status tile now advances on every non-aborted SessionEnded; disabling the agent skips BOTH extraction AND telemetry fire per ADR-0040 §D40.3 SKIP-BOTH. For the memory-extraction listener runbook see `m5_2/operations/memory-extraction-operations.md`.) -->
 <!-- CH-01 amendment (2026-04-27): disable / archive flip durable agent-row state — disable-then-bug-out semantics no longer "audit-only". See §"CH-01 amendment" below. -->
 <!-- CH-22 amendment (2026-04-27): new `[listeners.catalog] audit_mode` config + `agent_catalog_refreshed` audit event (Debug mode only). New "catalog row stale" + "runtime-status tile not advancing" playbooks. See §"CH-22 amendment" below. -->
 

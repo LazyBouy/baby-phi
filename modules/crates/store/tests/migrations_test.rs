@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 7, "every embedded migration recorded");
+    assert_eq!(rows.len(), 9, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -58,6 +58,18 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[6].get("slug").and_then(|v| v.as_str()),
         Some("agent_active_archived")
+    );
+    // CH-06 — instance-identity tags rollout (D-new-11 closure).
+    assert_eq!(rows[7].get("version").and_then(|v| v.as_i64()), Some(8));
+    assert_eq!(
+        rows[7].get("slug").and_then(|v| v.as_str()),
+        Some("instance_identity_tags")
+    );
+    // CH-16 — Identity node materialization (D-new-01 + D-new-23 closure).
+    assert_eq!(rows[8].get("version").and_then(|v| v.as_i64()), Some(9));
+    assert_eq!(
+        rows[8].get("slug").and_then(|v| v.as_str()),
+        Some("identity_node")
     );
 
     // A sample table from the initial migration exists and accepts a row

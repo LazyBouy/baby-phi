@@ -83,7 +83,7 @@ fixed.
 | D5.1 | CLI + Web for page 12 deferred from P5 to P7 | MEDIUM | A | permissions/07 | N/A | **remediated** | P7 (historical) | [D5.1.md](D5.1.md) |
 | D5.2 | Template audit events at `server::platform::templates::audit_events` | MEDIUM | B | permissions/02, 07 | N/A | discovered | TBD | [D5.2.md](D5.2.md) |
 | D5.3 | `find_adoption_ar` returns most-recent (not unique) | MEDIUM | B | permissions/02, 07 | N/A | discovered | TBD | [D5.3.md](D5.3.md) |
-| D6.1 | `record_system_agent_fire` helper has zero call sites | **HIGH** | **A** | system-agents; coordination | N/A | in-chunk-plan (CH-22 ✓; CH-21 pending) | CH-21 + CH-22 | [D6.1.md](D6.1.md) |
+| D6.1 | `record_system_agent_fire` helper has zero call sites | **HIGH** | **A** | system-agents; coordination | N/A | **remediated** (CH-21 ✓ + CH-22 ✓) | CH-21 + CH-22 | [D6.1.md](D6.1.md) |
 | D6.2 | CLI + Web for page 13 deferred from P6 to P7 | MEDIUM | A | system-agents | N/A | **remediated** | P7 (historical) | [D6.2.md](D6.2.md) |
 | D6.3 | System-agent bucketing needs 3-way union filter | MEDIUM | B | system-agents | N/A | discovered | TBD | [D6.3.md](D6.3.md) |
 | D6.4 | System-agent audit events at `server::platform::system_agents::audit_events` | LOW | C | system-agents | N/A | discovered | TBD | [D6.4.md](D6.4.md) |
@@ -94,7 +94,7 @@ fixed.
 | D7.4 | Page 11 recent-sessions retrofit is web-side | LOW | B | project | N/A | discovered | TBD | [D7.4.md](D7.4.md) |
 | D7.5 | Web test count unchanged at P7 (no page-component tests) | MEDIUM | B | (test-strategy) | N/A | discovered | M5.2/P9 | [D7.5.md](D7.5.md) |
 | D7.6 | Web pages use hybrid inline `"use server"` pattern | LOW | C | (web-convention) | N/A | discovered | TBD | [D7.6.md](D7.6.md) |
-| D-new-01 | Identity node scaffolded; 4-field shape not materialized | **HIGH** | **A** | agent; ontology | N/A | discovered | TBD | [D-new-01.md](D-new-01.md) |
+| D-new-01 | Identity node scaffolded; 4-field shape not materialized | **HIGH** | **A** | agent; ontology | N/A | remediated | CH-16 | [D-new-01.md](D-new-01.md) |
 | D-new-02 | Storage backend is SurrealDB (not SQLite per concept) | **HIGH** | **A** | coordination | N/A | discovered | TBD | [D-new-02.md](D-new-02.md) |
 | D-new-03 | Selector grammar has 4 variants; PEG tag-predicate DSL absent | **HIGH** | **A** | permissions/05, 09 | N/A | remediated | CH-06 | [D-new-03.md](D-new-03.md) |
 | D-new-04 | Consent node has 5 fields; concept mandates 10+ | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-04.md](D-new-04.md) |
@@ -116,7 +116,7 @@ fixed.
 | D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | discovered | TBD | [D-new-20.md](D-new-20.md) |
 | D-new-21 | Edge-count documentation mismatch | LOW | B | ontology | N/A | discovered | TBD | [D-new-21.md](D-new-21.md) |
 | D-new-22 | Agent role immutability post-creation not enforced | MEDIUM | B | agent | N/A | remediated | CH-01 ✓ | [D-new-22.md](D-new-22.md) |
-| D-new-23 | Human Agents lack Identity-assignment guard | LOW | C | human-agent | N/A | scoped | CH-01 review + CH-16 closure | [D-new-23.md](D-new-23.md) |
+| D-new-23 | Human Agents lack Identity-assignment guard | LOW | C | human-agent | N/A | remediated | CH-16 | [D-new-23.md](D-new-23.md) |
 | D-new-24 | Channel node schema incomplete | LOW | B | human-agent; ontology | N/A | discovered | M7 | [D-new-24.md](D-new-24.md) |
 | D-new-25 | InboxObject/OutboxObject missing AgentMessage embedding | MEDIUM | B | ontology | N/A | discovered | M6+ | [D-new-25.md](D-new-25.md) |
 | D-new-26 | Task node fully scaffolded | LOW | C | project | N/A | discovered | later | [D-new-26.md](D-new-26.md) |

@@ -849,12 +849,130 @@ macro_rules! scaffold_node {
     };
 }
 
-scaffold_node!(
-    /// Emergent self of an LLM Agent. [PLANNED M5] — full field set (self_description,
-    /// lived, witnessed, embedding) lands when memory-extraction wires in.
-    Identity,
-    NodeId
-);
+// ============================================================================
+// Identity — emergent self of an LLM Agent. CH-16 / D-new-01 closure.
+//
+// Materialized per concept-`agent.md` § "Identity (Emergent, Event-Driven)" +
+// § "Identity Node Content — Provisional Direction" — the four-field v0
+// commitment: `self_description` + `lived` + `witnessed` + `embedding`.
+// Updated reactively on session end / memory extraction / skill change /
+// rating received (CH-21 wires the first emitter via the memory-extraction
+// listener body). LLM agents only — Human Agents have no system-computed
+// Identity per concept-`human-agent.md` § "No Identity"; the guard lives
+// in `Repository::upsert_identity` (defensive) + `apply_agent_creation`
+// (preventive) per ADR-0039.
+// ============================================================================
+
+/// Emergent self of an LLM Agent. Materialized at agent creation with the
+/// 4-field v0 commitment shape; reactively updated by future writers
+/// (CH-21 memory-extraction listener; M6 skill/rating events).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Identity {
+    pub id: NodeId,
+    /// Keyed-by; UNIQUE per migration 0009. One row per LLM agent.
+    pub agent_id: AgentId,
+    /// Agent-authored natural-language bio (≤ 500 tokens). Default empty
+    /// at create per concept-`agent.md` line 325 ("Rewritten by the agent
+    /// or by a system-agent synthesiser on session end / skill change /
+    /// rating event"); CH-21 populates via the synthesiser path.
+    #[serde(default)]
+    pub self_description: String,
+    /// Direct-doing metrics. Defaults to zeroed struct at create.
+    #[serde(default)]
+    pub lived: LivedExperience,
+    /// Supervised-doing metrics. Defaults to zeroed struct at create.
+    /// Empty for non-supervisor agents per concept-`agent.md` line 327.
+    #[serde(default)]
+    pub witnessed: WitnessedExperience,
+    /// Vector derived from `self_description`. Empty at create per
+    /// ADR-0038 §D38.3; populated when the embedding provider integrates
+    /// (M6-DEFERRED-03).
+    #[serde(default)]
+    pub embedding: Vec<f32>,
+    pub created_at: DateTime<Utc>,
+    /// Bumped on every reactive update — preserves "incrementally updated"
+    /// semantics from concept-`agent.md` § "Materialization".
+    pub updated_at: DateTime<Utc>,
+}
+
+impl Identity {
+    /// Build a fresh Identity for a newly-created LLM agent. All four
+    /// content fields are zero/empty per ADR-0038 §D38.2; both timestamps
+    /// are set to `now`. Callers MUST verify the owning agent's `kind`
+    /// is `AgentKind::Llm` before calling — the defensive guard at
+    /// `Repository::upsert_identity` is the seatbelt, not the API
+    /// contract.
+    pub fn default_for_llm(agent_id: AgentId, now: DateTime<Utc>) -> Self {
+        Self {
+            id: NodeId::new(),
+            agent_id,
+            self_description: String::new(),
+            lived: LivedExperience::default(),
+            witnessed: WitnessedExperience::default(),
+            embedding: Vec::new(),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
+/// Direct-doing metrics. Field names + types match concept-`agent.md`
+/// line 326 + concept-`ontology.md` line 29 verbatim.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LivedExperience {
+    #[serde(default)]
+    pub sessions_completed: u64,
+    #[serde(default)]
+    pub sessions_successful: u64,
+    /// Last 20 ratings per the rolling window in concept-`token-economy.md`.
+    #[serde(default)]
+    pub ratings_window: Vec<RatingPoint>,
+    #[serde(default)]
+    pub skills: Vec<SkillRef>,
+    /// Top tags by frequency across completed work.
+    #[serde(default)]
+    pub specializations: Vec<String>,
+}
+
+/// Supervised-doing metrics. Field names match concept-`agent.md` line 327.
+/// Empty for non-supervisor agents.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct WitnessedExperience {
+    #[serde(default)]
+    pub memories_extracted: u64,
+    #[serde(default)]
+    pub subordinates_observed: Vec<AgentId>,
+    /// Tracks how many extractions were private vs public (see
+    /// `concepts/permissions/05-memory-sessions.md` § "Memory as
+    /// Resource Class").
+    #[serde(default)]
+    pub extraction_scope_distribution: ExtractionScopeDistribution,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExtractionScopeDistribution {
+    #[serde(default)]
+    pub private: u64,
+    #[serde(default)]
+    pub public: u64,
+}
+
+/// Lightweight rating point — agent-id of rater + score + timestamp.
+/// Full token-economy semantics (rater-weight, decay) deferred to M6+
+/// per concept-`token-economy.md`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RatingPoint {
+    pub rater: AgentId,
+    pub score: f32,
+    pub at: DateTime<Utc>,
+}
+
+/// Reference to a skill the agent currently has. M6 swaps to a typed
+/// `SkillId` once the Skill node lands; v0.1 placeholder is name-only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillRef {
+    pub name: String,
+}
 // ============================================================================
 // Session / LoopRecordNode / TurnNode — 3-way wrap of phi-core's session tier.
 //
@@ -1309,5 +1427,121 @@ mod tests {
             back.mock_response,
             Some("Test fixture response".to_string())
         );
+    }
+
+    // ---- CH-16 / D-new-01 — Identity struct unit tests --------------------
+
+    #[test]
+    fn identity_default_for_llm_zeroes_all_content_fields() {
+        let agent_id = AgentId::new();
+        let now = chrono::Utc::now();
+        let iden = Identity::default_for_llm(agent_id, now);
+        assert_eq!(iden.agent_id, agent_id);
+        assert_eq!(iden.self_description, "");
+        assert_eq!(iden.lived, LivedExperience::default());
+        assert_eq!(iden.witnessed, WitnessedExperience::default());
+        assert!(iden.embedding.is_empty());
+        assert_eq!(iden.created_at, now);
+        assert_eq!(iden.updated_at, now);
+    }
+
+    #[test]
+    fn identity_serde_round_trips() {
+        let iden = Identity::default_for_llm(AgentId::new(), chrono::Utc::now());
+        let j = serde_json::to_string(&iden).expect("serialize");
+        let back: Identity = serde_json::from_str(&j).expect("deserialize");
+        assert_eq!(back, iden);
+    }
+
+    #[test]
+    fn lived_experience_default_is_zeroed() {
+        let lived = LivedExperience::default();
+        assert_eq!(lived.sessions_completed, 0);
+        assert_eq!(lived.sessions_successful, 0);
+        assert!(lived.ratings_window.is_empty());
+        assert!(lived.skills.is_empty());
+        assert!(lived.specializations.is_empty());
+    }
+
+    #[test]
+    fn witnessed_experience_default_is_zeroed() {
+        let w = WitnessedExperience::default();
+        assert_eq!(w.memories_extracted, 0);
+        assert!(w.subordinates_observed.is_empty());
+        assert_eq!(w.extraction_scope_distribution.private, 0);
+        assert_eq!(w.extraction_scope_distribution.public, 0);
+    }
+
+    #[test]
+    fn lived_experience_serde_round_trips_with_populated_values() {
+        let lived = LivedExperience {
+            sessions_completed: 42,
+            sessions_successful: 38,
+            ratings_window: vec![
+                RatingPoint {
+                    rater: AgentId::new(),
+                    score: 0.95,
+                    at: chrono::Utc::now(),
+                },
+                RatingPoint {
+                    rater: AgentId::new(),
+                    score: 0.7,
+                    at: chrono::Utc::now(),
+                },
+            ],
+            skills: vec![SkillRef {
+                name: "rust".into(),
+            }],
+            specializations: vec!["devops".into(), "security".into()],
+        };
+        let j = serde_json::to_string(&lived).expect("serialize");
+        let back: LivedExperience = serde_json::from_str(&j).expect("deserialize");
+        assert_eq!(back, lived);
+    }
+
+    #[test]
+    fn witnessed_experience_serde_round_trips_with_populated_values() {
+        let w = WitnessedExperience {
+            memories_extracted: 17,
+            subordinates_observed: vec![AgentId::new(), AgentId::new()],
+            extraction_scope_distribution: ExtractionScopeDistribution {
+                private: 12,
+                public: 5,
+            },
+        };
+        let j = serde_json::to_string(&w).expect("serialize");
+        let back: WitnessedExperience = serde_json::from_str(&j).expect("deserialize");
+        assert_eq!(back, w);
+    }
+
+    #[test]
+    fn rating_point_serde_round_trips() {
+        let rp = RatingPoint {
+            rater: AgentId::new(),
+            score: 0.875,
+            at: chrono::Utc::now(),
+        };
+        let j = serde_json::to_string(&rp).expect("serialize");
+        let back: RatingPoint = serde_json::from_str(&j).expect("deserialize");
+        assert_eq!(back, rp);
+    }
+
+    #[test]
+    fn identity_pre_ch16_row_with_missing_fields_deserialises() {
+        // Pre-migration rows have only id + agent_id + created_at +
+        // updated_at; the four content fields must default-fill via
+        // serde defaults.
+        let now = chrono::Utc::now();
+        let aid = AgentId::new();
+        let pre_ch16 = serde_json::json!({
+            "id": NodeId::new().to_string(),
+            "agent_id": aid.to_string(),
+            "created_at": now,
+            "updated_at": now,
+        });
+        let iden: Identity = serde_json::from_value(pre_ch16).expect("deserialize pre-CH-16 row");
+        assert_eq!(iden.agent_id, aid);
+        assert_eq!(iden.self_description, "");
+        assert!(iden.embedding.is_empty());
     }
 }

@@ -154,6 +154,12 @@ pub async fn add_system_agent(
         created_at: input.now,
     };
 
+    // CH-16 / ADR-0038 §D38.1 — system agents are LLM-kind by definition;
+    // every system agent gets an Identity row (eager creation in the same
+    // compound tx as the Agent row).
+    let identity = Some(domain::model::nodes::Identity::default_for_llm(
+        agent_id, input.now,
+    ));
     let payload = AgentCreationPayload {
         agent: agent.clone(),
         inbox,
@@ -162,6 +168,7 @@ pub async fn add_system_agent(
         default_grants: vec![],
         initial_execution_limits_override: None,
         catalogue_entries: vec![],
+        identity,
     };
     let _receipt = repo.apply_agent_creation(&payload).await?;
 
@@ -179,6 +186,23 @@ pub async fn add_system_agent(
         .emit(event)
         .await
         .map_err(|e| SystemAgentError::AuditEmit(e.to_string()))?;
+
+    // CH-16 — system agents are LLM-kind by definition, so an Identity
+    // row was always written; emit the matching `platform.identity.created`
+    // audit event after the system-agent-added event.
+    if let Some(ref iden) = payload.identity {
+        let identity_event = domain::audit::events::m5_2::identity::identity_created(
+            input.actor,
+            iden,
+            input.org_id,
+            None,
+            input.now,
+        );
+        audit
+            .emit(identity_event)
+            .await
+            .map_err(|e| SystemAgentError::AuditEmit(e.to_string()))?;
+    }
 
     // CH-22 — emit `AgentCreated` so the catalog listener seeds a
     // catalog row for the new system agent. ADR-0028 fail-safe:

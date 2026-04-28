@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-28 by Claude Code (CH-06: 14 composite/node struct types gain `pub tags: Vec<String>` (#[serde(default)]) per ADR-0037; emission wired at 10+ creation handlers; Memory.tags pre-existed) -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-06: 14 composite/node struct types gain `pub tags: Vec<String>` (#[serde(default)]) per ADR-0037; emission wired at 10+ creation handlers; Memory.tags pre-existed. CH-16: Identity node materialized as 4-field struct (`self_description` / `lived` / `witnessed` / `embedding`) per ADR-0038; `scaffold_node!` line replaced with full struct + LivedExperience + WitnessedExperience + supporting types; migration 0009 adds `identity` table fields with UNIQUE-on-`agent_id` index. CH-21: adds `DomainEvent::MemoryExtracted` variant to the events enum (no schema change — Memory + Identity tables pre-existed); 11 DomainEvent variants total. See ADR-0041.) -->
 
 # Architecture — graph model
 
@@ -103,12 +103,17 @@ Load-bearing (full-field) in M1:
 [`nodes.rs`](../../../../../../modules/crates/domain/src/model/nodes.rs) for the
 full shape of each.
 
-Scaffolded (id-only, for later milestones): Identity (M5), Session/Loop/
-Turn/MessageNode/EventNode (M5), ModelConfig/ToolDefinition/
-ToolImplementation/McpServer/OpenApiSpec/SystemPrompt/EvaluationStrategy
-(M2), Skill (M4), ExecutionLimits/CompactionPolicy/RetryPolicy/CachePolicy
-(M4), Project/Task/Bid (M4), Rating (M5), AgentConfig (M2), PromptBlock
-(M4).
+Scaffolded (id-only, for later milestones): ~~Identity (M5)~~ now
+materialized at CH-16 / M5.2 — see ADR-0038 + concept-`agent.md`
+§"Identity Node Content"; the 4-field struct (`self_description` /
+`lived: LivedExperience` / `witnessed: WitnessedExperience` /
+`embedding: Vec<f32>`) lives in [`nodes.rs`](../../../../../../modules/crates/domain/src/model/nodes.rs)
+behind a `HAS_IDENTITY` edge from each LLM agent. UNIQUE-on-`agent_id`
+per migration 0009. Session/Loop/Turn/MessageNode/EventNode (M5),
+ModelConfig/ToolDefinition/ToolImplementation/McpServer/OpenApiSpec/
+SystemPrompt/EvaluationStrategy (M2), Skill (M4), ExecutionLimits/
+CompactionPolicy/RetryPolicy/CachePolicy (M4), Project/Task/Bid (M4),
+Rating (M5), AgentConfig (M2), PromptBlock (M4).
 
 **`Grant.fundamentals`** (added M2/P4.5 — G19 / D17). The `Grant` node
 carries an explicit `fundamentals: Vec<Fundamental>` field alongside

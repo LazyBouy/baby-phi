@@ -213,6 +213,17 @@ pub async fn create_agent(
 
     let initial_override_id = initial_override.as_ref().map(|o| o.id);
 
+    // CH-16 / ADR-0038 §D38.1 — eager Identity creation for LLM agents.
+    // Human-kind agents do NOT get an Identity row per concept-`human-agent.md`
+    // § "No Identity" + ADR-0039 §D39.2 preventive guard.
+    let identity = if matches!(input.kind, AgentKind::Llm) {
+        Some(domain::model::nodes::Identity::default_for_llm(
+            agent_id, input.now,
+        ))
+    } else {
+        None
+    };
+
     let payload = AgentCreationPayload {
         agent: agent.clone(),
         inbox: inbox.clone(),
@@ -225,6 +236,7 @@ pub async fn create_agent(
             (format!("agent:{}/inbox", agent_id), "control_plane".into()),
             (format!("agent:{}/outbox", agent_id), "control_plane".into()),
         ],
+        identity,
     };
 
     let receipt = repo
@@ -247,6 +259,24 @@ pub async fn create_agent(
         .emit(event)
         .await
         .map_err(|e| AgentError::AuditEmit(e.to_string()))?;
+
+    // CH-16 — emit `platform.identity.created` for LLM agents only.
+    // Pairs 1:1 with the preceding `platform.agent.created` event in
+    // the same hash-chain segment. Skipped for Human-kind agents per
+    // ADR-0039 §D39.2.
+    if let Some(ref identity_row) = payload.identity {
+        let identity_event = domain::audit::events::m5_2::identity::identity_created(
+            input.actor,
+            identity_row,
+            org.id,
+            None,
+            input.now,
+        );
+        audit
+            .emit(identity_event)
+            .await
+            .map_err(|e| AgentError::AuditEmit(e.to_string()))?;
+    }
 
     // CH-22 — emit `AgentCreated` so the agent-catalog listener can
     // populate the catalog row + advance the catalog system agent's

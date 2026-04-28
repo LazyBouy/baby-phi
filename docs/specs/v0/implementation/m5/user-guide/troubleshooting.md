@@ -68,9 +68,33 @@ CH-06 lights up the full PEG tag-predicate DSL on `Selector` (concept-09). When 
 
 For full operational guidance see [m5_2/operations/selector-grammar-operations.md](../../m5_2/operations/selector-grammar-operations.md). For grammar syntax see [m5_2/user-guide/selector-syntax-guide.md](../../m5_2/user-guide/selector-syntax-guide.md).
 
+## CH-16 amendment — Identity errors (2026-04-28)
+
+CH-16 lights up the four-field `Identity` node (concept-`agent.md` § "Identity Node Content"). Two common operator-facing errors land at this surface:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `HumanAgentHasNoIdentity { agent_id }` from a handler | Caller tried to write an Identity for a Human-kind agent. Concept-`human-agent.md` § "No Identity" mandates this rejection. | This is by design. Skip the Identity write for Human kind; the create-time path already does this when `payload.identity` is `None`. If a test fixture or REPL probe hits this, change the call to skip Identity entirely for Human-kind agents. See [concept-`human-agent.md` §"No Identity"](../../../concepts/human-agent.md). |
+| `apply_agent_creation` fails with `Llm-kind agent requires Some(Identity)` | Server orchestrator forgot to build the Identity row for an LLM-kind payload. | Build via `Identity::default_for_llm(agent_id, now)`. Production handlers at `agents/create.rs` + `system_agents/add.rs` already do this; only test fixtures or future custom orchestrators need to mirror the pattern. |
+
+For full operational guidance see [m5_2/operations/identity-operations.md](../../m5_2/operations/identity-operations.md). For the four-field shape + creation timing see [m5_2/user-guide/identity-overview.md](../../m5_2/user-guide/identity-overview.md).
+
+## CH-21 amendment — Memory-extraction errors (2026-04-28)
+
+CH-21 ships the heuristic memory-extraction listener body (concept-`system-agents.md` § "Memory Extraction Agent"; ADR-0040). Two common operator-facing situations land at this surface:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Extraction not firing — sessions end but no `Memory` rows appear and `Identity.witnessed.memories_extracted` stays at 0 | The org's `memory-extraction-agent` system agent is `active = false` or `archived_at` is populated; per ADR-0040 §D40.3 SKIP-BOTH the listener short-circuits before minting a Memory or firing telemetry. | Re-enable the system agent via `POST /platform/system_agents/{id}/enable` (CH-01 surface). Past sessions that ended while disabled are NOT replayed — extraction is forward-only at v0. See [m5_2/operations/memory-extraction-operations.md](../../m5_2/operations/memory-extraction-operations.md) §"Operator-disabled extractor". |
+| Identity counter is stale relative to the Memory rows that exist | `Repository::upsert_identity` errored after `create_memory` succeeded — fail-safe semantics (ADR-0028) leave the Memory durable while the Identity counter has a 1-event gap. | The next successful extraction self-heals (the counter is incremental, not derived). To force-resync, an operator-driven recompute path is M6 / future-CH work (see successor M6-DEFERRED-04). Forensic context: structured logs carry the `event_id` of the failing fire. |
+
+For full operational guidance see [m5_2/operations/memory-extraction-operations.md](../../m5_2/operations/memory-extraction-operations.md). For the v0 heuristic body + what M6 LLM upgrade adds, see [m5_2/user-guide/memory-extraction-overview.md](../../m5_2/user-guide/memory-extraction-overview.md).
+
 ## Cross-references
 
 - [Top-level runbook §M5](../../../../../../docs/ops/runbook.md) — operator-facing aggregated index (appended at P9).
 - [M4 troubleshooting](../../m4/user-guide/troubleshooting.md) — inherited codes + cross-org isolation invariants.
 - [M5 plan §P9 deliverables](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
 - [M5.2 selector-grammar-operations](../../m5_2/operations/selector-grammar-operations.md) — CH-06 selector parse error runbook.
+- [M5.2 identity-operations](../../m5_2/operations/identity-operations.md) — CH-16 Identity row runbook.
+- [M5.2 memory-extraction-operations](../../m5_2/operations/memory-extraction-operations.md) — CH-21 memory-extraction listener runbook.

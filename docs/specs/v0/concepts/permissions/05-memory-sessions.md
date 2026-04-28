@@ -1,5 +1,5 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-21 amendment: §"Supervisor Extraction as Two Standard Grants" preserved silent-in-code at v0 — the heuristic listener (CH-21 / ADR-0040) bypasses grant enforcement and writes Memory rows via direct `Repository::create_memory` calls. Permission-checked extraction lands with the LLM-driven supervisor body in **M6-DEFERRED-04** per ADR-0040 §D40.4.) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 
 

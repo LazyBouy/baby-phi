@@ -70,6 +70,21 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "agent_active_archived",
         sql: include_str!("../migrations/0007_agent_active_archived.surql"),
     },
+    // CH-06 — instance identity tags rollout (D-new-11 closure).
+    // Adds `tags ARRAY<string> DEFAULT []` to 10 SurrealDB tables.
+    Migration {
+        version: 8,
+        slug: "instance_identity_tags",
+        sql: include_str!("../migrations/0008_instance_identity_tags.surql"),
+    },
+    // CH-16 — Identity node materialization (D-new-01 + D-new-23 closure).
+    // Adds the `identity` table with the four-field v0 commitment shape
+    // + UNIQUE-on-`agent_id` index.
+    Migration {
+        version: 9,
+        slug: "identity_node",
+        sql: include_str!("../migrations/0009_identity_node.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

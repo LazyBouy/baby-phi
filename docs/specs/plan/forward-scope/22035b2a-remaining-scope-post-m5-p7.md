@@ -239,6 +239,17 @@ Scope markers for drifts explicitly deferred past M5 close. Each maps to its tar
 - Cross-ref: base plan M6 "agent self-service surfaces".
 - Target: M6.
 
+### M6-DEFERRED-03 — Identity embedding provider integration
+- Drifts: covered by ADR-0038 §D38.3 deferral block (no separate drift file — surfaced via concept-`agent.md` § "Scoping the embedding model" silent-in-code rows).
+- Cross-ref: CH-16 / ADR-0038 §D38.3; concept-`agent.md` § "Scoping the embedding model" + "Model change is an admin event".
+- Target: M6 — populate `Identity.embedding` via a platform-bootstrap embedding model + re-embed batch path.
+
+### M6-DEFERRED-04 — Memory-extraction LLM supervisor body
+- Drifts: covered by ADR-0040 §D40.7 Out-of-Scope block (no separate drift file — surfaced via concept-`system-agents.md` §"Memory Extraction Agent — Behaviour 2/3/4" + concept-`permissions/05-memory-sessions.md` §"Supervisor Extraction" silent-in-code rows; CH-21 ships heuristic v0).
+- Cross-ref: CH-21 / ADR-0040; concept-`system-agents.md` § Memory Extraction Agent (Behaviour + Grants + Allocation Rules); concept-`permissions/05-memory-sessions.md` § Supervisor Extraction; ADR-0041 (audit class for the events the LLM body will continue to emit).
+- Prerequisite chain from M5.2: **CH-21** (heuristic listener body + storage substrate + audit chain) lands at M5.2; LLM upgrade replaces the heuristic body without changing the substrate.
+- Target: M6 — full LLM-driven supervisor agent loop (run `agent_loop` against the session transcript, identify candidates with judgment, route each memory to the correct pool per `Allocation Rules`, write via `store_memory` tool with grant enforcement, multi-memory-per-session emission, supervisor-as-actor pattern per ADR-0040 §D40.5).
+
 ### M6-or-M7-DEFERRED — Token economy fields + Worth formula
 - Drifts: **D-new-27** (rating_window, total_tokens_earned/consumed, Worth).
 - Target: whichever milestone introduces contracts/bidding.

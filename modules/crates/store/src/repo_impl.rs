@@ -24,8 +24,8 @@ use uuid::Uuid;
 
 use domain::audit::{AuditClass, AuditEvent};
 use domain::model::ids::{
-    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, LoopId, NodeId, OrgId, ProjectId,
-    SessionId, TurnNodeId, UserId,
+    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, LoopId, MemoryId, NodeId, OrgId,
+    ProjectId, SessionId, TurnNodeId, UserId,
 };
 use domain::model::nodes::{
     Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
@@ -599,6 +599,32 @@ impl Repository for SurrealStore {
             .check()
             .map_err(backend)?;
         Ok(())
+    }
+
+    async fn list_memories_for_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Memory>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM memory \
+                 WHERE owning_agent = $agent \
+                 ORDER BY created_at DESC",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("memory missing _rid".into()))?;
+            let mid = MemoryId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, mid)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
     }
 
     async fn create_consent(&self, consent: &Consent) -> RepositoryResult<()> {
@@ -2140,6 +2166,29 @@ impl Repository for SurrealStore {
                 )));
             }
         }
+        // CH-16 / ADR-0039 §D39.2 — preventive Human-Agent Identity guard.
+        match (payload.agent.kind, &payload.identity) {
+            (domain::model::nodes::AgentKind::Human, Some(_)) => {
+                return Err(RepositoryError::HumanAgentHasNoIdentity {
+                    agent_id: payload.agent.id,
+                });
+            }
+            (domain::model::nodes::AgentKind::Llm, None) => {
+                return Err(RepositoryError::InvalidArgument(
+                    "Llm-kind agent requires Some(Identity); orchestrator must \
+                     build via Identity::default_for_llm"
+                        .into(),
+                ));
+            }
+            _ => {}
+        }
+        if let Some(ref iden) = payload.identity {
+            if iden.agent_id != payload.agent.id {
+                return Err(RepositoryError::InvalidArgument(
+                    "identity.agent_id must match payload.agent.id".into(),
+                ));
+            }
+        }
 
         let agent_body = strip_id(serde_json::to_value(&payload.agent).map_err(backend)?);
         let inbox_body = strip_id(serde_json::to_value(&payload.inbox).map_err(backend)?);
@@ -2155,6 +2204,10 @@ impl Repository for SurrealStore {
         }
         let override_body = match payload.initial_execution_limits_override.as_ref() {
             Some(ovr) => Some(strip_id(serde_json::to_value(ovr).map_err(backend)?)),
+            None => None,
+        };
+        let identity_body = match payload.identity.as_ref() {
+            Some(iden) => Some(strip_id(serde_json::to_value(iden).map_err(backend)?)),
             None => None,
         };
 
@@ -2188,6 +2241,15 @@ impl Repository for SurrealStore {
             q.push_str(
                 "CREATE type::thing('agent_execution_limits', $ovr_id) \
                  CONTENT $ovr_body RETURN NONE;\n",
+            );
+        }
+        if payload.identity.is_some() {
+            // CH-16 — Identity row insertion. Compound-tx atomic with the
+            // owning Agent. SurrealQL-side guard not needed here because
+            // the Rust-side guard above already rejects Human-with-Some;
+            // direct callers of `upsert_identity` get the SurrealQL guard.
+            q.push_str(
+                "CREATE type::thing('identity', $iden_id) CONTENT $iden_body RETURN NONE;\n",
             );
         }
         for i in 0..payload.default_grants.len() {
@@ -2237,6 +2299,12 @@ impl Repository for SurrealStore {
                 .bind(("ovr_id", oid.to_string()))
                 .bind(("ovr_body", ob));
         }
+        if let Some(ib) = identity_body {
+            let iid = payload.identity.as_ref().unwrap().id;
+            binder = binder
+                .bind(("iden_id", iid.to_string()))
+                .bind(("iden_body", ib));
+        }
         for (i, (g, body)) in payload
             .default_grants
             .iter()
@@ -2266,6 +2334,7 @@ impl Repository for SurrealStore {
                 .initial_execution_limits_override
                 .as_ref()
                 .map(|o| o.id),
+            identity_id: payload.identity.as_ref().map(|i| i.id),
         })
     }
 
@@ -2678,6 +2747,129 @@ impl Repository for SurrealStore {
             .check()
             .map_err(backend)?;
         Ok(())
+    }
+
+    // ---- Identity (CH-16 / D-new-01 + D-new-23) ----------------------
+
+    async fn upsert_identity(
+        &self,
+        identity: &domain::model::nodes::Identity,
+    ) -> RepositoryResult<()> {
+        // Defensive Human-Agent guard (ADR-0039 §D39.1) — read kind first
+        // so direct callers (test fixtures, REPL probes, future scripts)
+        // are also rejected for Human kind. The compound-tx path through
+        // `apply_agent_creation` already pre-flighted; this guard is the
+        // catch-all for everyone else.
+        let mut resp = self
+            .client()
+            .query("SELECT kind FROM type::thing('agent', $aid) LIMIT 1")
+            .bind(("aid", identity.agent_id.to_string()))
+            .await
+            .map_err(backend)?;
+        let Some(row): Option<serde_json::Value> = take_first_row(&mut resp, 0).await? else {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "upsert_identity: agent not found: {}",
+                identity.agent_id
+            )));
+        };
+        let kind = row
+            .get("kind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if kind == "human" {
+            return Err(RepositoryError::HumanAgentHasNoIdentity {
+                agent_id: identity.agent_id,
+            });
+        }
+
+        let body = strip_id(serde_json::to_value(identity).map_err(backend)?);
+        self.client()
+            .query(
+                "BEGIN TRANSACTION; \
+                 DELETE identity WHERE agent_id = $agent AND id != type::thing('identity', $id); \
+                 UPSERT type::thing('identity', $id) CONTENT $body RETURN NONE; \
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("agent", identity.agent_id.to_string()))
+            .bind(("id", identity.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn get_identity(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Option<domain::model::nodes::Identity>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM identity \
+                 WHERE agent_id = $aid LIMIT 1",
+            )
+            .bind(("aid", agent_id.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| RepositoryError::Backend("identity missing _rid".into()))?;
+        let nid = NodeId::from_uuid(parse_uuid(&rid)?);
+        let hydrated = inject_id(row, nid)?;
+        Ok(Some(serde_json::from_value(hydrated).map_err(backend)?))
+    }
+
+    async fn delete_identity(&self, agent_id: AgentId) -> RepositoryResult<()> {
+        self.client()
+            .query("DELETE identity WHERE agent_id = $aid")
+            .bind(("aid", agent_id.to_string()))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn list_identities_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<domain::model::nodes::Identity>> {
+        // Join through the agent table on owning_org. Identity has no
+        // owning_org column itself — it's keyed-by `agent_id` and the
+        // org membership is derived from `Agent.owning_org`.
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM identity \
+                 WHERE agent_id IN (SELECT VALUE record::id(id) FROM agent \
+                                    WHERE owning_org = $org) \
+                 ORDER BY agent_id",
+            )
+            .bind(("org", org.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let rid = row
+                .as_object()
+                .and_then(|m| m.get("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("identity missing _rid".into()))?;
+            let nid = NodeId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, nid)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
     }
 
     async fn upsert_agent_catalog_entry(&self, entry: &AgentCatalogEntry) -> RepositoryResult<()> {

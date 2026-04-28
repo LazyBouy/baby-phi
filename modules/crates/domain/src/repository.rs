@@ -50,6 +50,13 @@ pub enum RepositoryError {
     Conflict(String),
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
+    /// CH-16 / D-new-23 — defensive guard. Concept-`human-agent.md`
+    /// § "No Identity" mandates that Human Agents do not have a
+    /// system-computed Identity node; this variant fires when a caller
+    /// (production handler, test fixture, REPL probe) tries to write
+    /// one anyway.
+    #[error("Human Agent {agent_id} cannot have a system-computed Identity")]
+    HumanAgentHasNoIdentity { agent_id: AgentId },
 }
 
 pub type RepositoryResult<T> = Result<T, RepositoryError>;
@@ -319,6 +326,13 @@ pub struct AgentCreationPayload {
     /// Catalogue seeds (e.g. the new inbox/outbox URIs under the
     /// owning org).
     pub catalogue_entries: Vec<(String, String)>,
+    /// CH-16 / ADR-0038 §D38.1 — Identity row for LLM agents only.
+    /// Server orchestrator builds this via `Identity::default_for_llm`
+    /// for `AgentKind::Llm`; MUST be `None` for `AgentKind::Human`
+    /// (preventive guard at the call site; defensive guard inside
+    /// `apply_agent_creation` rejects `Some(_)` for Human kind with
+    /// `RepositoryError::HumanAgentHasNoIdentity`).
+    pub identity: Option<crate::model::nodes::Identity>,
 }
 
 /// Ids the caller needs after a successful
@@ -332,6 +346,9 @@ pub struct AgentCreationReceipt {
     pub profile_id: Option<NodeId>,
     pub default_grant_ids: Vec<GrantId>,
     pub execution_limits_override_id: Option<NodeId>,
+    /// CH-16 — populated when `payload.identity.is_some()` (i.e. for
+    /// LLM-kind agents). `None` for Human-kind agents per ADR-0039.
+    pub identity_id: Option<NodeId>,
 }
 
 // ----------------------------------------------------------------------------
@@ -407,6 +424,12 @@ pub trait Repository: Send + Sync + 'static {
     async fn create_outbox(&self, outbox: &OutboxObject) -> RepositoryResult<()>;
 
     async fn create_memory(&self, memory: &Memory) -> RepositoryResult<()>;
+
+    /// CH-21 — list every Memory whose `owning_agent` matches the
+    /// supplied id. Newest-first by `created_at`. Used by the
+    /// memory-extraction acceptance tests + future operator surfaces
+    /// to inspect what an agent's reactive extraction has produced.
+    async fn list_memories_for_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Memory>>;
 
     async fn create_consent(&self, consent: &Consent) -> RepositoryResult<()>;
 
@@ -1181,6 +1204,51 @@ pub trait Repository: Send + Sync + 'static {
     /// materialises the project. No-op on a missing row (sidecar
     /// already deleted → idempotent).
     async fn delete_shape_b_pending(&self, auth_request: AuthRequestId) -> RepositoryResult<()>;
+
+    // ---- Identity (CH-16 / ADR-0038 / D-new-01) --------------------------
+
+    /// Upsert an [`Identity`] row — keyed by `agent_id` (UNIQUE per
+    /// migration 0009). Called from `apply_agent_creation` for LLM
+    /// agents at creation time (eager) and from CH-21's memory-extraction
+    /// listener body at every reactive update.
+    ///
+    /// ## Defensive Human-Agent guard (D-new-23 / ADR-0039 §D39.1)
+    ///
+    /// If the resolved `Agent.kind` for `identity.agent_id` is
+    /// [`AgentKind::Human`](crate::model::nodes::AgentKind::Human),
+    /// returns [`RepositoryError::HumanAgentHasNoIdentity`]. This is
+    /// the **load-bearing guard** — fails closed for every caller
+    /// (production handlers, test fixtures, REPL probes). The
+    /// preventive guard at `apply_agent_creation` is the
+    /// closer-to-the-operator companion; both layers honor concept-`human-agent.md`
+    /// § "No Identity".
+    async fn upsert_identity(
+        &self,
+        identity: &crate::model::nodes::Identity,
+    ) -> RepositoryResult<()>;
+
+    /// Get the [`Identity`] for an agent. Returns [`None`] when the
+    /// agent has no row yet (Human-kind agents per ADR-0039; or LLM
+    /// agents whose identity row was operator-deleted via
+    /// [`Repository::delete_identity`]).
+    async fn get_identity(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Option<crate::model::nodes::Identity>>;
+
+    /// Delete the [`Identity`] for an agent. Operator-driven cleanup
+    /// only — `AgentArchived` does NOT call this (ADR-0038 §D38.6
+    /// LEAVE QUERYABLE on archive policy).
+    async fn delete_identity(&self, agent_id: AgentId) -> RepositoryResult<()>;
+
+    /// List every [`Identity`] for `org`. Powers M6 hiring/evaluation
+    /// queries; only LLM-kind agent identities appear.
+    async fn list_identities_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<crate::model::nodes::Identity>>;
+
+    // ---- Agent catalogue (M5 / s03) --------------------------------------
 
     /// Upsert an [`AgentCatalogEntry`] — the s03 catalogue cache
     /// row. Keyed by `agent_id` (UNIQUE per migration 0005's

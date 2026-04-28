@@ -432,6 +432,10 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
             default_grants: vec![],
             initial_execution_limits_override: None,
             catalogue_entries: vec![],
+            identity: Some(domain::model::nodes::Identity::default_for_llm(
+                lead_agent.id,
+                now,
+            )),
         })
         .await
         .expect("spawn_claimed_with_org_and_project: create lead agent");
@@ -470,6 +474,10 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
             default_grants: vec![],
             initial_execution_limits_override: None,
             catalogue_entries: vec![],
+            identity: Some(domain::model::nodes::Identity::default_for_llm(
+                member_agent.id,
+                now,
+            )),
         })
         .await
         .expect("spawn_claimed_with_org_and_project: create member agent");

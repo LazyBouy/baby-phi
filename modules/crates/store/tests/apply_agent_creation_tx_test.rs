@@ -12,7 +12,9 @@ use chrono::Utc;
 use domain::audit::AuditClass;
 use domain::model::composites_m3::ConsentPolicy;
 use domain::model::ids::{AgentId, NodeId, OrgId};
-use domain::model::nodes::{Agent, AgentKind, AgentRole, InboxObject, Organization, OutboxObject};
+use domain::model::nodes::{
+    Agent, AgentKind, AgentRole, Identity, InboxObject, Organization, OutboxObject,
+};
 use domain::model::AgentExecutionLimitsOverride;
 use domain::repository::{AgentCreationPayload, Repository, RepositoryError};
 use store::SurrealStore;
@@ -93,6 +95,7 @@ async fn happy_path_agent_plus_inbox_outbox_plus_edges() {
             default_grants: vec![],
             initial_execution_limits_override: None,
             catalogue_entries: vec![],
+            identity: Some(Identity::default_for_llm(agent_id, Utc::now())),
         })
         .await
         .expect("apply_agent_creation ok");
@@ -140,6 +143,7 @@ async fn happy_path_with_initial_execution_limits_override() {
             default_grants: vec![],
             initial_execution_limits_override: Some(ovr),
             catalogue_entries: vec![],
+            identity: Some(Identity::default_for_llm(agent_id, Utc::now())),
         })
         .await
         .expect("apply_agent_creation with override");
@@ -183,6 +187,7 @@ async fn role_kind_mismatch_is_rejected_before_open_tx() {
             default_grants: vec![],
             initial_execution_limits_override: None,
             catalogue_entries: vec![],
+            identity: Some(Identity::default_for_llm(agent_id, Utc::now())),
         })
         .await;
     assert!(matches!(bad, Err(RepositoryError::InvalidArgument(_))));
@@ -220,6 +225,7 @@ async fn agent_without_owning_org_is_rejected() {
             default_grants: vec![],
             initial_execution_limits_override: None,
             catalogue_entries: vec![],
+            identity: Some(Identity::default_for_llm(agent_id, Utc::now())),
         })
         .await;
     assert!(matches!(bad, Err(RepositoryError::InvalidArgument(_))));

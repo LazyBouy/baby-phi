@@ -109,6 +109,10 @@ struct State {
     /// System-agent runtime-status tiles (page 13 live feed).
     /// UNIQUE per `agent_id` per migration 0005.
     system_agent_runtime_status: HashMap<AgentId, SystemAgentRuntimeStatus>,
+    /// CH-16 / migration 0009 — Identity rows for LLM agents only.
+    /// UNIQUE on `agent_id`. Defensive Human-Agent guard at
+    /// `Repository::upsert_identity` rejects writes for Human kind.
+    identities: HashMap<AgentId, crate::model::nodes::Identity>,
 }
 
 #[derive(Clone)]
@@ -350,6 +354,24 @@ impl Repository for InMemoryRepository {
     async fn create_memory(&self, memory: &Memory) -> RepositoryResult<()> {
         self.lock()?.memories.insert(memory.id, memory.clone());
         Ok(())
+    }
+
+    async fn list_memories_for_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Memory>> {
+        let s = self.lock()?;
+        let mut out: Vec<Memory> = s
+            .memories
+            .values()
+            .filter(|m| m.owning_agent == agent)
+            .cloned()
+            .collect();
+        // Newest-first by created_at, with id as a deterministic
+        // tie-breaker so test assertions are stable.
+        out.sort_by(|a, b| {
+            b.created_at
+                .cmp(&a.created_at)
+                .then_with(|| a.id.to_string().cmp(&b.id.to_string()))
+        });
+        Ok(out)
     }
 
     async fn create_consent(&self, consent: &Consent) -> RepositoryResult<()> {
@@ -1495,6 +1517,30 @@ impl Repository for InMemoryRepository {
                 ));
             }
         }
+        // CH-16 / ADR-0039 §D39.2 — preventive Human-Agent Identity guard.
+        // Human-kind with `Some(_)` rejects with the typed error; LLM-kind
+        // with `None` rejects too (server orchestrator must build the row
+        // for LLM agents per ADR-0038 §D38.1 EAGER timing).
+        match (payload.agent.kind, &payload.identity) {
+            (crate::model::nodes::AgentKind::Human, Some(_)) => {
+                return Err(RepositoryError::HumanAgentHasNoIdentity { agent_id: aid });
+            }
+            (crate::model::nodes::AgentKind::Llm, None) => {
+                return Err(RepositoryError::InvalidArgument(
+                    "Llm-kind agent requires Some(Identity); orchestrator must \
+                     build via Identity::default_for_llm"
+                        .into(),
+                ));
+            }
+            _ => {}
+        }
+        if let Some(ref iden) = payload.identity {
+            if iden.agent_id != aid {
+                return Err(RepositoryError::InvalidArgument(
+                    "identity.agent_id must match payload.agent.id".into(),
+                ));
+            }
+        }
 
         // ---- commit --------------------------------------------
         state.agents.insert(aid, payload.agent.clone());
@@ -1521,6 +1567,13 @@ impl Repository for InMemoryRepository {
                     state.agent_execution_limits.insert(aid, ovr.clone());
                     ovr.id
                 });
+        // CH-16 — Identity row insertion. The pre-flight match above
+        // already ruled out the Human-with-Some and Llm-with-None
+        // failure modes; here we just commit when present.
+        let identity_id = payload.identity.as_ref().map(|iden| {
+            state.identities.insert(aid, iden.clone());
+            iden.id
+        });
         for (uri, kind) in &payload.catalogue_entries {
             state
                 .catalogue
@@ -1535,6 +1588,7 @@ impl Repository for InMemoryRepository {
             profile_id,
             default_grant_ids,
             execution_limits_override_id,
+            identity_id,
         })
     }
 
@@ -1746,6 +1800,66 @@ impl Repository for InMemoryRepository {
         let mut s = self.lock()?;
         s.shape_b_pending_projects.remove(&auth_request);
         Ok(())
+    }
+
+    // ---- Identity (CH-16 / D-new-01 + D-new-23) ----------------------
+
+    async fn upsert_identity(
+        &self,
+        identity: &crate::model::nodes::Identity,
+    ) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        // Defensive Human-Agent guard (ADR-0039 §D39.1). Reads `Agent.kind`
+        // directly from the in-memory map; if the agent doesn't exist yet
+        // we still reject (the writer must wait for the agent row).
+        let agent = s.agents.get(&identity.agent_id).ok_or_else(|| {
+            RepositoryError::InvalidArgument(format!(
+                "upsert_identity: agent not found: {}",
+                identity.agent_id
+            ))
+        })?;
+        if matches!(agent.kind, crate::model::nodes::AgentKind::Human) {
+            return Err(RepositoryError::HumanAgentHasNoIdentity {
+                agent_id: identity.agent_id,
+            });
+        }
+        s.identities.insert(identity.agent_id, identity.clone());
+        Ok(())
+    }
+
+    async fn get_identity(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Option<crate::model::nodes::Identity>> {
+        let s = self.lock()?;
+        Ok(s.identities.get(&agent_id).cloned())
+    }
+
+    async fn delete_identity(&self, agent_id: AgentId) -> RepositoryResult<()> {
+        let mut s = self.lock()?;
+        s.identities.remove(&agent_id);
+        Ok(())
+    }
+
+    async fn list_identities_for_org(
+        &self,
+        org: OrgId,
+    ) -> RepositoryResult<Vec<crate::model::nodes::Identity>> {
+        let s = self.lock()?;
+        let mut out: Vec<crate::model::nodes::Identity> = s
+            .identities
+            .values()
+            .filter(|iden| {
+                s.agents
+                    .get(&iden.agent_id)
+                    .and_then(|a| a.owning_org)
+                    .map(|o| o == org)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|iden| iden.agent_id);
+        Ok(out)
     }
 
     async fn upsert_agent_catalog_entry(&self, entry: &AgentCatalogEntry) -> RepositoryResult<()> {
