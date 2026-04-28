@@ -235,17 +235,30 @@ pub async fn update_agent_profile(
             (ExecutionLimitsSource::Inherit, changed)
         }
         ExecutionLimitsPatch::Set(new_limits) => {
+            let id = current_override
+                .as_ref()
+                .map(|c| c.id)
+                .unwrap_or_else(NodeId::new);
+            let tags = current_override
+                .as_ref()
+                .filter(|c| !c.tags.is_empty())
+                .map(|c| c.tags.clone())
+                .unwrap_or_else(|| {
+                    domain::model::composites::auto_tags_for(
+                        "agent_execution_limits_override",
+                        &id.to_string(),
+                    )
+                    .to_vec()
+                });
             let row = AgentExecutionLimitsOverride {
-                id: current_override
-                    .as_ref()
-                    .map(|c| c.id)
-                    .unwrap_or_else(NodeId::new),
+                id,
                 owning_agent: agent_id,
                 limits: new_limits.clone(),
                 created_at: current_override
                     .as_ref()
                     .map(|c| c.created_at)
                     .unwrap_or(patch.now),
+                tags,
             };
             apply_override(repo.clone(), &row).await?;
             let changed = match current_override.as_ref() {

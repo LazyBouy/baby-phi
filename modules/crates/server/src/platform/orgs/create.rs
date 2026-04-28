@@ -160,15 +160,20 @@ pub async fn create_organization(
         handle: input.ceo_channel_handle.clone(),
         created_at: input.now,
     };
+    let ceo_inbox_id = NodeId::new();
+    let ceo_outbox_id = NodeId::new();
     let ceo_inbox = InboxObject {
-        id: NodeId::new(),
+        id: ceo_inbox_id,
         agent_id: ceo_agent.id,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("inbox", &ceo_inbox_id.to_string()).to_vec(),
     };
     let ceo_outbox = OutboxObject {
-        id: NodeId::new(),
+        id: ceo_outbox_id,
         agent_id: ceo_agent.id,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("outbox", &ceo_outbox_id.to_string())
+            .to_vec(),
     };
     let ceo_grant = Grant {
         id: GrantId::new(),

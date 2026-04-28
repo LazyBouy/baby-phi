@@ -62,6 +62,11 @@ pub struct SessionDetail {
     /// in `loops` appears as a key (possibly with an empty vec
     /// for loops that ended before any turn completed).
     pub turns_by_loop: BTreeMap<LoopId, Vec<TurnNode>>,
+    /// CH-06 / D-new-11: instance-identity tags. SessionDetail is a
+    /// query aggregate (not a stored row), so this field mirrors the
+    /// underlying `session.tags` for selector consumers.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 // ============================================================================
@@ -91,6 +96,11 @@ pub struct ShapeBPendingProject {
     /// migration 0006.
     pub payload: JsonValue,
     pub created_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:shape_b_pending_project`,
+    /// `shape_b_pending_project:<auth_request_id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 // ============================================================================
@@ -130,6 +140,10 @@ pub struct AgentCatalogEntry {
     pub profile_snapshot: Option<JsonValue>,
     pub last_seen_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:agent_catalog_entry`, `agent_catalog_entry:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 fn default_active_true() -> bool {
@@ -172,6 +186,11 @@ pub struct SystemAgentRuntimeStatus {
     #[serde(default)]
     pub last_error: Option<String>,
     pub updated_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:system_agent_runtime_status`,
+    /// `system_agent_runtime_status:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[cfg(test)]
@@ -185,6 +204,7 @@ mod tests {
             auth_request_id: AuthRequestId::new(),
             payload: serde_json::json!({ "name": "demo", "shape": "shape_b" }),
             created_at: chrono::Utc::now(),
+            tags: Vec::new(),
         };
         let j = serde_json::to_string(&row).expect("serialize");
         let back: ShapeBPendingProject = serde_json::from_str(&j).expect("deserialize");
@@ -204,6 +224,7 @@ mod tests {
             profile_snapshot: None,
             last_seen_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            tags: Vec::new(),
         };
         let j = serde_json::to_string(&row).expect("serialize");
         let back: AgentCatalogEntry = serde_json::from_str(&j).expect("deserialize");
@@ -242,6 +263,7 @@ mod tests {
             effective_parallelize: 1,
             last_error: None,
             updated_at: chrono::Utc::now(),
+            tags: Vec::new(),
         };
         let j = serde_json::to_string(&row).expect("serialize");
         let back: SystemAgentRuntimeStatus = serde_json::from_str(&j).expect("deserialize");

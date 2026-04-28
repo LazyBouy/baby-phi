@@ -96,6 +96,7 @@ pub async fn reveal_secret(
         catalogue: &catalogue,
         consents: &consents,
         template_gated_auth_requests: &template_gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call,
     };
 
@@ -338,6 +339,7 @@ mod tests {
             catalogue: &catalogue,
             consents: &consents,
             template_gated_auth_requests: &template_gated,
+            set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);
@@ -386,6 +388,7 @@ mod tests {
             catalogue: &catalogue,
             consents: &consents,
             template_gated_auth_requests: &template_gated,
+            set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);
@@ -431,6 +434,7 @@ mod tests {
             catalogue: &catalogue,
             consents: &consents,
             template_gated_auth_requests: &template_gated,
+            set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);

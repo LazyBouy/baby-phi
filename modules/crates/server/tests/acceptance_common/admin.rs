@@ -219,11 +219,13 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         id: NodeId::new(),
         agent_id: ceo_agent.id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let ceo_outbox = OutboxObject {
         id: NodeId::new(),
         agent_id: ceo_agent.id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let ceo_grant = Grant {
         id: GrantId::new(),
@@ -410,11 +412,13 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         id: NodeId::new(),
         agent_id: lead_agent.id,
         created_at: now,
+        tags: Vec::new(),
     };
     let lead_outbox = OutboxObject {
         id: NodeId::new(),
         agent_id: lead_agent.id,
         created_at: now,
+        tags: Vec::new(),
     };
     claimed_org
         .admin
@@ -446,11 +450,13 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         id: NodeId::new(),
         agent_id: member_agent.id,
         created_at: now,
+        tags: Vec::new(),
     };
     let member_outbox = OutboxObject {
         id: NodeId::new(),
         agent_id: member_agent.id,
         created_at: now,
+        tags: Vec::new(),
     };
     claimed_org
         .admin

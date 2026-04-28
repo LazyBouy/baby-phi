@@ -176,11 +176,13 @@ pub async fn execute_claim(
         id: inbox_id,
         agent_id,
         created_at: now,
+        tags: domain::model::composites::auto_tags_for("inbox", &inbox_id.to_string()).to_vec(),
     };
     let outbox = OutboxObject {
         id: outbox_id,
         agent_id,
         created_at: now,
+        tags: domain::model::composites::auto_tags_for("outbox", &outbox_id.to_string()).to_vec(),
     };
 
     // Bootstrap Auth Request in Approved state — system:genesis both
@@ -214,6 +216,11 @@ pub async fn execute_claim(
         // terminate cleanly at the axiom. Uses the all-zero UUID to mark
         // "the bootstrap template" unambiguously.
         provenance_template: Some(TemplateId::from_uuid(uuid::Uuid::nil())),
+        tags: domain::model::composites::auto_tags_for(
+            "auth_request",
+            &auth_request_id.to_string(),
+        )
+        .to_vec(),
     };
 
     // `[allocate]`-on-`system:root` Grant — underpins every delegation

@@ -109,8 +109,10 @@ pub fn build_auto_approved_request(args: BuildArgs) -> AuthRequest {
         state: ResourceSlotState::Approved,
     };
 
+    let id = AuthRequestId::new();
+    let tags = crate::model::composites::auto_tags_for("auth_request", &id.to_string()).to_vec();
     AuthRequest {
-        id: AuthRequestId::new(),
+        id,
         requestor: requestor_and_approver,
         kinds,
         scope,
@@ -124,6 +126,7 @@ pub fn build_auto_approved_request(args: BuildArgs) -> AuthRequest {
         archived: false,
         active_window_days: DEFAULT_ACTIVE_WINDOW_DAYS,
         provenance_template: None,
+        tags,
     }
 }
 

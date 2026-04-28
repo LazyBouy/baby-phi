@@ -93,8 +93,12 @@ pub async fn record_system_agent_fire(
     last_error: Option<String>,
     now: DateTime<Utc>,
 ) {
+    let id = SystemAgentRuntimeStatusId::new();
+    let tags =
+        crate::model::composites::auto_tags_for("system_agent_runtime_status", &id.to_string())
+            .to_vec();
     let status = SystemAgentRuntimeStatus {
-        id: SystemAgentRuntimeStatusId::new(),
+        id,
         agent_id: agent,
         owning_org: org,
         queue_depth: 0, // P8 bodies will compute; P6 helper seeds idle.
@@ -102,6 +106,7 @@ pub async fn record_system_agent_fire(
         effective_parallelize,
         last_error,
         updated_at: now,
+        tags,
     };
     if let Err(e) = repo.upsert_system_agent_runtime_status(&status).await {
         tracing::error!(
@@ -696,11 +701,20 @@ impl EventHandler for AgentCatalogListener {
                 .unwrap_or(event_at),
         };
 
+        let id = existing
+            .as_ref()
+            .map(|e| e.id)
+            .unwrap_or_else(AgentCatalogEntryId::new);
+        // CH-06: instance-identity tags. On upsert, preserve the
+        // existing tags (they're a stable function of `id`); on first
+        // insert, emit the canonical pair.
+        let tags = match existing.as_ref() {
+            Some(e) if !e.tags.is_empty() => e.tags.clone(),
+            _ => crate::model::composites::auto_tags_for("agent_catalog_entry", &id.to_string())
+                .to_vec(),
+        };
         let entry = AgentCatalogEntry {
-            id: existing
-                .as_ref()
-                .map(|e| e.id)
-                .unwrap_or_else(AgentCatalogEntryId::new),
+            id,
             agent_id,
             owning_org: org_id,
             display_name: agent.display_name.clone(),
@@ -710,6 +724,7 @@ impl EventHandler for AgentCatalogListener {
             profile_snapshot,
             last_seen_at,
             updated_at: event_at,
+            tags,
         };
 
         if let Err(e) = self.repo.upsert_agent_catalog_entry(&entry).await {

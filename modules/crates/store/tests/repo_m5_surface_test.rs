@@ -78,6 +78,7 @@ fn make_session(started_by: AgentId, project: ProjectId, org: OrgId, started_hou
             .unwrap(),
         ended_at: None,
         tokens_spent: 0,
+        tags: Vec::new(),
     }
 }
 
@@ -236,6 +237,7 @@ async fn shape_b_sidecar_round_trip_via_surrealdb() {
         auth_request_id: ar_id,
         payload: serde_json::json!({"name": "demo", "shape": "shape_b"}),
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     store.persist_shape_b_pending(&row).await.unwrap();
     let got = store.fetch_shape_b_pending(ar_id).await.unwrap();
@@ -253,6 +255,7 @@ async fn shape_b_sidecar_unique_index_enforced_at_surrealdb_tier() {
         auth_request_id: ar_id,
         payload: serde_json::json!({}),
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     store.persist_shape_b_pending(&row).await.unwrap();
     let dup = store
@@ -260,6 +263,7 @@ async fn shape_b_sidecar_unique_index_enforced_at_surrealdb_tier() {
             auth_request_id: ar_id,
             payload: serde_json::json!({"note": "second attempt"}),
             created_at: Utc::now(),
+            tags: Vec::new(),
         })
         .await;
     assert!(matches!(
@@ -282,6 +286,7 @@ fn catalog_entry(org: OrgId, agent: AgentId, name: &str) -> AgentCatalogEntry {
         profile_snapshot: None,
         last_seen_at: Utc::now(),
         updated_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 
@@ -341,6 +346,7 @@ async fn system_agent_runtime_status_round_trips() {
         effective_parallelize: 2,
         last_error: None,
         updated_at: Utc::now(),
+        tags: Vec::new(),
     };
     store
         .upsert_system_agent_runtime_status(&row)

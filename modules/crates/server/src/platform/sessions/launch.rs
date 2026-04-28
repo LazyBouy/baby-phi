@@ -315,6 +315,7 @@ pub async fn launch_session(
         started_at: input.now,
         ended_at: None,
         tokens_spent: 0,
+        tags: domain::model::composites::auto_tags_for("session", &session_id.to_string()).to_vec(),
     };
     let first_loop = domain::model::nodes::LoopRecordNode {
         id: first_loop_id,

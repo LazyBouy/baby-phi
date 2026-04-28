@@ -101,6 +101,8 @@ pub async fn register_mcp_server(
         status: RuntimeStatus::Ok,
         archived_at: None,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("external_service", &mcp_id.to_string())
+            .to_vec(),
     };
     repo.put_mcp_server(&service).await?;
 

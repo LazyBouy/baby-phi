@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code -->
 
 # M5.1 Drift catalogue — index
 
@@ -96,7 +96,7 @@ fixed.
 | D7.6 | Web pages use hybrid inline `"use server"` pattern | LOW | C | (web-convention) | N/A | discovered | TBD | [D7.6.md](D7.6.md) |
 | D-new-01 | Identity node scaffolded; 4-field shape not materialized | **HIGH** | **A** | agent; ontology | N/A | discovered | TBD | [D-new-01.md](D-new-01.md) |
 | D-new-02 | Storage backend is SurrealDB (not SQLite per concept) | **HIGH** | **A** | coordination | N/A | discovered | TBD | [D-new-02.md](D-new-02.md) |
-| D-new-03 | Selector grammar has 4 variants; PEG tag-predicate DSL absent | **HIGH** | **A** | permissions/05, 09 | N/A | discovered | TBD | [D-new-03.md](D-new-03.md) |
+| D-new-03 | Selector grammar has 4 variants; PEG tag-predicate DSL absent | **HIGH** | **A** | permissions/05, 09 | N/A | remediated | CH-06 | [D-new-03.md](D-new-03.md) |
 | D-new-04 | Consent node has 5 fields; concept mandates 10+ | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-04.md](D-new-04.md) |
 | D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-05.md](D-new-05.md) |
 | D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | discovered | TBD | [D-new-06.md](D-new-06.md) |
@@ -104,7 +104,7 @@ fixed.
 | D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | discovered | TBD | [D-new-08.md](D-new-08.md) |
 | D-new-09 | Action vocabulary stored as `Vec<String>` (no enum) | MEDIUM | B | permissions/03 | N/A | discovered | TBD | [D-new-09.md](D-new-09.md) |
 | D-new-10 | Action × Fundamental applicability matrix not enforced | MEDIUM | B | permissions/03 | N/A | discovered | TBD | [D-new-10.md](D-new-10.md) |
-| D-new-11 | Composite instance self-identity tag not auto-added | MEDIUM | B | permissions/01 | N/A | discovered | TBD | [D-new-11.md](D-new-11.md) |
+| D-new-11 | Composite instance self-identity tag not auto-added | MEDIUM | B | permissions/01 | N/A | remediated | CH-06 | [D-new-11.md](D-new-11.md) |
 | D-new-12 | AuthRequest per-state ACL not enforced | MEDIUM | B | permissions/02 | N/A | discovered | TBD | [D-new-12.md](D-new-12.md) |
 | D-new-13 | allocate/transfer cardinality not enforced | **HIGH** | **A** | permissions/02, 03 | N/A | discovered | TBD | [D-new-13.md](D-new-13.md) |
 | D-new-14 | system:genesis axiom + authority-chain traversal missing | **HIGH** | **A** | permissions/02, 04; README | N/A | discovered | TBD | [D-new-14.md](D-new-14.md) |

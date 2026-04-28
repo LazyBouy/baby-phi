@@ -57,6 +57,7 @@ fn build_ctx<'a>(
         catalogue,
         consents,
         template_gated_auth_requests: template_gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call,
     }
 }

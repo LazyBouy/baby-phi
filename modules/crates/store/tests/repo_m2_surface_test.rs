@@ -76,6 +76,7 @@ fn sample_mcp_server() -> ExternalService {
         status: RuntimeStatus::Ok,
         archived_at: None,
         created_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 
@@ -328,6 +329,7 @@ fn auth_request_for_org(org: OrgId) -> AuthRequest {
         archived: false,
         active_window_days: 30,
         provenance_template: None,
+        tags: Vec::new(),
     }
 }
 

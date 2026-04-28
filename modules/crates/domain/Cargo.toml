@@ -23,6 +23,11 @@ blake3      = { workspace = true }
 # poll-loop in `events/bus.rs` uses `tokio::time::sleep`. Was
 # previously dev-only.
 tokio       = { workspace = true }
+# CH-06 selector grammar: pest PEG parser. Grammar lives at
+# `src/permissions/grammar.pest`; `SelectorParser` derives via
+# `pest_derive`.
+pest        = { workspace = true }
+pest_derive = { workspace = true }
 
 [features]
 # Opt-in in-memory Repository fake for tests in other crates (server,

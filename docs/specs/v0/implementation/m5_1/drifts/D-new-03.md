@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code -->
 
 # D-new-03 — Selector grammar is a 4-variant enum; PEG tag-predicate DSL (tags contains/intersects/any_match/subset_of + AND/OR/NOT) is absent
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `permission-engine`, `selector-grammar`, `concept-contradiction`
@@ -45,3 +45,7 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report + user-verification of enum variants)
+- 2026-04-24 — `classified` — Bucket A HIGH; PEG grammar absent vs concept-09 lines 58-102 normative PEG; 6 predicates + 3 combinators + parens missing (backfill)
+- 2026-04-24 — `scoped` — assigned to CH-06 per [forward-scope §1 line 77-82](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (backfill)
+- 2026-04-28 — `in-chunk-plan` — CH-06 plan approved ([`build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md`](../../../../plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md)); pest-PEG grammar + 6 predicates (`contains`/`intersects`/`any_match`/`subset_of`/`empty`/`non_empty`) + 3 combinators (`AND`/`OR`/`NOT`) + parens + precedence in scope; user-decided forks: pest library + unified chunk + keep+extend backwards-compat + semantic continuity for grants
+- 2026-04-28 — `remediated` — CH-06 chunk-seal; pest grammar shipped at [`modules/crates/domain/src/permissions/grammar.pest`](../../../../../../modules/crates/domain/src/permissions/grammar.pest) with 13 productions matching concept-09 lines 58-102; `Selector` enum extended with `Bool(Box<BoolExpr>)` + `Pred(Predicate)`; `parse_selector` (strict) + `parse_selector_or_uri` (legacy fast-path) public; evaluator + `SetRefRegistry` trait + `NOOP_SET_REF_REGISTRY` `'static` singleton; engine.rs:286 threads registry through `effective_evaluate`; 4 worked-parse golden ASTs + 6 predicate match + 6 combinator + 5 parse-error code (P-001..P-005) + 256-case proptest pin the grammar; `check-phi-core-reuse.sh` exit 0 (zero phi-core imports). ADR-0036 §D36.1–D36.5 records the design decisions.

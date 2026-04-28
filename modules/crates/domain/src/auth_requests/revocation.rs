@@ -129,6 +129,7 @@ mod tests {
             archived: false,
             active_window_days: 90,
             provenance_template: None,
+            tags: Vec::new(),
         }
     }
 

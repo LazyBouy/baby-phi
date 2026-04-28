@@ -200,6 +200,12 @@ struct AuthRequestRow {
     archived: bool,
     active_window_days: u32,
     provenance_template: Option<String>,
+    /// CH-06: instance-identity tags. `#[serde(default)]` keeps
+    /// pre-migration rows readable; the `into_domain` path emits the
+    /// canonical pair when the column is empty so old rows get tags
+    /// on first read.
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 impl AuthRequestRow {
@@ -220,6 +226,7 @@ impl AuthRequestRow {
             archived: r.archived,
             active_window_days: r.active_window_days,
             provenance_template: r.provenance_template.map(|t| t.to_string()),
+            tags: r.tags.clone(),
         })
     }
 
@@ -234,6 +241,14 @@ impl AuthRequestRow {
             .map(parse_uuid)
             .transpose()?
             .map(domain::model::ids::TemplateId::from_uuid);
+        // CH-06: instance-identity tags. Read from row if present;
+        // otherwise emit canonical pair so old rows materialise with
+        // the expected tag set on first read.
+        let tags = if !self.tags.is_empty() {
+            self.tags.clone()
+        } else {
+            domain::model::composites::auto_tags_for("auth_request", &id.to_string()).to_vec()
+        };
         Ok(AuthRequest {
             id,
             requestor,
@@ -249,6 +264,7 @@ impl AuthRequestRow {
             archived: self.archived,
             active_window_days: self.active_window_days,
             provenance_template,
+            tags,
         })
     }
 }
@@ -2447,10 +2463,14 @@ impl Repository for SurrealStore {
             }
         }
 
+        // CH-06: SessionDetail mirrors the underlying session.tags so
+        // selector consumers see a stable instance-tag set on the aggregate.
+        let tags = sess.tags.clone();
         Ok(Some(SessionDetail {
             session: sess,
             loops,
             turns_by_loop,
+            tags,
         }))
     }
 

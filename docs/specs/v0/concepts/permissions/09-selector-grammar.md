@@ -1,5 +1,5 @@
-<!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Status: EXISTS as of CH-06 (M5.2 / 2026-04-28) — pest-PEG parser + AST + evaluator ship in modules/crates/domain/src/permissions/ -->
+<!-- Last verified: 2026-04-28 by Claude Code -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 
 # Selector Grammar (PEG)

@@ -111,6 +111,10 @@ pub struct OrganizationDefaultsSnapshot {
     /// (emails, webhook URLs) — matched against `Channel` records at
     /// alert time.
     pub default_alert_channels: Vec<String>,
+    /// CH-06 / D-new-11: instance-identity tags. Embedded on
+    /// Organization, so tag emission piggybacks on org creation.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl OrganizationDefaultsSnapshot {
@@ -126,6 +130,9 @@ impl OrganizationDefaultsSnapshot {
             retry_config: pd.retry_config.clone(),
             default_retention_days: pd.default_retention_days,
             default_alert_channels: pd.default_alert_channels.clone(),
+            // CH-06: snapshot is embedded on Organization; instance-identity
+            // tags are emitted on the parent Org record, not here.
+            tags: Vec::new(),
         }
     }
 }
@@ -162,18 +169,25 @@ pub struct TokenBudgetPool {
     /// 0003 ASSERT at the storage layer.
     pub used: u64,
     pub created_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:token_budget_pool`, `token_budget_pool:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl TokenBudgetPool {
     /// Build a fresh pool for a newly-created org. `used = 0`;
     /// `created_at = now`.
     pub fn new(owning_org: OrgId, initial_allocation: u64, now: DateTime<Utc>) -> Self {
+        let id = NodeId::new();
+        let tags = super::composites::auto_tags_for("token_budget_pool", &id.to_string()).to_vec();
         Self {
-            id: NodeId::new(),
+            id,
             owning_org,
             initial_allocation,
             used: 0,
             created_at: now,
+            tags,
         }
     }
 
@@ -250,6 +264,7 @@ mod tests {
             retry_config: phi_core::provider::retry::RetryConfig::default(),
             default_retention_days: 30,
             default_alert_channels: vec!["ops@example.com".into()],
+            tags: Vec::new(),
         };
         let json = serde_json::to_string(&snap).expect("serialize");
         let back: OrganizationDefaultsSnapshot = serde_json::from_str(&json).expect("deserialize");

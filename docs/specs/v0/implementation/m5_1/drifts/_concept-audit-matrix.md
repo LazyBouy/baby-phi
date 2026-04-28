@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code -->
 
 # M5.1/P2 — Concept-audit matrix
 
@@ -137,7 +137,7 @@ testable claim extracted from a concept doc.
 | 9 fundamental classes | `Fundamental::ALL[9]` | honored | `fundamentals.rs:44-54` | — | N/A |
 | 8 composite classes | `Composite::ALL[8]` | honored | `composites.rs:50-59` | — | N/A |
 | Composite `#kind:` auto-tag | `kind_tag()` canonical form | honored | `composites.rs:81-92` | — | N/A |
-| Instance identity tag `{kind}:{id}` | Auto-added at creation | partially-honored | node has `id` field; no auto-tag logic visible | D-new-11 | N/A |
+| Instance identity tag `{kind}:{id}` | Auto-added at creation | honored | CH-06 wired emission at 10+ creation handlers via `auto_tags_for(kind, id)` (ADR-0037) | D-new-11 (remediated) | N/A |
 | 3 ownership edges | OWNED_BY / CREATED / ALLOCATED_TO | honored | `edges.rs` | — | N/A |
 | Catalogue as Step 0 precondition | catalogue.contains() gates Step 0 | honored | `engine.rs:130-144` | — | N/A |
 
@@ -181,7 +181,7 @@ testable claim extracted from a concept doc.
 
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
-| Memory selector predicates (tags) | Full tag-predicate DSL | contradicted | 4-variant Selector enum | **D-new-03** | N/A |
+| Memory selector predicates (tags) | Full tag-predicate DSL | honored | CH-06 ships 6 predicates + 3 combinators via pest-PEG (ADR-0036) | **D-new-03** (remediated) | N/A |
 | Memory tag vocab agent/project/org/#public | Tags field on Memory | honored | `nodes.rs:791 tags: Vec<String>` | — | N/A |
 | store/recall/delete actions | Memory operations | silent-in-code | no recall tool / store action | D-new-16 | N/A |
 | Default memory-recall grant | System-provenance grant on each agent | concept-aspirational | Memory contract deferred to M6 (C-M6-1) | — | N/A |
@@ -230,9 +230,9 @@ testable claim extracted from a concept doc.
 
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
-| PEG grammar (atoms + predicates + composition) | Full recursive-descent parser | contradicted | 4-variant enum only | **D-new-03** | N/A |
+| PEG grammar (atoms + predicates + composition) | Full recursive-descent parser | honored | CH-06 ships pest-PEG with 13 productions matching concept-09 lines 58-102 | **D-new-03** (remediated) | N/A |
 | `tags contains/intersects/any_match/subset_of` | Tag-predicate primitives | contradicted | only Exact/Prefix/KindTag | **D-new-03** | N/A |
-| AND/OR/NOT logical composition | Combinators | silent-in-code | no combinator implementation | **D-new-03** | N/A |
+| AND/OR/NOT logical composition | Combinators | honored | CH-06 ships `BoolExpr::Or/And/Not` with NOT > AND > OR precedence + parens; 6 unit tests pin precedence | **D-new-03** (remediated) | N/A |
 | Reserved namespace write rejection | Publish-time validator denies | silent-in-code | no validator | **D-new-07** (related) | N/A |
 
 ---

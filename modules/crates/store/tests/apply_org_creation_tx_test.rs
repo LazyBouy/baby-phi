@@ -76,11 +76,13 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         id: NodeId::new(),
         agent_id: ceo_agent.id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let ceo_outbox = OutboxObject {
         id: NodeId::new(),
         agent_id: ceo_agent.id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let ceo_grant = Grant {
         id: GrantId::new(),

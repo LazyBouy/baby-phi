@@ -48,6 +48,7 @@ fn mcp_server(id: McpServerId, tenants: TenantSet) -> ExternalService {
         status: RuntimeStatus::Ok,
         archived_at: None,
         created_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 
@@ -75,6 +76,7 @@ fn ar_for_org(id: AuthRequestId, org: OrgId) -> AuthRequest {
         archived: false,
         active_window_days: 90,
         provenance_template: None,
+        tags: Vec::new(),
     }
 }
 

@@ -405,11 +405,13 @@ async fn seed_unrelated_org_with_project(
         id: NodeId::new(),
         agent_id: other_ceo.id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let ceo_outbox = OutboxObject {
         id: NodeId::new(),
         agent_id: other_ceo.id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     store
         .apply_agent_creation(&AgentCreationPayload {

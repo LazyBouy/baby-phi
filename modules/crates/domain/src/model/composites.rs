@@ -117,12 +117,33 @@ impl Composite {
     /// helper rather than hand-rolling the tag strings — it's the single
     /// source of truth for the two reserved tag namespaces.
     pub fn auto_tags(&self, instance_id: &str) -> [String; 2] {
-        [
-            self.kind_tag().to_string(),
-            format!("{}:{}", self.kind_name(), instance_id),
-        ]
+        auto_tags_for(self.kind_name(), instance_id)
     }
+}
 
+/// CH-06 / D-new-11 — emission helper for the M3+ composite struct types
+/// (e.g. [`crate::model::composites_m5::AgentCatalogEntry`]) and the four
+/// node types missing from the [`Composite`] enum
+/// ([`crate::model::nodes::Session`], [`crate::model::nodes::AuthRequest`],
+/// [`crate::model::nodes::InboxObject`], [`crate::model::nodes::OutboxObject`]).
+///
+/// These types live outside the permission-engine [`Composite`] enum (they
+/// are state/configuration objects, not first-class resource classes) but
+/// still need to emit the `(#kind:{name}, {name}:{id})` pair at creation per
+/// `concepts/permissions/01-resource-ontology.md` §"Instance Identity Tags".
+/// Each type declares a `pub const KIND` and calls this helper from its
+/// `new()` constructor.
+pub fn auto_tags_for(kind_name: &str, instance_id: &str) -> [String; 2] {
+    [
+        format!("#kind:{}", kind_name),
+        format!("{}:{}", kind_name, instance_id),
+    ]
+}
+
+// Phantom impl block so the previous `impl Composite` block closes before
+// the free function above and the next-impl block — preserves prior file
+// structure. The two methods below stay on `Composite`.
+impl Composite {
     /// Which fundamentals this composite expands to at Permission Check time.
     /// The `tag` fundamental is always implicitly included — it carries the
     /// `#kind:` identity tag — so it's in every list below.

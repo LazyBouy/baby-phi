@@ -185,6 +185,11 @@ pub struct ExternalService {
     pub status: RuntimeStatus,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags emitted at creation
+    /// (`#kind:external_service`, `external_service:<id>`). Empty on
+    /// pre-CH-06 rows via serde default.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// A `secret_credential` composite-instance catalogue entry in the vault.
@@ -403,6 +408,7 @@ mod tests {
             status: RuntimeStatus::Ok,
             archived_at: None,
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         let json = serde_json::to_string(&svc).expect("serialize");
         let back: ExternalService = serde_json::from_str(&json).expect("deserialize");

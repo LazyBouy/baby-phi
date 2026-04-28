@@ -45,4 +45,7 @@ pub use engine::check;
 pub use expansion::{expand_resource_to_fundamentals, ResolvedGrant};
 pub use manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
 pub use metrics::{NoopMetrics, PermissionCheckMetrics};
-pub use selector::Selector;
+pub use selector::{
+    parse_selector, parse_selector_or_uri, BoolExpr, NoopSetRefRegistry, Predicate, Selector,
+    SelectorParseError, SetRef, SetRefRegistry, Tag, NOOP_SET_REF_REGISTRY,
+};

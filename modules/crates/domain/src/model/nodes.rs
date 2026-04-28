@@ -682,6 +682,10 @@ pub struct AuthRequest {
     pub archived: bool,
     pub active_window_days: u32,
     pub provenance_template: Option<TemplateId>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:auth_request`, `auth_request:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// One resource within an Auth Request, with its per-approver slots. P4 fills
@@ -800,6 +804,10 @@ pub struct InboxObject {
     pub id: NodeId,
     pub agent_id: AgentId,
     pub created_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:inbox`, `inbox:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// An Agent's outbox (sent `AgentMessage`s).
@@ -808,6 +816,10 @@ pub struct OutboxObject {
     pub id: NodeId,
     pub agent_id: AgentId,
     pub created_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:outbox`, `outbox:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// Persistent knowledge across sessions.
@@ -881,6 +893,10 @@ pub struct Session {
     /// at M5/P1 when the wrap lands without the recorder).
     #[serde(default)]
     pub tokens_spent: u64,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:session`, `session:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// Session lifecycle state. Explicit transitions only (no silent

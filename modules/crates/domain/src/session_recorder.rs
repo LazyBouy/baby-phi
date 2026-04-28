@@ -272,6 +272,11 @@ impl BabyPhiSessionRecorder {
                 .await?;
         } else {
             // standalone path (recorder-wrap test).
+            let session_tags = crate::model::composites::auto_tags_for(
+                "session",
+                &self.ctx.session_id.to_string(),
+            )
+            .to_vec();
             let baby_session = crate::model::nodes::Session {
                 id: self.ctx.session_id,
                 inner: session_snapshot.clone(),
@@ -282,6 +287,7 @@ impl BabyPhiSessionRecorder {
                 started_at: self.ctx.started_at,
                 ended_at: Some(ended_at),
                 tokens_spent,
+                tags: session_tags,
             };
             self.repo
                 .persist_session(&baby_session, &loop_nodes[0])

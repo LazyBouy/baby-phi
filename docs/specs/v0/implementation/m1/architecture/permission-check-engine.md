@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-20 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-06: Step 3 evaluator now interprets the full PEG tag-predicate DSL; SetRefRegistry threaded through CheckContext per ADR-0036; see m5_2/architecture/selector-grammar.md) -->
 
 # Permission Check engine
 

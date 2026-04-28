@@ -321,6 +321,7 @@ fn make_override(
         owning_agent: agent,
         limits,
         created_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 
@@ -403,6 +404,7 @@ async fn resolve_effective_limits_prefers_override_over_snapshot() {
         retry_config: phi_core::provider::retry::RetryConfig::default(),
         default_retention_days: 30,
         default_alert_channels: vec![],
+        tags: Vec::new(),
     });
     repo.create_organization(&org).await.unwrap();
     let agent = agent_with_role(org_id, AgentKind::Llm, Some(AgentRole::Intern));

@@ -290,6 +290,7 @@ mod tests {
             status: RuntimeStatus::Ok,
             archived_at: None,
             created_at: Utc::now(),
+            tags: Vec::new(),
         }
     }
 

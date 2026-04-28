@@ -48,6 +48,7 @@ impl OwnedCtx {
             catalogue: &self.catalogue,
             consents: &self.consents,
             template_gated_auth_requests: &self.template_gated,
+            set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
         }
     }

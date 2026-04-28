@@ -486,6 +486,11 @@ async fn submit_shape_b(
         auth_request_id: ar_id,
         payload: payload_json,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for(
+            "shape_b_pending_project",
+            &ar_id.to_string(),
+        )
+        .to_vec(),
     };
     repo.persist_shape_b_pending(&sidecar)
         .await
@@ -556,8 +561,9 @@ fn build_shape_b_auth_request(
         responded_at: None,
         reconsidered_at: None,
     };
+    let id = AuthRequestId::new();
     AuthRequest {
-        id: AuthRequestId::new(),
+        id,
         requestor: PrincipalRef::Agent(input.actor),
         kinds: vec![SHAPE_B_AR_KIND.to_string()],
         scope: vec![
@@ -579,6 +585,7 @@ fn build_shape_b_auth_request(
         archived: false,
         active_window_days: 30,
         provenance_template: None,
+        tags: domain::model::composites::auto_tags_for("auth_request", &id.to_string()).to_vec(),
     }
 }
 
@@ -855,6 +862,7 @@ mod tests {
             owner: AgentId::new(),
             deadline: None,
             status: KeyResultStatus::NotStarted,
+            tags: Vec::new(),
         };
         let err = validate_okrs(&[], std::slice::from_ref(&kr)).unwrap_err();
         assert!(matches!(err, ProjectError::OkrValidation(_)));
@@ -873,6 +881,7 @@ mod tests {
             owner: AgentId::new(),
             deadline: None,
             key_result_ids: vec![],
+            tags: Vec::new(),
         };
         // Count KR with Bool value — shape mismatch.
         let kr = KeyResult {
@@ -886,6 +895,7 @@ mod tests {
             owner: AgentId::new(),
             deadline: None,
             status: KeyResultStatus::NotStarted,
+            tags: Vec::new(),
         };
         let err = validate_okrs(std::slice::from_ref(&obj), std::slice::from_ref(&kr)).unwrap_err();
         assert!(matches!(err, ProjectError::OkrValidation(_)));

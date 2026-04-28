@@ -1,5 +1,6 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code -->
 <!-- CH-01 + CH-22 amendments (2026-04-27): durable disable/archive semantics + agent-catalog audit-mode + new "catalog row stale" symptom. See §"CH-01 + CH-22 amendments" below. Full M5/P9 stable-code table still deferred to M5-tag-close. -->
+<!-- CH-06 amendment (2026-04-28): selector parse-error troubleshooting. See §"CH-06 amendment — selector parse errors" below. -->
 
 # User guide — Troubleshooting (M5)
 
@@ -53,8 +54,23 @@ Full table in [`../../m4/user-guide/troubleshooting.md`](../../m4/user-guide/tro
 | Audit log flooded with `agent_catalog_refreshed` events in production | `[listeners.catalog] audit_mode = "debug"` left enabled (typically post-investigation) | Set `PHI_LISTENERS__CATALOG__AUDIT_MODE=silent` and restart. Old debug-mode rows are `AuditClass::Silent` (30-day retention) and will age out. |
 | Catalog system agent's runtime-status tile shows stale `last_fired_at` | Either (a) no agent-lifecycle events being emitted from production handlers (run a test write to verify), or (b) the catalog system agent isn't resolvable from `org.system_agents` (verify exactly one entry has `display_name == "agent-catalog"`) | See [system-agents operations §"Runtime-status tile stale"](../operations/system-agents-operations.md). |
 
+## CH-06 amendment — selector parse errors (2026-04-28)
+
+CH-06 lights up the full PEG tag-predicate DSL on `Selector` (concept-09). When a grant carries a new-grammar selector (e.g. `tags contains org:acme AND tags contains #kind:session`), the parser may surface parse errors. They appear as `Decision::Denied { failed_step: Match, reason: ... }` with stable codes `P-001`–`P-005`:
+
+| Code | Symptom | Fix |
+|---|---|---|
+| `P-001` | `unexpected token '<X>' at position <N>` | Identifier doesn't match `[a-zA-Z_][a-zA-Z0-9_-]*` (often a value starting with a digit, like `a:1`). Rename to `a:one` or `a:x1`. |
+| `P-002` | `unbalanced parens at position <N>` | Count parens; ensure each `(` has a matching `)` at the same depth. |
+| `P-003` | `unknown predicate '<name>'` | Use one of the 6 supported predicates: `contains`, `intersects`, `any_match`, `subset_of`, `empty`, `non_empty`. |
+| `P-004` | `invalid glob '<pattern>'` | `any_match` glob must contain `*` or `**`. Use `tags contains` for an exact tag match. |
+| `P-005` | `unknown set reference '<name>'` (runtime) | Set-ref name not registered. In M5.2 the noop registry returns `false` for every set-ref; CH-15 wires the production registry. |
+
+For full operational guidance see [m5_2/operations/selector-grammar-operations.md](../../m5_2/operations/selector-grammar-operations.md). For grammar syntax see [m5_2/user-guide/selector-syntax-guide.md](../../m5_2/user-guide/selector-syntax-guide.md).
+
 ## Cross-references
 
 - [Top-level runbook §M5](../../../../../../docs/ops/runbook.md) — operator-facing aggregated index (appended at P9).
 - [M4 troubleshooting](../../m4/user-guide/troubleshooting.md) — inherited codes + cross-org isolation invariants.
 - [M5 plan §P9 deliverables](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5.2 selector-grammar-operations](../../m5_2/operations/selector-grammar-operations.md) — CH-06 selector parse error runbook.

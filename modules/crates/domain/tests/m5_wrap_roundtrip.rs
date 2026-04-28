@@ -62,6 +62,7 @@ fn session_wrap_serde_round_trips() {
         started_at: Utc::now(),
         ended_at: None,
         tokens_spent: 0,
+        tags: Vec::new(),
     };
     let json = serde_json::to_string(&s).expect("serialize");
     let back: Session = serde_json::from_str(&json).expect("deserialize");
@@ -182,6 +183,7 @@ fn shape_b_pending_project_round_trips_with_arbitrary_payload() {
             "token_budget": 1_000_000
         }),
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let json = serde_json::to_string(&p).expect("serialize");
     let back: ShapeBPendingProject = serde_json::from_str(&json).expect("deserialize");
@@ -204,6 +206,7 @@ fn agent_catalog_entry_round_trips_with_governance_extensions() {
         })),
         last_seen_at: Utc::now(),
         updated_at: Utc::now(),
+        tags: Vec::new(),
     };
     let json = serde_json::to_string(&entry).expect("serialize");
     let back: AgentCatalogEntry = serde_json::from_str(&json).expect("deserialize");
@@ -221,6 +224,7 @@ fn system_agent_runtime_status_round_trips() {
         effective_parallelize: 2,
         last_error: None,
         updated_at: Utc::now(),
+        tags: Vec::new(),
     };
     let json = serde_json::to_string(&row).expect("serialize");
     let back: SystemAgentRuntimeStatus = serde_json::from_str(&json).expect("deserialize");

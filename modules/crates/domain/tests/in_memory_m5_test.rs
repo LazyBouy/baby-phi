@@ -83,6 +83,7 @@ fn make_session(started_by: AgentId, project: ProjectId, org: OrgId, started_hou
             .unwrap(),
         ended_at: None,
         tokens_spent: 0,
+        tags: Vec::new(),
     }
 }
 
@@ -122,6 +123,7 @@ fn make_auth_request(org: OrgId, kind: TemplateKind, state: AuthRequestState) ->
         archived: false,
         active_window_days: 7,
         provenance_template: None,
+        tags: Vec::new(),
     }
 }
 
@@ -436,6 +438,7 @@ async fn shape_b_sidecar_persist_fetch_delete_round_trip() {
         auth_request_id: ar_id,
         payload: serde_json::json!({"name": "demo"}),
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     repo.persist_shape_b_pending(&row).await.unwrap();
     assert_eq!(
@@ -454,6 +457,7 @@ async fn shape_b_sidecar_rejects_duplicate_ar() {
         auth_request_id: ar_id,
         payload: serde_json::json!({"name": "first"}),
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     repo.persist_shape_b_pending(&row).await.unwrap();
     let dup = repo
@@ -461,6 +465,7 @@ async fn shape_b_sidecar_rejects_duplicate_ar() {
             auth_request_id: ar_id,
             payload: serde_json::json!({"name": "second"}),
             created_at: Utc::now(),
+            tags: Vec::new(),
         })
         .await;
     assert!(matches!(
@@ -492,6 +497,7 @@ fn catalog_entry(org: OrgId, agent: AgentId, name: &str) -> AgentCatalogEntry {
         profile_snapshot: None,
         last_seen_at: Utc::now(),
         updated_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 
@@ -550,6 +556,7 @@ fn status_row(org: OrgId, agent: AgentId, queue: u32) -> SystemAgentRuntimeStatu
         effective_parallelize: 1,
         last_error: None,
         updated_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 

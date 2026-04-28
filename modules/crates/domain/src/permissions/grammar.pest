@@ -1,0 +1,62 @@
+// CH-06 selector grammar — transcription of concepts/permissions/09-selector-grammar.md
+// §"PEG Grammar" (lines 58-102) into pest's syntax.
+//
+// Concept-doc → pest mapping notes:
+//   - PEG `/` (ordered choice) → pest `|`. Both commit on first match.
+//   - PEG `*` (greedy quantifier) → pest `*`.
+//   - PEG `_` (whitespace) → pest's implicit `WHITESPACE` rule (auto-inserted
+//     between `~` in non-atomic rules).
+//   - PEG `[...]` character class → pest's `ASCII_ALPHA | "_"` etc.
+//   - Atomic rules (`@`) collapse to a single token (no implicit whitespace,
+//     no inner pairs). Used for the lexical layer (identifiers, strings).
+//   - Compound atomic rules (`$`) suppress whitespace but keep inner pairs
+//     visible — used for tag forms so we can pull out namespace + value.
+//
+// Reserved-tag ordered-choice: PEG's commit-on-first-match (concept-09 line
+// 106) ensures `#kind:session` parses as ReservedTag, never as a malformed
+// NamespaceTag. The `#` literal in `reserved_tag` is what disambiguates.
+
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+
+selector = { SOI ~ or_expr ~ EOI }
+
+or_expr  = { and_expr ~ ("OR" ~ and_expr)* }
+and_expr = { not_expr ~ ("AND" ~ not_expr)* }
+not_expr = { not_pred | predicate }
+not_pred = { "NOT" ~ predicate }
+
+predicate     = { paren_expr | tag_predicate }
+paren_expr    = { "(" ~ or_expr ~ ")" }
+
+tag_predicate = { "tags" ~ contains_op }
+contains_op   = {
+      contains_pred
+    | intersects_pred
+    | any_match_pred
+    | subset_of_pred
+    | non_empty_pred
+    | empty_pred
+}
+
+contains_pred   = { "contains"   ~ tag }
+intersects_pred = { "intersects" ~ tag_set }
+any_match_pred  = { "any_match"  ~ tag_glob }
+subset_of_pred  = { "subset_of"  ~ set_ref }
+empty_pred      = { "empty" }
+non_empty_pred  = { "non_empty" }
+
+// Ordered: reserved-prefix (`#…`) wins over namespace, namespace over literal.
+// Pest's `|` commits on first match — same semantics as PEG `/`.
+tag             = { reserved_tag | namespace_tag | literal_tag }
+reserved_tag    = ${ "#" ~ identifier ~ (":" ~ identifier)? }
+namespace_tag   = ${ identifier ~ ":" ~ tag_value }
+tag_value       = ${ identifier ~ ("/" ~ identifier)* }
+literal_tag     = { string_literal }
+
+tag_set = { "{" ~ tag ~ ("," ~ tag)* ~ "}" }
+tag_glob = { string_literal }
+set_ref = { identifier ~ "(" ~ identifier ~ ("," ~ identifier)* ~ ")" }
+
+identifier     = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+string_literal = ${ "\"" ~ string_inner ~ "\"" }
+string_inner   = @{ ((!("\"" | "\\") ~ ANY) | ("\\" ~ ANY))* }

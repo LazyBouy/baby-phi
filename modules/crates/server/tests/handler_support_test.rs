@@ -71,6 +71,7 @@ fn check_permission_allows_when_grant_covers_reach() {
         catalogue: &catalogue,
         consents: &consents,
         template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call: ToolCall::default(),
     };
     let m = Manifest {
@@ -99,6 +100,7 @@ fn check_permission_maps_step_2_resolution_to_no_grants_held() {
         catalogue: &catalogue,
         consents: &consents,
         template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call: ToolCall::default(),
     };
     let m = Manifest {
@@ -133,6 +135,7 @@ fn check_permission_maps_step_4_to_constraint_violation() {
         catalogue: &catalogue,
         consents: &consents,
         template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call: ToolCall::default(),
     };
     let mut m = Manifest {
@@ -172,6 +175,7 @@ fn check_permission_maps_pending_to_awaiting_consent_202() {
         catalogue: &catalogue,
         consents: &consents,
         template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call: ToolCall {
             target_agent: Some(AgentId::new()),
             ..Default::default()

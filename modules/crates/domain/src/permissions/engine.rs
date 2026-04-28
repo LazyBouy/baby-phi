@@ -282,8 +282,11 @@ pub fn step_3_match_reaches(
             .iter()
             .filter(|c| c.resolved.covers(*f, action))
             .filter(|c| {
-                c.resolved
-                    .effective_matches(&ctx.call.target_uri, &ctx.call.target_tags)
+                c.resolved.effective_evaluate(
+                    &ctx.call.target_uri,
+                    &ctx.call.target_tags,
+                    ctx.set_ref_registry,
+                )
             })
             .cloned()
             .collect();
@@ -571,6 +574,7 @@ mod tests {
                 catalogue: &self.catalogue,
                 consents: &self.consents,
                 template_gated_auth_requests: &self.template_gated,
+                set_ref_registry: &crate::permissions::NOOP_SET_REF_REGISTRY,
                 call,
             }
         }

@@ -27,6 +27,7 @@ use crate::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId};
 use crate::model::nodes::{Grant, ToolAuthorityManifest};
 
 use super::catalogue::CatalogueLookup;
+use super::selector::SetRefRegistry;
 
 /// The engine's view of a tool authority manifest. This is a projection of
 /// the persisted [`ToolAuthorityManifest`] graph node onto the fields the
@@ -147,6 +148,13 @@ pub struct CheckContext<'a> {
     /// is in this set. Empty in M1 — P4 populates it once the Auth Request
     /// state machine tracks template provenance.
     pub template_gated_auth_requests: &'a HashSet<AuthRequestId>,
+    /// Resolves `subset_of foo(args…)` set references during selector
+    /// evaluation. Default at every call site is
+    /// [`crate::permissions::selector::NoopSetRefRegistry`]; CH-15 wires
+    /// the production registry. Trait-shaped per CH-K8S-PREP D33
+    /// conforming criteria so a future remote-backed registry slots in
+    /// without touching the engine.
+    pub set_ref_registry: &'a dyn SetRefRegistry,
     /// The invocation being checked.
     pub call: ToolCall,
 }

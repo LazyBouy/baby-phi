@@ -52,6 +52,13 @@ tokio-util  = { version = "0.7", features = ["rt"] }
 # Storage
 surrealdb = { version = "2", features = ["kv-rocksdb", "kv-mem", "protocol-ws"] }
 
+# Selector grammar (CH-06): pest PEG parser for the tag-predicate DSL
+# defined in concepts/permissions/09-selector-grammar.md. `pest_derive`
+# is the proc-macro that compiles `permissions/grammar.pest` into a
+# zero-cost recursive-descent parser at build time.
+pest        = "2"
+pest_derive = "2"
+
 # Config
 config = "0.14"
 

@@ -113,12 +113,22 @@ struct McpServerRow {
     status: String,
     archived_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
+    /// CH-06: instance-identity tags. `#[serde(default)]` keeps
+    /// pre-migration rows readable; `into_domain` emits the canonical
+    /// pair when empty so old rows materialise with tags on first read.
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 impl McpServerRow {
     fn into_domain(self, id: McpServerId) -> RepositoryResult<ExternalService> {
         let tenants_allowed = serde_json::from_value(self.tenants_allowed)
             .map_err(|e| RepositoryError::Backend(format!("tenants deserialize: {e}")))?;
+        let tags = if !self.tags.is_empty() {
+            self.tags.clone()
+        } else {
+            domain::model::composites::auto_tags_for("external_service", &id.to_string()).to_vec()
+        };
         Ok(ExternalService {
             id,
             display_name: self.display_name,
@@ -129,6 +139,7 @@ impl McpServerRow {
             status: runtime_status_from_wire(&self.status)?,
             archived_at: self.archived_at,
             created_at: self.created_at,
+            tags,
         })
     }
 }
@@ -487,7 +498,8 @@ impl SurrealStore {
                  tenants_allowed = $tenants, \
                  status = $status, \
                  archived_at = $archived_at, \
-                 created_at = $created_at \
+                 created_at = $created_at, \
+                 tags = $tags \
                  RETURN NONE",
             )
             .bind(("id", server.id.to_string()))
@@ -505,6 +517,7 @@ impl SurrealStore {
             .bind(("status", runtime_status_as_wire(server.status).to_string()))
             .bind(("archived_at", server.archived_at.map(|d| d.to_rfc3339())))
             .bind(("created_at", server.created_at.to_rfc3339()))
+            .bind(("tags", server.tags.clone()))
             .await
             .map_err(Self::m2_backend)?
             .check()

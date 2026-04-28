@@ -66,6 +66,7 @@ fn sample_mcp_server() -> ExternalService {
         status: RuntimeStatus::Ok,
         archived_at: None,
         created_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 

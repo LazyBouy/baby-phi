@@ -164,6 +164,7 @@ mod tests {
                 retry_config: Default::default(),
                 default_retention_days: 30,
                 default_alert_channels: vec![],
+                tags: Vec::new(),
             }),
             default_model_provider: None,
             system_agents: vec![],
@@ -208,6 +209,7 @@ mod tests {
             owning_agent: aid,
             limits: limits(10, 60),
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         apply_override(repo.clone(), &ovr).await.unwrap();
         let effective = resolve_effective_limits(repo, aid).await.unwrap();
@@ -243,6 +245,7 @@ mod tests {
             owning_agent: aid,
             limits: limits(200, 60), // turns > ceiling 50
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         let err = apply_override(repo, &too_high).await.unwrap_err();
         assert!(matches!(
@@ -269,6 +272,7 @@ mod tests {
             owning_agent: aid,
             limits: limits(10, 60),
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         apply_override(repo.clone(), &ovr).await.unwrap();
         clear_override(repo.clone(), aid).await.unwrap();

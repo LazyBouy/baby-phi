@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-20 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-06: 14 composite/node struct types gain `pub tags: Vec<String>` (#[serde(default)]) per ADR-0037; emission wired at 10+ creation handlers; Memory.tags pre-existed) -->
 
 # Architecture — graph model
 

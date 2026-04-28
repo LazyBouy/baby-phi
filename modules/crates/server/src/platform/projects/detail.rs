@@ -694,6 +694,7 @@ mod tests {
             owner: AgentId::new(),
             deadline: None,
             key_result_ids: vec![],
+            tags: Vec::new(),
         };
         let entry = OkrPatchEntry::Objective {
             body: ObjectiveMutation::Create {
@@ -732,6 +733,7 @@ mod tests {
             owner: AgentId::new(),
             deadline: None,
             status: KeyResultStatus::InProgress,
+            tags: Vec::new(),
         };
         let entry = OkrPatchEntry::KeyResult {
             body: KeyResultMutation::Update {

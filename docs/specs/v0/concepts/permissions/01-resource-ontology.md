@@ -1,5 +1,5 @@
-<!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Status: CONCEPTUAL — Instance Identity Tags section [EXISTS] as of CH-06 (M5.2 / 2026-04-28) -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-06: instance-identity tags now emitted at 10+ first-class-ID creation paths per ADR-0037) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 
 ## Resource Ontology — Two Tiers

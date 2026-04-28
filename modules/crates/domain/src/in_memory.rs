@@ -1618,10 +1618,14 @@ impl Repository for InMemoryRepository {
         for bucket in turns_by_loop.values_mut() {
             bucket.sort_by_key(|t| t.turn_index);
         }
+        // CH-06: SessionDetail mirrors session.tags so selector consumers
+        // see a stable instance-tag set on the aggregate.
+        let tags = sess.tags.clone();
         Ok(Some(SessionDetail {
             session: sess,
             loops,
             turns_by_loop,
+            tags,
         }))
     }
 

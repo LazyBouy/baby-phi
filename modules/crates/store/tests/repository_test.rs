@@ -248,6 +248,7 @@ async fn create_inbox_persists_row_with_agent_link() {
             id,
             agent_id,
             created_at: Utc::now(),
+            tags: Vec::new(),
         })
         .await
         .unwrap();
@@ -274,6 +275,7 @@ async fn create_outbox_persists_row() {
             id,
             agent_id: AgentId::new(),
             created_at: Utc::now(),
+            tags: Vec::new(),
         })
         .await
         .unwrap();
@@ -599,6 +601,7 @@ fn sample_auth_request(resource_uri: &str) -> AuthRequest {
         archived: false,
         active_window_days: 90,
         provenance_template: None,
+        tags: Vec::new(),
     }
 }
 
@@ -1544,11 +1547,13 @@ fn bootstrap_claim_for(
             id: inbox_id,
             agent_id,
             created_at: now,
+            tags: Vec::new(),
         },
         outbox: OutboxObject {
             id: outbox_id,
             agent_id,
             created_at: now,
+            tags: Vec::new(),
         },
         auth_request: AuthRequest {
             id: auth_request_id,
@@ -1576,6 +1581,7 @@ fn bootstrap_claim_for(
             archived: false,
             active_window_days: 3650,
             provenance_template: Some(TemplateId::from_uuid(Uuid::nil())),
+            tags: Vec::new(),
         },
         grant: Grant {
             id: grant_id,

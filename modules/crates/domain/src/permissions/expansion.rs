@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use crate::model::nodes::Grant;
 use crate::model::{Composite, Fundamental};
 
-use super::selector::Selector;
+use super::selector::{NoopSetRefRegistry, Selector, SetRefRegistry};
 
 /// Expand a resource-class string (either a fundamental name or a composite
 /// name) into the set of fundamentals it contributes to a Permission Check.
@@ -70,11 +70,26 @@ pub struct ResolvedGrant {
 
 impl ResolvedGrant {
     /// Does the effective selector (explicit AND `#kind:` refinement) match
-    /// the call target?
+    /// the call target? Uses a [`NoopSetRefRegistry`]; for `subset_of`
+    /// predicates that need a real registry, call
+    /// [`ResolvedGrant::effective_evaluate`].
     pub fn effective_matches(&self, target_uri: &str, target_tags: &[String]) -> bool {
-        let base = self.selector.matches(target_uri, target_tags);
+        self.effective_evaluate(target_uri, target_tags, &NoopSetRefRegistry)
+    }
+
+    /// Registry-aware evaluation. Step 3 of the engine threads
+    /// [`crate::permissions::manifest::CheckContext::set_ref_registry`]
+    /// through here so `subset_of` predicates resolve against the runtime's
+    /// registered set functions.
+    pub fn effective_evaluate(
+        &self,
+        target_uri: &str,
+        target_tags: &[String],
+        registry: &dyn SetRefRegistry,
+    ) -> bool {
+        let base = self.selector.evaluate(target_uri, target_tags, registry);
         match &self.kind_refinement {
-            Some(r) => base && r.matches(target_uri, target_tags),
+            Some(r) => base && r.evaluate(target_uri, target_tags, registry),
             None => base,
         }
     }

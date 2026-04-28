@@ -281,6 +281,7 @@ fn make_override(
         owning_agent: agent,
         limits,
         created_at: Utc::now(),
+        tags: Vec::new(),
     }
 }
 
@@ -350,6 +351,7 @@ async fn resolve_effective_execution_limits_walks_override_then_snapshot() {
         retry_config: phi_core::provider::retry::RetryConfig::default(),
         default_retention_days: 30,
         default_alert_channels: vec![],
+        tags: Vec::new(),
     });
     store.create_organization(&org).await.unwrap();
     let agent = make_agent(org_id, AgentKind::Llm, Some(AgentRole::Intern));

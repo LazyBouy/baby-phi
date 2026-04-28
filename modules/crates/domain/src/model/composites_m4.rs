@@ -48,6 +48,11 @@ pub struct Objective {
     /// Links to this project's [`KeyResult`]s by `kr_id`.
     #[serde(default)]
     pub key_result_ids: Vec<String>,
+    /// CH-06 / D-new-11: instance-identity tags. Objectives are
+    /// embedded value-objects on Project, so emission piggybacks on
+    /// project creation; field carried for shape consistency.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// Objective lifecycle state — explicit transitions only (no silent expiry).
@@ -90,6 +95,9 @@ pub struct KeyResult {
     #[serde(default)]
     pub deadline: Option<DateTime<Utc>>,
     pub status: KeyResultStatus,
+    /// CH-06 / D-new-11: instance-identity tags. Embedded on Project.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// How a [`KeyResult`] is measured. Gates the shape of
@@ -196,6 +204,9 @@ pub struct ResourceBoundaries {
     /// project-node-level `token_budget`). Empty = no project-scope cap.
     #[serde(default)]
     pub token_budget: Option<u64>,
+    /// CH-06 / D-new-11: instance-identity tags. Embedded on Project.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 // ============================================================================
@@ -235,6 +246,11 @@ pub struct AgentExecutionLimitsOverride {
     /// duration / cost. Wrapped directly, not re-declared.
     pub limits: phi_core::context::execution::ExecutionLimits,
     pub created_at: DateTime<Utc>,
+    /// CH-06 / D-new-11: instance-identity tags
+    /// (`#kind:agent_execution_limits_override`,
+    /// `agent_execution_limits_override:<id>`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl AgentExecutionLimitsOverride {
@@ -327,6 +343,7 @@ mod tests {
             owning_agent: AgentId::new(),
             limits: phi_core::context::execution::ExecutionLimits::default(),
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         let json = serde_json::to_string(&ovr).expect("serialize");
         let back: AgentExecutionLimitsOverride = serde_json::from_str(&json).expect("deserialize");
@@ -344,6 +361,7 @@ mod tests {
             owning_agent: AgentId::new(),
             limits: phi_core::context::execution::ExecutionLimits::default(),
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         is_phi_core_execution_limits(&ovr.limits);
     }
@@ -366,6 +384,7 @@ mod tests {
                 max_cost: Some(5.0),
             },
             created_at: Utc::now(),
+            tags: Vec::new(),
         };
         assert!(ok.is_bounded_by(&ceiling));
 
@@ -403,6 +422,7 @@ mod tests {
         let agent = AgentExecutionLimitsOverride {
             id: NodeId::new(),
             owning_agent: AgentId::new(),
+            tags: Vec::new(),
             limits: phi_core::context::execution::ExecutionLimits {
                 max_turns: 25,
                 max_total_tokens: 500_000,

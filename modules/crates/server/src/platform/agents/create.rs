@@ -138,15 +138,19 @@ pub async fn create_agent(
         active: true,
         archived_at: None,
     };
+    let inbox_id = NodeId::new();
+    let outbox_id = NodeId::new();
     let inbox = InboxObject {
-        id: NodeId::new(),
+        id: inbox_id,
         agent_id,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("inbox", &inbox_id.to_string()).to_vec(),
     };
     let outbox = OutboxObject {
-        id: NodeId::new(),
+        id: outbox_id,
         agent_id,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("outbox", &outbox_id.to_string()).to_vec(),
     };
 
     // Profile — always write one at creation for LLMs; optional for
@@ -177,11 +181,17 @@ pub async fn create_agent(
                 .as_ref()
                 .map(|s| s.execution_limits.clone())
                 .unwrap_or_default();
+            let override_id = NodeId::new();
             let row = AgentExecutionLimitsOverride {
-                id: NodeId::new(),
+                id: override_id,
                 owning_agent: agent_id,
                 limits: lim.clone(),
                 created_at: input.now,
+                tags: domain::model::composites::auto_tags_for(
+                    "agent_execution_limits_override",
+                    &override_id.to_string(),
+                )
+                .to_vec(),
             };
             if !row.is_bounded_by(&ceiling) {
                 return Err(AgentError::ExecutionLimitsExceedOrgCeiling(format!(

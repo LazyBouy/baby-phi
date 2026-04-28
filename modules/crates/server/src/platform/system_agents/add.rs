@@ -122,15 +122,19 @@ pub async fn add_system_agent(
         active: true,
         archived_at: None,
     };
+    let inbox_id = NodeId::new();
+    let outbox_id = NodeId::new();
     let inbox = InboxObject {
-        id: NodeId::new(),
+        id: inbox_id,
         agent_id,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("inbox", &inbox_id.to_string()).to_vec(),
     };
     let outbox = OutboxObject {
-        id: NodeId::new(),
+        id: outbox_id,
         agent_id,
         created_at: input.now,
+        tags: domain::model::composites::auto_tags_for("outbox", &outbox_id.to_string()).to_vec(),
     };
 
     // Profile — phi-core's AgentProfile is the single source of

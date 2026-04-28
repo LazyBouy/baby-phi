@@ -76,11 +76,13 @@ async fn happy_path_agent_plus_inbox_outbox_plus_edges() {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let outbox = OutboxObject {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let receipt = store
         .apply_agent_creation(&AgentCreationPayload {
@@ -114,17 +116,20 @@ async fn happy_path_with_initial_execution_limits_override() {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let outbox = OutboxObject {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let ovr = AgentExecutionLimitsOverride {
         id: NodeId::new(),
         owning_agent: agent_id,
         limits: limits(25),
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     store
         .apply_agent_creation(&AgentCreationPayload {
@@ -161,11 +166,13 @@ async fn role_kind_mismatch_is_rejected_before_open_tx() {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let outbox = OutboxObject {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let bad = store
         .apply_agent_creation(&AgentCreationPayload {
@@ -196,11 +203,13 @@ async fn agent_without_owning_org_is_rejected() {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let outbox = OutboxObject {
         id: NodeId::new(),
         agent_id,
         created_at: Utc::now(),
+        tags: Vec::new(),
     };
     let bad = store
         .apply_agent_creation(&AgentCreationPayload {

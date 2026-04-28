@@ -80,6 +80,7 @@ fn build_shape_b_ar(approver_a: AgentId, approver_b: AgentId) -> AuthRequest {
         archived: false,
         active_window_days: 7,
         provenance_template: None,
+        tags: Vec::new(),
     }
 }
 
