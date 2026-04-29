@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-03: concept-doc refreshed at `coordination.md` §"Storage backend"; ADR-0042 ratifies the configurable-backend framing + 7-criterion conforming contract; Status flipped to `remediated` at CH-03 seal.) -->
 
 # D-new-02 — Storage backend is SurrealDB (not SQLite as concept mandates)
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap (architectural decision drift)
 - **Severity**: HIGH
 - **Tags**: `architecture-decision`, `concept-contradiction`, `needs-adr-or-concept-refresh`
@@ -46,3 +46,5 @@
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 1 report)
 - 2026-04-24 — `scoped` — M5.1/P3 Q1 decision: assigned to CH-03; scope expanded to include backend-configurability framing + conforming-backend criteria
+- 2026-04-28 — `in-chunk-plan` — CH-03 plan approved ([`build/4a52a093-ch-03-storage-backend-configurability.md`](../../../../plan/build/4a52a093-ch-03-storage-backend-configurability.md)); concept-doc refresh + ADR-0042 in flight.
+- 2026-04-28 — `remediated` — CH-03 chunk-seal — `concepts/coordination.md` §"Storage backend" rewritten with v0.1 SurrealDB framing + configurable architecture + 7-criterion conforming-backend contract. ADR-0042 Accepted ratifies the configurability decision. The Repository trait is documented as the swap surface; no second-backend impl ships at v0.1 (out-of-scope per ADR-0042 §D42.5). The architecture doc at `m1/architecture/storage-and-repository.md` cross-references ADR-0042 in its verified header.

@@ -95,7 +95,7 @@ fixed.
 | D7.5 | Web test count unchanged at P7 (no page-component tests) | MEDIUM | B | (test-strategy) | N/A | discovered | M5.2/P9 | [D7.5.md](D7.5.md) |
 | D7.6 | Web pages use hybrid inline `"use server"` pattern | LOW | C | (web-convention) | N/A | discovered | TBD | [D7.6.md](D7.6.md) |
 | D-new-01 | Identity node scaffolded; 4-field shape not materialized | **HIGH** | **A** | agent; ontology | N/A | remediated | CH-16 | [D-new-01.md](D-new-01.md) |
-| D-new-02 | Storage backend is SurrealDB (not SQLite per concept) | **HIGH** | **A** | coordination | N/A | discovered | TBD | [D-new-02.md](D-new-02.md) |
+| D-new-02 | Storage backend is SurrealDB (not SQLite per concept) | **HIGH** | **A** | coordination | N/A | **remediated** | CH-03 ✓ | [D-new-02.md](D-new-02.md) |
 | D-new-03 | Selector grammar has 4 variants; PEG tag-predicate DSL absent | **HIGH** | **A** | permissions/05, 09 | N/A | remediated | CH-06 | [D-new-03.md](D-new-03.md) |
 | D-new-04 | Consent node has 5 fields; concept mandates 10+ | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-04.md](D-new-04.md) |
 | D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-05.md](D-new-05.md) |

@@ -54,7 +54,7 @@ testable claim extracted from a concept doc.
 
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
-| Storage backend | v0 uses SQLite | contradicted | `store/Cargo.toml` has `surrealdb` dep | **D-new-02 HIGH** | N/A |
+| Storage backend | v0 uses SurrealDB (RocksDB-embedded; remote ≥ 2.0 supported); architecture is configurable via `Arc<dyn domain::Repository>`; 7-criterion conforming-backend contract ratified | honored | concept refreshed at `coordination.md` §"Storage backend"; `store/Cargo.toml` has `surrealdb` dep; 9 SurrealQL migrations 0001–0009; `Repository` trait at `domain/src/repository.rs` (~36 async methods) is the swap surface | **D-new-02 remediated 2026-04-28 via CH-03 / ADR-0042** | N/A |
 | Event hybrid | State + event sourcing | partially-honored | AgentEvent stream exists; no unified replay query | — | wrap (AgentEvent) |
 | Memory types | 4 types: user/feedback/project/reference | silent-in-code | Memory has `tags: Vec<String>` but no type enum | D-new-28 | N/A |
 

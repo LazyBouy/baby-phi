@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-20 by Claude Code -->
+<!-- Last verified: 2026-04-28 by Claude Code (CH-03 amendment: ADR-0042 ratifies the `Repository` trait described here as the conforming-backend swap surface for any future alternative storage impl. SurrealDB is the v0.1 configured backend, not a hardcoded choice. See `concepts/coordination.md` §"Storage backend" + ADR-0042 for the 7-criterion conforming contract.) -->
 
 # Architecture — storage and the Repository trait
 
