@@ -133,7 +133,7 @@ pub async fn add_secret(
     let grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(input.actor),
-        action: vec!["read".to_string()],
+        action: vec![domain::permissions::Action::Read],
         resource: ResourceRef { uri: uri.clone() },
         fundamentals: vec![Fundamental::SecretCredential],
         descends_from: Some(auth_request_id),

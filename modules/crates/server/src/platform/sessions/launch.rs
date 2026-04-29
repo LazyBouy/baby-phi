@@ -192,14 +192,16 @@ pub async fn launch_session(
     //
     // ## M5/P4 advisory-only note (drift D4.1)
     //
-    // At M5 the synthetic launch manifest (actions=["launch_session"],
+    // At M5 the synthetic launch manifest (actions=[Action::Invoke],
     // resource=["session"]) does not yet correspond to a real
     // per-action grant shape on the baby-phi agent. Real grant
     // minting at project-creation time (Template A) covers
-    // `[read, inspect, list]` on `project:<id>` — not
-    // `launch_session` on `session`. Strictly gating the launch on
+    // `[Read, Inspect, List]` on `project:<id>` — not
+    // `Invoke` on `session`. Strictly gating the launch on
     // the Decision would reject every M5 launch of a lead agent
-    // into their own project.
+    // into their own project. (Pre-CH-04 the synthetic action was
+    // a non-vocabulary `"launch_session"` string; CH-04 / ADR-0043
+    // §D43.6 conformed it to canonical `Action::Invoke`.)
     //
     // Resolution: the Decision is surfaced on the receipt
     // (advisory + visible to the operator via the preview

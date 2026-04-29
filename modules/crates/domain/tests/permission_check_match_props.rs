@@ -17,7 +17,7 @@ use common::*;
 use domain::model::ids::AgentId;
 use domain::model::nodes::PrincipalRef;
 use domain::model::Fundamental;
-use domain::permissions::{check, Decision, FailedStep, NoopMetrics, ToolCall};
+use domain::permissions::{check, Action, Decision, FailedStep, NoopMetrics, ToolCall};
 
 use proptest::prelude::*;
 
@@ -29,7 +29,7 @@ proptest! {
     ) {
         let ctx_owned = ctx_with_agent_grants(vec![]);
         let ctx = ctx_owned.borrow(ToolCall::default());
-        let m = manifest_of(&[&action], &[resource_fs.as_str()]);
+        let m = manifest_of(&[action], &[resource_fs.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert_eq!(d.failed_step(), Some(FailedStep::Resolution));
     }
@@ -44,11 +44,11 @@ proptest! {
         // grant would cover the manifest.
         prop_assume!(grant_fundamental != manifest_fundamental);
         let agent = AgentId::new();
-        let g = grant_on(PrincipalRef::Agent(agent), &[&action], grant_fundamental.as_str());
+        let g = grant_on(PrincipalRef::Agent(agent), &[action], grant_fundamental.as_str());
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
         ctx_owned.agent = agent;
         let ctx = ctx_owned.borrow(ToolCall::default());
-        let m = manifest_of(&[&action], &[manifest_fundamental.as_str()]);
+        let m = manifest_of(&[action], &[manifest_fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert_eq!(d.failed_step(), Some(FailedStep::Match));
     }
@@ -59,11 +59,11 @@ proptest! {
         action in any_action(),
     ) {
         let agent = AgentId::new();
-        let g = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let g = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
         ctx_owned.agent = agent;
         let ctx = ctx_owned.borrow(ToolCall::default());
-        let m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let m = manifest_of(&[action], &[fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert!(
             matches!(d, Decision::Allowed { .. }),
@@ -81,11 +81,11 @@ proptest! {
         // regressions in Fundamental::ALL.
         prop_assert!(Fundamental::ALL.contains(&fundamental));
         let agent = AgentId::new();
-        let g = grant_on(PrincipalRef::Agent(agent), &["read"], fundamental.as_str());
+        let g = grant_on(PrincipalRef::Agent(agent), &[Action::Read], fundamental.as_str());
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
         ctx_owned.agent = agent;
         let ctx = ctx_owned.borrow(ToolCall::default());
-        let m = manifest_of(&["read"], &[fundamental.as_str()]);
+        let m = manifest_of(&[Action::Read], &[fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert!(d.is_allowed());
     }

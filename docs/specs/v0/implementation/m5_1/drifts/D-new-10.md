@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-04: terminally remediated. The 9×10 applicability matrix from `concepts/permissions/03-action-vocabulary.md` lines 27–37 is encoded as `Action::applies_to(Fundamental) -> bool` + `Action::applies_to_composite(Composite) -> bool` (composite verdict derives via constituents() per concept-doc §"Composite inheritance" line 39). Exhaustive 306-cell test transcribes the matrix verbatim from the concept doc. CH-04 ships the matrix as a queryable function; CH-05 wires it into the publish-time validator (deferred per ADR-0043 §D43.8). ADR-0043 ratifies. Status flipped to `remediated`.) -->
 
 # D-new-10 — Action × Fundamental applicability matrix not enforced (grants can pair any action with any fundamental)
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: B — underspecified shape choice
 - **Severity**: MEDIUM
 - **Tags**: `permission-engine`, `applicability-matrix`
@@ -45,3 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 2 report)
+- 2026-04-28 — `in-chunk-plan` — assigned to CH-04 (paired with D-new-09 — neither closes without the other).
+- 2026-04-29 — `remediated` — CH-04 chunk-seal — `Action::applies_to(Fundamental)` encodes the 9×10 matrix verbatim; `Action::applies_to_composite(Composite)` derives via constituents(). Exhaustive 306-cell test transcribes the matrix from concept-doc lines 27–37 — a divergence between the concept doc and the code surfaces as a test failure. CH-04 ships the matrix as a queryable function; per ADR-0043 §D43.8, CH-05's publish-time validator wires it in as a real rejection rule. [ADR-0043](../../m5_2/decisions/0043-typed-action-vocabulary.md) Accepted ratifies.

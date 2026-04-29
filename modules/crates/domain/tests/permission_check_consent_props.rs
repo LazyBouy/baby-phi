@@ -33,7 +33,7 @@ proptest! {
         let target = AgentId::new();
         let org = OrgId::new();
         let ar = AuthRequestId::new();
-        let mut g = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let mut g = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         g.descends_from = Some(ar);
 
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
@@ -46,7 +46,7 @@ proptest! {
             ..Default::default()
         };
         let ctx = ctx_owned.borrow(call);
-        let m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let m = manifest_of(&[action], &[fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert!(
             matches!(d, Decision::Pending { .. }),
@@ -64,7 +64,7 @@ proptest! {
         let target = AgentId::new();
         let org = OrgId::new();
         let ar = AuthRequestId::new();
-        let mut g = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let mut g = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         g.descends_from = Some(ar);
 
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
@@ -78,7 +78,7 @@ proptest! {
             ..Default::default()
         };
         let ctx = ctx_owned.borrow(call);
-        let m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let m = manifest_of(&[action], &[fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert!(d.is_allowed(), "expected Allowed, got {:?}", d);
     }
@@ -92,7 +92,7 @@ proptest! {
         let agent = AgentId::new();
         let target = AgentId::new();
         let org = OrgId::new();
-        let mut g = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let mut g = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         if attach_ar {
             g.descends_from = Some(AuthRequestId::new());
         }
@@ -107,7 +107,7 @@ proptest! {
             ..Default::default()
         };
         let ctx = ctx_owned.borrow(call);
-        let m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let m = manifest_of(&[action], &[fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert!(
             !matches!(d, Decision::Pending { .. }),

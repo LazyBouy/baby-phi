@@ -181,7 +181,7 @@ pub async fn reveal_secret(
 ///    tag — matches the per-instance grant issued at add time.
 fn build_reveal_manifest_and_call(uri: &str) -> (Manifest, ToolCall) {
     let manifest = Manifest {
-        actions: vec!["read".to_string()],
+        actions: vec![domain::permissions::Action::Read],
         resource: vec!["secret_credential".to_string()],
         transitive: vec![],
         constraints: vec!["purpose".to_string()],
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn manifest_declares_purpose_reveal_requirement() {
         let (manifest, call) = build_reveal_manifest_and_call("secret:anthropic-api-key");
-        assert_eq!(manifest.actions, vec!["read".to_string()]);
+        assert_eq!(manifest.actions, vec![domain::permissions::Action::Read]);
         assert_eq!(manifest.resource, vec!["secret_credential".to_string()]);
         assert_eq!(manifest.constraints, vec!["purpose".to_string()]);
         assert_eq!(
@@ -314,7 +314,7 @@ mod tests {
         let grants = [Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(agent),
-            action: vec!["read".to_string()],
+            action: vec![domain::permissions::Action::Read],
             resource: ResourceRef { uri: uri.clone() },
             fundamentals: vec![Fundamental::SecretCredential],
             descends_from: None,
@@ -356,7 +356,7 @@ mod tests {
         let grants = [Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(agent),
-            action: vec!["read".to_string()],
+            action: vec![domain::permissions::Action::Read],
             resource: ResourceRef { uri: uri.clone() },
             fundamentals: vec![Fundamental::SecretCredential],
             descends_from: None,
@@ -408,7 +408,7 @@ mod tests {
         let grants = [Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(agent),
-            action: vec!["read".to_string()],
+            action: vec![domain::permissions::Action::Read],
             resource: ResourceRef { uri: uri.clone() },
             fundamentals: vec![Fundamental::SecretCredential],
             descends_from: None,

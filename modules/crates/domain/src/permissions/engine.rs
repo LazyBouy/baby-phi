@@ -21,6 +21,7 @@ use crate::model::ids::{AgentId, GrantId, OrgId, ProjectId};
 use crate::model::nodes::{Grant, PrincipalRef};
 use crate::model::Fundamental;
 
+use super::action::Action;
 use super::decision::{AwaitingConsent, Decision, DeniedReason, FailedStep, ResolvedReach};
 use super::expansion::{resolve_grant, ResolvedGrant};
 use super::manifest::{CheckContext, Manifest};
@@ -150,8 +151,8 @@ pub fn step_0_catalogue(ctx: &CheckContext<'_>) -> Option<DeniedReason> {
 /// Expand the manifest into `(fundamental, action)` reaches. Composite
 /// names are expanded to their constituent fundamentals; unknown names are
 /// dropped (they contribute no reaches).
-pub fn step_1_expand_manifest(manifest: &Manifest) -> Vec<(Fundamental, String)> {
-    let mut reaches: Vec<(Fundamental, String)> = Vec::new();
+pub fn step_1_expand_manifest(manifest: &Manifest) -> Vec<(Fundamental, Action)> {
+    let mut reaches: Vec<(Fundamental, Action)> = Vec::new();
 
     let fundamentals_union: std::collections::HashSet<Fundamental> = manifest
         .resource
@@ -162,10 +163,10 @@ pub fn step_1_expand_manifest(manifest: &Manifest) -> Vec<(Fundamental, String)>
 
     for fundamental in fundamentals_union {
         for action in &manifest.actions {
-            reaches.push((fundamental, action.clone()));
+            reaches.push((fundamental, *action));
         }
     }
-    reaches.sort_by(|a, b| (a.0 as u8, &a.1).cmp(&(b.0 as u8, &b.1)));
+    reaches.sort_by_key(|a| (a.0 as u8, a.1));
     reaches.dedup();
     reaches
 }
@@ -249,12 +250,14 @@ pub fn step_2a_ceiling(candidates: Vec<Candidate>, ceiling_grants: &[Grant]) -> 
 
 fn ceiling_admits(ceiling: &ResolvedGrant, candidate: &ResolvedGrant) -> bool {
     // Every action on the candidate must appear on the ceiling (or ceiling
-    // has a `*` wildcard).
-    let actions_ok = candidate
-        .grant
-        .action
-        .iter()
-        .all(|a| ceiling.grant.action.iter().any(|ca| ca == a || ca == "*"));
+    // carries Action::Wildcard).
+    let actions_ok = candidate.grant.action.iter().all(|a| {
+        ceiling
+            .grant
+            .action
+            .iter()
+            .any(|ca| *ca == *a || *ca == Action::Wildcard)
+    });
     if !actions_ok {
         return false;
     }
@@ -266,7 +269,7 @@ fn ceiling_admits(ceiling: &ResolvedGrant, candidate: &ResolvedGrant) -> bool {
 // Step 3 — Match each required reach against ≥1 grant
 // ----------------------------------------------------------------------------
 
-type ReachKey = (Fundamental, String);
+type ReachKey = (Fundamental, Action);
 
 /// For each required reach, filter `effective` down to the grants whose
 /// fundamentals + actions + selector cover the reach. Empty match set for
@@ -280,7 +283,7 @@ pub fn step_3_match_reaches(
     for (f, action) in required {
         let matching: Vec<Candidate> = effective
             .iter()
-            .filter(|c| c.resolved.covers(*f, action))
+            .filter(|c| c.resolved.covers(*f, *action))
             .filter(|c| {
                 c.resolved.effective_evaluate(
                     &ctx.call.target_uri,
@@ -295,11 +298,11 @@ pub fn step_3_match_reaches(
                 failed_step: FailedStep::Match,
                 reason: DeniedReason::NoMatchingGrant {
                     fundamental: *f,
-                    action: action.clone(),
+                    action: *action,
                 },
             });
         }
-        out.insert((*f, action.clone()), matching);
+        out.insert((*f, *action), matching);
     }
     Ok(out)
 }
@@ -321,11 +324,11 @@ pub fn step_5_scope_resolution(
         candidates.sort_by_key(|c| c.tier);
         let top_tier = candidates[0].tier;
         candidates.retain(|c| c.tier == top_tier);
-        let winner = tie_break_within_tier(candidates).ok_or_else(|| Decision::Denied {
+        let winner = tie_break_within_tier(candidates).ok_or(Decision::Denied {
             failed_step: FailedStep::Scope,
             reason: DeniedReason::ScopeUnresolvable {
                 fundamental: key.0,
-                action: key.1.clone(),
+                action: key.1,
             },
         })?;
         winners.insert(key, winner);
@@ -406,8 +409,8 @@ pub fn step_4_constraints(
 /// to a deterministic winner (smallest sorted reach key) so tests and
 /// logs stay stable across `HashMap` iteration-order runs.
 fn constraint_violation(resolved: &HashMap<ReachKey, ResolvedGrant>, constraint: &str) -> Decision {
-    let mut keys: Vec<_> = resolved.keys().cloned().collect();
-    keys.sort_by(|a, b| (a.0 as u8, &a.1).cmp(&(b.0 as u8, &b.1)));
+    let mut keys: Vec<_> = resolved.keys().copied().collect();
+    keys.sort_by_key(|a| (a.0 as u8, a.1));
     // `resolved` is non-empty here: callers invoke this only after Step
     // 5 fills `resolved`, which itself is non-empty because Step 1
     // would otherwise have returned at ManifestEmpty.
@@ -500,7 +503,7 @@ pub fn holds_grant_for(
 
 /// For tests: an `Allowed` decision's `resolved_grants` map as
 /// `HashMap<(fundamental, action), GrantId>`.
-pub fn allowed_map(d: &Decision) -> HashMap<(Fundamental, String), GrantId> {
+pub fn allowed_map(d: &Decision) -> HashMap<(Fundamental, Action), GrantId> {
     d.resolved_grants_map()
 }
 
@@ -517,11 +520,11 @@ mod tests {
 
     // ---- Fixture helpers --------------------------------------------------
 
-    fn grant(holder: PrincipalRef, actions: &[&str], resource_uri: &str) -> Grant {
+    fn grant(holder: PrincipalRef, actions: &[Action], resource_uri: &str) -> Grant {
         Grant {
             id: GrantId::new(),
             holder,
-            action: actions.iter().map(|s| s.to_string()).collect(),
+            action: actions.to_vec(),
             resource: ResourceRef {
                 uri: resource_uri.into(),
             },
@@ -580,9 +583,9 @@ mod tests {
         }
     }
 
-    fn manifest(actions: &[&str], resource: &[&str]) -> Manifest {
+    fn manifest(actions: &[Action], resource: &[&str]) -> Manifest {
         Manifest {
-            actions: actions.iter().map(|s| s.to_string()).collect(),
+            actions: actions.to_vec(),
             resource: resource.iter().map(|s| s.to_string()).collect(),
             ..Default::default()
         }
@@ -628,19 +631,19 @@ mod tests {
 
     #[test]
     fn step_1_expands_fundamental_and_composite() {
-        let m = manifest(&["read"], &["filesystem_object", "memory_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object", "memory_object"]);
         let reaches = step_1_expand_manifest(&m);
         // filesystem_object + memory_object (data_object + tag) = 3 fundamentals × 1 action.
         assert_eq!(reaches.len(), 3);
         assert!(reaches
             .iter()
-            .any(|(f, a)| *f == Fundamental::FilesystemObject && a == "read"));
+            .any(|(f, a)| *f == Fundamental::FilesystemObject && *a == Action::Read));
         assert!(reaches
             .iter()
-            .any(|(f, a)| *f == Fundamental::DataObject && a == "read"));
+            .any(|(f, a)| *f == Fundamental::DataObject && *a == Action::Read));
         assert!(reaches
             .iter()
-            .any(|(f, a)| *f == Fundamental::Tag && a == "read"));
+            .any(|(f, a)| *f == Fundamental::Tag && *a == Action::Read));
     }
 
     #[test]
@@ -650,7 +653,7 @@ mod tests {
             target_uri: "filesystem:/missing".into(),
             ..Default::default()
         });
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert_eq!(d.failed_step(), Some(FailedStep::Catalogue));
     }
@@ -667,7 +670,7 @@ mod tests {
     fn engine_denies_at_step_2_when_subject_holds_nothing() {
         let f = Fixture::new();
         let ctx = f.ctx(ToolCall::default());
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert_eq!(d.failed_step(), Some(FailedStep::Resolution));
     }
@@ -677,12 +680,12 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let ctx = f.ctx(ToolCall::default());
         // Manifest needs network, not filesystem.
-        let m = manifest(&["connect"], &["network_endpoint"]);
+        let m = manifest(&[Action::Connect], &["network_endpoint"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert_eq!(d.failed_step(), Some(FailedStep::Match));
     }
@@ -692,11 +695,11 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let ctx = f.ctx(ToolCall::default());
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert!(d.is_allowed(), "expected Allowed, got {:?}", d);
     }
@@ -706,11 +709,11 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let ctx = f.ctx(ToolCall::default());
-        let mut m = manifest(&["read"], &["filesystem_object"]);
+        let mut m = manifest(&[Action::Read], &["filesystem_object"]);
         m.constraints = vec!["path_prefix".into()];
         let d = check(&ctx, &m, &NoopMetrics);
         assert_eq!(d.failed_step(), Some(FailedStep::Constraint));
@@ -723,14 +726,14 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let mut call = ToolCall::default();
         call.constraint_context
             .insert("purpose".into(), serde_json::json!("list"));
         let ctx = f.ctx(call);
-        let mut m = manifest(&["read"], &["filesystem_object"]);
+        let mut m = manifest(&[Action::Read], &["filesystem_object"]);
         m.constraints = vec!["purpose".into()];
         m.constraint_requirements
             .insert("purpose".into(), serde_json::json!("reveal"));
@@ -747,14 +750,14 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let mut call = ToolCall::default();
         call.constraint_context
             .insert("purpose".into(), serde_json::json!("reveal"));
         let ctx = f.ctx(call);
-        let mut m = manifest(&["read"], &["filesystem_object"]);
+        let mut m = manifest(&[Action::Read], &["filesystem_object"]);
         m.constraints = vec!["purpose".into()];
         m.constraint_requirements
             .insert("purpose".into(), serde_json::json!("reveal"));
@@ -769,14 +772,14 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let mut call = ToolCall::default();
         call.constraint_context
             .insert("purpose".into(), serde_json::json!("anything"));
         let ctx = f.ctx(call);
-        let mut m = manifest(&["read"], &["filesystem_object"]);
+        let mut m = manifest(&[Action::Read], &["filesystem_object"]);
         m.constraints = vec!["purpose".into()];
         // No constraint_requirements entry.
         let d = check(&ctx, &m, &NoopMetrics);
@@ -788,14 +791,14 @@ mod tests {
         let mut f = Fixture::new();
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         let mut call = ToolCall::default();
         call.constraint_context
             .insert("path_prefix".into(), serde_json::json!("/workspace/"));
         let ctx = f.ctx(call);
-        let mut m = manifest(&["read"], &["filesystem_object"]);
+        let mut m = manifest(&[Action::Read], &["filesystem_object"]);
         m.constraints = vec!["path_prefix".into()];
         let d = check(&ctx, &m, &NoopMetrics);
         assert!(d.is_allowed(), "expected Allowed, got {:?}", d);
@@ -808,7 +811,7 @@ mod tests {
         // fundamentals via the special case in resolve_grant.
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["allocate"],
+            &[Action::Allocate],
             "system:root",
         ));
         f.catalogue.seed(None, "system:root");
@@ -816,7 +819,7 @@ mod tests {
             target_uri: "system:root".into(),
             ..Default::default()
         });
-        let m = manifest(&["allocate"], &["identity_principal"]);
+        let m = manifest(&[Action::Allocate], &["identity_principal"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert!(d.is_allowed(), "expected Allowed, got {:?}", d);
     }
@@ -827,18 +830,18 @@ mod tests {
         // Candidate: read filesystem_object.
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         // Ceiling: only allows network_endpoint — filesystem reach is not
         // under the ceiling's fundamentals.
         f.ceiling_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "network_endpoint",
         ));
         let ctx = f.ctx(ToolCall::default());
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert_eq!(d.failed_step(), Some(FailedStep::Ceiling));
     }
@@ -851,7 +854,11 @@ mod tests {
         f.org = Some(org);
         // Template-sourced grant.
         let ar = AuthRequestId::new();
-        let mut g = grant(PrincipalRef::Agent(f.agent), &["read"], "filesystem_object");
+        let mut g = grant(
+            PrincipalRef::Agent(f.agent),
+            &[Action::Read],
+            "filesystem_object",
+        );
         g.descends_from = Some(ar);
         f.agent_grants.push(g);
         f.template_gated.insert(ar);
@@ -860,7 +867,7 @@ mod tests {
             target_agent: Some(target),
             ..Default::default()
         });
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert!(matches!(d, Decision::Pending { .. }));
     }
@@ -872,7 +879,11 @@ mod tests {
         let org = OrgId::new();
         f.org = Some(org);
         let ar = AuthRequestId::new();
-        let mut g = grant(PrincipalRef::Agent(f.agent), &["read"], "filesystem_object");
+        let mut g = grant(
+            PrincipalRef::Agent(f.agent),
+            &[Action::Read],
+            "filesystem_object",
+        );
         g.descends_from = Some(ar);
         f.agent_grants.push(g);
         f.template_gated.insert(ar);
@@ -882,7 +893,7 @@ mod tests {
             target_agent: Some(target),
             ..Default::default()
         });
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         assert!(d.is_allowed(), "expected Allowed, got {:?}", d);
     }
@@ -898,22 +909,22 @@ mod tests {
         // All three scopes can read filesystem_object.
         f.agent_grants.push(grant(
             PrincipalRef::Agent(f.agent),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         f.project_grants.push(grant(
             PrincipalRef::Project(proj),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
         f.org_grants.push(grant(
             PrincipalRef::Organization(org),
-            &["read"],
+            &[Action::Read],
             "filesystem_object",
         ));
 
         let ctx = f.ctx(ToolCall::default());
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         let allowed = match d {
             Decision::Allowed { resolved_grants } => resolved_grants,
@@ -940,7 +951,7 @@ mod tests {
         let cap = Cap::default();
         let f = Fixture::new();
         let ctx = f.ctx(ToolCall::default());
-        let m = manifest(&["read"], &["filesystem_object"]);
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
         let _ = check(&ctx, &m, &cap);
         let recorded = cap.0.lock().unwrap().clone();
         assert_eq!(recorded.len(), 1);

@@ -13,7 +13,9 @@ use domain::model::ids::{AgentId, AuthRequestId, GrantId, OrgId, ProjectId};
 use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
 use domain::model::Fundamental;
 use domain::permissions::manifest::ConsentIndex;
-use domain::permissions::{CatalogueLookup, CheckContext, Manifest, StaticCatalogue, ToolCall};
+use domain::permissions::{
+    Action, CatalogueLookup, CheckContext, Manifest, StaticCatalogue, ToolCall,
+};
 
 use proptest::collection::vec;
 use proptest::prelude::*;
@@ -82,11 +84,11 @@ pub fn ts(offset_secs: i64) -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap() + Duration::seconds(offset_secs)
 }
 
-pub fn grant_on(holder: PrincipalRef, actions: &[&str], resource_uri: &str) -> Grant {
+pub fn grant_on(holder: PrincipalRef, actions: &[Action], resource_uri: &str) -> Grant {
     Grant {
         id: GrantId::new(),
         holder,
-        action: actions.iter().map(|s| s.to_string()).collect(),
+        action: actions.to_vec(),
         resource: ResourceRef {
             uri: resource_uri.into(),
         },
@@ -98,9 +100,9 @@ pub fn grant_on(holder: PrincipalRef, actions: &[&str], resource_uri: &str) -> G
     }
 }
 
-pub fn manifest_of(actions: &[&str], resource: &[&str]) -> Manifest {
+pub fn manifest_of(actions: &[Action], resource: &[&str]) -> Manifest {
     Manifest {
-        actions: actions.iter().map(|s| s.to_string()).collect(),
+        actions: actions.to_vec(),
         resource: resource.iter().map(|s| s.to_string()).collect(),
         ..Default::default()
     }
@@ -124,14 +126,14 @@ pub fn any_fundamental() -> impl Strategy<Value = Fundamental> {
     ]
 }
 
-pub fn any_action() -> impl Strategy<Value = String> {
+pub fn any_action() -> impl Strategy<Value = Action> {
     prop_oneof![
-        Just("read".to_string()),
-        Just("list".to_string()),
-        Just("modify".to_string()),
-        Just("execute".to_string()),
-        Just("allocate".to_string()),
-        Just("connect".to_string()),
+        Just(Action::Read),
+        Just(Action::List),
+        Just(Action::Modify),
+        Just(Action::Execute),
+        Just(Action::Allocate),
+        Just(Action::Connect),
     ]
 }
 
@@ -169,14 +171,14 @@ pub fn any_manifest() -> impl Strategy<Value = Manifest> {
 /// Helper for `effective_matches` ergonomics — converts a simple
 /// `(fundamental, action)` set into a concrete manifest reaching exactly
 /// those fundamentals with those actions.
-pub fn manifest_reaching(required: &[(Fundamental, &str)]) -> Manifest {
-    let mut actions: Vec<String> = Vec::new();
+pub fn manifest_reaching(required: &[(Fundamental, Action)]) -> Manifest {
+    let mut actions: Vec<Action> = Vec::new();
     let mut fundamentals: Vec<String> = Vec::new();
-    let mut seen_actions: HashSet<String> = HashSet::new();
+    let mut seen_actions: HashSet<Action> = HashSet::new();
     let mut seen_fs: HashSet<Fundamental> = HashSet::new();
     for (f, a) in required {
-        if seen_actions.insert((*a).to_string()) {
-            actions.push((*a).to_string());
+        if seen_actions.insert(*a) {
+            actions.push(*a);
         }
         if seen_fs.insert(*f) {
             fundamentals.push(f.as_str().to_string());
@@ -201,11 +203,11 @@ pub fn cat_with(entries: &[(Option<OrgId>, &str)]) -> StaticCatalogue {
 
 /// Accumulator-style: group reaches → action list per fundamental.
 pub fn reaches_by_fundamental(
-    reaches: &[(Fundamental, String)],
-) -> HashMap<Fundamental, Vec<String>> {
-    let mut out: HashMap<Fundamental, Vec<String>> = HashMap::new();
+    reaches: &[(Fundamental, Action)],
+) -> HashMap<Fundamental, Vec<Action>> {
+    let mut out: HashMap<Fundamental, Vec<Action>> = HashMap::new();
     for (f, a) in reaches {
-        out.entry(*f).or_default().push(a.clone());
+        out.entry(*f).or_default().push(*a);
     }
     out
 }

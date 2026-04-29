@@ -1222,7 +1222,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(grants.len(), 1, "exactly one lead grant persisted");
-        assert_eq!(grants[0].action, vec!["read", "inspect", "list"]);
+        assert_eq!(
+            grants[0].action,
+            vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::Inspect,
+                crate::permissions::action::Action::List,
+            ]
+        );
 
         // Audit event captured.
         let events = audit.events.lock().unwrap().clone();
@@ -1366,7 +1373,13 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(grants.len(), 1);
-        assert_eq!(grants[0].action, vec!["read", "inspect"]);
+        assert_eq!(
+            grants[0].action,
+            vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::Inspect,
+            ]
+        );
         assert_eq!(grants[0].resource.uri, format!("agent:{}", subordinate));
 
         let events = audit.events.lock().unwrap().clone();

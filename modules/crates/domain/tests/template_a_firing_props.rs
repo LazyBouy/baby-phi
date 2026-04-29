@@ -67,7 +67,14 @@ proptest! {
     #[test]
     fn action_is_read_inspect_list_in_stable_order(args in arb_args()) {
         let g = fire_grant_on_lead_assignment(args);
-        prop_assert_eq!(g.action, vec!["read", "inspect", "list"]);
+        prop_assert_eq!(
+            g.action,
+            vec![
+                domain::permissions::Action::Read,
+                domain::permissions::Action::Inspect,
+                domain::permissions::Action::List,
+            ]
+        );
     }
 
     #[test]

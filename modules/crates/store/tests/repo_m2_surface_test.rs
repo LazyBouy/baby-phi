@@ -290,7 +290,7 @@ fn grant_owned_by_org(org: OrgId, ar: AuthRequestId) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Organization(org),
-        action: vec!["invoke".into()],
+        action: vec![domain::permissions::Action::Invoke],
         resource: ResourceRef {
             uri: format!("mcp:some-tool-{}", uuid::Uuid::new_v4()),
         },

@@ -146,7 +146,7 @@ pub async fn register_provider(
     let grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(input.actor),
-        action: vec!["invoke".to_string()],
+        action: vec![domain::permissions::Action::Invoke],
         resource: ResourceRef { uri: uri.clone() },
         fundamentals: vec![
             Fundamental::NetworkEndpoint,

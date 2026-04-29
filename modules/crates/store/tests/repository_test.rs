@@ -391,7 +391,10 @@ async fn create_tool_authority_manifest_persists_full_shape() {
             tool_name: "read_memory".into(),
             resource: vec!["memory_object".into()],
             transitive: vec!["tag".into()],
-            actions: vec!["read".into(), "list".into()],
+            actions: vec![
+                domain::permissions::Action::Read,
+                domain::permissions::Action::List,
+            ],
             constraints: vec!["tag_predicate".into()],
             kinds: vec!["memory".into()],
             target_kinds: vec!["memory".into()],
@@ -467,11 +470,15 @@ async fn get_admin_agent_finds_human_agent_after_create() {
 // Grants
 // ---------------------------------------------------------------------------
 
-fn sample_grant(holder: PrincipalRef, action: &str, resource_uri: &str) -> Grant {
+fn sample_grant(
+    holder: PrincipalRef,
+    action: domain::permissions::Action,
+    resource_uri: &str,
+) -> Grant {
     Grant {
         id: GrantId::new(),
         holder,
-        action: vec![action.into()],
+        action: vec![action],
         resource: ResourceRef {
             uri: resource_uri.into(),
         },
@@ -487,12 +494,16 @@ fn sample_grant(holder: PrincipalRef, action: &str, resource_uri: &str) -> Grant
 async fn grant_create_and_get_round_trip() {
     let (store, _dir) = fresh_store().await;
     let holder = PrincipalRef::Agent(AgentId::new());
-    let grant = sample_grant(holder.clone(), "read", "memory:m-1");
+    let grant = sample_grant(
+        holder.clone(),
+        domain::permissions::Action::Read,
+        "memory:m-1",
+    );
     store.create_grant(&grant).await.expect("create");
 
     let got = store.get_grant(grant.id).await.expect("get").expect("row");
     assert_eq!(got.id, grant.id);
-    assert_eq!(got.action, vec!["read".to_string()]);
+    assert_eq!(got.action, vec![domain::permissions::Action::Read]);
     assert_eq!(got.resource.uri, "memory:m-1");
     match got.holder {
         PrincipalRef::Agent(a) => match holder {
@@ -506,7 +517,11 @@ async fn grant_create_and_get_round_trip() {
 #[tokio::test]
 async fn grant_revoke_sets_revoked_at() {
     let (store, _dir) = fresh_store().await;
-    let grant = sample_grant(PrincipalRef::Agent(AgentId::new()), "read", "memory:m-1");
+    let grant = sample_grant(
+        PrincipalRef::Agent(AgentId::new()),
+        domain::permissions::Action::Read,
+        "memory:m-1",
+    );
     store.create_grant(&grant).await.expect("create");
     assert!(store
         .get_grant(grant.id)
@@ -531,19 +546,35 @@ async fn list_grants_for_principal_returns_only_matching_grants() {
     let org = PrincipalRef::Organization(OrgId::new());
 
     store
-        .create_grant(&sample_grant(alice.clone(), "read", "r1"))
+        .create_grant(&sample_grant(
+            alice.clone(),
+            domain::permissions::Action::Read,
+            "r1",
+        ))
         .await
         .unwrap();
     store
-        .create_grant(&sample_grant(alice.clone(), "write", "r2"))
+        .create_grant(&sample_grant(
+            alice.clone(),
+            domain::permissions::Action::Modify,
+            "r2",
+        ))
         .await
         .unwrap();
     store
-        .create_grant(&sample_grant(bob.clone(), "read", "r3"))
+        .create_grant(&sample_grant(
+            bob.clone(),
+            domain::permissions::Action::Read,
+            "r3",
+        ))
         .await
         .unwrap();
     store
-        .create_grant(&sample_grant(org.clone(), "allocate", "r4"))
+        .create_grant(&sample_grant(
+            org.clone(),
+            domain::permissions::Action::Allocate,
+            "r4",
+        ))
         .await
         .unwrap();
 
@@ -1083,7 +1114,11 @@ async fn get_organization_returns_none_when_absent() {
 async fn grant_with_system_principal_holder_roundtrips() {
     let (store, _dir) = fresh_store().await;
     let holder = PrincipalRef::System("system:genesis".into());
-    let grant = sample_grant(holder.clone(), "allocate", "system:root");
+    let grant = sample_grant(
+        holder.clone(),
+        domain::permissions::Action::Allocate,
+        "system:root",
+    );
     store.create_grant(&grant).await.unwrap();
 
     let got = store.get_grant(grant.id).await.unwrap().expect("row");
@@ -1101,7 +1136,11 @@ async fn grant_with_system_principal_holder_roundtrips() {
 async fn grant_with_project_principal_holder_roundtrips() {
     let (store, _dir) = fresh_store().await;
     let project = PrincipalRef::Project(ProjectId::new());
-    let grant = sample_grant(project.clone(), "read", "filesystem_object");
+    let grant = sample_grant(
+        project.clone(),
+        domain::permissions::Action::Read,
+        "filesystem_object",
+    );
     store.create_grant(&grant).await.unwrap();
 
     let listed = store.list_grants_for_principal(&project).await.unwrap();
@@ -1116,19 +1155,23 @@ async fn grant_with_project_principal_holder_roundtrips() {
 async fn grant_with_multiple_actions_roundtrips() {
     let (store, _dir) = fresh_store().await;
     let holder = PrincipalRef::Agent(AgentId::new());
-    let mut grant = sample_grant(holder, "read", "filesystem_object");
+    let mut grant = sample_grant(
+        holder,
+        domain::permissions::Action::Read,
+        "filesystem_object",
+    );
     grant.action = vec![
-        "read".into(),
-        "list".into(),
-        "inspect".into(),
-        "observe".into(),
+        domain::permissions::Action::Read,
+        domain::permissions::Action::List,
+        domain::permissions::Action::Inspect,
+        domain::permissions::Action::Observe,
     ];
 
     store.create_grant(&grant).await.unwrap();
     let got = store.get_grant(grant.id).await.unwrap().expect("row");
     assert_eq!(got.action.len(), 4);
-    assert_eq!(got.action[0], "read");
-    assert_eq!(got.action[3], "observe");
+    assert_eq!(got.action[0], domain::permissions::Action::Read);
+    assert_eq!(got.action[3], domain::permissions::Action::Observe);
 }
 
 #[tokio::test]
@@ -1136,7 +1179,7 @@ async fn grant_with_descends_from_auth_request_roundtrips() {
     let (store, _dir) = fresh_store().await;
     let holder = PrincipalRef::Agent(AgentId::new());
     let ar = AuthRequestId::new();
-    let mut grant = sample_grant(holder, "read", "memory_object");
+    let mut grant = sample_grant(holder, domain::permissions::Action::Read, "memory_object");
     grant.descends_from = Some(ar);
     grant.delegable = true;
 
@@ -1152,7 +1195,11 @@ async fn revoked_grant_still_returned_by_get_grant() {
     // the current contract; Step 2 of the Permission Check is what
     // excludes them, not the repository.
     let (store, _dir) = fresh_store().await;
-    let grant = sample_grant(PrincipalRef::Agent(AgentId::new()), "read", "memory:m-1");
+    let grant = sample_grant(
+        PrincipalRef::Agent(AgentId::new()),
+        domain::permissions::Action::Read,
+        "memory:m-1",
+    );
     store.create_grant(&grant).await.unwrap();
     let when = Utc::now();
     store.revoke_grant(grant.id, when).await.unwrap();
@@ -1180,7 +1227,11 @@ async fn revoke_grant_on_missing_id_is_noop() {
 #[tokio::test]
 async fn revoke_grant_is_idempotent_with_later_timestamp_winning() {
     let (store, _dir) = fresh_store().await;
-    let grant = sample_grant(PrincipalRef::Agent(AgentId::new()), "read", "memory:m-1");
+    let grant = sample_grant(
+        PrincipalRef::Agent(AgentId::new()),
+        domain::permissions::Action::Read,
+        "memory:m-1",
+    );
     store.create_grant(&grant).await.unwrap();
 
     let t1 = Utc::now();
@@ -1586,7 +1637,7 @@ fn bootstrap_claim_for(
         grant: Grant {
             id: grant_id,
             holder: PrincipalRef::Agent(agent_id),
-            action: vec!["allocate".into()],
+            action: vec![domain::permissions::Action::Allocate],
             resource: ResourceRef {
                 uri: "system:root".into(),
             },

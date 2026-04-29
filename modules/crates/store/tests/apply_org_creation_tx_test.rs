@@ -87,7 +87,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
     let ceo_grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(ceo_agent.id),
-        action: vec!["allocate".into()],
+        action: vec![domain::permissions::Action::Allocate],
         resource: ResourceRef {
             uri: format!("org:{}", org_id),
         },

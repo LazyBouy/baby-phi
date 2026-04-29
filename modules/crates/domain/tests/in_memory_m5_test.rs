@@ -131,7 +131,7 @@ fn make_grant(descends_from: AuthRequestId) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(AgentId::new()),
-        action: vec!["read".into()],
+        action: vec![domain::permissions::Action::Read],
         resource: ResourceRef {
             uri: format!("auth_request:{}", descends_from),
         },

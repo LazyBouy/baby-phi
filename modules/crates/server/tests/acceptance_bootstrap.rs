@@ -108,7 +108,7 @@ async fn fresh_install_happy_claim() {
         .await
         .unwrap()
         .expect("grant present");
-    assert_eq!(grant.action, vec!["allocate".to_string()]);
+    assert_eq!(grant.action, vec![domain::permissions::Action::Allocate]);
     assert_eq!(grant.resource.uri, "system:root");
     assert_eq!(
         grant.descends_from.as_ref().unwrap().to_string(),

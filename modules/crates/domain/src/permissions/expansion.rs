@@ -17,6 +17,7 @@ use std::collections::HashSet;
 use crate::model::nodes::Grant;
 use crate::model::{Composite, Fundamental};
 
+use super::action::Action;
 use super::selector::{NoopSetRefRegistry, Selector, SetRefRegistry};
 
 /// Expand a resource-class string (either a fundamental name or a composite
@@ -97,13 +98,16 @@ impl ResolvedGrant {
     /// Does this grant cover the given `(fundamental, action)` reach?
     ///
     /// - Fundamental must be in this grant's `fundamentals` set.
-    /// - Action must be in `grant.action` OR the grant must list `"*"` (a
-    ///   bootstrap/root grant).
-    pub fn covers(&self, fundamental: Fundamental, action: &str) -> bool {
+    /// - Action must be listed on the grant OR the grant must list
+    ///   [`Action::Wildcard`] (a bootstrap/root grant).
+    pub fn covers(&self, fundamental: Fundamental, action: Action) -> bool {
         if !self.fundamentals.contains(&fundamental) {
             return false;
         }
-        self.grant.action.iter().any(|a| a == action || a == "*")
+        self.grant
+            .action
+            .iter()
+            .any(|a| *a == action || *a == Action::Wildcard)
     }
 }
 
@@ -210,11 +214,11 @@ mod tests {
     use crate::model::nodes::{PrincipalRef, ResourceRef};
     use chrono::Utc;
 
-    fn sample_grant(resource_uri: &str, actions: &[&str]) -> Grant {
+    fn sample_grant(resource_uri: &str, actions: &[Action]) -> Grant {
         Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(AgentId::new()),
-            action: actions.iter().map(|s| s.to_string()).collect(),
+            action: actions.to_vec(),
             resource: ResourceRef {
                 uri: resource_uri.into(),
             },
@@ -261,7 +265,7 @@ mod tests {
 
     #[test]
     fn resolve_grant_on_fundamental_uri_produces_any_selector() {
-        let g = sample_grant("filesystem_object", &["read"]);
+        let g = sample_grant("filesystem_object", &[Action::Read]);
         let r = resolve_grant(&g);
         assert_eq!(r.selector, Selector::Any);
         assert!(r.kind_refinement.is_none());
@@ -270,7 +274,7 @@ mod tests {
 
     #[test]
     fn resolve_grant_on_composite_adds_kind_refinement() {
-        let g = sample_grant("memory_object", &["read"]);
+        let g = sample_grant("memory_object", &[Action::Read]);
         let r = resolve_grant(&g);
         assert_eq!(r.kind_refinement, Some(Selector::KindTag("memory".into())));
         assert!(r.fundamentals.contains(&Fundamental::DataObject));
@@ -279,7 +283,7 @@ mod tests {
 
     #[test]
     fn resolve_grant_on_opaque_instance_uri_parses_as_exact_selector() {
-        let g = sample_grant("filesystem:/workspace/main.rs", &["read"]);
+        let g = sample_grant("filesystem:/workspace/main.rs", &[Action::Read]);
         let r = resolve_grant(&g);
         assert_eq!(
             r.selector,
@@ -290,7 +294,7 @@ mod tests {
 
     #[test]
     fn resolve_grant_on_prefix_uri_parses_as_prefix_selector() {
-        let g = sample_grant("filesystem:/workspace/**", &["read"]);
+        let g = sample_grant("filesystem:/workspace/**", &[Action::Read]);
         let r = resolve_grant(&g);
         assert_eq!(
             r.selector,
@@ -300,7 +304,7 @@ mod tests {
 
     #[test]
     fn resolve_grant_on_system_root_covers_all_fundamentals() {
-        let g = sample_grant("system:root", &["allocate"]);
+        let g = sample_grant("system:root", &[Action::Allocate]);
         let r = resolve_grant(&g);
         assert_eq!(r.selector, Selector::Any);
         assert_eq!(r.fundamentals.len(), Fundamental::ALL.len());
@@ -309,7 +313,7 @@ mod tests {
 
     #[test]
     fn with_fundamentals_injects_explicit_classes() {
-        let g = sample_grant("filesystem:/workspace/**", &["read"]);
+        let g = sample_grant("filesystem:/workspace/**", &[Action::Read]);
         let r =
             resolve_grant(&g).with_fundamentals([Fundamental::FilesystemObject, Fundamental::Tag]);
         assert_eq!(r.fundamentals.len(), 2);
@@ -318,24 +322,27 @@ mod tests {
 
     #[test]
     fn covers_matches_action_and_fundamental() {
-        let g = sample_grant("filesystem_object", &["read", "list"]);
+        let g = sample_grant("filesystem_object", &[Action::Read, Action::List]);
         let r = resolve_grant(&g);
-        assert!(r.covers(Fundamental::FilesystemObject, "read"));
-        assert!(r.covers(Fundamental::FilesystemObject, "list"));
-        assert!(!r.covers(Fundamental::FilesystemObject, "delete"));
-        assert!(!r.covers(Fundamental::NetworkEndpoint, "read"));
+        assert!(r.covers(Fundamental::FilesystemObject, Action::Read));
+        assert!(r.covers(Fundamental::FilesystemObject, Action::List));
+        assert!(!r.covers(Fundamental::FilesystemObject, Action::Delete));
+        assert!(!r.covers(Fundamental::NetworkEndpoint, Action::Read));
     }
 
     #[test]
     fn covers_respects_star_action_wildcard() {
-        let g = sample_grant("filesystem_object", &["*"]);
+        let g = sample_grant("filesystem_object", &[Action::Wildcard]);
         let r = resolve_grant(&g);
-        assert!(r.covers(Fundamental::FilesystemObject, "anything"));
+        // Wildcard grants cover any required action under the listed fundamental.
+        assert!(r.covers(Fundamental::FilesystemObject, Action::Read));
+        assert!(r.covers(Fundamental::FilesystemObject, Action::Modify));
+        assert!(r.covers(Fundamental::FilesystemObject, Action::Delete));
     }
 
     #[test]
     fn effective_matches_respects_kind_refinement() {
-        let g = sample_grant("memory_object", &["read"]);
+        let g = sample_grant("memory_object", &[Action::Read]);
         let r = resolve_grant(&g);
         // Memory grant must not match session entities.
         assert!(!r.effective_matches("session:s-1", &["#kind:session".into()]));

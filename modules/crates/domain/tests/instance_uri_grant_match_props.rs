@@ -32,6 +32,7 @@ use domain::permissions::{
     decision::FailedStep,
     manifest::{CheckContext, ConsentIndex, Manifest, ToolCall},
     metrics::NoopMetrics,
+    Action,
 };
 
 fn arb_fundamental() -> impl Strategy<Value = Fundamental> {
@@ -47,11 +48,11 @@ fn arb_kind_and_instance() -> impl Strategy<Value = (String, String)> {
     ("[a-z][a-z0-9-]{1,10}", "[a-z0-9][a-z0-9-]{2,20}")
 }
 
-fn arb_action() -> impl Strategy<Value = String> {
+fn arb_action() -> impl Strategy<Value = Action> {
     prop_oneof![
-        Just("read".to_string()),
-        Just("invoke".to_string()),
-        Just("modify".to_string()),
+        Just(Action::Read),
+        Just(Action::Invoke),
+        Just(Action::Modify)
     ]
 }
 
@@ -92,7 +93,7 @@ proptest! {
         let grant = Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(agent),
-            action: vec![action.clone()],
+            action: vec![action],
             resource: ResourceRef { uri: uri.clone() },
             fundamentals: vec![fundamental],
             descends_from: None,
@@ -138,7 +139,7 @@ proptest! {
         let grant = Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(agent),
-            action: vec![action.clone()],
+            action: vec![action],
             resource: ResourceRef {
                 uri: fundamental.as_str().to_string(),
             },
@@ -197,7 +198,7 @@ proptest! {
         let grant = Grant {
             id: GrantId::new(),
             holder: PrincipalRef::Agent(agent),
-            action: vec![action.clone()],
+            action: vec![action],
             resource: ResourceRef { uri: uri.clone() },
             fundamentals: vec![], // the trap case: empty
             descends_from: None,

@@ -24,6 +24,7 @@ use domain::permissions::{
     decision::{DeniedReason, FailedStep},
     manifest::{CheckContext, ConsentIndex, Manifest, ToolCall},
     metrics::NoopMetrics,
+    Action,
 };
 use domain::repository::{RepositoryError, RepositoryResult};
 use server::handler_support::permission::{check_permission, denial_to_api_error};
@@ -33,11 +34,11 @@ use server::handler_support::{emit_audit, emit_audit_batch, ApiError};
 // check_permission contract
 // -----------------------------------------------------------------------
 
-fn mk_grant(holder: PrincipalRef, actions: &[&str], resource: &str) -> Grant {
+fn mk_grant(holder: PrincipalRef, actions: &[Action], resource: &str) -> Grant {
     Grant {
         id: GrantId::new(),
         holder,
-        action: actions.iter().map(|s| s.to_string()).collect(),
+        action: actions.to_vec(),
         resource: ResourceRef {
             uri: resource.into(),
         },
@@ -54,7 +55,7 @@ fn check_permission_allows_when_grant_covers_reach() {
     let agent = AgentId::new();
     let grants = [mk_grant(
         PrincipalRef::Agent(agent),
-        &["read"],
+        &[Action::Read],
         "filesystem_object",
     )];
     let catalogue = StaticCatalogue::empty();
@@ -75,7 +76,7 @@ fn check_permission_allows_when_grant_covers_reach() {
         call: ToolCall::default(),
     };
     let m = Manifest {
-        actions: vec!["read".into()],
+        actions: vec![Action::Read],
         resource: vec!["filesystem_object".into()],
         ..Default::default()
     };
@@ -104,7 +105,7 @@ fn check_permission_maps_step_2_resolution_to_no_grants_held() {
         call: ToolCall::default(),
     };
     let m = Manifest {
-        actions: vec!["read".into()],
+        actions: vec![Action::Read],
         resource: vec!["filesystem_object".into()],
         ..Default::default()
     };
@@ -118,7 +119,7 @@ fn check_permission_maps_step_4_to_constraint_violation() {
     let agent = AgentId::new();
     let grants = [mk_grant(
         PrincipalRef::Agent(agent),
-        &["read"],
+        &[Action::Read],
         "filesystem_object",
     )];
     let catalogue = StaticCatalogue::empty();
@@ -139,7 +140,7 @@ fn check_permission_maps_step_4_to_constraint_violation() {
         call: ToolCall::default(),
     };
     let mut m = Manifest {
-        actions: vec!["read".into()],
+        actions: vec![Action::Read],
         resource: vec!["filesystem_object".into()],
         constraints: vec!["purpose".into()],
         ..Default::default()
@@ -157,7 +158,11 @@ fn check_permission_maps_pending_to_awaiting_consent_202() {
     let agent = AgentId::new();
     let org = OrgId::new();
     let ar = AuthRequestId::new();
-    let mut g = mk_grant(PrincipalRef::Agent(agent), &["read"], "filesystem_object");
+    let mut g = mk_grant(
+        PrincipalRef::Agent(agent),
+        &[Action::Read],
+        "filesystem_object",
+    );
     g.descends_from = Some(ar);
     let grants = [g];
     let mut gated = std::collections::HashSet::new();
@@ -182,7 +187,7 @@ fn check_permission_maps_pending_to_awaiting_consent_202() {
         },
     };
     let m = Manifest {
-        actions: vec!["read".into()],
+        actions: vec![Action::Read],
         resource: vec!["filesystem_object".into()],
         ..Default::default()
     };
@@ -210,7 +215,7 @@ fn denial_to_api_error_match_carries_fundamental_and_action() {
         FailedStep::Match,
         &DeniedReason::NoMatchingGrant {
             fundamental: Fundamental::NetworkEndpoint,
-            action: "connect".into(),
+            action: Action::Connect,
         },
     );
     assert_eq!(err.code, "NO_MATCHING_GRANT");

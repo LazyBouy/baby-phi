@@ -34,7 +34,7 @@ fn sample_reason_for(step: FailedStep) -> DeniedReason {
         FailedStep::Ceiling => DeniedReason::CeilingEmptied,
         FailedStep::Match => DeniedReason::NoMatchingGrant {
             fundamental: Fundamental::FilesystemObject,
-            action: "read".into(),
+            action: domain::permissions::Action::Read,
         },
         FailedStep::Constraint => DeniedReason::ConstraintViolation {
             constraint: "purpose".into(),
@@ -42,7 +42,7 @@ fn sample_reason_for(step: FailedStep) -> DeniedReason {
         },
         FailedStep::Scope => DeniedReason::ScopeUnresolvable {
             fundamental: Fundamental::DataObject,
-            action: "read".into(),
+            action: domain::permissions::Action::Read,
         },
         // There is no `DeniedReason::ConsentMissing` variant — consent
         // flows surface via `Decision::Pending`. Reuse `NoGrantsHeld`

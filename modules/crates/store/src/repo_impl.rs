@@ -123,7 +123,7 @@ async fn take_first_row(
 struct GrantRow {
     holder_kind: String,
     holder_id: String,
-    action: Vec<String>,
+    action: Vec<domain::permissions::Action>,
     resource_uri: String,
     /// Explicit fundamentals — serialized as a `Vec<&'static str>`
     /// since [`Fundamental`] already serdes as a snake_case string.

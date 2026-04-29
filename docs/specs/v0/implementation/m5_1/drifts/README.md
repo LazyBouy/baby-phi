@@ -102,8 +102,8 @@ fixed.
 | D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | discovered | TBD | [D-new-06.md](D-new-06.md) |
 | D-new-07 | Publish-time manifest validator missing | **HIGH** | **A** | permissions/04, 07 | N/A | discovered | TBD | [D-new-07.md](D-new-07.md) |
 | D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | discovered | TBD | [D-new-08.md](D-new-08.md) |
-| D-new-09 | Action vocabulary stored as `Vec<String>` (no enum) | MEDIUM | B | permissions/03 | N/A | discovered | TBD | [D-new-09.md](D-new-09.md) |
-| D-new-10 | Action × Fundamental applicability matrix not enforced | MEDIUM | B | permissions/03 | N/A | discovered | TBD | [D-new-10.md](D-new-10.md) |
+| D-new-09 | Action vocabulary stored as `Vec<String>` (no enum) | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-09.md](D-new-09.md) |
+| D-new-10 | Action × Fundamental applicability matrix not enforced | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-10.md](D-new-10.md) |
 | D-new-11 | Composite instance self-identity tag not auto-added | MEDIUM | B | permissions/01 | N/A | remediated | CH-06 | [D-new-11.md](D-new-11.md) |
 | D-new-12 | AuthRequest per-state ACL not enforced | MEDIUM | B | permissions/02 | N/A | discovered | TBD | [D-new-12.md](D-new-12.md) |
 | D-new-13 | allocate/transfer cardinality not enforced | **HIGH** | **A** | permissions/02, 03 | N/A | discovered | TBD | [D-new-13.md](D-new-13.md) |

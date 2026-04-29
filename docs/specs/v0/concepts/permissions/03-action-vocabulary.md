@@ -1,5 +1,5 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-04: the 34 canonical verbs + 9×10 applicability matrix below are now lifted into typed Rust at `domain::permissions::action::Action` — drifts D-new-09 + D-new-10 closed; ADR-0043 ratifies. Vocabulary table + matrix UNCHANGED at this chunk; new § "Future work — v1 revisit: per-resource action enums" appended at the end.) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 
 
@@ -538,5 +538,24 @@ grant:
 **Composite-specific rules:** Every Session node carries `#kind:session`. Tags are assigned by the system at creation and frozen (except `#archived`/`#active`). Multi-Scope Session Access resolution applies to reads.
 
 **Implicit `#kind:session` tag** is added to every Session node at creation time. Grants targeting `session_object` carry an implicit `tags contains #kind:session` selector refinement. See [Composite Identity Tags](01-resource-ontology.md#composite-identity-tags-kind) for the explanation.
+
+---
+
+## Future work — v1 revisit: per-resource action enums
+
+The v0.1 design (shipped at CH-04 / [ADR-0043](../../implementation/m5_2/decisions/0043-typed-action-vocabulary.md)) is a **flat enum + applicability matrix**: every grant or manifest carries `Vec<Action>` where `Action` is the closed 35-variant enum (34 canonical verbs + 1 wildcard). The matrix is queryable via `Action::applies_to(Fundamental) -> bool`; the publish-time validator (CH-05) uses the matrix to reject manifests that assert invalid `(Fundamental, Action)` pairs.
+
+**A more rigorous v1 design would split the vocabulary per resource:** one enum per fundamental (`enum FilesystemObjectAction`, `enum MemoryObjectAction`, `enum NetworkEndpointAction`, …), with `Grant<R>` generic over a `ResourceClass` trait that has an associated `Action` type. A construction like `Grant<FilesystemObject> { action: vec![Recall] }` would then **fail to compile** rather than being caught by the publish-time validator at runtime.
+
+**Why we shipped flat-enum + matrix at v0.1, not per-resource enums.** The v1 design gives compile-time enforcement of "this action is valid for this resource type"; the v0.1 design gives publish-time enforcement of the same rule. Operators load manifests through the validator, so the same class of bugs is caught at effectively the same stage. The compile-time guarantee is real but marginal at v0.1 scale, while the engineering cost of the per-resource design is roughly **2–3× the flat-enum effort**:
+
+- Concept doc restructuring — every fundamental + composite section grows its own action subsection (this doc would re-organize into per-resource chapters rather than one shared vocabulary table).
+- Per-Composite enum unions — the 8 composites would each need a derived enum union over their `constituents()`.
+- Wildcard reworking — `*` as a single value disappears under per-resource design; each resource enum needs its own escape hatch (or the wildcard moves to a wrapper).
+- Repository trait surface — methods like `create_grant` and `list_grants_for_principal` go generic, with about ~10 methods touched across the trait.
+
+**v1 trigger for revisit.** Ship the per-resource design when (a) a concrete failure mode appears that the publish-time validator can't catch, OR (b) the runtime cost of validator round-trips becomes a measurable problem. Until then, the flat-enum + matrix is the v0.1 + v1 baseline.
+
+See ADR-0043 §D43.9 for the full deferral rationale + alternatives considered.
 
 ---

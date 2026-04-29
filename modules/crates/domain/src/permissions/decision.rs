@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 use crate::model::ids::{AgentId, GrantId, OrgId};
 use crate::model::Fundamental;
 
+use super::action::Action;
+
 /// Enumerates the eight explicit stages of the pipeline (0, 1, 2, 2a, 3, 4,
 /// 5, 6). The integer representation is what the Prometheus histogram label
 /// `failed_step` reports; 2a is encoded as `22` so labels stay numeric and
@@ -78,7 +80,7 @@ pub enum DeniedReason {
     /// No grant in the candidate set matches this `(fundamental, action)`.
     NoMatchingGrant {
         fundamental: Fundamental,
-        action: String,
+        action: Action,
     },
     /// A manifest-declared constraint was not satisfied by the winning grant.
     ConstraintViolation {
@@ -89,7 +91,7 @@ pub enum DeniedReason {
     /// where no candidate shares scope with the reader).
     ScopeUnresolvable {
         fundamental: Fundamental,
-        action: String,
+        action: Action,
     },
 }
 
@@ -118,7 +120,7 @@ pub enum Decision {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedReach {
     pub fundamental: Fundamental,
-    pub action: String,
+    pub action: Action,
     pub grant_id: GrantId,
 }
 
@@ -157,11 +159,11 @@ impl Decision {
 
     /// For tests and audit summaries: a lookup from `(fundamental, action)`
     /// to grant id. Empty for non-Allowed outcomes.
-    pub fn resolved_grants_map(&self) -> HashMap<(Fundamental, String), GrantId> {
+    pub fn resolved_grants_map(&self) -> HashMap<(Fundamental, Action), GrantId> {
         match self {
             Decision::Allowed { resolved_grants } => resolved_grants
                 .iter()
-                .map(|r| ((r.fundamental, r.action.clone()), r.grant_id))
+                .map(|r| ((r.fundamental, r.action), r.grant_id))
                 .collect(),
             _ => HashMap::new(),
         }

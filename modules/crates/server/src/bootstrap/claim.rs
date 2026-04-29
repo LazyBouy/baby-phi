@@ -230,7 +230,7 @@ pub async fn execute_claim(
     let grant = Grant {
         id: grant_id,
         holder: PrincipalRef::Agent(agent_id),
-        action: vec!["allocate".into()],
+        action: vec![domain::permissions::Action::Allocate],
         resource: ResourceRef {
             uri: "system:root".into(),
         },
@@ -345,7 +345,7 @@ mod tests {
 
         // Grant exists with [allocate] on system:root.
         let grant = repo.get_grant(out.grant_id).await.unwrap().unwrap();
-        assert_eq!(grant.action, vec!["allocate".to_string()]);
+        assert_eq!(grant.action, vec![domain::permissions::Action::Allocate]);
         assert_eq!(grant.resource.uri, "system:root");
         assert_eq!(grant.descends_from, Some(out.bootstrap_auth_request_id));
         assert!(grant.delegable);

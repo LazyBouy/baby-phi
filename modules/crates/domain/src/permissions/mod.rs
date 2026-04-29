@@ -31,6 +31,7 @@
 //! ships a [`NoopMetrics`] sink for tests; the server crate will plug a
 //! Prometheus histogram into this trait in P6.
 
+pub mod action;
 pub mod catalogue;
 pub mod decision;
 pub mod engine;
@@ -39,6 +40,7 @@ pub mod manifest;
 pub mod metrics;
 pub mod selector;
 
+pub use action::{Action, ActionCategory, ParseActionError};
 pub use catalogue::{CatalogueLookup, StaticCatalogue};
 pub use decision::{Decision, DeniedReason, FailedStep};
 pub use engine::check;

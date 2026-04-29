@@ -230,7 +230,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
     let ceo_grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(ceo_agent.id),
-        action: vec!["allocate".into()],
+        action: vec![domain::permissions::Action::Allocate],
         resource: ResourceRef {
             uri: format!("org:{}", org_id),
         },

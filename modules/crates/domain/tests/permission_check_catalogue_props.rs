@@ -13,7 +13,7 @@
 mod common;
 
 use common::*;
-use domain::permissions::{check, FailedStep, NoopMetrics, ToolCall};
+use domain::permissions::{check, Action, FailedStep, NoopMetrics, ToolCall};
 
 use proptest::prelude::*;
 
@@ -29,7 +29,7 @@ proptest! {
             // first.
             grant_on(
                 domain::model::nodes::PrincipalRef::Agent(domain::model::ids::AgentId::new()),
-                &["read"],
+                &[Action::Read],
                 "filesystem_object",
             ),
         ]);
@@ -38,7 +38,7 @@ proptest! {
             ..Default::default()
         };
         let ctx = ctx_owned.borrow(call);
-        let m = manifest_of(&["read"], &["filesystem_object"]);
+        let m = manifest_of(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert_eq!(d.failed_step(), Some(FailedStep::Catalogue));
     }
@@ -56,7 +56,7 @@ proptest! {
             ..Default::default()
         };
         let ctx = ctx_owned.borrow(call);
-        let m = manifest_of(&["read"], &["filesystem_object"]);
+        let m = manifest_of(&[Action::Read], &["filesystem_object"]);
         let d = check(&ctx, &m, &NoopMetrics);
         // May be denied at a later step (e.g. no grants held), but not at
         // Step 0.

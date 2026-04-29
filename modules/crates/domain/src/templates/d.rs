@@ -77,7 +77,10 @@ pub fn fire_grant_on_has_agent_supervisor(args: FireArgs) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(supervisor),
-        action: vec!["read".to_string(), "inspect".to_string()],
+        action: vec![
+            crate::permissions::action::Action::Read,
+            crate::permissions::action::Action::Inspect,
+        ],
         resource: ResourceRef {
             uri: format!("project:{project}/agent:{supervisee}"),
         },
@@ -145,7 +148,13 @@ mod tests {
     #[test]
     fn fire_grant_action_is_read_inspect_in_stable_order() {
         let g = fire_grant_on_has_agent_supervisor(fire_args());
-        assert_eq!(g.action, vec!["read", "inspect"]);
+        assert_eq!(
+            g.action,
+            vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::Inspect,
+            ]
+        );
     }
 
     #[test]

@@ -26,6 +26,7 @@ use std::collections::HashSet;
 use crate::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId};
 use crate::model::nodes::{Grant, ToolAuthorityManifest};
 
+use super::action::Action;
 use super::catalogue::CatalogueLookup;
 use super::selector::SetRefRegistry;
 
@@ -35,7 +36,7 @@ use super::selector::SetRefRegistry;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Manifest {
     /// Actions the tool performs (`execute`, `read`, `modify`, …).
-    pub actions: Vec<String>,
+    pub actions: Vec<Action>,
     /// Primary resource classes the tool touches. Each value is either a
     /// fundamental name (e.g. `filesystem_object`) or a composite name
     /// (e.g. `external_service_object`). Composites expand to fundamentals
@@ -195,7 +196,7 @@ mod tests {
     fn empty_manifest_detected() {
         assert!(Manifest::default().is_empty());
         let only_actions = Manifest {
-            actions: vec!["read".into()],
+            actions: vec![Action::Read],
             ..Default::default()
         };
         assert!(only_actions.is_empty());
@@ -209,7 +210,7 @@ mod tests {
     #[test]
     fn manifest_with_action_and_resource_is_non_empty() {
         let m = Manifest {
-            actions: vec!["execute".into()],
+            actions: vec![Action::Execute],
             resource: vec!["process_exec_object".into()],
             ..Default::default()
         };

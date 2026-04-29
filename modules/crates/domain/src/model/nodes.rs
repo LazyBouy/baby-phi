@@ -624,7 +624,7 @@ impl Default for TemplateKind {
 pub struct Grant {
     pub id: GrantId,
     pub holder: PrincipalRef,
-    pub action: Vec<String>,
+    pub action: Vec<crate::permissions::action::Action>,
     pub resource: ResourceRef,
     /// Explicit fundamental classes this grant covers — authoritative
     /// when non-empty. Empty means "use legacy URI-derivation" (M1
@@ -772,7 +772,7 @@ pub struct ToolAuthorityManifest {
     pub tool_name: String,
     pub resource: Vec<String>,
     pub transitive: Vec<String>,
-    pub actions: Vec<String>,
+    pub actions: Vec<crate::permissions::action::Action>,
     pub constraints: Vec<String>,
     pub kinds: Vec<String>,
     pub target_kinds: Vec<String>,

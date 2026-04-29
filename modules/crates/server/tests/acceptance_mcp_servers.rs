@@ -392,7 +392,7 @@ async fn narrow_tenants_cascades_and_emits_summary_plus_auth_request_revoked() {
     let grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(holder),
-        action: vec!["invoke".into()],
+        action: vec![domain::permissions::Action::Invoke],
         resource: ResourceRef {
             uri: format!("external_service:{mcp_server_id}"),
         },

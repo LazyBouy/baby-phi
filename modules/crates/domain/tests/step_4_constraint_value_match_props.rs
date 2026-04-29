@@ -26,7 +26,7 @@ fn fixture_grant(agent: AgentId) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(agent),
-        action: vec!["read".into()],
+        action: vec![domain::permissions::Action::Read],
         resource: ResourceRef {
             uri: "filesystem_object".into(),
         },
@@ -89,7 +89,7 @@ proptest! {
         call.constraint_context.insert(key.clone(), required.clone());
 
         let mut m = Manifest {
-            actions: vec!["read".into()],
+            actions: vec![domain::permissions::Action::Read],
             resource: vec!["filesystem_object".into()],
             constraints: vec![key.clone()],
             ..Default::default()
@@ -126,7 +126,7 @@ proptest! {
         call.constraint_context.insert(key.clone(), provided);
 
         let mut m = Manifest {
-            actions: vec!["read".into()],
+            actions: vec![domain::permissions::Action::Read],
             resource: vec!["filesystem_object".into()],
             constraints: vec![key.clone()],
             ..Default::default()
@@ -158,7 +158,7 @@ proptest! {
         call.constraint_context.insert(key.clone(), provided);
 
         let m = Manifest {
-            actions: vec!["read".into()],
+            actions: vec![domain::permissions::Action::Read],
             resource: vec!["filesystem_object".into()],
             constraints: vec![key],
             constraint_requirements: HashMap::new(),

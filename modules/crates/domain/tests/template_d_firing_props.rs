@@ -50,7 +50,13 @@ proptest! {
     #[test]
     fn action_is_read_inspect_in_stable_order(args in arb_args()) {
         let g = fire_grant_on_has_agent_supervisor(args);
-        prop_assert_eq!(g.action, vec!["read", "inspect"]);
+        prop_assert_eq!(
+            g.action,
+            vec![
+                domain::permissions::Action::Read,
+                domain::permissions::Action::Inspect,
+            ]
+        );
     }
 
     #[test]

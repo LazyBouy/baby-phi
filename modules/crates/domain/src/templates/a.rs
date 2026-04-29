@@ -101,9 +101,9 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(lead),
         action: vec![
-            "read".to_string(),
-            "inspect".to_string(),
-            "list".to_string(),
+            crate::permissions::action::Action::Read,
+            crate::permissions::action::Action::Inspect,
+            crate::permissions::action::Action::List,
         ],
         resource: ResourceRef {
             uri: format!("project:{project}"),
@@ -171,7 +171,14 @@ mod tests {
     #[test]
     fn fire_grant_action_is_read_inspect_list_in_stable_order() {
         let g = fire_grant_on_lead_assignment(fire_args());
-        assert_eq!(g.action, vec!["read", "inspect", "list"]);
+        assert_eq!(
+            g.action,
+            vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::Inspect,
+                crate::permissions::action::Action::List,
+            ]
+        );
     }
 
     #[test]

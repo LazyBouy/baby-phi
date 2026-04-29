@@ -17,13 +17,13 @@ mod common;
 use common::*;
 use domain::model::ids::{AgentId, GrantId, OrgId};
 use domain::model::nodes::{PrincipalRef, ResourceRef};
-use domain::permissions::{check, Decision, FailedStep, NoopMetrics, ToolCall};
+use domain::permissions::{check, Action, Decision, FailedStep, NoopMetrics, ToolCall};
 
 /// Build the `bash` manifest per `concepts/permissions/04` §Worked Example
 /// and its companion "bash cargo build" scenario.
 fn bash_manifest() -> domain::permissions::Manifest {
     domain::permissions::Manifest {
-        actions: vec!["execute".into()],
+        actions: vec![Action::Execute],
         resource: vec!["process_exec_object".into()],
         transitive: vec![
             "filesystem_object".into(),
@@ -44,23 +44,27 @@ fn claude_coder_7_grants(agent: AgentId) -> Vec<domain::model::nodes::Grant> {
     vec![
         grant_on(
             PrincipalRef::Agent(agent),
-            &["execute"],
+            &[Action::Execute],
             "process_exec_object",
         ),
         grant_on(
             PrincipalRef::Agent(agent),
-            &["execute"],
+            &[Action::Execute],
             "filesystem_object",
         ),
-        grant_on(PrincipalRef::Agent(agent), &["execute"], "network_endpoint"),
         grant_on(
             PrincipalRef::Agent(agent),
-            &["execute"],
+            &[Action::Execute],
+            "network_endpoint",
+        ),
+        grant_on(
+            PrincipalRef::Agent(agent),
+            &[Action::Execute],
             "secret_credential",
         ),
         grant_on(
             PrincipalRef::Agent(agent),
-            &["execute"],
+            &[Action::Execute],
             "time_compute_resource",
         ),
     ]
@@ -108,12 +112,12 @@ fn rm_rf_trace_denies_at_step_3_when_no_filesystem_grant() {
     let grants = vec![
         grant_on(
             PrincipalRef::Agent(agent),
-            &["execute"],
+            &[Action::Execute],
             "process_exec_object",
         ),
         grant_on(
             PrincipalRef::Agent(agent),
-            &["execute"],
+            &[Action::Execute],
             "time_compute_resource",
         ),
     ];

@@ -81,7 +81,10 @@ pub fn fire_grant_on_manages_edge(args: FireArgs) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(manager),
-        action: vec!["read".to_string(), "inspect".to_string()],
+        action: vec![
+            crate::permissions::action::Action::Read,
+            crate::permissions::action::Action::Inspect,
+        ],
         resource: ResourceRef {
             uri: format!("agent:{subordinate}"),
         },
@@ -148,7 +151,13 @@ mod tests {
     #[test]
     fn fire_grant_action_is_read_inspect_in_stable_order() {
         let g = fire_grant_on_manages_edge(fire_args());
-        assert_eq!(g.action, vec!["read", "inspect"]);
+        assert_eq!(
+            g.action,
+            vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::Inspect,
+            ]
+        );
     }
 
     #[test]

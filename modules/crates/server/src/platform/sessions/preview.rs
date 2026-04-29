@@ -10,7 +10,9 @@
 //!
 //! A session launch doesn't have a concrete `ToolCall` at preview
 //! time, so we build a minimal synthetic manifest declaring:
-//! - `actions = ["launch_session"]`
+//! - `actions = [Action::Invoke]` (canonical Execution-category verb;
+//!   replaces the earlier non-vocabulary `"launch_session"` synthetic
+//!   action per CH-04 / ADR-0043 §D43.6)
 //! - `resource = ["session"]`
 //! - `transitive = []`
 //!
@@ -23,7 +25,8 @@ use std::sync::Arc;
 use domain::model::ids::{AgentId, OrgId, ProjectId};
 use domain::model::nodes::PrincipalRef;
 use domain::permissions::{
-    check, CheckContext, ConsentIndex, Decision, Manifest, NoopMetrics, StaticCatalogue, ToolCall,
+    check, Action, CheckContext, ConsentIndex, Decision, Manifest, NoopMetrics, StaticCatalogue,
+    ToolCall,
 };
 use domain::Repository;
 use serde::{Deserialize, Serialize};
@@ -83,7 +86,7 @@ pub async fn preview_session(
     // Build synthetic launch manifest. `session` is a composite in
     // the M2 ontology + the resource catalogue carries it per org.
     let manifest = Manifest {
-        actions: vec!["launch_session".to_string()],
+        actions: vec![Action::Invoke],
         resource: vec!["session".to_string()],
         transitive: vec![],
         constraints: vec![],

@@ -34,14 +34,14 @@ proptest! {
     ) {
         prop_assume!(core_fundamental != extra_fundamental);
         let agent = AgentId::new();
-        let core = grant_on(PrincipalRef::Agent(agent), &[&action], core_fundamental.as_str());
-        let extra = grant_on(PrincipalRef::Agent(agent), &[&action], extra_fundamental.as_str());
+        let core = grant_on(PrincipalRef::Agent(agent), &[action], core_fundamental.as_str());
+        let extra = grant_on(PrincipalRef::Agent(agent), &[action], extra_fundamental.as_str());
 
         // Baseline: core grant only.
         let mut baseline = ctx_with_agent_grants(vec![core.clone()]);
         baseline.agent = agent;
         let ctx = baseline.borrow(ToolCall::default());
-        let m = manifest_of(&[&action], &[core_fundamental.as_str()]);
+        let m = manifest_of(&[action], &[core_fundamental.as_str()]);
         let baseline_decision = check(&ctx, &m, &NoopMetrics);
         prop_assume!(matches!(baseline_decision, Decision::Allowed { .. }));
         drop(ctx);
@@ -69,12 +69,12 @@ proptest! {
     ) {
         prop_assume!(core_fundamental != ceiling_fundamental);
         let agent = AgentId::new();
-        let core = grant_on(PrincipalRef::Agent(agent), &[&action], core_fundamental.as_str());
+        let core = grant_on(PrincipalRef::Agent(agent), &[action], core_fundamental.as_str());
 
         // Baseline with no ceiling: this configuration is Allowed.
         let mut baseline = ctx_with_agent_grants(vec![core.clone()]);
         baseline.agent = agent;
-        let m = manifest_of(&[&action], &[core_fundamental.as_str()]);
+        let m = manifest_of(&[action], &[core_fundamental.as_str()]);
         let baseline_decision = check(&baseline.borrow(ToolCall::default()), &m, &NoopMetrics);
         prop_assume!(baseline_decision.is_allowed());
 
@@ -82,7 +82,7 @@ proptest! {
         // candidate is clamped out → denial.
         let ceiling = grant_on(
             PrincipalRef::Agent(agent),
-            &[&action],
+            &[action],
             ceiling_fundamental.as_str(),
         );
         let mut with_ceiling = ctx_with_agent_grants(vec![core]);
@@ -100,13 +100,13 @@ proptest! {
         action in any_action(),
     ) {
         let agent = AgentId::new();
-        let mut revoked = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let mut revoked = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         revoked.revoked_at = Some(Utc::now());
 
         let mut ctx_owned = ctx_with_agent_grants(vec![revoked]);
         ctx_owned.agent = agent;
         let ctx = ctx_owned.borrow(ToolCall::default());
-        let m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let m = manifest_of(&[action], &[fundamental.as_str()]);
         let d = check(&ctx, &m, &NoopMetrics);
         // Single grant, revoked → candidate pool is empty → step 2 denial.
         prop_assert!(!d.is_allowed());

@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-28 by Claude Code (CH-06: Step 3 evaluator now interprets the full PEG tag-predicate DSL; SetRefRegistry threaded through CheckContext per ADR-0036; see m5_2/architecture/selector-grammar.md) -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-04: Step 1's `(Fundamental, action)` reach is now `(Fundamental, Action)` — the engine operates on typed `domain::permissions::Action` values throughout; wire format byte-stable via snake_case serde so audit hash chain unchanged. ADR-0043 ratifies. CH-06: Step 3 evaluator interprets the full PEG tag-predicate DSL; SetRefRegistry threaded through CheckContext per ADR-0036; see m5_2/architecture/selector-grammar.md) -->
 
 # Permission Check engine
 

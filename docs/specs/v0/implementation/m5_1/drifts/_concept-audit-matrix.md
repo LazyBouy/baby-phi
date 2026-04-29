@@ -157,8 +157,8 @@ testable claim extracted from a concept doc.
 
 | § | Claim | Status | Code evidence | Covering drift | phi-core leverage |
 |---|---|---|---|---|---|
-| Standard action vocabulary | 33 named actions | silent-in-code | no action constants/enums; actions are `Vec<String>` | D-new-09 | N/A |
-| Action × Fundamental matrix | Only compatible actions per fundamental | silent-in-code | no matrix enforcement | D-new-10 | N/A |
+| Standard action vocabulary | 34 named actions (concept-doc recount; was "33" in original audit row) | **honored** | `domain::permissions::action::Action` enum with 35 variants (34 canonical + Wildcard); `ALL[35]` / `CANONICAL[34]` iteration constants; `as_str` / `TryFrom<&str>` / `Display` / `FromStr`; carriers `Grant.action` + `Manifest.actions` + `ToolAuthorityManifest.actions` are `Vec<Action>` | **D-new-09 (remediated 2026-04-29 via CH-04)** | N/A |
+| Action × Fundamental matrix | Only compatible actions per fundamental | **honored** | `Action::applies_to(Fundamental) -> bool` encodes the 9×10 matrix from `concepts/permissions/03-action-vocabulary.md` lines 27–37; `Action::applies_to_composite(Composite)` derives via constituents() per concept-doc line 39; exhaustive 306-cell test transcribes the doc verbatim | **D-new-10 (remediated 2026-04-29 via CH-04)** | N/A |
 | `allocate` umbrella | covers delegate/approve/escalate/revoke etc. | silent-in-code | constraints as Vec<String>; no refinement types | D-new-29 | N/A |
 | Over-declaration principle | Manifest = max reach; intersection with grants | honored | `manifest.rs` + `engine.rs` Step 1 | — | N/A |
 

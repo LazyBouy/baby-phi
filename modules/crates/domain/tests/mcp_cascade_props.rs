@@ -84,7 +84,7 @@ fn grant_for_ar(holder: AgentId, ar_id: AuthRequestId) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(holder),
-        action: vec!["invoke".into()],
+        action: vec![domain::permissions::Action::Invoke],
         resource: ResourceRef {
             uri: "external_service:stub".into(),
         },

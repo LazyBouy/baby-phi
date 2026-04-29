@@ -39,12 +39,12 @@ proptest! {
         required_constraints in proptest::collection::vec(constraint_name(), 1..=3),
     ) {
         let agent = AgentId::new();
-        let g = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let g = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
         ctx_owned.agent = agent;
         // Empty constraint_context → at least one constraint is missing.
         let ctx = ctx_owned.borrow(ToolCall::default());
-        let mut m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let mut m = manifest_of(&[action], &[fundamental.as_str()]);
         m.constraints = required_constraints;
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert_eq!(d.failed_step(), Some(FailedStep::Constraint));
@@ -57,7 +57,7 @@ proptest! {
         required_constraints in proptest::collection::vec(constraint_name(), 0..=3),
     ) {
         let agent = AgentId::new();
-        let g = grant_on(PrincipalRef::Agent(agent), &[&action], fundamental.as_str());
+        let g = grant_on(PrincipalRef::Agent(agent), &[action], fundamental.as_str());
         let mut ctx_owned = ctx_with_agent_grants(vec![g]);
         ctx_owned.agent = agent;
         // Populate constraint_context with every required constraint.
@@ -70,7 +70,7 @@ proptest! {
             ..Default::default()
         };
         let ctx = ctx_owned.borrow(call);
-        let mut m = manifest_of(&[&action], &[fundamental.as_str()]);
+        let mut m = manifest_of(&[action], &[fundamental.as_str()]);
         m.constraints = required_constraints;
         let d = check(&ctx, &m, &NoopMetrics);
         prop_assert!(d.is_allowed(), "expected Allowed, got {:?}", d);
