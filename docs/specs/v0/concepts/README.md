@@ -1,12 +1,13 @@
 # phi v0 — Concept Documents
 
 > Each file expands one concept from [brainstorm.md](../brainstorm.md).
-> Status: All concepts are `CONCEPTUAL` — ideas, not specs.
+> Status: All concepts are `CONCEPTUAL` — ideas, not specs. **Exception**: `core-philosophy.md` is the **binding source-of-truth philosophy** that all other concepts and code align against (promoted 2026-04-28 from `plan/core-philosophy-check/`).
 
 ## Index
 
 | Concept | File | Description |
 |---------|------|-------------|
+| **Core Philosophy** | [core-philosophy.md](core-philosophy.md) | The 18-claim source-of-truth philosophy brief that all concept docs and code align against. Binding spec source promoted 2026-04-28 from the audit at `plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`. |
 | **Agent** | [agent.md](agent.md) | Agent anatomy: Soul (immutable), Power (tools/skills), Experience, Identity (emergent). Contract vs Worker modes. |
 | **Human Agent** | [human-agent.md](human-agent.md) | Human participants as Agents without models. Channel routing (Slack, email, web UI). |
 | **Ontology** | [ontology.md](ontology.md) | Core data model: all node types, edge types, value objects, schema registry. |

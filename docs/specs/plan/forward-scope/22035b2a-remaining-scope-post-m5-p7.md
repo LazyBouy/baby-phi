@@ -224,6 +224,54 @@ No M5 P8/P9 commitments orphaned.
 
 ---
 
+## §2.5 — M5.3 carve-out — philosophy alignment foundation work
+
+> **Purpose**: post-CH-21 philosophy alignment audit (2026-04-28) surfaced two foundational gaps the user has accepted as load-bearing. M5.3 is a dedicated carve-out closing those gaps **between M5 final seal (CH-24) and M6 start** so that M6+ chunks plan against a unified ownership-and-resource model. Gaps deferred to V1 would compound into ~8–15 engineer-days of refactor at M7+; M5.3 closes them in ~5–7 engineer-days now.
+>
+> **Audit + clarification record**: [`plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`](../core-philosophy-check/2026-04-28-philosophy-alignment-audit.md). User clarifications applied at §4.1 + §4.2.
+>
+> **Binding philosophy source**: [`v0/concepts/core-philosophy.md`](../../v0/concepts/core-philosophy.md) (promoted from `plan/core-philosophy-check/core-philosophy.md` at the M5.3 announcement-plan seal).
+>
+> **M5.3 drift catalogue**: [`v0/implementation/m5_3/drifts/`](../../v0/implementation/m5_3/drifts/) — D-philosophy-01 + D-philosophy-02 with their own README + concept-audit matrix. Parallel to (not under) `m5_1/drifts/`.
+>
+> **Plan archive (verbatim)**: [`plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](../core-philosophy-check/525d2085-m5-3-announcement-plan.md).
+
+### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1)
+
+- **Drifts closed**: **D-philosophy-01** (HIGH) — see [`m5_3/drifts/D-philosophy-01.md`](../../v0/implementation/m5_3/drifts/D-philosophy-01.md).
+- **Concept docs**: `core-philosophy.md` ("Agent owns Organization", "Agent create Projects"); `agent.md` ("Agent spawns other Agents (Ownership)").
+- **Prerequisites**: **CH-24** (M5 final seal). Independent of CH-23.
+- **Deliverables**:
+  - New `Owns` edge variant in `EdgeKind` enum (or extended `Created` with Agent→Org/Project type pairs).
+  - Bootstrap-claim flow + `apply_project_creation` compound tx emit the edge.
+  - Permission Check gains an "owner-grant" rule (auto-issue `[admin, transfer]` for the owner-Agent over the child Org/Project).
+  - Acceptance: owner-Agent can disable a child Agent without an explicit grant.
+  - New ADR (next-free at chunk-open; likely **ADR-0042**).
+- **Estimated effort**: ~3 engineer-days.
+
+### CH-26 — Org/Project as Composite resources (philosophy §4.2)
+
+- **Drifts closed**: **D-philosophy-02** (HIGH) — see [`m5_3/drifts/D-philosophy-02.md`](../../v0/implementation/m5_3/drifts/D-philosophy-02.md).
+- **Concept docs**: `core-philosophy.md` ("Organization has Projects (A Resource Type)"); `permissions/01-resource-ontology.md` (extends Composite list).
+- **Prerequisites**: **CH-25** (the unified-resource-model rule presupposes the new owner edge).
+- **Deliverables**:
+  - `Composite::OrganizationObject` + `Composite::ProjectObject` variants with `constituents()`.
+  - Migration to backfill instance-identity tags on existing Organization + Project rows (cf CH-06 + CH-16 migration patterns).
+  - Refactor admin-page-1 (Orgs) + admin-page-3 (Projects) handlers to route through Permission Check engine instead of bespoke gates.
+  - Acceptance: Permission Check matches `org:O` and `project:P` as resource types in selectors.
+  - New ADR (next-free; likely **ADR-0043**).
+- **Estimated effort**: ~3-4 engineer-days.
+
+### Post-M5.3 actions
+
+- Re-run philosophy alignment audit (same 3-Explore-agent shape as 2026-04-28). Goal: confirm 12 → 14 ALIGNED claims, surface any third-order ripple effects.
+- M6 plan-mode opens against the now-unified foundation.
+- Smaller philosophy follow-ups (audit §4.5 `Memory.source_session_id`, audit §4.6 concept-`agent.md` field cleanup) route to their natural homes (M6-DEFERRED-04, next docs sweep) — NOT in M5.3.
+
+No M5.3 commitments orphaned.
+
+---
+
 ## §3 — M6+ scope (deferred-milestone scope markers)
 
 Scope markers for drifts explicitly deferred past M5 close. Each maps to its target milestone per base plan [§M6 / §M7 / §M7b](../build/36d0c6c5-build-plan-v01.md). Per-milestone plans will produce their own detailed chunks.
@@ -329,10 +377,27 @@ CH-09 ──> CH-10 ──> CH-11 ────────────┘
 - **CH-09** (Consent struct) → **CH-10** (state machine) → **CH-11** (Per-Session gating)
 - **CH-14** (authority chain) → independent; provenance walker reusable downstream
 - **CH-21** (memory-extraction) → **CH-22** (catalog) → **CH-23** (cross-listener) → **CH-24** (seal)
+- **CH-24** (M5 seal) → **CH-25** (Agent-owns-Org/Project edge) → **CH-26** (Org/Project as Composite resources) → **M6 plan-mode open** (M5.3 carve-out per §2.5)
+
+### M5.3 carve-out path (post-M5-seal, pre-M6)
+
+```
+                        CH-24 (M5 seal)
+                              │
+                              v
+                        M5.3 carve-out
+                        └─> CH-25 ──> CH-26 ──> M6 plan-mode
+                                                  │
+                                                  v
+                                           M6-DEFERRED-01..04
+```
+
+Both M5.3 chunks file against new HIGH drifts in [`v0/implementation/m5_3/drifts/`](../../v0/implementation/m5_3/drifts/) (D-philosophy-01 + D-philosophy-02).
 
 ### Effort totals
 
 - **M5-close scope** (CH-01 through CH-20 + CH-21 through CH-24): ~53 engineer-days of work
+- **M5.3 carve-out** (CH-25 + CH-26): ~6-7 engineer-days
 - **M6+ deferred scope** (6 markers): estimated separately at each milestone's own plan
 
 ---
@@ -365,8 +430,12 @@ CH-09 ──> CH-10 ──> CH-11 ────────────┘
 | CH-22 | Agent-catalog listener + D6.1 close | HIGH | 1d | system-agents | CH-01, CH-21 | yes |
 | CH-23 | Template C/D end-to-end verification | MED | 0.5d | permissions/07 | CH-21, CH-22 | yes |
 | CH-24 | Carryover re-verification + M5 seal | HIGH | 2d | all M5 | all above | yes (seal) |
+| CH-25 | Agent-owns-Org/Project edge + owner-grant rule | HIGH | 3d | core-philosophy / agent / permissions/04 | CH-24 | M5.3 (post-seal) |
+| CH-26 | Org/Project as Composite resources (unified resource model) | HIGH | 3-4d | core-philosophy / ontology / permissions/01 | CH-25 | M5.3 (post-seal) |
 
 **Total for M5 close: ~53 engineer-days (~10-11 weeks serial; ~5-6 weeks with parallelization of foundation tier).**
+
+**Total for M5.3 carve-out (CH-25 + CH-26): ~6-7 engineer-days serial. See §2.5 for full deliverables; backed by D-philosophy-01 + D-philosophy-02 in [`m5_3/drifts/`](../../v0/implementation/m5_3/drifts/).**
 
 ---
 
