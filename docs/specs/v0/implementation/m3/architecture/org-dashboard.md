@@ -130,7 +130,7 @@ hide the cards. Project leads will see a filtered subset at M4.
 
 ## References
 
-- [M3 plan §P5](../../../../plan/build/563945fe-m3-organization-creation.md)
+- [M3 plan §P5](../../../../plan/build/m3-organization-creation-563945fe.md)
 - [ADR-0022 — compound transaction](../decisions/0022-org-creation-compound-transaction.md)
 - [ADR-0023 — inherit-from-snapshot](../decisions/0023-system-agents-inherit-from-org-snapshot.md)
 - [phi-core leverage checklist](phi-core-leverage-checklist.md)

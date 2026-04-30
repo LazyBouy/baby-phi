@@ -109,4 +109,4 @@ This preserves M1 semantics for every legacy URI while letting future grants lan
 - [`concepts/permissions/05-memory-sessions.md`](../../../concepts/permissions/05-memory-sessions.md) §"Memory as Resource Class" + §"Supervisor Extraction"
 - [drift D-new-03](../../m5_1/drifts/D-new-03.md)
 - ADR-0034 (agent durable lifecycle — pattern: keep+extend over rewrite)
-- CH-06 plan archive: [`baby-phi/docs/specs/plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md`](../../../../plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md)
+- CH-06 plan archive: [`baby-phi/docs/specs/plan/build/ch-06-selector-grammar-peg-and-instance-tags-acd383e2.md`](../../../../plan/build/ch-06-selector-grammar-peg-and-instance-tags-acd383e2.md)

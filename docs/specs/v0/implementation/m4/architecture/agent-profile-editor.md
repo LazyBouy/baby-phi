@@ -90,7 +90,7 @@ grep -En 'use phi_core::types::ThinkingLevel' modules/crates/server/src/platform
 - [Requirements admin/09](../../../requirements/admin/09-agent-profile-editor.md).
 - [phi-core-reuse-map.md §Page 09](phi-core-reuse-map.md).
 - [Agent-profile editor ops runbook](../operations/agent-profile-editor-operations.md).
-- [M4 plan archive §P5](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §P5](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 
 [`phi_core::agents::profile::AgentProfile`]: https://docs.rs/phi-core/latest/phi_core/agents/profile/struct.AgentProfile.html
 [`phi_core::context::execution::ExecutionLimits`]: https://docs.rs/phi-core/latest/phi_core/context/execution/struct.ExecutionLimits.html

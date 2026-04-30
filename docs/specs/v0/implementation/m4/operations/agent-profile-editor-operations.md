@@ -150,6 +150,6 @@ Compile-time coercion witnesses pin each type identity (`_is_phi_core_agent_prof
 - [ADR-0027 — per-agent ExecutionLimits override](../decisions/0027-per-agent-execution-limits-override.md)
 - [ADR-0023 — inherit-from-snapshot](../../m3/decisions/0023-system-agents-inherit-from-org-snapshot.md)
 - [Repository method `count_active_sessions_for_agent`](../../../../../../modules/crates/domain/src/repository.rs)
-- [M4 plan archive §P5](../../../../plan/build/a634be65-m4-agents-and-projects.md)
+- [M4 plan archive §P5](../../../../plan/build/m4-agents-and-projects-a634be65.md)
 
 [`AgentRole::is_valid_for`]: ../../../../../../modules/crates/domain/src/model/nodes.rs

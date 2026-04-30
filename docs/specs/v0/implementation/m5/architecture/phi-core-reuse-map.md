@@ -83,7 +83,7 @@ Per plan §Part 1.5 §Three phi-core surfaces:
 
 ## Cross-references
 
-- [M5 plan archive §Part 1.5](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5 plan archive §Part 1.5](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
 - [M4 phi-core reuse map](../../m4/architecture/phi-core-reuse-map.md) — cumulative platform + M4 table.
 - [M3 phi-core leverage checklist](../../m3/architecture/phi-core-leverage-checklist.md) — four-tier enforcement model.
 - [ADR-0029](../decisions/0029-session-persistence-and-recorder-wrap.md).

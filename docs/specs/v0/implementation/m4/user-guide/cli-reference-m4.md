@@ -11,5 +11,5 @@ New M4 subcommands:
 `--from-layout <ref>` for `phi project create` is **deferred to M8** (C-M8-1).
 
 See:
-- [M4 plan archive §Part 10](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §Part 10](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 - [M3 cli-reference-m3.md](../../m3/user-guide/cli-reference-m3.md) — pattern precedent.

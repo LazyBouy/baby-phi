@@ -80,6 +80,6 @@ build plan's production-readiness row for "schema migrations".
 
 ## Concept references
 
-- Build plan row: `docs/specs/plan/build/36d0c6c5-build-plan-v01.md`
+- Build plan row: `docs/specs/plan/build/build-plan-v01-36d0c6c5.md`
   §Production-readiness commitments / "Schema migrations".
 - ADR: [0012 Forward-only migrations](../decisions/0012-forward-only-migrations.md).

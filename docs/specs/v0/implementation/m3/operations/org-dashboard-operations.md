@@ -98,6 +98,6 @@ dashboard-shape test in `acceptance_orgs_dashboard.rs` pins it.
 ## Cross-links
 
 - [Architecture — Org Dashboard](../architecture/org-dashboard.md)
-- [M3 plan §P5](../../../../plan/build/563945fe-m3-organization-creation.md)
+- [M3 plan §P5](../../../../plan/build/m3-organization-creation-563945fe.md)
 - [Requirements: admin page 07](../../../requirements/admin/07-organization-dashboard.md)
 - [phi-core leverage checklist](../architecture/phi-core-leverage-checklist.md)

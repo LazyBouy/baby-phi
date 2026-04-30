@@ -78,6 +78,6 @@ concept of UI draft state. Baby-phi-native.
 
 ## References
 
-- [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) §G10 / §D3.
+- [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md) §G10 / §D3.
 - R-ADMIN-06-W1: [`../../../requirements/admin/06-org-creation-wizard.md`](../../../requirements/admin/06-org-creation-wizard.md).
 - [`../architecture/wizard-primitives.md`](../architecture/wizard-primitives.md) — the `DraftContext` implementation.

@@ -66,7 +66,7 @@ a different endpoint with a different wire contract.
 |---|---|
 | **Q1** — direct imports | **0** in [detail.rs](../../../../../../modules/crates/server/src/platform/projects/detail.rs). |
 | **Q2** — transitive | 0 at the wire tier. The snapshot test `tests::wire_shape_strips_phi_core` asserts the serialised `ProjectDetail` JSON has no `defaults_snapshot` / `blueprint` / `execution_limits` / `context_config` / `retry_config` keys at any depth. |
-| **Q3** — rejections | `phi_core::Session` / `LoopRecord` / `Turn` — deferred to M5 per D11 of the M3 plan and [C-M5-3](../../../../plan/build/36d0c6c5-build-plan-v01.md). `phi_core::Usage` — token budget is governance-level, not per-loop. `phi_core::AgentEvent` — orthogonal governance-log surface per `phi/CLAUDE.md`. |
+| **Q3** — rejections | `phi_core::Session` / `LoopRecord` / `Turn` — deferred to M5 per D11 of the M3 plan and [C-M5-3](../../../../plan/build/build-plan-v01-36d0c6c5.md). `phi_core::Usage` — token budget is governance-level, not per-loop. `phi_core::AgentEvent` — orthogonal governance-log surface per `phi/CLAUDE.md`. |
 
 ## OKR patch contract
 
@@ -188,4 +188,4 @@ data is ready).
   surfaces the compact identity row.
 - [ADR-0024 — Project + AgentRole typing](../decisions/0024-project-and-agent-role-typing.md).
 - [Requirements admin/11](../../../requirements/admin/11-project-detail.md).
-- [Base plan §M5 / C-M5-3](../../../../plan/build/36d0c6c5-build-plan-v01.md).
+- [Base plan §M5 / C-M5-3](../../../../plan/build/build-plan-v01-36d0c6c5.md).

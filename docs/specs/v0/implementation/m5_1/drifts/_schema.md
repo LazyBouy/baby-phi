@@ -9,7 +9,7 @@ coverage at the M5.1/P5 seal audit.
 
 The template is consumed by:
 - **M5.1/P1** — migrating the 29 existing drift ledger entries from
-  [`plan/build/01710c13-m5-templates-system-agents-sessions.md`](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md)
+  [`plan/build/m5-templates-system-agents-sessions-01710c13.md`](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md)
   §Drift addenda into one file per drift.
 - **M5.1/P2** — minting new `D-new-NN` drift files for every concept/code
   contradiction discovered by the concept-vs-implementation audit.

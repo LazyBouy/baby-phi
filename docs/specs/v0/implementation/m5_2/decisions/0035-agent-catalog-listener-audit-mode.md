@@ -4,7 +4,7 @@
 
 **Status: Accepted**
 **Decided at:** CH-22 chunk-seal (P3), 2026-04-27
-**Chunk plan:** [`build/c5f201bb-ch-22-agent-catalog-listener-body.md`](../../../../plan/build/c5f201bb-ch-22-agent-catalog-listener-body.md)
+**Chunk plan:** [`build/ch-22-agent-catalog-listener-body-c5f201bb.md`](../../../../plan/build/ch-22-agent-catalog-listener-body-c5f201bb.md)
 **Closes drifts (partial):** [D6.1](../../m5_1/drifts/D6.1.md) — second call site only; first call site (memory-extraction listener) ships at CH-21
 **Concepts touched:** [`system-agents.md`](../../../concepts/system-agents.md) §Agent Catalog Agent
 

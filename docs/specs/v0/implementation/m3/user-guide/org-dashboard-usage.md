@@ -9,4 +9,4 @@ Operator-facing walkthrough of the org dashboard (web panels + CLI
 cadence (30 s), empty-state CTA cards, and how to drill into recent
 audit events.
 
-See [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) §P5 for the plan.
+See [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md) §P5 for the plan.

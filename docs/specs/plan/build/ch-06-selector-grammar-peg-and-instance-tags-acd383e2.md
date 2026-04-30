@@ -3,7 +3,7 @@
 # CH-06 — Selector grammar (PEG tag-predicate DSL) + instance identity tags
 
 **Plan file token:** `acd383e2` (generated via `openssl rand -hex 4`).
-**Plan archive path (verbatim copy from `/root/.claude/plans/sharded-discovering-stearns.md`):** `baby-phi/docs/specs/plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md`. Archived at chunk-open Step 0 (2026-04-28).
+**Plan archive path (verbatim copy from `/root/.claude/plans/sharded-discovering-stearns.md`):** `baby-phi/docs/specs/plan/build/ch-06-selector-grammar-peg-and-instance-tags-acd383e2.md`. Archived at chunk-open Step 0 (2026-04-28).
 **Chunk ID:** CH-06 (forward-scope §1 line 77; §4 dependency graph; §5 row line 338).
 **Severity:** HIGH.
 **Expected effort:** ~5–7 engineer-days.
@@ -557,7 +557,7 @@ This step matches the chunk-lifecycle-checklist Step 1 ("Create the plan file at
 ### Audit Agent A — Code correctness + phi-core leverage (aspects a + d)
 
 > **Locked prompt** (drafted at Step 2; fired at P4 seal):
-> You are auditing CH-06 (selector grammar PEG + instance identity tags) in baby-phi at `/root/projects/phi/baby-phi/`. You did NOT write this code. The chunk plan is at `docs/specs/plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md`.
+> You are auditing CH-06 (selector grammar PEG + instance identity tags) in baby-phi at `/root/projects/phi/baby-phi/`. You did NOT write this code. The chunk plan is at `docs/specs/plan/build/ch-06-selector-grammar-peg-and-instance-tags-acd383e2.md`.
 >
 > Verify each claim against current HEAD. Report PASS / FAIL with 1-line evidence. Read-only.
 >

@@ -119,5 +119,5 @@ See D40.7. Tracked successor: **M6-DEFERRED-04 — Memory-extraction LLM supervi
 
 - Concept docs: [`system-agents.md`](../../../concepts/system-agents.md) § Memory Extraction Agent; [`permissions/05-memory-sessions.md`](../../../concepts/permissions/05-memory-sessions.md) § Supervisor Extraction; [`agent.md`](../../../concepts/agent.md) § Two Streams of Experience.
 - Drift: [D6.1.md](../../m5_1/drifts/D6.1.md) (terminally closed at CH-21 seal).
-- Plan archive: [`build/bb95cd12-ch-21-memory-extraction-listener-body.md`](../../../../plan/build/bb95cd12-ch-21-memory-extraction-listener-body.md).
+- Plan archive: [`build/ch-21-memory-extraction-listener-body-bb95cd12.md`](../../../../plan/build/ch-21-memory-extraction-listener-body-bb95cd12.md).
 - ADRs cross-referenced: ADR-0028 (fail-safe listener semantics), ADR-0033 (K8s prep), ADR-0034 (Agent.active discriminator), ADR-0035 (catalog listener audit-mode + production emit sites), ADR-0038 (Identity materialisation + first-emitter commitment), ADR-0041 (`MemoryExtracted` event + audit class).

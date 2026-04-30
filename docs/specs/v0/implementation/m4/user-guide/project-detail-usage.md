@@ -8,4 +8,4 @@ Operator + member read view for a project. Includes in-place OKR editor. "Recent
 
 See:
 - [Requirements admin/11](../../../requirements/admin/11-project-detail.md).
-- [M4 plan archive §P7](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §P7](../../../../plan/build/m4-agents-and-projects-a634be65.md).

@@ -33,7 +33,7 @@ User decision (M4/P0): **reactive subscription at M4**, not deferred to M5. Requ
 
 ## References
 
-- [M4 plan §D7 / §D-M4-4](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan §D7 / §D-M4-4](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 - [event-bus.md](../architecture/event-bus.md).
 - [template-a-firing.md](../architecture/template-a-firing.md).
 - [Requirements system/s05](../../../requirements/system/s05-template-adoption-grant-fires.md).

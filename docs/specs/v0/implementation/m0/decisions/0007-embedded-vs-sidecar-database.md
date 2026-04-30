@@ -64,7 +64,7 @@ All three tiers share the same SurrealQL and the same `Repository` trait impleme
 | **Standalone SurrealDB server** | Need horizontal `phi-server` scale, or independent DB lifecycle | `surreal start --bind 0.0.0.0:8000 file:…` + `Surreal::new::<Client>("ws://host:8000")` | One extra process/container. Day of ops work. |
 | **SurrealDB cluster with TiKV** | Multi-region, HA, >100 GB data | TiKV cluster backs SurrealDB | Standard distributed-system ops. |
 
-The build plan at [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../../plan/build/36d0c6c5-build-plan-v01.md) §"Scaling path" documents each tier's tradeoffs in more depth.
+The build plan at [`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../../plan/build/build-plan-v01-36d0c6c5.md) §"Scaling path" documents each tier's tradeoffs in more depth.
 
 ## Follow-up milestones
 

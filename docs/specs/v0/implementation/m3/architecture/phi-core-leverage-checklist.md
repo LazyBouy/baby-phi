@@ -168,7 +168,7 @@ surfaces — templates + governance audit events + org-scoped list
 methods all sit on phi's orthogonal governance plane).
 
 P3 onwards: every phase's `### phi-core leverage` subsection in the
-[M3 plan archive](../../../../plan/build/563945fe-m3-organization-creation.md)
+[M3 plan archive](../../../../plan/build/m3-organization-creation-563945fe.md)
 follows the Q1/Q2/Q3 / deliverable-tag / positive-grep structure.
 
 ## Applicable forward (M4+)

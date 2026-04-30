@@ -3,7 +3,7 @@
 # CH-16 — Identity node materialization
 
 **Plan file token:** `2ae4fabe`.
-**Plan archive path (verbatim copy from `/root/.claude/plans/sharded-discovering-stearns.md`):** `baby-phi/docs/specs/plan/build/2ae4fabe-ch-16-identity-node-materialization.md`. Archived at chunk-open Step 0 on 2026-04-28.
+**Plan archive path (verbatim copy from `/root/.claude/plans/sharded-discovering-stearns.md`):** `baby-phi/docs/specs/plan/build/ch-16-identity-node-materialization-2ae4fabe.md`. Archived at chunk-open Step 0 on 2026-04-28.
 **Chunk ID:** CH-16 (forward-scope §1 lines 155–160; §4 dependency edge `CH-02 → CH-15/16/17/21/24` line 314; §5 inventory row line 348).
 **Severity:** HIGH.
 **Expected effort:** ~3 engineer-days.

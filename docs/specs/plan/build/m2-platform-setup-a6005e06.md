@@ -11,7 +11,7 @@ M1 (Permission Check spine) shipped at 100 % confidence: 36-method Repository, p
 
 **M2 is the first milestone where handlers actually call the Permission Check engine** (bootstrap bypassed it) and emit audit events through a real `AuditEmitter`. It also introduces the "Template E Auth Request, auto-approved by the self-interested platform admin" pattern that every non-bootstrap write uses. Admin pages 02 (Model Providers), 03 (MCP Servers), 04 (Credentials Vault), 05 (Platform Defaults) all ship behind the existing session cookie.
 
-The build-plan M2 entry is ~5 lines ([build plan §M2](../../projects/phi/phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version. Every contract is pinned up-front, the first non-bootstrap code paths for Permission Check + audit-emit land as reusable infrastructure (not per-page reinvention), docs co-land per phase, and a per-page vertical-slice shape keeps each commit reviewable.
+The build-plan M2 entry is ~5 lines ([build plan §M2](../../projects/phi/phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md)); this plan is the fully-resolved version. Every contract is pinned up-front, the first non-bootstrap code paths for Permission Check + audit-emit land as reusable infrastructure (not per-page reinvention), docs co-land per phase, and a per-page vertical-slice shape keeps each commit reviewable.
 
 **What M1 taught us (applied preventively to M2):**
 

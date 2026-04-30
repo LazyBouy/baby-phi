@@ -129,7 +129,7 @@ Revoke-cascade (M5/P5 page 12) walks AR → grants with
 
 ## References
 
-- [M5 plan archive §D1 + §G1 + §P1](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
-- [Base plan §M5 carryovers §C-M5-1](../../../../plan/build/36d0c6c5-build-plan-v01.md).
+- [M5 plan archive §D1 + §G1 + §P1](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
+- [Base plan §M5 carryovers §C-M5-1](../../../../plan/build/build-plan-v01-36d0c6c5.md).
 - [M3 architecture — org-creation Template persistence deferral](../../m3/architecture/org-creation.md).
 - [Authority templates architecture](../architecture/authority-templates.md) — fire rules + revoke-cascade semantics (seeded at P0, filled at P5).

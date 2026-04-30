@@ -216,7 +216,7 @@ These run at chunk-open (Step 2) AND chunk-seal (Step 8).
      - Data migration to re-key existing per-agent profile rows.
    - **Scope-defer rationale**: redesign requires concept-doc amendment first; baby-phi's M5 scope is to align code with current concepts (M5.1 governing principle: "concepts = source of truth, code aligns to them"). Concept re-evaluation is a separate workflow that should not be conflated with drift remediation.
    - **Target**: M6 plan-open (when "Memory contract + Memory operations" lands and the data model is being revisited anyway), or as a standalone concept re-evaluation chunk before then if the user prioritises.
-   - **Provenance**: CH-01 plan [`build/2aa37c80-ch-01-agent-durable-lifecycle.md`](./2aa37c80-ch-01-agent-durable-lifecycle.md) §P1 conceptual context (R1 sub-section).
+   - **Provenance**: CH-01 plan [`build/ch-01-agent-durable-lifecycle-2aa37c80.md`](./ch-01-agent-durable-lifecycle-2aa37c80.md) §P1 conceptual context (R1 sub-section).
 
 **Tests.** No tests; pure docs work.
 
@@ -576,7 +576,7 @@ Only if a future feature introduces *long-lived in-memory chat agents* — e.g.,
    - Consequences (positive: durable state replaces inferred state; durable governance/runtime separation prevents accidental conflation; negative: pre-CH-01 rows need migration sanity check on first read; neutral: schema grows by 2 columns).
    - Review trigger (CH-22 plan-open + any future "live in-memory agent" feature).
 2. **D6.5 drift file** [`drifts/D6.5.md`](docs/specs/v0/implementation/m5_1/drifts/D6.5.md) — Status `scoped` → `remediated`; lifecycle entry:
-   `2026-04-27 — remediated — via CH-01 (plan 2aa37c80-ch-01-agent-durable-lifecycle.md); migration 0007 added active + archived_at, system-agent disable/archive handlers wired to flip durable state, ADR-0034 Accepted`. `Last verified` bumped.
+   `2026-04-27 — remediated — via CH-01 (plan ch-01-agent-durable-lifecycle-2aa37c80.md); migration 0007 added active + archived_at, system-agent disable/archive handlers wired to flip durable state, ADR-0034 Accepted`. `Last verified` bumped.
 3. **D-new-22 drift file** [`drifts/D-new-22.md`](docs/specs/v0/implementation/m5_1/drifts/D-new-22.md) — Status `scoped` → `remediated`; lifecycle entry mentions both the existing `update.rs:133-141` enforcement and the new acceptance test as the closure ratification. `Last verified` bumped.
 4. **D-new-23 drift file** [`drifts/D-new-23.md`](docs/specs/v0/implementation/m5_1/drifts/D-new-23.md) — Status stays `scoped`. Append lifecycle entry:
    `2026-04-27 — review at CH-01 — confirmed scope deferred-to-CH-16 because Identity has no writers at M5; no code action this chunk; CH-16 owns final closure`. `Last verified` bumped.
@@ -626,7 +626,7 @@ Only if a future feature introduces *long-lived in-memory chat agents* — e.g.,
 3. Process: [`per-chunk-planning-template.md`](docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md), [`chunk-lifecycle-checklist.md`](docs/specs/v0/implementation/m5_1/process/chunk-lifecycle-checklist.md), [`drift-lifecycle.md`](docs/specs/v0/implementation/m5_1/process/drift-lifecycle.md).
 4. Forward-scope: [`22035b2a-remaining-scope-post-m5-p7.md`](docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 CH-01 + §7 Q&A.
 5. [`baby-phi/CLAUDE.md`](CLAUDE.md) §phi-core Leverage rules 1–5 + §"Orthogonal surfaces".
-6. Sibling chunk plan: [`16fd9a3a-ch-02-real-agent-loop-wiring.md`](docs/specs/plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md) for style + structure reference.
+6. Sibling chunk plan: [`ch-02-real-agent-loop-wiring-16fd9a3a.md`](docs/specs/plan/build/ch-02-real-agent-loop-wiring-16fd9a3a.md) for style + structure reference.
 7. Existing migration patterns: [`0001_initial.surql`](modules/crates/store/migrations/0001_initial.surql), [`0004_agents_projects.surql`](modules/crates/store/migrations/0004_agents_projects.surql), [`0006_agent_profile_mock_response.surql`](modules/crates/store/migrations/0006_agent_profile_mock_response.surql).
 8. Existing handlers: [`platform/system_agents/disable.rs`](modules/crates/server/src/platform/system_agents/disable.rs), [`archive.rs`](modules/crates/server/src/platform/system_agents/archive.rs), [`platform/agents/update.rs`](modules/crates/server/src/platform/agents/update.rs).
 9. K8s-readiness inputs (for §3.B + P0 ratification): [`m7b/architecture/k8s-microservices-readiness.md`](docs/specs/v0/implementation/m7b/architecture/k8s-microservices-readiness.md), [`deferred-from-ch-k8s-prep.md`](docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md), [`m5_2/decisions/0033-k8s-prep-refactors.md`](docs/specs/v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md) (D33.1–D33.4 conforming criteria).

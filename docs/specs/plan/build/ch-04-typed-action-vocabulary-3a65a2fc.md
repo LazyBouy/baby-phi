@@ -3,7 +3,7 @@
 # CH-04 — Typed action vocabulary + Action × Fundamental matrix
 
 **Plan file token:** `3a65a2fc` (generated via `openssl rand -hex 4` at chunk-open 2026-04-29).
-**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/3a65a2fc-ch-04-typed-action-vocabulary.md`.
+**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/ch-04-typed-action-vocabulary-3a65a2fc.md`.
 **Chunk ID:** CH-04 (forward-scope §1 lines 63–68; §5 inventory row line 412).
 **Severity:** MED.
 **Expected effort:** ~2.5 engineer-days.

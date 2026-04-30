@@ -90,7 +90,7 @@ The Q3 candidate-rejection walk for this surface is the one-liner
 
 ## References
 
-- [M3 plan §P3 / §G8](../../../../plan/build/563945fe-m3-organization-creation.md)
+- [M3 plan §P3 / §G8](../../../../plan/build/m3-organization-creation-563945fe.md)
 - [phi-core leverage checklist](phi-core-leverage-checklist.md)
 - [`modules/crates/store/src/audit_emitter.rs`](../../../../../../modules/crates/store/src/audit_emitter.rs) — the (unchanged) emitter path.
 - [M1 audit-events architecture](../../m1/architecture/audit-events.md) — envelope + hash-chain mechanics this extends.

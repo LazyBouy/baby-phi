@@ -3,7 +3,7 @@
 # CH-03 — Storage-backend concept refresh + configurability framing
 
 **Plan file token:** `4a52a093` (generated 2026-04-28 via `openssl rand -hex 4`).
-**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/4a52a093-ch-03-storage-backend-configurability.md`.
+**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/ch-03-storage-backend-configurability-4a52a093.md`.
 **Chunk ID:** CH-03 (forward-scope §1 lines 51–59; §5 inventory row line 411).
 **Severity:** ⚠HIGH.
 **Expected effort:** ~1 engineer-day (**doc-only** — zero code change).

@@ -19,5 +19,5 @@ First reactive infra in phi. `trait EventBus { async fn emit(&self, event: Domai
 
 See:
 - [ADR-0028](../decisions/0028-domain-event-bus.md).
-- [M4 plan archive §D7 / §D-M4-4](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §D7 / §D-M4-4](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 - [`phi/CLAUDE.md`](../../../../../../CLAUDE.md) §Orthogonal surfaces — why `DomainEvent` ≠ `phi_core::AgentEvent`.

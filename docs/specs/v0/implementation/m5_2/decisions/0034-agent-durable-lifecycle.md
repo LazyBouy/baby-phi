@@ -4,7 +4,7 @@
 
 **Status: Accepted**
 **Decided at:** CH-01 chunk-seal (P5), 2026-04-27
-**Chunk plan:** [`build/2aa37c80-ch-01-agent-durable-lifecycle.md`](../../../../plan/build/2aa37c80-ch-01-agent-durable-lifecycle.md)
+**Chunk plan:** [`build/ch-01-agent-durable-lifecycle-2aa37c80.md`](../../../../plan/build/ch-01-agent-durable-lifecycle-2aa37c80.md)
 **Closes drifts:** [D6.5](../../m5_1/drifts/D6.5.md) (HIGH) + [D-new-22](../../m5_1/drifts/D-new-22.md) (MEDIUM); reviews [D-new-23](../../m5_1/drifts/D-new-23.md) (LOW, stays `scoped` to CH-16)
 **Concepts touched:** [`agent.md`](../../../concepts/agent.md) §Roles + §Lifecycle, [`system-agents.md`](../../../concepts/system-agents.md) §Operator-can-disable + §Archive-flow, [`human-agent.md`](../../../concepts/human-agent.md) §No-Identity, [`phi-core-mapping.md`](../../../concepts/phi-core-mapping.md) §agents/
 
@@ -126,7 +126,7 @@ CH-22's plan §5 ADR section MUST cite this ADR. CH-22's plan §7 phase delivera
 
 ## References
 
-- Chunk plan: [`build/2aa37c80-ch-01-agent-durable-lifecycle.md`](../../../../plan/build/2aa37c80-ch-01-agent-durable-lifecycle.md)
+- Chunk plan: [`build/ch-01-agent-durable-lifecycle-2aa37c80.md`](../../../../plan/build/ch-01-agent-durable-lifecycle-2aa37c80.md)
 - Drifts closed: [D6.5](../../m5_1/drifts/D6.5.md), [D-new-22](../../m5_1/drifts/D-new-22.md)
 - Drift reviewed (stays scoped): [D-new-23](../../m5_1/drifts/D-new-23.md)
 - Concept docs touched: [`agent.md`](../../../concepts/agent.md), [`system-agents.md`](../../../concepts/system-agents.md), [`human-agent.md`](../../../concepts/human-agent.md), [`phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)

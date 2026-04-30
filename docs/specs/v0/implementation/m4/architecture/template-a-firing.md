@@ -15,4 +15,4 @@ See:
 - [Requirements system/s05](../../../requirements/system/s05-template-adoption-grant-fires.md).
 - [event-bus.md](event-bus.md).
 - [ADR-0028](../decisions/0028-domain-event-bus.md).
-- [M4 plan archive §D7 / §D-M4-4](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §D7 / §D-M4-4](../../../../plan/build/m4-agents-and-projects-a634be65.md).

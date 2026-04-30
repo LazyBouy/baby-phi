@@ -98,7 +98,7 @@ Current `tracing` instrumentation is already structured-span-shaped (every reque
 
 ## Domain metrics — `[PLANNED M7]`
 
-The plan commits custom metrics in M7, per [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../../plan/build/36d0c6c5-build-plan-v01.md) §M7 and §NFR-observability. Expected additions include:
+The plan commits custom metrics in M7, per [`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../../plan/build/build-plan-v01-36d0c6c5.md) §M7 and §NFR-observability. Expected additions include:
 
 - `permission_check_latency_seconds` (histogram, labeled by decision and failed_step).
 - `auth_request_state_transitions_total` (counter, labeled by from-state and to-state).

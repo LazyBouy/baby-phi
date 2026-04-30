@@ -9,7 +9,7 @@ opens. No code churn — this is a read-only audit. Every item below
 is tagged `still-valid | stale | missing` with file+line reference.
 
 Per the M3 plan (archived at
-[`../../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md)
+[`../../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md)
 §P0), a `>1 stale` finding would open a P0.5 remediation phase before
 P1 opens. **Result: 0 stale, 1 missing (expected — routed to P1/G1);
 no P0.5 needed.**
@@ -50,6 +50,6 @@ no P0.5 needed.**
 
 ## References
 
-- M3 plan (this milestone): [`../../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md).
-- M2 plan (precedent for vertical-slice discipline): [`../../../../plan/build/a6005e06-m2-platform-setup.md`](../../../../plan/build/a6005e06-m2-platform-setup.md).
-- M2/P8 close audit (the 99% composite-confidence result this P0 audits against): `../../../../plan/build/a6005e06-m2-platform-setup.md` §P8.
+- M3 plan (this milestone): [`../../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md).
+- M2 plan (precedent for vertical-slice discipline): [`../../../../plan/build/m2-platform-setup-a6005e06.md`](../../../../plan/build/m2-platform-setup-a6005e06.md).
+- M2/P8 close audit (the 99% composite-confidence result this P0 audits against): `../../../../plan/build/m2-platform-setup-a6005e06.md` §P8.

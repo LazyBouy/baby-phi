@@ -77,7 +77,7 @@ fields).
   the full `ModelRuntime.config: phi_core::ModelConfig` stays in its
   M2/P6 row and is referenced by id only.
 
-**Q3 — rejections walked in [plan §P4](../../../../plan/build/563945fe-m3-organization-creation.md):**
+**Q3 — rejections walked in [plan §P4](../../../../plan/build/m3-organization-creation-563945fe.md):**
 - `phi_core::Agent` / `BasicAgent` — not applicable (governance
   plane; M5 session launch invokes them).
 - `phi_core::Session` / `LoopRecord` / `Turn` — not applicable
@@ -113,7 +113,7 @@ with one shared row per kind.
 
 ## References
 
-- [M3 plan §D6 / §D7 / §P4](../../../../plan/build/563945fe-m3-organization-creation.md)
+- [M3 plan §D6 / §D7 / §P4](../../../../plan/build/m3-organization-creation-563945fe.md)
 - [ADR-0022 — compound transaction](../decisions/0022-org-creation-compound-transaction.md)
 - [ADR-0023 — inherit-from-snapshot](../decisions/0023-system-agents-inherit-from-org-snapshot.md)
 - [Per-org audit chain architecture](per-org-audit-chain.md)

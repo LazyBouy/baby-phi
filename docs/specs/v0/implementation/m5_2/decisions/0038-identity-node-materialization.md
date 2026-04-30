@@ -108,4 +108,4 @@ If a future query pattern needs tag-based identity discovery, that's a successor
 - [drift D-new-01](../../m5_1/drifts/D-new-01.md)
 - ADR-0037 §D37.3 (CH-06) — Identity-without-tags carry-forward
 - ADR-0039 (sibling) — Human Agent guard
-- CH-16 plan archive: [`baby-phi/docs/specs/plan/build/2ae4fabe-ch-16-identity-node-materialization.md`](../../../../plan/build/2ae4fabe-ch-16-identity-node-materialization.md)
+- CH-16 plan archive: [`baby-phi/docs/specs/plan/build/ch-16-identity-node-materialization-2ae4fabe.md`](../../../../plan/build/ch-16-identity-node-materialization-2ae4fabe.md)

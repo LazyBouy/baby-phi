@@ -4,7 +4,7 @@
 
 **Milestone**: M5.1/P3 output
 **Purpose**: enumerate every unit of work needed between M5/P7's current shipped state and concept-doc-aligned delivery, broken into implementation chunks each of which is a future per-chunk-plan candidate.
-**Authority**: this document **does not** replace the base build plan ([`36d0c6c5-build-plan-v01.md`](../build/36d0c6c5-build-plan-v01.md)); it is a sibling forward-look produced from the M5.1 drift catalogue.
+**Authority**: this document **does not** replace the base build plan ([`build-plan-v01-36d0c6c5.md`](../build/build-plan-v01-36d0c6c5.md)); it is a sibling forward-look produced from the M5.1 drift catalogue.
 
 ## What this document is / is not
 
@@ -17,14 +17,14 @@
 **IS NOT:**
 - A detailed implementation plan per chunk (those are written just-in-time at chunk open using the [`per-chunk-planning-template.md`](../../v0/implementation/m5_1/process/per-chunk-planning-template.md) landing at M5.1/P4)
 - A schedule or calendar commitment (effort ranges are rough)
-- A replacement for [`36d0c6c5-build-plan-v01.md`](../build/36d0c6c5-build-plan-v01.md) whole-product roadmap
+- A replacement for [`build-plan-v01-36d0c6c5.md`](../build/build-plan-v01-36d0c6c5.md) whole-product roadmap
 
 ## Input artefacts (consumed)
 
 - **60 drift files** at [`v0/implementation/m5_1/drifts/`](../../v0/implementation/m5_1/drifts/) — 29 existing (D1.1–D7.6) + 31 new (D-new-01–D-new-31)
 - **[`_concept-audit-matrix.md`](../../v0/implementation/m5_1/drifts/_concept-audit-matrix.md)** — 20 concept docs × ~95 claims classified
 - **[`_ledger-migration-log.md`](../../v0/implementation/m5_1/drifts/_ledger-migration-log.md)** — P1 migration annotations
-- Base plan [§M6 / §M7 / §M7b](../build/36d0c6c5-build-plan-v01.md) sections for cross-reference
+- Base plan [§M6 / §M7 / §M7b](../build/build-plan-v01-36d0c6c5.md) sections for cross-reference
 
 ---
 
@@ -274,7 +274,7 @@ No M5.3 commitments orphaned.
 
 ## §3 — M6+ scope (deferred-milestone scope markers)
 
-Scope markers for drifts explicitly deferred past M5 close. Each maps to its target milestone per base plan [§M6 / §M7 / §M7b](../build/36d0c6c5-build-plan-v01.md). Per-milestone plans will produce their own detailed chunks.
+Scope markers for drifts explicitly deferred past M5 close. Each maps to its target milestone per base plan [§M6 / §M7 / §M7b](../build/build-plan-v01-36d0c6c5.md). Per-milestone plans will produce their own detailed chunks.
 
 ### M6-DEFERRED-01 — Memory contract + Memory operations
 - Drifts: **D-new-16** (recall/store/delete actions), **D-new-28** (memory_type enum — decide tag-vs-enum at M6 plan open).
@@ -336,7 +336,7 @@ Scope markers for drifts explicitly deferred past M5 close. Each maps to its tar
   - Data migration to re-key existing per-agent profile rows.
 - **Scope-defer rationale**: the redesign requires concept-doc amendment first; baby-phi's M5 scope is to align code with current concepts (M5.1 governing principle: *"concepts = source of truth, code aligns to them"*). Concept re-evaluation is a separate workflow that should not be conflated with drift remediation.
 - **Target**: M6 plan-open (when "Memory contract + Memory operations" lands and the data model is being revisited anyway), or as a standalone concept re-evaluation chunk before then if the user prioritises. **Decision-maker is the user at M6 plan-open** — this entry exists to make the question recoverable, not to commit to action.
-- **Provenance**: CH-01 plan [`build/2aa37c80-ch-01-agent-durable-lifecycle.md`](./../build/2aa37c80-ch-01-agent-durable-lifecycle.md) §P1 conceptual context (R1 sub-section).
+- **Provenance**: CH-01 plan [`build/ch-01-agent-durable-lifecycle-2aa37c80.md`](./../build/ch-01-agent-durable-lifecycle-2aa37c80.md) §P1 conceptual context (R1 sub-section).
 
 ---
 

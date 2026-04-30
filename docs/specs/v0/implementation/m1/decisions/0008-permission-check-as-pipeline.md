@@ -162,4 +162,4 @@ Negative:
 - Source-of-truth pseudocode:
   [`concepts/permissions/04-manifest-and-resolution.md`](../../../concepts/permissions/04-manifest-and-resolution.md)
   §Formal Algorithm.
-- Plan: [015a217a-m1-permission-check-spine.md §P3](../../../../plan/build/015a217a-m1-permission-check-spine.md).
+- Plan: [m1-permission-check-spine-015a217a.md §P3](../../../../plan/build/m1-permission-check-spine-015a217a.md).

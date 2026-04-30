@@ -88,7 +88,7 @@ Page 12 controls WHETHER those listeners actually fire by transitioning the adop
 
 ## P5 advisory — D4.1 carry-forward
 
-Adopted templates mint grants at fire time, which become Permission-Check inputs at session-launch time. At M5, the launch chain gates on Step 0 (Catalogue) only; steps 1-6 are advisory ([D4.1 drift](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md#p4-drift-addenda)). So even a fully adopted Template A/C/D won't refuse a launch at M5 — it populates the Decision trace that surfaces on the preview endpoint + LaunchReceipt. M6+ tightens the gate when the per-action manifest catalogue lands.
+Adopted templates mint grants at fire time, which become Permission-Check inputs at session-launch time. At M5, the launch chain gates on Step 0 (Catalogue) only; steps 1-6 are advisory ([D4.1 drift](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md#p4-drift-addenda)). So even a fully adopted Template A/C/D won't refuse a launch at M5 — it populates the Decision trace that surfaces on the preview endpoint + LaunchReceipt. M6+ tightens the gate when the per-action manifest catalogue lands.
 
 ## phi-core leverage
 
@@ -99,4 +99,4 @@ Adopted templates mint grants at fire time, which become Permission-Check inputs
 - [ADR-0030](../decisions/0030-template-node-uniqueness.md) — template uniqueness via kind.
 - [M4 template-a-firing.md](../../m4/architecture/template-a-firing.md) — Template A firing precedent.
 - [Event bus M5 extensions](./event-bus-m5-extensions.md) — DomainEvent variants driving Template C / D firings.
-- [M5 plan §P5](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5 plan §P5](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).

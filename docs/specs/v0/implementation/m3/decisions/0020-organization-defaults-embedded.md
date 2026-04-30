@@ -85,7 +85,7 @@ adds only `default_retention_days` + `default_alert_channels`
 
 ## References
 
-- [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) §G2 / §D1.
+- [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md) §G2 / §D1.
 - [`../../m2/decisions/0019-platform-defaults-non-retroactive.md`](../../m2/decisions/0019-platform-defaults-non-retroactive.md) — the invariant this ADR implements per-org.
 - [`../../../../../../modules/crates/domain/src/model/composites_m3.rs`](../../../../../../modules/crates/domain/src/model/composites_m3.rs) — the struct definition.
 - [`../../../../../../modules/crates/domain/src/model/nodes.rs`](../../../../../../modules/crates/domain/src/model/nodes.rs) — `Organization.defaults_snapshot` field.

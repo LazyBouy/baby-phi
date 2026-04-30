@@ -138,4 +138,4 @@ The recorder's persisted turn shape now reflects MockProvider's deterministic ou
 - [ADR-0032](../../m5_2/decisions/0032-mock-provider-at-m5.md) — CH-02 MockProvider decision.
 - [Event bus M5 extensions](./event-bus-m5-extensions.md) — governance events emitted by launch + terminate.
 - [Session persistence](./session-persistence.md) — the 3-way wrap pattern.
-- [CH-02 plan](../../../../plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md).
+- [CH-02 plan](../../../../plan/build/ch-02-real-agent-loop-wiring-16fd9a3a.md).

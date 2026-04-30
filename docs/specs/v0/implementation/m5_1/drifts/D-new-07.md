@@ -45,5 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agents 2 + 3 both flagged; merged)
-- 2026-04-29 — `in-chunk-plan` — assigned to CH-05 (paired with D-new-31; plan archived as [`build/6bf47d46-ch-05-publish-time-manifest-validator.md`](../../../../plan/build/6bf47d46-ch-05-publish-time-manifest-validator.md)).
+- 2026-04-29 — `in-chunk-plan` — assigned to CH-05 (paired with D-new-31; plan archived as [`build/ch-05-publish-time-manifest-validator-6bf47d46.md`](../../../../plan/build/ch-05-publish-time-manifest-validator-6bf47d46.md)).
 - 2026-04-29 — `remediated` — CH-05 chunk-seal — `validate_published_manifest(&ToolAuthorityManifest) -> Result<Vec<ValidationWarning>, ValidationError>` shipped with 4 hard rules + 3 warnings. Repository guard wired at both `SurrealStore::create_tool_authority_manifest` and `InMemoryRepository::create_tool_authority_manifest`; new `RepositoryError::ManifestValidation { source }` variant catches every code path. 38 tests cover the validator (29 unit + 9 acceptance) including the 81-cell Constraint × Fundamental matrix transcribed verbatim from the concept doc. [ADR-0044](../../m5_2/decisions/0044-publish-time-manifest-validator.md) Accepted ratifies the design + the locked forks (Q1 wire-point: both, Q2 string-based constraints, Q3 no HTTP handler).

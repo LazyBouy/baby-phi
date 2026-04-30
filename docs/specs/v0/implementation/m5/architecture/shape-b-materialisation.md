@@ -50,5 +50,5 @@ payload captured at submit time has nowhere to live.
 ## Cross-references
 
 - [M4 shape-a-vs-shape-b.md §Materialisation-after-approve](../../m4/architecture/shape-a-vs-shape-b.md).
-- [Base plan §M5 carryovers §C-M5-6](../../../../plan/build/36d0c6c5-build-plan-v01.md).
-- [M5 plan §G6 + §P4](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [Base plan §M5 carryovers §C-M5-6](../../../../plan/build/build-plan-v01-36d0c6c5.md).
+- [M5 plan §G6 + §P4](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).

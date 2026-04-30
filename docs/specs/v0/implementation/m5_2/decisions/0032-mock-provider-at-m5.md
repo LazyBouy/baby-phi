@@ -16,7 +16,7 @@ Ratification evidence:
 
 M5/P4 shipped a 9-step launch flow at [`sessions/launch.rs`](../../../../../../modules/crates/server/src/platform/sessions/launch.rs) but the execution step fabricates a canonical 4-event sequence rather than calling `phi_core::agent_loop()`. The imports `use phi_core::{agent_loop, agent_loop_continue}` exist only as compile-time witnesses pinned by `_keep_agent_loop_live`. This is drift **D4.2**, tagged `leverage-violation` in the M5.1 catalogue.
 
-Chunk [CH-02](../../../../plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md) closes D4.2 by wiring a real `phi_core::agent_loop()` call. Two sub-decisions must be locked before the wiring can land:
+Chunk [CH-02](../../../../plan/build/ch-02-real-agent-loop-wiring-16fd9a3a.md) closes D4.2 by wiring a real `phi_core::agent_loop()` call. Two sub-decisions must be locked before the wiring can land:
 
 1. **Which provider does baby-phi use at M5?** Real providers (Anthropic / OpenAI / Bedrock / Gemini / etc.) are dispatched by `phi_core::provider::registry::ProviderRegistry` from `ModelConfig.api`. But M5 does not yet ship a credentials vault or secrets-at-rest encryption (both M7b scope). Calling real providers directly from the acceptance test suite would require per-dev API keys and break the "no network calls in tests" contract.
 
@@ -115,7 +115,7 @@ The dead-code witness at [`launch.rs:89-98`](../../../../../../modules/crates/se
 
 ## References
 
-- [CH-02 chunk plan `16fd9a3a-ch-02-real-agent-loop-wiring.md`](../../../../plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md) — the implementation this ADR ratifies.
+- [CH-02 chunk plan `ch-02-real-agent-loop-wiring-16fd9a3a.md`](../../../../plan/build/ch-02-real-agent-loop-wiring-16fd9a3a.md) — the implementation this ADR ratifies.
 - [Drift D4.2](../../m5_1/drifts/D4.2.md) — the gap this ADR closes.
 - [`concepts/phi-core-mapping.md`](../../../concepts/phi-core-mapping.md) §"agent_loop free function" — the source-of-truth claim this ADR re-aligns code with.
 - [`CLAUDE.md`](../../../../../../CLAUDE.md) §"phi-core Leverage" rules 1–5 — the wrap-with-governance-fields pattern ADR-0032 D32.2 follows.

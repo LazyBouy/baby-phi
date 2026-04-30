@@ -23,4 +23,4 @@ proptest at P3:
 See:
 - [ADR-0025](../decisions/0025-shape-b-two-approver-flow.md).
 - [Requirements admin/10 §W3](../../../requirements/admin/10-project-creation-wizard.md).
-- [M4 plan archive §D4 / §D8](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §D4 / §D8](../../../../plan/build/m4-agents-and-projects-a634be65.md).

@@ -50,4 +50,4 @@ Inherits from M2. M3-relevant subcommands use the same codes:
 - [Top-level runbook — M3 section](../../../../../../docs/ops/runbook.md#m3--organization-creation--dashboard-aggregated-runbook-index).
 - [org-creation operations doc](../operations/org-creation-operations.md).
 - [org-dashboard operations doc](../operations/org-dashboard-operations.md).
-- [M3 plan §P6](../../../../plan/build/563945fe-m3-organization-creation.md).
+- [M3 plan §P6](../../../../plan/build/m3-organization-creation-563945fe.md).

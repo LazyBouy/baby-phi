@@ -84,4 +84,4 @@ Not at M4. Orgs hold tens of agents on page 08 (M4 scope); full list loads fit i
 - [Agent roster operations runbook](../operations/agent-roster-operations.md)
 - [phi-core-reuse-map.md §Page 08](phi-core-reuse-map.md)
 - [Requirements admin/08](../../../requirements/admin/08-agent-roster-list.md)
-- [M4 plan archive §P4](../../../../plan/build/a634be65-m4-agents-and-projects.md)
+- [M4 plan archive §P4](../../../../plan/build/m4-agents-and-projects-a634be65.md)

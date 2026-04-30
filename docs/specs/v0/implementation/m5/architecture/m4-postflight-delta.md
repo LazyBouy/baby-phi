@@ -136,7 +136,7 @@ without remediation.
 
 ## Cross-references
 
-- [M5 plan archive](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md) — the full P0–P9 plan this delta opens.
+- [M5 plan archive](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md) — the full P0–P9 plan this delta opens.
 - [M4 README](../../m4/README.md) — phase status + ADRs.
-- [Base plan §M5 carryovers](../../../../plan/build/36d0c6c5-build-plan-v01.md) — C-M5-1 through C-M5-6.
+- [Base plan §M5 carryovers](../../../../plan/build/build-plan-v01-36d0c6c5.md) — C-M5-1 through C-M5-6.
 - [phi-core reuse map (M4)](../../m4/architecture/phi-core-reuse-map.md) — prior import baseline.

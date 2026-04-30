@@ -198,4 +198,4 @@ Negative:
 - Requirements:
   [`admin/01`](../../../requirements/admin/01-platform-bootstrap-claim.md) +
   [`system/s01`](../../../requirements/system/s01-bootstrap-template-adoption.md).
-- Plan: [015a217a-m1-permission-check-spine.md §P5](../../../../plan/build/015a217a-m1-permission-check-spine.md).
+- Plan: [m1-permission-check-spine-015a217a.md §P5](../../../../plan/build/m1-permission-check-spine-015a217a.md).

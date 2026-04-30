@@ -2,7 +2,7 @@
 
 # phi operations runbook
 
-> **Status:** partial. The full runbook is an **M7b** deliverable per the v0.1 build plan (see [`../specs/plan/build/36d0c6c5-build-plan-v01.md`](../specs/plan/build/36d0c6c5-build-plan-v01.md) §M7b). M2/P8 aggregates every shipped admin-page runbook below so operators have one cross-reference index.
+> **Status:** partial. The full runbook is an **M7b** deliverable per the v0.1 build plan (see [`../specs/plan/build/build-plan-v01-36d0c6c5.md`](../specs/plan/build/build-plan-v01-36d0c6c5.md) §M7b). M2/P8 aggregates every shipped admin-page runbook below so operators have one cross-reference index.
 
 ## Sections that will land in M7b
 
@@ -25,7 +25,7 @@ Until the runbook is populated, operators should consult:
 
 - [`../../CLAUDE.md`](../../CLAUDE.md) — workspace layout and local commands.
 - [`../specs/v0/implementation/m0/operations/`](../specs/v0/implementation/m0/operations/) — M0 deployment, config-profile, TLS, CI, and security-scanning guidance.
-- [`../specs/plan/build/36d0c6c5-build-plan-v01.md`](../specs/plan/build/36d0c6c5-build-plan-v01.md) — the v0.1 build plan (intent, not current runbook).
+- [`../specs/plan/build/build-plan-v01-36d0c6c5.md`](../specs/plan/build/build-plan-v01-36d0c6c5.md) — the v0.1 build plan (intent, not current runbook).
 
 ## M2 — Platform Setup (aggregated runbook index)
 
@@ -151,7 +151,7 @@ The full catalogue lives in [`../specs/v0/implementation/m4/user-guide/troublesh
 
 ### M4 known deferrals (read this before reporting a gap as a bug)
 
-Per the base build plan's pinned carryovers (see [`../specs/plan/build/36d0c6c5-build-plan-v01.md`](../specs/plan/build/36d0c6c5-build-plan-v01.md) §M5 and §M8):
+Per the base build plan's pinned carryovers (see [`../specs/plan/build/build-plan-v01-36d0c6c5.md`](../specs/plan/build/build-plan-v01-36d0c6c5.md) §M5 and §M8):
 
 - **C-M5-3**: baby-phi governance `Session` node persistence. Until M5 ships, page 11's "Recent sessions" panel returns `[]` and the dashboard has no session-count tiles.
 - **C-M5-4**: Per-agent tool binding. M4 agents don't yet carry an editable tool set; `AgentTool` resolution happens at session-start time in M5.

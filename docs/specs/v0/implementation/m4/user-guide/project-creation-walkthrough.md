@@ -9,4 +9,4 @@
 See:
 - [Requirements admin/10](../../../requirements/admin/10-project-creation-wizard.md).
 - [shape-a-vs-shape-b.md](../architecture/shape-a-vs-shape-b.md).
-- [M4 plan archive §P6](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §P6](../../../../plan/build/m4-agents-and-projects-a634be65.md).

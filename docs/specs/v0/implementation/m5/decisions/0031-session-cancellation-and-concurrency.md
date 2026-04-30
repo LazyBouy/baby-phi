@@ -142,7 +142,7 @@ drain completes.
 
 ## References
 
-- [M5 plan archive §D3 + §G16 + §G17 + §P4](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5 plan archive §D3 + §G16 + §G17 + §P4](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
 - [`phi-core::agent_loop` cancellation semantics](../../../../../../../phi-core/src/agent_loop/mod.rs).
 - [`tokio_util::sync::CancellationToken`](https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html).
 - [Session launch architecture](../architecture/session-launch.md) — parallelize gate + worker-saturation gate flow (seeded at P0, filled at P4).

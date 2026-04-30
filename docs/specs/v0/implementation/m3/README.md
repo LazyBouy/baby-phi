@@ -9,7 +9,7 @@ governance-layer agents that wrap phi-core's
 `AgentProfile` / `ExecutionLimits` / `ContextConfig` / `RetryConfig`,
 and establishes the multi-step web wizard pattern reused by M4+.
 
-Plan archive: [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../plan/build/563945fe-m3-organization-creation.md).
+Plan archive: [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../plan/build/m3-organization-creation-563945fe.md).
 
 ## Phase status
 

@@ -3,7 +3,7 @@
 # CH-21 — Memory-extraction listener body
 
 **Plan file token:** `bb95cd12` (generated at chunk-open via `openssl rand -hex 4`).
-**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/bb95cd12-ch-21-memory-extraction-listener-body.md`.
+**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/ch-21-memory-extraction-listener-body-bb95cd12.md`.
 **Chunk ID:** CH-21 (forward-scope §1 lines 191–195; §4 dependency edges line 320; §5 inventory row line 353).
 **Severity:** ⚠HIGH.
 **Expected effort:** ~1.5 engineer-days.

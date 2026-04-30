@@ -108,7 +108,7 @@ Q1/Q2/Q3, the compound tx's phi-core exposure is:
 
 ## References
 
-- [M3 plan §D6 / §P3 / §P4](../../../../plan/build/563945fe-m3-organization-creation.md)
+- [M3 plan §D6 / §P3 / §P4](../../../../plan/build/m3-organization-creation-563945fe.md)
 - [ADR-0023 — inherit-from-snapshot](0023-system-agents-inherit-from-org-snapshot.md)
 - [`modules/crates/domain/src/repository.rs`](../../../../../../modules/crates/domain/src/repository.rs) — `OrgCreationPayload` + `OrgCreationReceipt` + trait method.
 - [`modules/crates/store/src/repo_impl.rs::apply_org_creation`](../../../../../../modules/crates/store/src/repo_impl.rs) — SurrealQL body.

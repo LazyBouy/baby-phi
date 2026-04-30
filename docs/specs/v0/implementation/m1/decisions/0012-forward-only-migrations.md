@@ -85,4 +85,4 @@ Negative:
 - Implementation: [`modules/crates/store/src/migrations.rs`](../../../../../../modules/crates/store/src/migrations.rs)
 - Schema: [`modules/crates/store/migrations/0001_initial.surql`](../../../../../../modules/crates/store/migrations/0001_initial.surql)
 - Architecture page: [schema-migrations.md](../architecture/schema-migrations.md)
-- Plan row: `docs/specs/plan/build/36d0c6c5-build-plan-v01.md` §Production-readiness commitments / "Schema migrations".
+- Plan row: `docs/specs/plan/build/build-plan-v01-36d0c6c5.md` §Production-readiness commitments / "Schema migrations".

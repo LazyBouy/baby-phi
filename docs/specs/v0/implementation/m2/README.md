@@ -17,9 +17,9 @@ events through a real `AuditEmitter`. It introduces the **Template E**
 reusable `handler_support` shim that every M3+ handler will build on.
 
 This page is the index. The archived plan lives at
-[`../../../plan/build/a6005e06-m2-platform-setup.md`](../../../plan/build/a6005e06-m2-platform-setup.md);
+[`../../../plan/build/m2-platform-setup-a6005e06.md`](../../../plan/build/m2-platform-setup-a6005e06.md);
 the v0.1 build plan it sits under is at
-[`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../plan/build/36d0c6c5-build-plan-v01.md).
+[`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../plan/build/build-plan-v01-36d0c6c5.md).
 
 ## Status
 

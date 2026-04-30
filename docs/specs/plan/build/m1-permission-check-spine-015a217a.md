@@ -11,7 +11,7 @@
 
 ## Context  `[STATUS: n/a]`
 
-M0 (scaffolding) shipped cleanly at 99 % confidence. M1 is the **Permission Check spine**: the graph model, Permission Check engine, Auth Request state machine, and System Bootstrap flow that every subsequent milestone sits on. The build-plan M1 entry is only ~15 lines ([build plan §M1](../../projects/phi/phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version — every contract pinned, every gap closed up-front, docs authored alongside code rather than after.
+M0 (scaffolding) shipped cleanly at 99 % confidence. M1 is the **Permission Check spine**: the graph model, Permission Check engine, Auth Request state machine, and System Bootstrap flow that every subsequent milestone sits on. The build-plan M1 entry is only ~15 lines ([build plan §M1](../../projects/phi/phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md)); this plan is the fully-resolved version — every contract pinned, every gap closed up-front, docs authored alongside code rather than after.
 
 **What went wrong in M0 (that we're preventing here):**
 
@@ -413,7 +413,7 @@ Before declaring M1 done, each row of Part 2's Commitment Ledger maps to a green
 ## Part 9 — Execution order  `[STATUS: ⏳ pending]`
 
 0. **Archive this plan** — copy to `phi/docs/specs/plan/build/<8hex>-m1-permission-check-spine.md`. Generate the 8-hex token with `openssl rand -hex 4`. (~2 min)
-1. **Reconcile build-plan counts** — update `docs/specs/plan/build/36d0c6c5-build-plan-v01.md` §M1 to say "37 nodes + 66 edges" instead of "31 + 56+". Same commit as the implementation kick-off. (~5 min)
+1. **Reconcile build-plan counts** — update `docs/specs/plan/build/build-plan-v01-36d0c6c5.md` §M1 to say "37 nodes + 66 edges" instead of "31 + 56+". Same commit as the implementation kick-off. (~5 min)
 2. **P1** — foundation: types + schema + migrations + audit skeleton + crypto layer + P1 docs. (~3 days)
 3. **P2** — type-safe edge foundation (marker traits + typed `Edge::new_*` constructors + `trybuild` compile-fail tests) + repository expansion (incl. typed ownership helpers) + ADR-0015 + P2 docs. (~3 days)
 4. **P3** — Permission Check engine + proptests + P3 docs. (~3 days)
@@ -433,7 +433,7 @@ Before declaring M1 done, each row of Part 2's Commitment Ledger maps to a green
 ## Part 10 — Critical files  `[STATUS: n/a]`
 
 Will be modified:
-- `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` (count corrections in §M1)
+- `phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md` (count corrections in §M1)
 - `phi/modules/crates/domain/src/{lib,model,permissions,state_machines,repository,audit}.rs` (P1–P4)
 - `phi/modules/crates/store/src/{lib,migrations,crypto}.rs` (P1–P2)
 - `phi/modules/crates/server/src/{router,state,session,bootstrap,handlers/bootstrap}.rs` (P5–P6)

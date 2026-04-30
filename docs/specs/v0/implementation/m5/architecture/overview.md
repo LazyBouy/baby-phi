@@ -3,7 +3,7 @@
 # M5 architecture overview
 
 **Status**: [PLANNED M5/P1] — stub seeded at M5/P0; filled as each
-surface lands. See the [plan archive](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md)
+surface lands. See the [plan archive](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md)
 for the full P0–P9 scope.
 
 M5 layers three verticals on the M4 foundation:

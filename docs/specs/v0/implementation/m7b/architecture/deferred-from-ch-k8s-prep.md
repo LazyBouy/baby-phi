@@ -195,7 +195,7 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 - **Cross-references** — links to relevant ADRs, sibling drifts, concept docs.
 - **Originating chunk** — `CH-NN` plan token + path. New for CH-01+ entries (CH-K8S-PREP entries pre-date this convention but their provenance is implicit via the prep refactors).
 
-**Provenance discipline.** Every CH-01+ entry's *Originating chunk* field cites the chunk plan path (e.g., `build/2aa37c80-ch-01-agent-durable-lifecycle.md`). This makes back-tracing the deferral history mechanical.
+**Provenance discipline.** Every CH-01+ entry's *Originating chunk* field cites the chunk plan path (e.g., `build/ch-01-agent-durable-lifecycle-2aa37c80.md`). This makes back-tracing the deferral history mechanical.
 
 **Index update.** Add the new entry to §2 Index alongside the existing rows. Keep the index sorted by entry number (ascending).
 

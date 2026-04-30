@@ -243,7 +243,7 @@ These run at chunk-open AND at chunk-seal.
 
 **Deliverables.**
 1. ADR-0032 [`0032-mock-provider-at-m5.md`](../../v0/implementation/m5_2/decisions/0032-mock-provider-at-m5.md) — Status `Proposed` → `Accepted`. Fill conforming-real-provider criteria (see §11).
-2. D4.2 drift file — `Status` → `remediated`; lifecycle entry `2026-04-24 — remediated — via CH-02 (plan 16fd9a3a-ch-02-real-agent-loop-wiring.md); synthetic feeder replaced with phi_core::agent_loop + MockProvider`; `leverage-violation` tag removed; grep-for-regression updated.
+2. D4.2 drift file — `Status` → `remediated`; lifecycle entry `2026-04-24 — remediated — via CH-02 (plan ch-02-real-agent-loop-wiring-16fd9a3a.md); synthetic feeder replaced with phi_core::agent_loop + MockProvider`; `leverage-violation` tag removed; grep-for-regression updated.
 3. `_concept-audit-matrix.md` — flip `agent_loop direct-reuse` row from `contradicted` → `honored`; update Code-evidence column.
 4. `drifts/README.md` index — refresh D4.2 Status column.
 5. `phi-core-mapping.md` — bump `Last verified` header.

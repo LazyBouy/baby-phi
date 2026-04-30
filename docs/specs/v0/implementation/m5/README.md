@@ -20,7 +20,7 @@ new M6 carryover C-M6-1 (Memory node tier + contract +
 ownership-by-multi-tag + permission-over-time retrieval per D6
 resolution).
 
-Plan archive: [`../../../plan/build/01710c13-m5-templates-system-agents-sessions.md`](../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+Plan archive: [`../../../plan/build/m5-templates-system-agents-sessions-01710c13.md`](../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
 
 ## Phase status
 
@@ -80,8 +80,8 @@ confidence reported before each next phase opens.
 
 ## Cross-references
 
-- [Base build plan §M5](../../../plan/build/36d0c6c5-build-plan-v01.md) — upstream scope definition + M5 carryovers from M3/M4.
-- [Base build plan §M6 §Carryovers from M5](../../../plan/build/36d0c6c5-build-plan-v01.md) — C-M6-1 carryover landed at M5/P0.
+- [Base build plan §M5](../../../plan/build/build-plan-v01-36d0c6c5.md) — upstream scope definition + M5 carryovers from M3/M4.
+- [Base build plan §M6 §Carryovers from M5](../../../plan/build/build-plan-v01-36d0c6c5.md) — C-M6-1 carryover landed at M5/P0.
 - [M4/P8 close architecture](../m4/architecture/phi-core-reuse-map.md) — prior reuse-map baseline.
 - [phi-core leverage checklist](../m3/architecture/phi-core-leverage-checklist.md) — four-tier enforcement model.
 - [M4 post-flight delta](architecture/m4-postflight-delta.md) — M5/P0's 10-item verification audit.

@@ -4,7 +4,7 @@
 
 Every discrepancy, inaccuracy, or mis-classification discovered while
 migrating the 29 drift addendum entries from the plan archive
-([`plan/build/01710c13-m5-templates-system-agents-sessions.md`](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md)
+([`plan/build/m5-templates-system-agents-sessions-01710c13.md`](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md)
 §Drift addenda) into per-file entries under
 [`m5_1/drifts/`](.) is logged here. Purpose: preserve the original
 plan-archive text as-is while capturing every deviation the per-file
@@ -19,7 +19,7 @@ the way.
   the plan archive is **29** drift items (D1.1, D1.2, D1.3, D2.1, D2.2,
   D3.1–D3.4, D4.1–D4.6, D5.1–D5.3, D6.1–D6.5, D7.1–D7.6 = 3 + 2 + 4 + 6
   + 3 + 5 + 6 = 29).
-- **Verification**: `grep -cE "^### D[0-9]+\.[0-9]+ " plan/build/01710c13-m5-templates-system-agents-sessions.md` returns 29.
+- **Verification**: `grep -cE "^### D[0-9]+\.[0-9]+ " plan/build/m5-templates-system-agents-sessions-01710c13.md` returns 29.
 - **Root cause**: The first Explore-agent's Bucket breakdown summed Bucket A (6) + Bucket B (7) + Bucket C (17) = 30 (with D4.1 double-counted between buckets). I carried a miscount forward without re-summing.
 - **Consequence**: M5.1 plan-v2 says "all 24 drifts" in its principle text; that number is wrong everywhere it appears. Kept the plan file as-is (approved version) but noted the real count here. The M5.1/P5 seal audit will confirm 29.
 - **Demonstrates**: The catalogue discipline is working — an inaccuracy

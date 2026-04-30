@@ -93,4 +93,4 @@ D-new-01 means Identity has zero rows pre-CH-16; no scaffold migration ever wrot
 - [drift D-new-23](../../m5_1/drifts/D-new-23.md)
 - ADR-0034 (CH-01) — `AgentKind::Human/Llm` discriminator that this guard reads
 - ADR-0038 (sibling) — Identity materialization that this guard protects
-- CH-16 plan archive: [`baby-phi/docs/specs/plan/build/2ae4fabe-ch-16-identity-node-materialization.md`](../../../../plan/build/2ae4fabe-ch-16-identity-node-materialization.md)
+- CH-16 plan archive: [`baby-phi/docs/specs/plan/build/ch-16-identity-node-materialization-2ae4fabe.md`](../../../../plan/build/ch-16-identity-node-materialization-2ae4fabe.md)

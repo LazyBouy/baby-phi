@@ -11,7 +11,7 @@ the platform provisions governance agents that wrap phi-core's
 execution + blueprint types.
 
 See:
-- [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) — full plan.
+- [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md) — full plan.
 - [`m2-preflight-delta.md`](m2-preflight-delta.md) — P0 delta log confirming M2-close invariants held at M3 open.
 - [`phi-core-reuse-map.md`](phi-core-reuse-map.md) — durable phi-core wrap/reuse map.
 - [`../../m2/architecture/overview.md`](../../m2/architecture/overview.md) — the M2 spine this extends.

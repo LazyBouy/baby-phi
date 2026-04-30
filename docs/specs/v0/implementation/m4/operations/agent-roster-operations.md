@@ -103,4 +103,4 @@ This page surfaces **zero phi-core fields** — roster rows carry only phi gover
 
 - [Agent roster architecture](../architecture/agent-roster.md)
 - [Repository method `list_agents_in_org_by_role`](../../../../../../modules/crates/domain/src/repository.rs) — M4/P2 trait surface.
-- [M4 plan archive §P4](../../../../plan/build/a634be65-m4-agents-and-projects.md)
+- [M4 plan archive §P4](../../../../plan/build/m4-agents-and-projects-a634be65.md)

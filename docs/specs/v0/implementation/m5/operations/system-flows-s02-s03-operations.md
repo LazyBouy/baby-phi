@@ -32,7 +32,7 @@ Scope at M5/P8:
 M5 emits `MemoryExtracted` audit events with full structured tag
 list (agent / group / project / org + custom `#tags`). M6
 materialises `Memory` nodes from the audit stream per the
-[C-M6-1 carryover](../../../../plan/build/36d0c6c5-build-plan-v01.md).
+[C-M6-1 carryover](../../../../plan/build/build-plan-v01-36d0c6c5.md).
 Draft the `MemoryExtracted` tag shape at P8 + confirm at P8 close
 so the audit replay is consumable by M6 without re-extraction.
 
@@ -62,6 +62,6 @@ Still planned at CH-21 close — placeholder list (queue saturation, agent disab
 - [Event bus M5 extensions](../architecture/event-bus-m5-extensions.md).
 - [System agents operations](system-agents-operations.md) — production playbooks for s03 catalog refresh.
 - [ADR-0035](../../m5_2/decisions/0035-agent-catalog-listener-audit-mode.md) — CH-22 audit-mode + emit-site wiring.
-- [M5 plan §P8](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
-- [CH-22 plan](../../../../plan/build/c5f201bb-ch-22-agent-catalog-listener-body.md).
-- [Base plan §M6 §Carryovers from M5](../../../../plan/build/36d0c6c5-build-plan-v01.md).
+- [M5 plan §P8](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
+- [CH-22 plan](../../../../plan/build/ch-22-agent-catalog-listener-body-c5f201bb.md).
+- [Base plan §M6 §Carryovers from M5](../../../../plan/build/build-plan-v01-36d0c6c5.md).

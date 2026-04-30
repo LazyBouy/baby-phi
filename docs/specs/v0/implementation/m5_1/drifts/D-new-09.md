@@ -45,5 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 2 report)
-- 2026-04-28 — `in-chunk-plan` — assigned to CH-04 (plan archived as [`build/3a65a2fc-ch-04-typed-action-vocabulary.md`](../../../../plan/build/3a65a2fc-ch-04-typed-action-vocabulary.md)).
+- 2026-04-28 — `in-chunk-plan` — assigned to CH-04 (plan archived as [`build/ch-04-typed-action-vocabulary-3a65a2fc.md`](../../../../plan/build/ch-04-typed-action-vocabulary-3a65a2fc.md)).
 - 2026-04-29 — `remediated` — CH-04 chunk-seal — `Action` enum at `domain::permissions::action::Action` with 35 variants (34 canonical + Wildcard); ALL[35] + CANONICAL[34] iteration; as_str / TryFrom<&str> / Display / FromStr surface; `#[serde(rename_all = "snake_case")]` preserves wire format; carriers Grant.action + Manifest.actions + ToolAuthorityManifest.actions flipped to Vec<Action>; ~60 callsites migrated. The note "33 named actions" in the original drift was a count miscount — the concept doc actually lists 34 verbs (recount: 3+3+4+3+3+5+3+4+3+3 = 34). [ADR-0043](../../m5_2/decisions/0043-typed-action-vocabulary.md) Accepted ratifies the design + the 33→34 recount.

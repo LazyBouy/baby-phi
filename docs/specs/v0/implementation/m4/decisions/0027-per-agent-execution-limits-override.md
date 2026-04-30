@@ -29,6 +29,6 @@ User decision (M4/P0): **yes for `ExecutionLimits`; no for `ContextConfig` and `
 ## References
 
 - [ADR-0023](../../m3/decisions/0023-system-agents-inherit-from-org-snapshot.md) — the default path this ADR layers on top of.
-- [M4 plan §D5 / §D-M4-2](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan §D5 / §D-M4-2](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 - [Requirements admin/09 §W3](../../../requirements/admin/09-agent-profile-editor.md).
 - [agent-profile-editor.md](../architecture/agent-profile-editor.md).

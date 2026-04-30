@@ -105,7 +105,7 @@ phi-core type definitions in CI.
 
 ## References
 
-- [M3 plan §D12](../../../../plan/build/563945fe-m3-organization-creation.md)
+- [M3 plan §D12](../../../../plan/build/m3-organization-creation-563945fe.md)
 - [ADR-0019 — Platform defaults are non-retroactive](../../m2/decisions/0019-platform-defaults-non-retroactive.md)
 - [phi/CLAUDE.md §phi-core Leverage](../../../../../../CLAUDE.md)
 - [`modules/crates/domain/src/model/composites_m3.rs`](../../../../../../modules/crates/domain/src/model/composites_m3.rs) — `OrganizationDefaultsSnapshot`

@@ -94,4 +94,4 @@ Constructor signature changed: `AgentCatalogListener::new(repo, audit, audit_mod
 - [M4 ADR-0028](../../m4/decisions/0028-domain-event-bus.md) — parent architectural decision.
 - [ADR-0029](../decisions/0029-session-persistence-and-recorder-wrap.md) — session persistence + `BabyPhiSessionRecorder` design.
 - [ADR-0035](../../m5_2/decisions/0035-agent-catalog-listener-audit-mode.md) — CH-22 audit-mode + emit-site wiring.
-- [M5 plan §P3](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5 plan §P3](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).

@@ -216,5 +216,5 @@ grep -En '^use phi_core::' modules/crates/server/src/platform/projects/create.rs
 - [Event bus + Template A subscription](../architecture/event-bus.md)
 - [ADR-0025](../decisions/0025-shape-b-two-approver-flow.md)
 - [ADR-0028](../decisions/0028-domain-event-bus.md)
-- [Base build plan §C-M5-6](../../../../plan/build/36d0c6c5-build-plan-v01.md) (Shape B materialisation-after-approve follow-up)
-- [M4 plan archive §P6](../../../../plan/build/a634be65-m4-agents-and-projects.md)
+- [Base build plan §C-M5-6](../../../../plan/build/build-plan-v01-36d0c6c5.md) (Shape B materialisation-after-approve follow-up)
+- [M4 plan archive §P6](../../../../plan/build/m4-agents-and-projects-a634be65.md)

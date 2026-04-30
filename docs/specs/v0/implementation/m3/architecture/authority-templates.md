@@ -42,7 +42,7 @@ approver lives in the server business logic
 existing, which is a business concern, not a pure-fn concern.
 
 See:
-- [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) §G6 / §D7.
+- [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md) §G6 / §D7.
 - [`../../../concepts/permissions/05-memory-sessions.md`](../../../concepts/permissions/05-memory-sessions.md) — Template A-E semantics.
 
 ## phi-core leverage

@@ -314,7 +314,7 @@ These run at chunk-open AND chunk-seal.
 
 3. **D6.1 drift file** [`drifts/D6.1.md`](../../v0/implementation/m5_1/drifts/D6.1.md) — Status `discovered` → `in-chunk-plan` (chunk-open) → **stays** `in-chunk-plan` (CH-22 ships second call site only; CH-21 is the closure owner). Append lifecycle entries:
    - `2026-04-24 — scoped — assigned to CH-21 (first call site) + CH-22 (second call site) at M5.1/P3 close (backfill)`
-   - `2026-04-27 — in-chunk-plan — CH-22 plan approved (build/c5f201bb-ch-22-agent-catalog-listener-body.md); chunk now operating on second call site`
+   - `2026-04-27 — in-chunk-plan — CH-22 plan approved (build/ch-22-agent-catalog-listener-body-c5f201bb.md); chunk now operating on second call site`
    - `2026-04-27 — partial-closure — CH-22 chunk-seal; second call site shipped (AgentCatalogListener body calls record_system_agent_fire on every fire); awaiting CH-21 first call site for full remediation. Status held at in-chunk-plan; final remediated transition logged at CH-21 seal.`
    `Last verified` bumped to today.
 
@@ -368,7 +368,7 @@ These run at chunk-open AND chunk-seal.
 6. [`baby-phi/CLAUDE.md`](CLAUDE.md) §phi-core Leverage rules + §"Orthogonal surfaces".
 7. Sibling listener bodies: [`TemplateAFireListener::on_event`, `TemplateCFireListener::on_event`, `TemplateDFireListener::on_event`](modules/crates/domain/src/events/listeners.rs) — canonical pattern reference.
 8. Existing P3 stub + `record_system_agent_fire` helper at [`listeners.rs:52`](modules/crates/domain/src/events/listeners.rs#L52).
-9. CH-01 plan: [`build/2aa37c80-ch-01-agent-durable-lifecycle.md`](docs/specs/plan/build/2aa37c80-ch-01-agent-durable-lifecycle.md) (style + structure reference).
+9. CH-01 plan: [`build/ch-01-agent-durable-lifecycle-2aa37c80.md`](docs/specs/plan/build/ch-01-agent-durable-lifecycle-2aa37c80.md) (style + structure reference).
 
 **Carry-forward invariants** (verified green at chunk-open):
 - `cargo test --workspace -- --test-threads=1` = 997 (post-CH-01 baseline).
@@ -442,7 +442,7 @@ Touched doc pages (denominator):
 > **Prompt** (locked at Step 2; fired at P3 seal):
 > You are performing an independent audit of CH-22 (AgentCatalogListener body) in baby-phi at `/root/projects/phi/baby-phi/`. You did NOT write this code or docs.
 >
-> **Context:** CH-22 ships the `AgentCatalogListener::on_event` body that mutates `agent_catalog_entry` rows + calls `record_system_agent_fire` on every fire, satisfying ADR-0034 D34.5 conforming criteria. The chunk plan is at `docs/specs/plan/build/c5f201bb-ch-22-agent-catalog-listener-body.md`.
+> **Context:** CH-22 ships the `AgentCatalogListener::on_event` body that mutates `agent_catalog_entry` rows + calls `record_system_agent_fire` on every fire, satisfying ADR-0034 D34.5 conforming criteria. The chunk plan is at `docs/specs/plan/build/ch-22-agent-catalog-listener-body-c5f201bb.md`.
 >
 > Verify these claims against current HEAD. For each report **PASS** or **FAIL** with 1-line evidence:
 >

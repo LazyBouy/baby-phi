@@ -104,7 +104,7 @@ See D42.5. Tracked successors (none required at v0.1 — items below are specula
 
 - Concept doc: [`coordination.md`](../../../concepts/coordination.md) §"Storage backend" — refreshed at this chunk.
 - Drift: [`D-new-02.md`](../../m5_1/drifts/D-new-02.md) — terminally closed at CH-03 seal.
-- Plan archive: [`build/4a52a093-ch-03-storage-backend-configurability.md`](../../../../plan/build/4a52a093-ch-03-storage-backend-configurability.md).
+- Plan archive: [`build/ch-03-storage-backend-configurability-4a52a093.md`](../../../../plan/build/ch-03-storage-backend-configurability-4a52a093.md).
 - Architecture doc: [`m1/architecture/storage-and-repository.md`](../../m1/architecture/storage-and-repository.md) — the Repository trait surface.
 - Paired ADR: [ADR-0033](0033-k8s-prep-refactors.md) (CH-K8S-PREP) — embedded-vs-remote SurrealDB swap framing this ADR generalizes.
 - Code:

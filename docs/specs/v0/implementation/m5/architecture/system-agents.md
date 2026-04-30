@@ -146,4 +146,4 @@ All 6 emits run AFTER the durable commit + audit emit (ADR-0028 fail-safe order)
 - [ADR-0023](../../m3/decisions/0023-system-agents-inherit-from-org-snapshot.md) — organization defaults pattern drives trigger effective-parallelize resolution.
 - [ADR-0034](../../m5_2/decisions/0034-agent-durable-lifecycle.md) — durable lifecycle columns + governance/runtime boundary (CH-01).
 - [ADR-0035](../../m5_2/decisions/0035-agent-catalog-listener-audit-mode.md) — audit-mode + production emit-site wiring (CH-22).
-- [M5 plan §P6](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5 plan §P6](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).

@@ -3,7 +3,7 @@
 # CH-09 — Consent node full shape (11 fields per concept doc)
 
 **Plan file token:** `03061b67` (generated 2026-04-30 at chunk-open via `openssl rand -hex 4`).
-**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/03061b67-ch-09-consent-node-full-shape.md`.
+**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/ch-09-consent-node-full-shape-03061b67.md`.
 **Chunk ID:** CH-09 (forward-scope §1 lines 100–105; §5 inventory row line 417).
 **Severity:** ⚠ HIGH.
 **Expected effort:** ~1 engineer-day.

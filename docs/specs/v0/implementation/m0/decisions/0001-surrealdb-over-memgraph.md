@@ -15,7 +15,7 @@ The two finalists under "embedded graph DB" in the build plan were **SurrealDB**
 
 **Use SurrealDB with the RocksDB backend, embedded in the `phi-server` process.**
 
-See the build plan's comparison table at [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../../plan/build/36d0c6c5-build-plan-v01.md) §"Storage choice: SurrealDB vs Memgraph" for the full matrix.
+See the build plan's comparison table at [`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../../plan/build/build-plan-v01-36d0c6c5.md) §"Storage choice: SurrealDB vs Memgraph" for the full matrix.
 
 ## Consequences
 

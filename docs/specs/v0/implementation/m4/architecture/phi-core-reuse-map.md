@@ -189,7 +189,7 @@ architecture doc (§Q3 rejections).
 
 ## Cross-references
 
-- [M4 plan archive §Part 1.5](../../../../plan/build/a634be65-m4-agents-and-projects.md) — phi-core reuse map up-front.
+- [M4 plan archive §Part 1.5](../../../../plan/build/m4-agents-and-projects-a634be65.md) — phi-core reuse map up-front.
 - [phi-core leverage checklist](../../m3/architecture/phi-core-leverage-checklist.md) — four-tier enforcement model.
 - [M3 reuse map](../../m3/architecture/phi-core-reuse-map.md) — cumulative platform + M3 table.
 - [ADR-0027](../decisions/0027-per-agent-execution-limits-override.md) — per-agent override.

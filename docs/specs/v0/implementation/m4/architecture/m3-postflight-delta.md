@@ -23,7 +23,7 @@ declared gap confirmed open).
 | 7 | Domain event bus (`EventBus` trait, `DomainEvent`, `InProcessEventBus`, `TemplateAFireListener`) | **missing** (confirmed expected gap per user decision D-M4-4) | Grep across workspace returns 0 hits | P1 adds `domain/src/events/` + ADR-0028; P3 wires listener + `AppState.event_bus` |
 | 8 | `parallelize` field on `AgentProfile` | still-valid | M3/P1 shipped; `nodes.rs::AgentProfile.parallelize: u32` is present. **Enforcement absent**: no create/edit validation, no session-start gate (M5). | P5 validates `1 <= parallelize <= org_cap` on create + edit; M5 gates at session-start |
 | 9 | Dashboard carryover counters (`AgentsSummary`, `ProjectsSummary`) | still-valid as zero-value placeholders | `dashboard.rs` returns `agents_summary.llm` + `.human` only (no role split); `projects_summary.active == list_projects_in_org(...).len()` which is 0 (SurrealDB stub returns empty vec); `shape_a` / `shape_b` always 0 | P8 retroactive rewrite after P1/P2 data is wired |
-| 10 | M3 carryovers in base plan §M4 | still-valid | `36d0c6c5-build-plan-v01.md` contains `#### Carryovers from M3 — must-pick-up at M4 detailed planning` with C-M4-1 through C-M4-6 intact | P0 ADDS M5-section (C-M5-3/4) + M8-section (C-M8-1) per user decision; existing M4-section carryovers addressed during P1–P8 |
+| 10 | M3 carryovers in base plan §M4 | still-valid | `build-plan-v01-36d0c6c5.md` contains `#### Carryovers from M3 — must-pick-up at M4 detailed planning` with C-M4-1 through C-M4-6 intact | P0 ADDS M5-section (C-M5-3/4) + M8-section (C-M8-1) per user decision; existing M4-section carryovers addressed during P1–P8 |
 
 ## Summary
 
@@ -42,6 +42,6 @@ These were user-added at M4 planning close; P0 fixes the plan documents so they 
 
 ## Cross-references
 
-- [M4 plan archive](../../../../plan/build/a634be65-m4-agents-and-projects.md) §P0 deliverables.
-- [M3 plan archive](../../../../plan/build/563945fe-m3-organization-creation.md) §Carryovers.
+- [M4 plan archive](../../../../plan/build/m4-agents-and-projects-a634be65.md) §P0 deliverables.
+- [M3 plan archive](../../../../plan/build/m3-organization-creation-563945fe.md) §Carryovers.
 - [phi-core leverage checklist](../../m3/architecture/phi-core-leverage-checklist.md) — four-tier enforcement model applied per M4 phase.

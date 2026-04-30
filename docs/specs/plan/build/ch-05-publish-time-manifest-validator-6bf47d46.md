@@ -3,7 +3,7 @@
 # CH-05 — Publish-time tool authority manifest validator
 
 **Plan file token:** `6bf47d46` (generated via `openssl rand -hex 4` at chunk-open 2026-04-29).
-**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/6bf47d46-ch-05-publish-time-manifest-validator.md`.
+**Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/build/ch-05-publish-time-manifest-validator-6bf47d46.md`.
 **Chunk ID:** CH-05 (forward-scope §1 lines 70–75; §5 inventory row line 413).
 **Severity:** ⚠ HIGH.
 **Expected effort:** ~2 engineer-days.

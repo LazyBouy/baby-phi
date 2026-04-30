@@ -177,4 +177,4 @@ Metrics are emitted via the existing Prometheus layer; no changes to
 
 - [Architecture — Project Detail](../architecture/project-detail.md).
 - [Error-code aggregator — `docs/ops/runbook.md §M4`](../../../../../ops/runbook.md).
-- [M4 plan archive §P7](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §P7](../../../../plan/build/m4-agents-and-projects-a634be65.md).

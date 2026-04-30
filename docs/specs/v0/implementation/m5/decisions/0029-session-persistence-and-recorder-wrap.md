@@ -205,7 +205,7 @@ requirement.
 
 ## References
 
-- [M5 plan archive §Part 1.5 + §D2 + §P1 + §P3](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
+- [M5 plan archive §Part 1.5 + §D2 + §P1 + §P3](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
 - [M3 ADR-0020](../../m3/decisions/0020-organization-defaults-embedded.md) — sibling wrap pattern (`OrganizationDefaultsSnapshot` wraps four phi-core types at the governance-node tier).
 - [M4 ADR-0027](../../m4/decisions/0027-per-agent-execution-limits-override.md) — layered override precedent.
 - [`phi/CLAUDE.md`](../../../../../../CLAUDE.md) §phi-core Leverage.

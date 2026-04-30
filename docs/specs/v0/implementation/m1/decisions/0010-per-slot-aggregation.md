@@ -164,4 +164,4 @@ Negative:
 - Concept doc:
   [`permissions/02-auth-request.md`](../../../concepts/permissions/02-auth-request.md)
   §State Machine, §Per-Resource State Derivation, §Retention Policy.
-- Plan: [015a217a-m1-permission-check-spine.md §P4](../../../../plan/build/015a217a-m1-permission-check-spine.md).
+- Plan: [m1-permission-check-spine-015a217a.md §P4](../../../../plan/build/m1-permission-check-spine-015a217a.md).

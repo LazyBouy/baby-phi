@@ -54,7 +54,7 @@ Legend: ✅ direct reuse • 🔌 wrap (phi field holds phi-core type) • 🚫 
 ## Why `Organization` is NOT a wrap of `phi_core::session::model::Session`
 
 Summarised here; full 4-reason argument lives in
-[`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md)
+[`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md)
 §1.5 and is pinned as D11 in Part 3:
 
 1. Different lifetimes (years vs hours).

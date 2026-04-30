@@ -26,6 +26,6 @@ M4 introduces the first-class `Project` node + a 6-variant `AgentRole` enum span
 
 ## References
 
-- [M4 plan §D1, §D2, §D3, §D12](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan §D1, §D2, §D3, §D12](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 - [`concepts/agent.md §Agent Roles`](../../../concepts/agent.md#agent-roles) — amended at M4/P0.
 - [`concepts/project.md`](../../../concepts/project.md).

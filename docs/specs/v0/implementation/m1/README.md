@@ -21,9 +21,9 @@ M1 is the **Permission Check spine** milestone. It lands:
 - Acceptance tests and the M1 extensions to the CI workflows.
 
 This page is the index. The archived plan lives at
-[`../../../plan/build/015a217a-m1-permission-check-spine.md`](../../../plan/build/015a217a-m1-permission-check-spine.md);
+[`../../../plan/build/m1-permission-check-spine-015a217a.md`](../../../plan/build/m1-permission-check-spine-015a217a.md);
 the v0.1 build plan it sits under is at
-[`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../plan/build/36d0c6c5-build-plan-v01.md).
+[`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../plan/build/build-plan-v01-36d0c6c5.md).
 
 ## Status at the start of writing (P1 landed)
 

@@ -155,7 +155,7 @@ See D43.8 (CH-05/CH-08 deferrals) and D43.9 (v1 per-resource enum design). Track
 - Drifts:
   - [`D-new-09.md`](../../m5_1/drifts/D-new-09.md) — closed at CH-04.
   - [`D-new-10.md`](../../m5_1/drifts/D-new-10.md) — closed at CH-04.
-- Plan archive: [`build/3a65a2fc-ch-04-typed-action-vocabulary.md`](../../../../plan/build/3a65a2fc-ch-04-typed-action-vocabulary.md).
+- Plan archive: [`build/ch-04-typed-action-vocabulary-3a65a2fc.md`](../../../../plan/build/ch-04-typed-action-vocabulary-3a65a2fc.md).
 - Architecture doc: [`m1/architecture/permission-check-engine.md`](../../m1/architecture/permission-check-engine.md) — header bumped at this chunk.
 - Downstream chunks: CH-05 (publish-time validator), CH-08 (allocate/transfer cardinality), CH-15 (real permission manifest at session launch).
 - Code:

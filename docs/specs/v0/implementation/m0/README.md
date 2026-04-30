@@ -4,7 +4,7 @@
 
 M0 is the **scaffolding** milestone of the v0.1 build plan: a Cargo workspace with four Rust crates (`cli`, `domain`, `store`, `server`), an embedded SurrealDB (RocksDB) adapter, an axum HTTP server with health + metrics, a Next.js 14 web UI skeleton, a Dockerfile + compose stack, three CI workflows, and a 12-factor layered-config story. Nothing in M0 implements the Permission Check engine, Auth Request state machine, or any admin page — those land in M1+.
 
-These pages describe **what M0 actually shipped**. The archived build plan at [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../plan/build/36d0c6c5-build-plan-v01.md) describes the intent for M0–M8. The two must stay in sync — intent lives in the plan, actuality lives here.
+These pages describe **what M0 actually shipped**. The archived build plan at [`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../plan/build/build-plan-v01-36d0c6c5.md) describes the intent for M0–M8. The two must stay in sync — intent lives in the plan, actuality lives here.
 
 ## Layout
 

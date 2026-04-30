@@ -8,4 +8,4 @@ Operator walkthrough for listing and filtering agents in an org by role. Covers 
 
 See:
 - [Requirements admin/08](../../../requirements/admin/08-agent-roster-list.md).
-- [M4 plan archive §P4](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §P4](../../../../plan/build/m4-agents-and-projects-a634be65.md).

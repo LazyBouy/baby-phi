@@ -17,4 +17,4 @@ The existing `phi completion <shell>` (M2/P8) auto-surfaces
 every `org` subcommand via `clap_complete`'s tree walk — no M3 work
 required.
 
-See [`../../../plan/build/563945fe-m3-organization-creation.md`](../../../../plan/build/563945fe-m3-organization-creation.md) §P4 / §P5.
+See [`../../../plan/build/m3-organization-creation-563945fe.md`](../../../../plan/build/m3-organization-creation-563945fe.md) §P4 / §P5.

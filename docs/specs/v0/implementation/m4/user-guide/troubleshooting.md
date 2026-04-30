@@ -125,4 +125,4 @@ Treat a failure here as a security incident, not a test flake.
   [profile editor](../operations/agent-profile-editor-operations.md) ·
   [project creation](../operations/project-creation-operations.md) ·
   [project detail](../operations/project-detail-operations.md).
-- [M4 plan archive §P8](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §P8](../../../../plan/build/m4-agents-and-projects-a634be65.md).

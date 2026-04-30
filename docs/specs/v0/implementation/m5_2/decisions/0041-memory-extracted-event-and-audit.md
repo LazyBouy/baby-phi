@@ -117,4 +117,4 @@ The emit is **paired** with `identity_updated` from CH-16's `audit/events/m5_2/i
 
 - Concept docs: [`system-agents.md`](../../../concepts/system-agents.md) § "Memory Extraction Agent — Behaviour 5".
 - ADRs cross-referenced: ADR-0028 (fail-safe listener semantics), ADR-0038 (CH-16 first-emitter commitment for `IdentityUpdated`), ADR-0040 (heuristic v0 listener).
-- Plan archive: [`build/bb95cd12-ch-21-memory-extraction-listener-body.md`](../../../../plan/build/bb95cd12-ch-21-memory-extraction-listener-body.md).
+- Plan archive: [`build/ch-21-memory-extraction-listener-body-bb95cd12.md`](../../../../plan/build/ch-21-memory-extraction-listener-body-bb95cd12.md).

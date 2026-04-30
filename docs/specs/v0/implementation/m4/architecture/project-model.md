@@ -9,4 +9,4 @@
 See:
 - [concepts/project.md](../../../concepts/project.md) — source of truth for the model.
 - [ADR-0024](../decisions/0024-project-and-agent-role-typing.md).
-- [M4 plan archive §D1](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan archive §D1](../../../../plan/build/m4-agents-and-projects-a634be65.md).

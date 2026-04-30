@@ -4,7 +4,7 @@
 
 **Status:** SEALED · 2026-04-24
 **Milestone type:** documentation-only (no `modules/` code changes)
-**Parent plan:** [`plan/build/01710c13-m5-templates-system-agents-sessions.md`](../../../plan/build/01710c13-m5-templates-system-agents-sessions.md) (M5 proper)
+**Parent plan:** [`plan/build/m5-templates-system-agents-sessions-01710c13.md`](../../../plan/build/m5-templates-system-agents-sessions-01710c13.md) (M5 proper)
 **Successor:** M5.2 (P8 memory-extraction listener + P9 seal; scope now planned chunk-by-chunk per the per-chunk template introduced here)
 
 ## Purpose

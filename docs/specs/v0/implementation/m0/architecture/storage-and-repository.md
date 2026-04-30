@@ -104,7 +104,7 @@ Embedded is the v0.1 default, **not** a dead end. The connection string is the o
 
 This is the explicit safety valve: the `store` crate is the *only* place we depend on SurrealDB. Replacing it is bounded work.
 
-Full rationale + honest weak spots are in the archived build plan at [`../../../plan/build/36d0c6c5-build-plan-v01.md`](../../../../plan/build/36d0c6c5-build-plan-v01.md) §"Scaling path — from embedded to distributed".
+Full rationale + honest weak spots are in the archived build plan at [`../../../plan/build/build-plan-v01-36d0c6c5.md`](../../../../plan/build/build-plan-v01-36d0c6c5.md) §"Scaling path — from embedded to distributed".
 
 ## Data migration (forward-looking)
 

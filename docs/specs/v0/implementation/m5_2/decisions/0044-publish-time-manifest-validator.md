@@ -158,7 +158,7 @@ See D44.9 (HTTP handler) and D44.10 (typed Constraint enum). Tracked successors 
 - Drifts (closed at this chunk):
   - [`D-new-07.md`](../../m5_1/drifts/D-new-07.md) — HIGH, parent.
   - [`D-new-31.md`](../../m5_1/drifts/D-new-31.md) — LOW, sub-case of Rule C.
-- Plan archive: [`build/6bf47d46-ch-05-publish-time-manifest-validator.md`](../../../../plan/build/6bf47d46-ch-05-publish-time-manifest-validator.md).
+- Plan archive: [`build/ch-05-publish-time-manifest-validator-6bf47d46.md`](../../../../plan/build/ch-05-publish-time-manifest-validator-6bf47d46.md).
 - Architecture doc: [`m1/architecture/permission-check-engine.md`](../../m1/architecture/permission-check-engine.md) — header bumped; the engine assumes validated manifests.
 - Paired ADR: [ADR-0043](0043-typed-action-vocabulary.md) — CH-04's Action enum + matrix; this chunk's Rule B queries `Action::applies_to` directly.
 - Downstream chunk: **CH-12** (frozen session-tag immutability) — consumes `reserved_namespace_prefixes()` for runtime-side enforcement.

@@ -5,7 +5,7 @@
 **Source of truth:** the phi-core Leverage section of
 [`phi/CLAUDE.md`](../../../../../../CLAUDE.md) plus §1.5 of the
 archived M2 plan at
-[`../../../../plan/build/a6005e06-m2-platform-setup.md`](../../../../plan/build/a6005e06-m2-platform-setup.md).
+[`../../../../plan/build/m2-platform-setup-a6005e06.md`](../../../../plan/build/m2-platform-setup-a6005e06.md).
 This page is the durable publication of that map so M3+ authors don't
 have to dig into the plan archive.
 

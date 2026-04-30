@@ -110,7 +110,7 @@ transition history and re-verifies the aggregation at each step.
 Template-E ARs have **no intermediate transitions** — they enter the
 terminal state at construction — so the replay must special-case
 `provenance_template: TemplateKind::E` ARs. See [Open question Q4
-in the archived plan](../../../../plan/build/a6005e06-m2-platform-setup.md)
+in the archived plan](../../../../plan/build/m2-platform-setup-a6005e06.md)
 for the M7b tracking note.
 
 ## References

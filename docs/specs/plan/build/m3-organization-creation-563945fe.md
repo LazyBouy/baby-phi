@@ -11,7 +11,7 @@ M2 (Platform Setup, pages 02–05) shipped at 99% composite confidence: 20 commi
 
 **M3 is the first milestone where audit events leave the root hash chain** and start per-org chains (`org_scope = Some(org_id)`). It's also the first milestone that provisions agents governed by phi-core types (system agents' `blueprint: phi_core::AgentProfile`) rather than only **platform-level** resource bindings (M2's model providers + MCP servers). M3 ships admin **page 06 (org creation wizard)** and **page 07 (org dashboard)** as vertical slices; it establishes the multi-step-wizard web pattern (reused by M4+) and the **per-phase phi-core-leverage + confidence-check** discipline the user has pinned as a hard commitment.
 
-**The build-plan M3 entry is 6 lines** ([build plan §M3](../../projects/phi/phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md)); this plan is the fully-resolved version with per-phase commitments and a phi-core reuse map.
+**The build-plan M3 entry is 6 lines** ([build plan §M3](../../projects/phi/phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md)); this plan is the fully-resolved version with per-phase commitments and a phi-core reuse map.
 
 **What M2 taught us (applied preventively to M3):**
 

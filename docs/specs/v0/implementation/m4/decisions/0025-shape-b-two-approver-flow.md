@@ -30,6 +30,6 @@ Project creation Shape B (R-ADMIN-10-W3) requires approval from BOTH co-owning o
 
 ## References
 
-- [M4 plan §D4 / §D8](../../../../plan/build/a634be65-m4-agents-and-projects.md).
+- [M4 plan §D4 / §D8](../../../../plan/build/m4-agents-and-projects-a634be65.md).
 - [Requirements admin/10 §W3](../../../requirements/admin/10-project-creation-wizard.md).
 - [shape-a-vs-shape-b.md](../architecture/shape-a-vs-shape-b.md).

@@ -12,7 +12,7 @@ First milestone to ship a domain event bus (`TemplateAFireListener`
 subscribes to `HasLeadEdgeCreated` and fires the Template A grant
 automatically).
 
-Plan archive: [`../../../plan/build/a634be65-m4-agents-and-projects.md`](../../../plan/build/a634be65-m4-agents-and-projects.md).
+Plan archive: [`../../../plan/build/m4-agents-and-projects-a634be65.md`](../../../plan/build/m4-agents-and-projects-a634be65.md).
 
 ## Phase status
 
@@ -57,6 +57,6 @@ opens.
 
 ## Cross-references
 
-- [Base build plan §M4](../../../plan/build/36d0c6c5-build-plan-v01.md) — upstream scope definition.
+- [Base build plan §M4](../../../plan/build/build-plan-v01-36d0c6c5.md) — upstream scope definition.
 - [M3/P6 close architecture doc](../m3/architecture/org-dashboard.md) §Deviations — the M4 carryovers M4 closes.
 - [phi-core leverage checklist](../m3/architecture/phi-core-leverage-checklist.md) — four-tier enforcement model.

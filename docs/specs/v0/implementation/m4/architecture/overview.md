@@ -13,7 +13,7 @@ per-agent `ExecutionLimits` override layer (inherits from M3's
 `OrganizationDefaultsSnapshot` by default).
 
 See:
-- [M4 plan archive](../../../../plan/build/a634be65-m4-agents-and-projects.md) §Part 4 — per-phase deliverables.
+- [M4 plan archive](../../../../plan/build/m4-agents-and-projects-a634be65.md) §Part 4 — per-phase deliverables.
 - [shape-a-vs-shape-b.md](shape-a-vs-shape-b.md) — two-approver flow architecture.
 - [event-bus.md](event-bus.md) — in-process event bus + subscription contracts.
 - [phi-core-reuse-map.md](phi-core-reuse-map.md) — M4 phi-core leverage table.

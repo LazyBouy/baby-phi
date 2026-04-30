@@ -106,4 +106,4 @@ grep -En '^use phi_core::' modules/crates/server/src/platform/projects/create.rs
 - [Requirements admin/10](../../../requirements/admin/10-project-creation-wizard.md)
 - [phi-core leverage map §Page 10](phi-core-reuse-map.md)
 - [Project creation ops runbook](../operations/project-creation-operations.md)
-- [M4 plan archive §P6](../../../../plan/build/a634be65-m4-agents-and-projects.md)
+- [M4 plan archive §P6](../../../../plan/build/m4-agents-and-projects-a634be65.md)

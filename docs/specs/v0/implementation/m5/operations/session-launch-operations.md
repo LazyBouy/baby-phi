@@ -108,5 +108,5 @@ Real providers (Anthropic / OpenAI / etc.) are deferred to M7. M5/CH-02 ships on
 - [Session launch architecture](../architecture/session-launch.md).
 - [ADR-0031](../decisions/0031-session-cancellation-and-concurrency.md).
 - [ADR-0032](../../m5_2/decisions/0032-mock-provider-at-m5.md) — MockProvider at M5.
-- [M5 plan §P4](../../../../plan/build/01710c13-m5-templates-system-agents-sessions.md).
-- [CH-02 plan](../../../../plan/build/16fd9a3a-ch-02-real-agent-loop-wiring.md).
+- [M5 plan §P4](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
+- [CH-02 plan](../../../../plan/build/ch-02-real-agent-loop-wiring-16fd9a3a.md).

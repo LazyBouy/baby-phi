@@ -119,4 +119,4 @@ The existing `Composite::auto_tags(&self, id: &str) -> [String; 2]` signature is
 - [`concepts/permissions/01-resource-ontology.md`](../../../concepts/permissions/01-resource-ontology.md) §"Instance Identity Tags"
 - [drift D-new-11](../../m5_1/drifts/D-new-11.md)
 - ADR-0036 (selector grammar) — sibling chunk decision
-- CH-06 plan archive: [`baby-phi/docs/specs/plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md`](../../../../plan/build/acd383e2-ch-06-selector-grammar-peg-and-instance-tags.md)
+- CH-06 plan archive: [`baby-phi/docs/specs/plan/build/ch-06-selector-grammar-peg-and-instance-tags-acd383e2.md`](../../../../plan/build/ch-06-selector-grammar-peg-and-instance-tags-acd383e2.md)

@@ -9,12 +9,12 @@
 
 M0 (project scaffolding) is implementation-complete and CI-green: workspace restructured under `phi/modules/{crates,web}`, SurrealDB embedded (RocksDB) adapter wired, health + metrics endpoints live, Next.js 14 scaffold in place, three CI workflows set up. Before starting M1 (Permission Check spine) we want two things:
 
-1. **An independent accuracy check** of what M0 actually shipped vs what the archived build plan committed to (`phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md`).
+1. **An independent accuracy check** of what M0 actually shipped vs what the archived build plan committed to (`phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md`).
 2. **Detailed M0 documentation** under a new tree `phi/docs/specs/v0/implementation/m0/`, organised into `architecture/`, `user-guide/`, `operations/`, and `decisions/` (ADRs) subfolders.
 
 The audit result (below) says M0 is structurally solid but has one HIGH-severity production-readiness gap that should be closed *before* docs are written — so the docs reflect a correct M0, not one with TODO markers throughout.
 
-The *overall v0.1 build plan* (M0→M8) still lives in its archive at `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md`. This plan file supersedes that one only for the next block of work (audit + docs); M1+ planning will be picked up separately.
+The *overall v0.1 build plan* (M0→M8) still lives in its archive at `phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md`. This plan file supersedes that one only for the next block of work (audit + docs); M1+ planning will be picked up separately.
 
 **Archive location for this plan:** `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md` (new subfolder; matches the sibling convention used by `plan/build/` and `plan/requirements/`). The first execution step (Part 7 step 0) is to copy this plan file verbatim to that path so the audit + doc plan is preserved alongside the other archived plans.
 
@@ -43,7 +43,7 @@ An independent Explore-agent audit compared the current state of `phi/` against 
 | CI: spec-drift.yml + `scripts/check-spec-drift.sh` (executable, grepping `modules/`) | ✓ | `.github/workflows/spec-drift.yml`, `scripts/check-spec-drift.sh` |
 | `deny.toml` policy (advisories, bans, licences, sources) | ✓ | `deny.toml` |
 | `RUSTFLAGS=-Dwarnings` enforced in CI | ✓ | `.github/workflows/rust.yml` |
-| Build plan archived verbatim | ✓ | `docs/specs/plan/build/36d0c6c5-build-plan-v01.md` |
+| Build plan archived verbatim | ✓ | `docs/specs/plan/build/build-plan-v01-36d0c6c5.md` |
 | `CLAUDE.md` reflects new layout | ✓ | `phi/CLAUDE.md` |
 | **TLS support surface** (axum-rustls crate + listener path) | **✗** | `TlsConfig` struct exists in `modules/crates/server/src/config.rs` but no `axum-rustls` dep in Cargo.toml and no listener path in `main.rs` |
 | `modules/web/package-lock.json` committed | ✗ | File not present; CI `npm ci` reproducibility at risk |
@@ -148,7 +148,7 @@ implementation/m0/
 #### `README.md`
 - One-paragraph purpose (this is the executed implementation for M0 — the archived plan is the intent, these docs are the actuality).
 - Links into each subfolder with one-line summaries per file.
-- Links back to the archived build plan (`../../../plan/build/36d0c6c5-build-plan-v01.md`).
+- Links back to the archived build plan (`../../../plan/build/build-plan-v01-36d0c6c5.md`).
 - Stable URL structure for future `m1/`, `m2/`, … siblings.
 
 #### `architecture/overview.md`
@@ -267,7 +267,7 @@ Positive + negative trade-offs.
 Bulleted with a sentence each.
 ```
 
-- **0001 SurrealDB over Memgraph** — adapt the comparison table + "why SurrealDB wins" from the build plan; reference `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` for full rationale.
+- **0001 SurrealDB over Memgraph** — adapt the comparison table + "why SurrealDB wins" from the build plan; reference `phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md` for full rationale.
 - **0002 Three parallel surfaces** — CLI + HTTP API + web. Why the API is the single source of truth both clients consume.
 - **0003 `modules/crates/` + `modules/web/` layout** — why this split, why not flat crate dirs at workspace root.
 - **0004 Terse package names** — `cli`, `domain`, `store`, `server`; binary names keep the product prefix.
@@ -344,7 +344,7 @@ Before declaring this plan's work complete, verify:
 
 ## What stays unchanged  `[STATUS: n/a]`
 
-- The overall v0.1 build plan at `phi/docs/specs/plan/build/36d0c6c5-build-plan-v01.md` is not edited by this work — it remains the source of truth for M0–M8 intent.
+- The overall v0.1 build plan at `phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md` is not edited by this work — it remains the source of truth for M0–M8 intent.
 - Concept + requirement specs under `docs/specs/v0/concepts/` + `docs/specs/v0/requirements/` are untouched.
 - `phi/CLAUDE.md` already reflects the M0-post-restructure layout; it will be cross-linked from the new `implementation/m0/README.md` but not rewritten.
 - M1 planning is a separate conversation that picks up once this plan's work lands.
