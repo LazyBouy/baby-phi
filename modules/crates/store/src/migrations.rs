@@ -95,6 +95,16 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "consent_full_shape",
         sql: include_str!("../migrations/0010_consent_full_shape.surql"),
     },
+    // CH-23 — Template C/D production triggers (ADR-0046).
+    // Adds the `manages` + `has_agent_supervisor` tables that back
+    // the inaugural production writers of the two new Edge variants.
+    // UNIQUE indexes on the (scope, from, to) triples enforce
+    // idempotency at the storage layer.
+    Migration {
+        version: 11,
+        slug: "manages_supervisor_edges",
+        sql: include_str!("../migrations/0011_manages_supervisor_edges.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

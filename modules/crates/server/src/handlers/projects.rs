@@ -27,6 +27,7 @@ use domain::model::nodes::{AuthRequestState, ProjectShape};
 
 use crate::handler_support::{ApiError, AuthenticatedSession};
 use crate::platform::projects::{
+    agent_supervisor::{set_agent_supervisor, SetSupervisorError, SetSupervisorInput},
     create::{
         approve_pending_shape_b, create_project, ApprovalOutcome, ApproveShapeBInput,
         CreateProjectInput, CreateProjectOutcome,
@@ -377,6 +378,82 @@ fn error_to_api_error(err: ProjectError) -> ApiError {
         ProjectError::AuditEmit(m) => ApiError::audit_emit_failed(m),
         ProjectError::Transition(m) => {
             ApiError::new(StatusCode::BAD_REQUEST, "TRANSITION_ILLEGAL", m)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CH-23 / ADR-0046 — set agent supervisor (Template D trigger)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct SetSupervisorRequest {
+    pub supervisor_agent_id: AgentId,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SetSupervisorResponse {
+    pub edge_id: EdgeId,
+    pub created: bool,
+    pub audit_event_id: Option<AuditEventId>,
+}
+
+pub async fn set_supervisor(
+    State(state): State<AppState>,
+    session: AuthenticatedSession,
+    Path((project_id, agent_id)): Path<(ProjectId, AgentId)>,
+    Json(body): Json<SetSupervisorRequest>,
+) -> Result<Response, ApiError> {
+    let outcome = set_agent_supervisor(
+        state.repo.clone(),
+        state.event_bus.clone(),
+        SetSupervisorInput {
+            project_id,
+            supervisee_agent_id: agent_id,
+            supervisor_agent_id: body.supervisor_agent_id,
+            actor: session.agent_id,
+            now: Utc::now(),
+        },
+    )
+    .await
+    .map_err(set_supervisor_error_to_api_error)?;
+
+    info!(
+        project_id = %project_id,
+        supervisee = %agent_id,
+        supervisor = %body.supervisor_agent_id,
+        edge_id = %outcome.edge_id,
+        created = outcome.created,
+        "projects: set_supervisor",
+    );
+
+    let status = if outcome.created {
+        StatusCode::CREATED
+    } else {
+        StatusCode::OK
+    };
+    Ok((
+        status,
+        Json(SetSupervisorResponse {
+            edge_id: outcome.edge_id,
+            created: outcome.created,
+            audit_event_id: outcome.audit_event_id,
+        }),
+    )
+        .into_response())
+}
+
+fn set_supervisor_error_to_api_error(err: SetSupervisorError) -> ApiError {
+    match err {
+        SetSupervisorError::Validation(m) => {
+            ApiError::new(StatusCode::BAD_REQUEST, "SUPERVISOR_INVALID", m)
+        }
+        SetSupervisorError::AgentInactive(m) => {
+            ApiError::new(StatusCode::CONFLICT, "AGENT_INACTIVE", m)
+        }
+        SetSupervisorError::Repository(m) => {
+            error!(error = %m, "projects: set_supervisor repository error");
+            ApiError::internal()
         }
     }
 }

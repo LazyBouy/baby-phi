@@ -14,16 +14,23 @@ use domain::model::{
 // ---- Count invariants -----------------------------------------------------
 
 #[test]
-fn edge_count_bumps_from_sixty_six_to_sixty_seven() {
+fn edge_count_bumps_from_sixty_six_to_seventy_one() {
     // M3/P1 added `HasLead` as variant #67. M4/P1 added
-    // `HasSubproject` + `HasConfig` as #68 + #69 per the P0 ontology
-    // audit against `concepts/project.md §Project Edges`. The
+    // `HasSubproject` + `HasConfig` as #68 + #69. CH-23 added
+    // `Manages` + `HasAgentSupervisor` as #70 + #71 per ADR-0046 to
+    // give Templates C and D real production triggers. The
     // compile-time count is pinned in `edges.rs`
-    // (`pub const EDGE_KIND_NAMES: [&str; 69]`); this test is a
+    // (`pub const EDGE_KIND_NAMES: [&str; 71]`); this test is a
     // belt-and-braces check visible in the integration suite so
     // count regressions surface under `cargo test --workspace`.
-    assert_eq!(EDGE_KIND_NAMES.len(), 69);
-    for required in ["HAS_LEAD", "HAS_SUBPROJECT", "HAS_CONFIG"] {
+    assert_eq!(EDGE_KIND_NAMES.len(), 71);
+    for required in [
+        "HAS_LEAD",
+        "HAS_SUBPROJECT",
+        "HAS_CONFIG",
+        "MANAGES",
+        "HAS_AGENT_SUPERVISOR",
+    ] {
         assert!(
             EDGE_KIND_NAMES.contains(&required),
             "{required} must be in the name table; got: {:?}",

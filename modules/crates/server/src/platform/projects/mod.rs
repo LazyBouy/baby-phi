@@ -29,6 +29,7 @@
 //!   `POST /api/v0/orgs/:org_id/projects` + `POST
 //!   /api/v0/projects/_pending/:ar_id/approve`.
 
+pub mod agent_supervisor;
 pub mod create;
 pub mod detail;
 pub mod resolvers;

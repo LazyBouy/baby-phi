@@ -73,7 +73,10 @@ mod tests {
     }
 
     #[test]
-    fn ontology_has_sixty_nine_edge_kinds() {
-        assert_eq!(EDGE_KIND_NAMES.len(), 69);
+    fn ontology_has_seventy_one_edge_kinds() {
+        // 67 at M3 close + 2 at M4/P1 (HasSubproject, HasConfig) + 2
+        // at CH-23 (Manages, HasAgentSupervisor — Template C/D
+        // production triggers, ADR-0046).
+        assert_eq!(EDGE_KIND_NAMES.len(), 71);
     }
 }

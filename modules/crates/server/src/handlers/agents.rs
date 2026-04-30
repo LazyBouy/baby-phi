@@ -38,6 +38,7 @@ use crate::platform::agents::{
     create::{create_agent, CreateAgentInput},
     execution_limits::clear_override,
     list::{list_agents, ListAgentsInput},
+    manager::{set_agent_manager, SetManagerError, SetManagerInput},
     update::{update_agent_profile, ExecutionLimitsPatch, UpdateAgentPatch},
     AgentError,
 };
@@ -371,5 +372,82 @@ fn error_to_api_error(err: AgentError) -> ApiError {
             ApiError::internal()
         }
         AgentError::AuditEmit(m) => ApiError::audit_emit_failed(m),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CH-23 / ADR-0046 — set agent manager (Template C trigger)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct SetManagerRequest {
+    pub manager_agent_id: AgentId,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SetManagerResponse {
+    pub edge_id: domain::model::ids::EdgeId,
+    pub created: bool,
+    /// `Some(_)` on the fresh-edge path, `None` on idempotent re-POST.
+    pub audit_event_id: Option<AuditEventId>,
+}
+
+pub async fn set_manager(
+    State(state): State<AppState>,
+    session: AuthenticatedSession,
+    Path((org_id, agent_id)): Path<(OrgId, AgentId)>,
+    Json(body): Json<SetManagerRequest>,
+) -> Result<Response, ApiError> {
+    let outcome = set_agent_manager(
+        state.repo.clone(),
+        state.event_bus.clone(),
+        SetManagerInput {
+            org_id,
+            subordinate_agent_id: agent_id,
+            manager_agent_id: body.manager_agent_id,
+            actor: session.agent_id,
+            now: Utc::now(),
+        },
+    )
+    .await
+    .map_err(set_manager_error_to_api_error)?;
+
+    info!(
+        org_id = %org_id,
+        subordinate = %agent_id,
+        manager = %body.manager_agent_id,
+        edge_id = %outcome.edge_id,
+        created = outcome.created,
+        "agents: set_manager",
+    );
+
+    let status = if outcome.created {
+        StatusCode::CREATED
+    } else {
+        StatusCode::OK
+    };
+    Ok((
+        status,
+        Json(SetManagerResponse {
+            edge_id: outcome.edge_id,
+            created: outcome.created,
+            audit_event_id: outcome.audit_event_id,
+        }),
+    )
+        .into_response())
+}
+
+fn set_manager_error_to_api_error(err: SetManagerError) -> ApiError {
+    match err {
+        SetManagerError::Validation(m) => {
+            ApiError::new(StatusCode::BAD_REQUEST, "MANAGER_INVALID", m)
+        }
+        SetManagerError::AgentInactive(m) => {
+            ApiError::new(StatusCode::CONFLICT, "AGENT_INACTIVE", m)
+        }
+        SetManagerError::Repository(m) => {
+            error!(error = %m, "agents: set_manager repository error");
+            ApiError::internal()
+        }
     }
 }

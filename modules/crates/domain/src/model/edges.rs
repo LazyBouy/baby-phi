@@ -264,6 +264,28 @@ pub enum Edge {
         from: ProjectId,
         to: AgentId,
     },
+    /// Agent M → Agent S: M manages S within `org`. CH-23 adds this
+    /// variant so the Template C listener has a real production
+    /// trigger; the carrier `org` field lets the listener populate
+    /// `DomainEvent::ManagesEdgeCreated.org_id` without a follow-up
+    /// `member_of` lookup.
+    Manages {
+        id: EdgeId,
+        from: AgentId,
+        to: AgentId,
+        org: OrgId,
+    },
+    /// Agent S → Agent T: S supervises T within `project`. CH-23 adds
+    /// this variant so the Template D listener has a real production
+    /// trigger; the carrier `project` field lets the listener populate
+    /// `DomainEvent::HasAgentSupervisorEdgeCreated.project_id` without
+    /// a follow-up project-membership lookup.
+    HasAgentSupervisor {
+        id: EdgeId,
+        from: AgentId,
+        to: AgentId,
+        project: ProjectId,
+    },
     HasTask {
         id: EdgeId,
         from: ProjectId,
@@ -460,6 +482,8 @@ impl Edge {
             Edge::HasSponsor { .. } => "HAS_SPONSOR",
             Edge::HasAgent { .. } => "HAS_AGENT",
             Edge::HasLead { .. } => "HAS_LEAD",
+            Edge::Manages { .. } => "MANAGES",
+            Edge::HasAgentSupervisor { .. } => "HAS_AGENT_SUPERVISOR",
             Edge::HasTask { .. } => "HAS_TASK",
             Edge::HasSubproject { .. } => "HAS_SUBPROJECT",
             Edge::HasConfig { .. } => "HAS_CONFIG",
@@ -493,9 +517,11 @@ impl Edge {
 
 /// Every edge kind name, in the same order as the concept doc's tables.
 ///
-/// Used by tests to assert the 69 count (67 at M3 close + 2 added at M4/P1).
-/// Strings here mirror [`Edge::name`] outputs for the same variant order.
-pub const EDGE_KIND_NAMES: [&str; 69] = [
+/// Used by tests to assert the 71 count: 67 at M3 close, +2 at M4/P1
+/// (`HasSubproject`, `HasConfig`), +2 at CH-23 for Template C/D
+/// triggers (`Manages`, `HasAgentSupervisor`). Strings here mirror
+/// [`Edge::name`] outputs for the same variant order.
+pub const EDGE_KIND_NAMES: [&str; 71] = [
     "HAS_PROFILE",
     "USES_MODEL",
     "HAS_TOOL",
@@ -541,6 +567,8 @@ pub const EDGE_KIND_NAMES: [&str; 69] = [
     "HAS_SPONSOR",
     "HAS_AGENT",
     "HAS_LEAD",
+    "MANAGES",
+    "HAS_AGENT_SUPERVISOR",
     "HAS_TASK",
     "HAS_SUBPROJECT",
     "HAS_CONFIG",
@@ -626,14 +654,39 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn edge_kind_names_is_exactly_69() {
-        assert_eq!(EDGE_KIND_NAMES.len(), 69);
+    fn edge_kind_names_is_exactly_seventy_one() {
+        // 67 at M3 close + 2 at M4/P1 (HasSubproject, HasConfig) + 2
+        // at CH-23 (Manages, HasAgentSupervisor — Template C/D
+        // production triggers, ADR-0046).
+        assert_eq!(EDGE_KIND_NAMES.len(), 71);
     }
 
     #[test]
     fn edge_kind_names_are_distinct() {
         let set: HashSet<_> = EDGE_KIND_NAMES.iter().collect();
-        assert_eq!(set.len(), 69);
+        assert_eq!(set.len(), 71);
+    }
+
+    #[test]
+    fn manages_and_has_agent_supervisor_variants_have_correct_names() {
+        // CH-23 / ADR-0046 — sanity check that the new variants emit
+        // the concept-doc-mandated names from `Edge::name()`.
+        let manages = Edge::Manages {
+            id: EdgeId::new(),
+            from: AgentId::new(),
+            to: AgentId::new(),
+            org: OrgId::new(),
+        };
+        let supervisor = Edge::HasAgentSupervisor {
+            id: EdgeId::new(),
+            from: AgentId::new(),
+            to: AgentId::new(),
+            project: crate::model::ids::ProjectId::new(),
+        };
+        assert_eq!(manages.name(), "MANAGES");
+        assert_eq!(supervisor.name(), "HAS_AGENT_SUPERVISOR");
+        assert!(EDGE_KIND_NAMES.contains(&"MANAGES"));
+        assert!(EDGE_KIND_NAMES.contains(&"HAS_AGENT_SUPERVISOR"));
     }
 
     #[test]

@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-04-30 by Claude Code (CH-23: §"Template C / D" now have production HTTP triggers at `POST /api/v0/orgs/:org/agents/:agent/manager` + `POST /api/v0/projects/:project/agents/:agent/supervisor`. The MANAGES + HAS_AGENT_SUPERVISOR edges are first-class `Edge` variants writing to migration-0011 SurrealDB tables; `TemplateCFireListener` + `TemplateDFireListener` (M5/P3) now fire from real production paths. ADR-0046 ratifies. Doc body UNCHANGED.) -->
 <!-- Last verified: 2026-04-29 by Claude Code (CH-05: §"What v0 Validates vs Future Enhancements" lines 803–814 are now executable code at `domain::permissions::manifest::validator`. The 4 hard rules + 3 advisory warnings ship as `ValidationError` / `ValidationWarning` enums; the Constraint × Fundamental matrix from §03 lives at `constraint_applies_to`. ADR-0044 ratifies. Doc body UNCHANGED.) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 

@@ -28,6 +28,7 @@
 pub mod create;
 pub mod execution_limits;
 pub mod list;
+pub mod manager;
 pub mod update;
 
 use domain::model::ids::{AgentId, OrgId};

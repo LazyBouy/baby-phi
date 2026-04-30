@@ -77,6 +77,15 @@ struct State {
     /// have exactly one entry; Shape B projects have two entries
     /// (one per co-owner).
     project_belongs_to_edges: Vec<(ProjectId, OrgId)>,
+    /// CH-23 / ADR-0046 — `MANAGES` edges (manager agent → subordinate
+    /// agent within an org). UNIQUE on `(org, manager, subordinate)`
+    /// (handler-level idempotency check + storage-level UNIQUE index
+    /// on the SurrealDB side).
+    manages_edges: Vec<ManagesEdgeRow>,
+    /// CH-23 / ADR-0046 — `HAS_AGENT_SUPERVISOR` edges (supervisor
+    /// agent → supervisee agent within a project). UNIQUE on
+    /// `(project, supervisor, supervisee)`.
+    has_agent_supervisor_edges: Vec<HasAgentSupervisorEdgeRow>,
     /// Per-agent `ExecutionLimits` override rows, keyed by owning
     /// agent (1:1 per migration 0004's UNIQUE index).
     agent_execution_limits: HashMap<AgentId, AgentExecutionLimitsOverride>,
@@ -113,6 +122,28 @@ struct State {
     /// UNIQUE on `agent_id`. Defensive Human-Agent guard at
     /// `Repository::upsert_identity` rejects writes for Human kind.
     identities: HashMap<AgentId, crate::model::nodes::Identity>,
+}
+
+/// CH-23 / ADR-0046 — In-memory row for the `manages` table.
+#[derive(Clone)]
+#[allow(dead_code)]
+struct ManagesEdgeRow {
+    id: EdgeId,
+    org: OrgId,
+    manager: AgentId,
+    subordinate: AgentId,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// CH-23 / ADR-0046 — In-memory row for the `has_agent_supervisor` table.
+#[derive(Clone)]
+#[allow(dead_code)]
+struct HasAgentSupervisorEdgeRow {
+    id: EdgeId,
+    project: ProjectId,
+    supervisor: AgentId,
+    supervisee: AgentId,
+    created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Clone)]
@@ -1595,6 +1626,219 @@ impl Repository for InMemoryRepository {
             default_grant_ids,
             execution_limits_override_id,
             identity_id,
+        })
+    }
+
+    // ---- CH-23 — Template C/D production triggers ---------------------
+
+    async fn create_manages_edge(
+        &self,
+        org: OrgId,
+        manager: AgentId,
+        subordinate: AgentId,
+        actor: AgentId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<crate::repository::ManagesEdgeReceipt> {
+        // No self-loop.
+        if manager == subordinate {
+            return Err(RepositoryError::InvalidArgument(
+                "manager and subordinate must be distinct agents".into(),
+            ));
+        }
+
+        let mut state = self.lock()?;
+
+        // Idempotency probe BEFORE the active/membership checks so a
+        // re-POST against an existing edge stays a no-op even if the
+        // agents have since been archived (the audit trail is the
+        // source of truth for the original creation; replays don't
+        // need to revalidate post-hoc).
+        if let Some(existing) = state
+            .manages_edges
+            .iter()
+            .find(|row| row.org == org && row.manager == manager && row.subordinate == subordinate)
+        {
+            return Ok(crate::repository::ManagesEdgeReceipt {
+                created: false,
+                edge_id: existing.id,
+                audit_event_id: None,
+            });
+        }
+
+        // Both agents must exist + be active.
+        let manager_agent = state.agents.get(&manager).ok_or_else(|| {
+            RepositoryError::InvalidArgument(format!("manager not found: {manager}"))
+        })?;
+        if !manager_agent.active || manager_agent.archived_at.is_some() {
+            return Err(RepositoryError::Conflict(format!(
+                "manager {manager} is archived or disabled"
+            )));
+        }
+        if manager_agent.owning_org != Some(org) {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "manager {manager} is not a member of org {org}"
+            )));
+        }
+        let subordinate_agent = state.agents.get(&subordinate).ok_or_else(|| {
+            RepositoryError::InvalidArgument(format!("subordinate not found: {subordinate}"))
+        })?;
+        if !subordinate_agent.active || subordinate_agent.archived_at.is_some() {
+            return Err(RepositoryError::Conflict(format!(
+                "subordinate {subordinate} is archived or disabled"
+            )));
+        }
+        if subordinate_agent.owning_org != Some(org) {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "subordinate {subordinate} is not a member of org {org}"
+            )));
+        }
+
+        // Org must exist.
+        if !state.organizations.contains_key(&org) {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "org not found: {org}"
+            )));
+        }
+
+        // Persist the edge + emit the audit event.
+        let edge_id = EdgeId::new();
+        let audit_event = crate::audit::events::m5::edges::manages_edge_created(
+            actor,
+            org,
+            manager,
+            subordinate,
+            edge_id,
+            at,
+        );
+        let audit_event_id = audit_event.event_id;
+        state.manages_edges.push(ManagesEdgeRow {
+            id: edge_id,
+            org,
+            manager,
+            subordinate,
+            created_at: at,
+        });
+        state.audit_events.push(audit_event);
+
+        Ok(crate::repository::ManagesEdgeReceipt {
+            created: true,
+            edge_id,
+            audit_event_id: Some(audit_event_id),
+        })
+    }
+
+    async fn create_has_agent_supervisor_edge(
+        &self,
+        project: ProjectId,
+        supervisor: AgentId,
+        supervisee: AgentId,
+        actor: AgentId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<crate::repository::HasAgentSupervisorEdgeReceipt> {
+        if supervisor == supervisee {
+            return Err(RepositoryError::InvalidArgument(
+                "supervisor and supervisee must be distinct agents".into(),
+            ));
+        }
+
+        let mut state = self.lock()?;
+
+        // Idempotency probe.
+        if let Some(existing) = state.has_agent_supervisor_edges.iter().find(|row| {
+            row.project == project && row.supervisor == supervisor && row.supervisee == supervisee
+        }) {
+            return Ok(crate::repository::HasAgentSupervisorEdgeReceipt {
+                created: false,
+                edge_id: existing.id,
+                audit_event_id: None,
+            });
+        }
+
+        // Project must exist.
+        if !state.projects.contains_key(&project) {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "project not found: {project}"
+            )));
+        }
+
+        // Project's owning orgs (from project_belongs_to_edges).
+        let project_orgs: Vec<OrgId> = state
+            .project_belongs_to_edges
+            .iter()
+            .filter(|(p, _)| *p == project)
+            .map(|(_, o)| *o)
+            .collect();
+        if project_orgs.is_empty() {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "project {project} has no owning orgs"
+            )));
+        }
+
+        // Both agents must exist + active + belong to one of the project's orgs.
+        let supervisor_agent = state.agents.get(&supervisor).ok_or_else(|| {
+            RepositoryError::InvalidArgument(format!("supervisor not found: {supervisor}"))
+        })?;
+        if !supervisor_agent.active || supervisor_agent.archived_at.is_some() {
+            return Err(RepositoryError::Conflict(format!(
+                "supervisor {supervisor} is archived or disabled"
+            )));
+        }
+        match supervisor_agent.owning_org {
+            Some(org) if project_orgs.contains(&org) => {}
+            _ => {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "supervisor {supervisor} is not a member of any owning org of project {project}"
+                )))
+            }
+        }
+        let supervisee_agent = state.agents.get(&supervisee).ok_or_else(|| {
+            RepositoryError::InvalidArgument(format!("supervisee not found: {supervisee}"))
+        })?;
+        if !supervisee_agent.active || supervisee_agent.archived_at.is_some() {
+            return Err(RepositoryError::Conflict(format!(
+                "supervisee {supervisee} is archived or disabled"
+            )));
+        }
+        match supervisee_agent.owning_org {
+            Some(org) if project_orgs.contains(&org) => {}
+            _ => {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "supervisee {supervisee} is not a member of any owning org of project {project}"
+                )))
+            }
+        }
+
+        // Persist + emit audit. The audit event uses the first owning
+        // org for `org_scope`; multi-org Shape B projects route to
+        // their primary org per the existing project-creation
+        // precedent at `apply_project_creation`.
+        let primary_org = project_orgs[0];
+        let edge_id = EdgeId::new();
+        let audit_event = crate::audit::events::m5::edges::has_agent_supervisor_edge_created(
+            actor,
+            primary_org,
+            project,
+            supervisor,
+            supervisee,
+            edge_id,
+            at,
+        );
+        let audit_event_id = audit_event.event_id;
+        state
+            .has_agent_supervisor_edges
+            .push(HasAgentSupervisorEdgeRow {
+                id: edge_id,
+                project,
+                supervisor,
+                supervisee,
+                created_at: at,
+            });
+        state.audit_events.push(audit_event);
+
+        Ok(crate::repository::HasAgentSupervisorEdgeReceipt {
+            created: true,
+            edge_id,
+            audit_event_id: Some(audit_event_id),
         })
     }
 

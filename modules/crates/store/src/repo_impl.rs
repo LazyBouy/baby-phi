@@ -2359,6 +2359,246 @@ impl Repository for SurrealStore {
     // the SurrealDB boundary at this tier.
     // ========================================================================
 
+    // ---- CH-23 — Template C/D production triggers ---------------------
+
+    async fn create_manages_edge(
+        &self,
+        org: domain::model::ids::OrgId,
+        manager: AgentId,
+        subordinate: AgentId,
+        actor: AgentId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<domain::repository::ManagesEdgeReceipt> {
+        if manager == subordinate {
+            return Err(RepositoryError::InvalidArgument(
+                "manager and subordinate must be distinct agents".into(),
+            ));
+        }
+
+        // Idempotency probe — return existing edge id if the
+        // (org, manager, subordinate) triple already has a row. The
+        // body's `edge_id` field carries the same UUID that was used
+        // for the SurrealDB record id at insert time; reading the
+        // body field avoids parsing a `Thing`.
+        let mut probe = self
+            .client()
+            .query(
+                "SELECT edge_id FROM manages \
+                 WHERE org_id = $org AND manager = $manager AND subordinate = $subordinate \
+                 LIMIT 1",
+            )
+            .bind(("org", org.to_string()))
+            .bind(("manager", manager.to_string()))
+            .bind(("subordinate", subordinate.to_string()))
+            .await
+            .map_err(backend)?;
+        let probe_ids: Vec<String> = probe.take((0, "edge_id")).map_err(backend)?;
+        if let Some(existing_id) = probe_ids.into_iter().next() {
+            let uuid = uuid::Uuid::parse_str(&existing_id)
+                .map_err(|e| RepositoryError::Backend(format!("manages.edge_id parse: {e}")))?;
+            return Ok(domain::repository::ManagesEdgeReceipt {
+                created: false,
+                edge_id: domain::model::ids::EdgeId::from_uuid(uuid),
+                audit_event_id: None,
+            });
+        }
+
+        // Validate both agents exist + active.
+        for (label, aid) in [("manager", manager), ("subordinate", subordinate)] {
+            let agent = self.get_agent(aid).await?.ok_or_else(|| {
+                RepositoryError::InvalidArgument(format!("{label} not found: {aid}"))
+            })?;
+            if !agent.active || agent.archived_at.is_some() {
+                return Err(RepositoryError::Conflict(format!(
+                    "{label} {aid} is archived or disabled"
+                )));
+            }
+            if agent.owning_org != Some(org) {
+                return Err(RepositoryError::InvalidArgument(format!(
+                    "{label} {aid} is not a member of org {org}"
+                )));
+            }
+        }
+
+        // Compound tx — insert the edge + the audit event atomically.
+        let edge_id = domain::model::ids::EdgeId::new();
+        let audit_event = domain::audit::events::m5::edges::manages_edge_created(
+            actor,
+            org,
+            manager,
+            subordinate,
+            edge_id,
+            at,
+        );
+        let audit_event_id = audit_event.event_id;
+        let audit_body =
+            serde_json::to_value(AuditEventRow::from_domain(&audit_event)).map_err(backend)?;
+        let edge_body = serde_json::json!({
+            "edge_id": edge_id.to_string(),
+            "org_id": org.to_string(),
+            "manager": manager.to_string(),
+            "subordinate": subordinate.to_string(),
+            "created_at": at.to_rfc3339(),
+        });
+
+        self.client()
+            .query(
+                "BEGIN TRANSACTION;\n\
+                 CREATE type::thing('manages', $edge_id) CONTENT $edge_body RETURN NONE;\n\
+                 CREATE type::thing('audit_events', $audit_id) CONTENT $audit_body RETURN NONE;\n\
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("edge_id", edge_id.to_string()))
+            .bind(("edge_body", edge_body))
+            .bind(("audit_id", audit_event_id.to_string()))
+            .bind(("audit_body", audit_body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+
+        Ok(domain::repository::ManagesEdgeReceipt {
+            created: true,
+            edge_id,
+            audit_event_id: Some(audit_event_id),
+        })
+    }
+
+    async fn create_has_agent_supervisor_edge(
+        &self,
+        project: domain::model::ids::ProjectId,
+        supervisor: AgentId,
+        supervisee: AgentId,
+        actor: AgentId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<domain::repository::HasAgentSupervisorEdgeReceipt> {
+        if supervisor == supervisee {
+            return Err(RepositoryError::InvalidArgument(
+                "supervisor and supervisee must be distinct agents".into(),
+            ));
+        }
+
+        // Idempotency probe (read `edge_id` directly from the body —
+        // see manages-edge probe for rationale).
+        let mut probe = self
+            .client()
+            .query(
+                "SELECT edge_id FROM has_agent_supervisor \
+                 WHERE project_id = $project AND supervisor = $supervisor \
+                 AND supervisee = $supervisee LIMIT 1",
+            )
+            .bind(("project", project.to_string()))
+            .bind(("supervisor", supervisor.to_string()))
+            .bind(("supervisee", supervisee.to_string()))
+            .await
+            .map_err(backend)?;
+        let probe_ids: Vec<String> = probe.take((0, "edge_id")).map_err(backend)?;
+        if let Some(existing_id) = probe_ids.into_iter().next() {
+            let uuid = uuid::Uuid::parse_str(&existing_id).map_err(|e| {
+                RepositoryError::Backend(format!("has_agent_supervisor.edge_id parse: {e}"))
+            })?;
+            return Ok(domain::repository::HasAgentSupervisorEdgeReceipt {
+                created: false,
+                edge_id: domain::model::ids::EdgeId::from_uuid(uuid),
+                audit_event_id: None,
+            });
+        }
+
+        // Project must exist + has owning orgs. Reuses the
+        // existing `belongs_to` RELATION precedent (project_creation
+        // writes `RELATE $p -> belongs_to -> $o`).
+        let mut org_resp = self
+            .client()
+            .query(
+                "SELECT VALUE meta::id(out) AS org_id \
+                 FROM belongs_to \
+                 WHERE in = type::thing('project', $project)",
+            )
+            .bind(("project", project.to_string()))
+            .await
+            .map_err(backend)?;
+        let project_org_strs: Vec<String> = org_resp.take(0).map_err(backend)?;
+        let project_orgs: Vec<domain::model::ids::OrgId> = project_org_strs
+            .into_iter()
+            .map(|s| {
+                uuid::Uuid::parse_str(&s)
+                    .map(domain::model::ids::OrgId::from_uuid)
+                    .map_err(|e| RepositoryError::Backend(format!("project owning_org parse: {e}")))
+            })
+            .collect::<Result<_, _>>()?;
+        if project_orgs.is_empty() {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "project {project} not found or has no owning orgs"
+            )));
+        }
+        let primary_org = project_orgs[0];
+
+        // Validate both agents exist + active + member of one project org.
+        for (label, aid) in [("supervisor", supervisor), ("supervisee", supervisee)] {
+            let agent = self.get_agent(aid).await?.ok_or_else(|| {
+                RepositoryError::InvalidArgument(format!("{label} not found: {aid}"))
+            })?;
+            if !agent.active || agent.archived_at.is_some() {
+                return Err(RepositoryError::Conflict(format!(
+                    "{label} {aid} is archived or disabled"
+                )));
+            }
+            match agent.owning_org {
+                Some(org) if project_orgs.contains(&org) => {}
+                _ => {
+                    return Err(RepositoryError::InvalidArgument(format!(
+                        "{label} {aid} is not a member of any owning org of project {project}"
+                    )))
+                }
+            }
+        }
+
+        // Compound tx — insert edge + audit atomically.
+        let edge_id = domain::model::ids::EdgeId::new();
+        let audit_event = domain::audit::events::m5::edges::has_agent_supervisor_edge_created(
+            actor,
+            primary_org,
+            project,
+            supervisor,
+            supervisee,
+            edge_id,
+            at,
+        );
+        let audit_event_id = audit_event.event_id;
+        let audit_body =
+            serde_json::to_value(AuditEventRow::from_domain(&audit_event)).map_err(backend)?;
+        let edge_body = serde_json::json!({
+            "edge_id": edge_id.to_string(),
+            "project_id": project.to_string(),
+            "supervisor": supervisor.to_string(),
+            "supervisee": supervisee.to_string(),
+            "created_at": at.to_rfc3339(),
+        });
+
+        self.client()
+            .query(
+                "BEGIN TRANSACTION;\n\
+                 CREATE type::thing('has_agent_supervisor', $edge_id) CONTENT $edge_body \
+                     RETURN NONE;\n\
+                 CREATE type::thing('audit_events', $audit_id) CONTENT $audit_body RETURN NONE;\n\
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("edge_id", edge_id.to_string()))
+            .bind(("edge_body", edge_body))
+            .bind(("audit_id", audit_event_id.to_string()))
+            .bind(("audit_body", audit_body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+
+        Ok(domain::repository::HasAgentSupervisorEdgeReceipt {
+            created: true,
+            edge_id,
+            audit_event_id: Some(audit_event_id),
+        })
+    }
+
     async fn persist_session(
         &self,
         session: &Session,

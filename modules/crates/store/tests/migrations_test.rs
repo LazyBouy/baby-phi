@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 10, "every embedded migration recorded");
+    assert_eq!(rows.len(), 11, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -76,6 +76,12 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[9].get("slug").and_then(|v| v.as_str()),
         Some("consent_full_shape")
+    );
+    // CH-23 — Template C/D production triggers (ADR-0046).
+    assert_eq!(rows[10].get("version").and_then(|v| v.as_i64()), Some(11));
+    assert_eq!(
+        rows[10].get("slug").and_then(|v| v.as_str()),
+        Some("manages_supervisor_edges")
     );
 
     // A sample table from the initial migration exists and accepts a row

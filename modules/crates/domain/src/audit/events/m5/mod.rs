@@ -6,4 +6,5 @@
 //! this module as their phases open.
 
 pub mod agent_catalog;
+pub mod edges;
 pub mod templates;

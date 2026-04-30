@@ -1,4 +1,5 @@
-<!-- Status: § "Node Types — Core Identity" [EXISTS] as of CH-16 (M5.2 / 2026-04-28); other sections still CONCEPTUAL -->
+<!-- Status: § "Node Types — Core Identity" [EXISTS] as of CH-16 (M5.2 / 2026-04-28); MANAGES + HAS_AGENT_SUPERVISOR edges [EXISTS] as of CH-23 (M5.2 / 2026-04-30); other sections still CONCEPTUAL -->
+<!-- Last verified: 2026-04-30 by Claude Code (CH-23: MANAGES + HAS_AGENT_SUPERVISOR edges land as first-class `Edge` variants with `org` / `project` carriers; migration 0011 adds `manages` + `has_agent_supervisor` SurrealDB tables; production HTTP writers + acceptance suite ship per ADR-0046. Doc body UNCHANGED.) -->
 <!-- Last verified: 2026-04-28 by Claude Code (CH-16: Identity row now materialized with 4-field shape — `self_description` / `lived` / `witnessed` / `embedding` — per ADR-0038; § "Node Types — Core Identity" flips from contradicted to honored.) -->
 
 # Ontological Data Model

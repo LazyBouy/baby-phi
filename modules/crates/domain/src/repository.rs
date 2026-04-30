@@ -302,6 +302,42 @@ pub struct ProjectCreationReceipt {
     pub has_lead_edge_id: EdgeId,
 }
 
+/// Ids the CH-23 handler needs after a successful
+/// [`Repository::create_manages_edge`] commit — to emit the
+/// `platform.manages.edge.created` audit event, the
+/// [`crate::events::DomainEvent::ManagesEdgeCreated`] domain event
+/// (so Template C fires), and to build the HTTP response.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagesEdgeReceipt {
+    /// Whether the compound tx wrote a fresh edge (`true`) or returned
+    /// an existing one (`false`). The handler maps `created = true`
+    /// to HTTP 201 + emits the DomainEvent; `created = false`
+    /// returns 200 + suppresses the emit (idempotent re-POST per
+    /// ADR-0046 §D46.6).
+    pub created: bool,
+    /// `MANAGES` edge id — fresh on `created = true`, the existing
+    /// edge id on `created = false`.
+    pub edge_id: EdgeId,
+    /// Audit event id for the `platform.manages.edge.created` write.
+    /// `None` on the idempotent path (`created = false`).
+    pub audit_event_id: Option<AuditEventId>,
+}
+
+/// Ids the CH-23 handler needs after a successful
+/// [`Repository::create_has_agent_supervisor_edge`] commit. Mirrors
+/// [`ManagesEdgeReceipt`] for project-scoped supervision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HasAgentSupervisorEdgeReceipt {
+    /// `true` = fresh edge written; `false` = existing edge returned
+    /// (idempotent re-POST).
+    pub created: bool,
+    /// `HAS_AGENT_SUPERVISOR` edge id.
+    pub edge_id: EdgeId,
+    /// Audit event id for the `platform.has_agent_supervisor.edge.created`
+    /// write. `None` on the idempotent path.
+    pub audit_event_id: Option<AuditEventId>,
+}
+
 /// Full payload for [`Repository::apply_agent_creation`].
 ///
 /// Atomic write: Agent + inbox + outbox + optional profile + optional
@@ -1078,6 +1114,85 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         payload: &AgentCreationPayload,
     ) -> RepositoryResult<AgentCreationReceipt>;
+
+    // ---- CH-23 — Template C/D production triggers ---------------------
+    //
+    // CH-23 / ADR-0046 closes the gap left at M5: Templates C + D have
+    // listeners + property tests but no production HTTP / CLI emit
+    // sites for their trigger events. These two compound-tx methods
+    // are the inaugural production writers of the `MANAGES` and
+    // `HAS_AGENT_SUPERVISOR` edges. Each method:
+    //
+    // 1. Validates the inputs (counterpart agents exist + active +
+    //    same-scope, no self-loop).
+    // 2. Returns the existing edge on idempotent re-POST instead of
+    //    erroring (`created = false` in the receipt; ADR-0046 §D46.6).
+    // 3. Persists the edge row + emits a `Logged`-class audit event
+    //    in the same compound tx.
+    //
+    // The handler then emits the `DomainEvent` AFTER the receipt
+    // returns, mirroring the `HasLeadEdgeCreated` post-commit pattern
+    // at `projects/create.rs:417` (ADR-0028 fail-safe — durable before
+    // emit).
+
+    /// Persist a `MANAGES` edge from `manager` to `subordinate` within
+    /// `org`, in one compound tx that also writes the
+    /// `platform.manages.edge.created` audit event.
+    ///
+    /// Returns a [`ManagesEdgeReceipt`] carrying:
+    /// - `created`: `true` if a fresh edge was written, `false` if the
+    ///   exact `(org, manager, subordinate)` triple already had a
+    ///   persisted edge (idempotent re-POST returns the existing id).
+    /// - `edge_id`: fresh on `created = true`, existing on
+    ///   `created = false`.
+    /// - `audit_event_id`: `Some(_)` on the fresh path, `None` on the
+    ///   idempotent path.
+    ///
+    /// Validation:
+    /// - Both agents must exist and have `active = true`. An archived
+    ///   agent rejects with [`RepositoryError::Conflict`] (per
+    ///   ADR-0034's durable lifecycle invariant).
+    /// - `manager == subordinate` rejects with
+    ///   [`RepositoryError::InvalidArgument`] (no self-loop).
+    /// - Both agents must have `owning_org == Some(org)` — handler
+    ///   enforces same-org membership; the repo defends with
+    ///   [`RepositoryError::InvalidArgument`] if violated.
+    ///
+    /// **Note:** This method does NOT emit
+    /// [`crate::events::DomainEvent::ManagesEdgeCreated`] — fail-safe
+    /// semantics per ADR-0028. The HTTP handler emits the domain
+    /// event AFTER this call returns `Ok`.
+    async fn create_manages_edge(
+        &self,
+        org: OrgId,
+        manager: AgentId,
+        subordinate: AgentId,
+        actor: AgentId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<ManagesEdgeReceipt>;
+
+    /// Persist a `HAS_AGENT_SUPERVISOR` edge from `supervisor` to
+    /// `supervisee` within `project`, in one compound tx that also
+    /// writes the `platform.has_agent_supervisor.edge.created` audit
+    /// event.
+    ///
+    /// Receipt + validation semantics mirror
+    /// [`Repository::create_manages_edge`]:
+    /// - Idempotent re-POST returns `created = false` + the existing
+    ///   edge id.
+    /// - Both agents must exist + be `active = true`.
+    /// - `supervisor == supervisee` rejects (no self-loop).
+    /// - Project must exist; both agents must belong to the project's
+    ///   org membership (handler enforces project membership; repo
+    ///   defends on org membership).
+    async fn create_has_agent_supervisor_edge(
+        &self,
+        project: ProjectId,
+        supervisor: AgentId,
+        supervisee: AgentId,
+        actor: AgentId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<HasAgentSupervisorEdgeReceipt>;
 
     // ---- M5/P2 — Session + sidecar + catalog + status surface ---------
     //

@@ -1802,3 +1802,150 @@ async fn list_bootstrap_credentials_returns_all_when_unconsumed_only_false() {
     assert_eq!(unconsumed.len(), 1);
     assert_eq!(unconsumed[0].digest, "digest-1");
 }
+
+// ---------------------------------------------------------------------------
+// CH-23 / ADR-0046 — Template C/D production triggers (SurrealStore)
+// ---------------------------------------------------------------------------
+
+async fn seed_org_with_two_agents_in_store(store: &SurrealStore) -> (OrgId, AgentId, AgentId) {
+    let org = Organization {
+        id: OrgId::new(),
+        display_name: "ch23-org".into(),
+        vision: None,
+        mission: None,
+        consent_policy: domain::model::ConsentPolicy::Implicit,
+        audit_class_default: AuditClass::Logged,
+        authority_templates_enabled: vec![],
+        defaults_snapshot: None,
+        default_model_provider: None,
+        system_agents: vec![],
+        created_at: Utc::now(),
+    };
+    store.create_organization(&org).await.unwrap();
+    let mut a = sample_agent();
+    a.owning_org = Some(org.id);
+    let mut b = sample_agent();
+    b.owning_org = Some(org.id);
+    let aid = a.id;
+    let bid = b.id;
+    store.create_agent(&a).await.unwrap();
+    store.create_agent(&b).await.unwrap();
+    (org.id, aid, bid)
+}
+
+#[tokio::test]
+async fn surreal_create_manages_edge_persists_row_and_audit() {
+    let (store, _dir) = fresh_store().await;
+    let (org, manager, subordinate) = seed_org_with_two_agents_in_store(&store).await;
+
+    let receipt = store
+        .create_manages_edge(org, manager, subordinate, manager, Utc::now())
+        .await
+        .expect("happy path persists the manages edge");
+
+    assert!(receipt.created);
+    assert!(receipt.audit_event_id.is_some());
+    assert!(row_exists(&store, "manages", &receipt.edge_id.to_string()).await);
+}
+
+#[tokio::test]
+async fn surreal_create_manages_edge_re_post_returns_existing_id() {
+    let (store, _dir) = fresh_store().await;
+    let (org, manager, subordinate) = seed_org_with_two_agents_in_store(&store).await;
+
+    let first = store
+        .create_manages_edge(org, manager, subordinate, manager, Utc::now())
+        .await
+        .unwrap();
+    let second = store
+        .create_manages_edge(org, manager, subordinate, manager, Utc::now())
+        .await
+        .unwrap();
+
+    assert!(first.created);
+    assert!(!second.created);
+    assert_eq!(first.edge_id, second.edge_id);
+    assert!(second.audit_event_id.is_none());
+
+    // Storage-side: only one row in the `manages` table.
+    let count: Vec<i64> = store
+        .client()
+        .query("SELECT count() FROM manages GROUP ALL")
+        .await
+        .unwrap()
+        .take((0, "count"))
+        .unwrap();
+    assert_eq!(count.into_iter().next().unwrap_or(0), 1);
+}
+
+#[tokio::test]
+async fn surreal_create_manages_edge_rejects_archived_agent() {
+    let (store, _dir) = fresh_store().await;
+    let (org, manager, subordinate) = seed_org_with_two_agents_in_store(&store).await;
+    store
+        .set_agent_archived_at(subordinate, Some(Utc::now()))
+        .await
+        .unwrap();
+
+    let err = store
+        .create_manages_edge(org, manager, subordinate, manager, Utc::now())
+        .await
+        .expect_err("archived agent must reject");
+    assert!(matches!(err, repository::RepositoryError::Conflict(_)));
+}
+
+#[tokio::test]
+async fn surreal_create_has_agent_supervisor_edge_persists_row_and_audit() {
+    let (store, _dir) = fresh_store().await;
+
+    // Bootstrap project with two member agents (lead via apply_project_creation).
+    let (org, supervisor, supervisee) = seed_org_with_two_agents_in_store(&store).await;
+    let mut lead = sample_agent();
+    lead.owning_org = Some(org);
+    let lead_id = lead.id;
+    store.create_agent(&lead).await.unwrap();
+
+    let project = domain::model::nodes::Project {
+        id: ProjectId::new(),
+        name: "Atlas".into(),
+        description: "ch23-fixture".into(),
+        goal: None,
+        status: domain::model::nodes::ProjectStatus::Planned,
+        shape: domain::model::nodes::ProjectShape::A,
+        token_budget: None,
+        tokens_spent: 0,
+        objectives: vec![],
+        key_results: vec![],
+        resource_boundaries: Some(domain::model::composites_m4::ResourceBoundaries::default()),
+        created_at: Utc::now(),
+    };
+    let pid = project.id;
+    store
+        .apply_project_creation(&domain::repository::ProjectCreationPayload {
+            project,
+            owning_orgs: vec![org],
+            lead_agent_id: lead_id,
+            member_agent_ids: vec![supervisor, supervisee],
+            sponsor_agent_ids: vec![],
+            catalogue_entries: vec![(format!("project:{pid}"), "project".into())],
+        })
+        .await
+        .unwrap();
+
+    let receipt = store
+        .create_has_agent_supervisor_edge(pid, supervisor, supervisee, supervisor, Utc::now())
+        .await
+        .expect("happy path persists the has_agent_supervisor edge");
+
+    assert!(receipt.created);
+    assert!(receipt.audit_event_id.is_some());
+    assert!(row_exists(&store, "has_agent_supervisor", &receipt.edge_id.to_string()).await);
+
+    // Re-POST is idempotent.
+    let second = store
+        .create_has_agent_supervisor_edge(pid, supervisor, supervisee, supervisor, Utc::now())
+        .await
+        .unwrap();
+    assert!(!second.created);
+    assert_eq!(receipt.edge_id, second.edge_id);
+}

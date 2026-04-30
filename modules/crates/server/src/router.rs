@@ -118,6 +118,15 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/projects/:id", get(handlers::projects::show))
         .route("/projects/:id/okrs", patch(handlers::projects::update_okrs))
+        // CH-23 / ADR-0046 — Template C/D production triggers.
+        .route(
+            "/orgs/:org_id/agents/:agent_id/manager",
+            post(handlers::agents::set_manager),
+        )
+        .route(
+            "/projects/:project_id/agents/:agent_id/supervisor",
+            post(handlers::projects::set_supervisor),
+        )
         // M5/P4 — session surface (6 routes).
         .route(
             "/orgs/:org_id/projects/:project_id/sessions",
