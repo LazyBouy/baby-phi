@@ -55,7 +55,7 @@ Rationale: keep+extend preserves all 9 grant-mint call sites (forks 5-A in plan 
 
 ### D36.3 — `SetRefRegistry` shipped as a trait; production registry deferred to CH-15
 
-`SetRefRegistry` is a trait with one method `resolve(&self, name: &str, args: &[&str]) -> Option<HashSet<String>>`. The `NoopSetRefRegistry` (and `'static` `NOOP_SET_REF_REGISTRY` singleton) is the only implementation in M5.2; all 13 [`CheckContext`](../../../../../../modules/crates/domain/src/permissions/manifest.rs) construction sites borrow it. Under the noop registry, every `subset_of` predicate evaluates to `false` — the safe default.
+`SetRefRegistry` is a trait with one method `resolve(&self, name: &str, args: &[&str]) -> Option<HashSet<String>>`. The `NoopSetRefRegistry` (and `'static` `NOOP_SET_REF_REGISTRY` singleton) is the only implementation in M5.2; all 13 [`CheckContext`](../../../../../../modules/crates/domain/src/permissions/manifest/mod.rs) construction sites borrow it. Under the noop registry, every `subset_of` predicate evaluates to `false` — the safe default.
 
 CH-15 will land the production registry that resolves `supervisors_tagging_scope(supervisor-7)` and similar named scopes against runtime data. The trait shape is fixed in M5.2 so the swap is local to `CheckContext.set_ref_registry`.
 

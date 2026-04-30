@@ -644,6 +644,12 @@ impl Repository for SurrealStore {
         &self,
         manifest: &ToolAuthorityManifest,
     ) -> RepositoryResult<()> {
+        // CH-05 / ADR-0044 — publish-time validator runs as a hard
+        // precondition. Invalid manifests fail with
+        // RepositoryError::ManifestValidation BEFORE touching SurrealDB,
+        // so partial-state failures are impossible.
+        domain::permissions::manifest::validator::validate_published_manifest(manifest)
+            .map_err(|source| RepositoryError::ManifestValidation { source })?;
         let body = strip_id(serde_json::to_value(manifest).map_err(backend)?);
         self.client()
             .query("CREATE type::thing('tool_authority_manifest', $id) CONTENT $body RETURN NONE")

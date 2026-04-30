@@ -30,6 +30,8 @@ use super::action::Action;
 use super::catalogue::CatalogueLookup;
 use super::selector::SetRefRegistry;
 
+pub mod validator;
+
 /// The engine's view of a tool authority manifest. This is a projection of
 /// the persisted [`ToolAuthorityManifest`] graph node onto the fields the
 /// engine actually reads.

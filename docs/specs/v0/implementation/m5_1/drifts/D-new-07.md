@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-05: terminally remediated. `validate_published_manifest` function shipped at `domain::permissions::manifest::validator` with 4 hard rules (composite/#kind: consistency, Action × Fundamental, reserved-namespace write rejection, Constraint × Fundamental) + 3 advisory warnings (blanket #kind:*, missing-composite-shorthand, target_kinds-missing-for-create). Repository-level guard wired at both InMemoryRepository + SurrealStore via new `RepositoryError::ManifestValidation { source }` variant. ADR-0044 ratifies. Status flipped to `remediated`.) -->
 
 # D-new-07 — Publish-time manifest validator missing (rejects missing fundamentals / #kind: / invalid action-fundamental pairs / reserved-namespace writes)
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `tool-registry`, `publish-time-validation`, `security-boundary`
@@ -27,7 +27,7 @@
 - **Root cause**: `concept-doc-not-consulted` — manifest persistence shipped before validation.
 
 ## Where visible in code
-- **File(s)**: [`modules/crates/domain/src/permissions/manifest.rs`](../../../../../../modules/crates/domain/src/permissions/manifest.rs) (Manifest/ManifestEntry); no validator module.
+- **File(s)**: [`modules/crates/domain/src/permissions/manifest/mod.rs`](../../../../../../modules/crates/domain/src/permissions/manifest/mod.rs) (Manifest/ManifestEntry); no validator module.
 - **Test evidence**: None.
 - **Grep for regression**: `grep -rn "validate_manifest\|ManifestValidator" modules/crates/domain/src/` — expect 0 hits while drift open.
 
@@ -45,3 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agents 2 + 3 both flagged; merged)
+- 2026-04-29 — `in-chunk-plan` — assigned to CH-05 (paired with D-new-31; plan archived as [`build/6bf47d46-ch-05-publish-time-manifest-validator.md`](../../../../plan/build/6bf47d46-ch-05-publish-time-manifest-validator.md)).
+- 2026-04-29 — `remediated` — CH-05 chunk-seal — `validate_published_manifest(&ToolAuthorityManifest) -> Result<Vec<ValidationWarning>, ValidationError>` shipped with 4 hard rules + 3 warnings. Repository guard wired at both `SurrealStore::create_tool_authority_manifest` and `InMemoryRepository::create_tool_authority_manifest`; new `RepositoryError::ManifestValidation { source }` variant catches every code path. 38 tests cover the validator (29 unit + 9 acceptance) including the 81-cell Constraint × Fundamental matrix transcribed verbatim from the concept doc. [ADR-0044](../../m5_2/decisions/0044-publish-time-manifest-validator.md) Accepted ratifies the design + the locked forks (Q1 wire-point: both, Q2 string-based constraints, Q3 no HTTP handler).

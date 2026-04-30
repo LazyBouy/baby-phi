@@ -21,7 +21,7 @@ The M5.1 + M5.2 concept-audit matrix at [`../../m5_1/drifts/_concept-audit-matri
 | Agent owns Organization | Agent creates Org/Project; transitive ownership through Org-owned children | contradicted | no `Owns` edge; no creator field on Organization / Project; bootstrap-claim doesn't emit ownership edge | **D-philosophy-01** (HIGH, CH-25) |
 | Organization has Resources | `OWNED_BY` / `BELONGS_TO` edges + Org-scoped resource catalogue | honored | `edges.rs` + `composites_m4::ResourceBoundaries` | — |
 | Two Types of Resources (Fundamental + Composite) | 9 Fundamental + 8 Composite variants with `constituents()` codified | honored | `fundamentals.rs` (9 variants) + `composites.rs:150-174` (`constituents()`) | — |
-| Resources have actions | Open string vocabulary per `permissions/03-action-vocabulary.md`; inheritance via composite expansion | honored | `permissions/manifest.rs:38` (`actions: Vec<String>`) + `composites.rs:150` | — |
+| Resources have actions | Open string vocabulary per `permissions/03-action-vocabulary.md`; inheritance via composite expansion | honored | `permissions/manifest/mod.rs:38` (`actions: Vec<String>`) + `composites.rs:150` | — |
 | Org has Projects (Project = Resource Type) | Project is a Composite resource subject to Permission Check selectors | contradicted | `Composite` enum has 8 variants; no `ProjectObject` / `OrganizationObject` entries; Page-1+Page-3 handlers bypass Permission Check engine | **D-philosophy-02** (HIGH, CH-26) |
 | Sub-orgs + Sub-projects | `HasSuborganization` + `HasSubproject` edges | honored | `edges.rs:244` + `edges.rs:275` | — |
 | Project shared between Orgs | Shape-B project + `BelongsTo` N:N edge | honored | `edges.rs:289` + `nodes.rs:510-516` (`ProjectShape::B`) | — |

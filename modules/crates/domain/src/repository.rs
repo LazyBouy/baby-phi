@@ -57,6 +57,17 @@ pub enum RepositoryError {
     /// one anyway.
     #[error("Human Agent {agent_id} cannot have a system-computed Identity")]
     HumanAgentHasNoIdentity { agent_id: AgentId },
+    /// CH-05 / D-new-07 — publish-time tool authority manifest
+    /// validator rejected the manifest. Wraps the structured
+    /// [`crate::permissions::manifest::validator::ValidationError`]
+    /// so handlers can map specific rejection classes to HTTP error
+    /// codes (typically 422 Unprocessable Entity). The manifest is
+    /// NOT persisted; callers fix the named issue and resubmit.
+    #[error("manifest validation failed: {source}")]
+    ManifestValidation {
+        #[source]
+        source: crate::permissions::manifest::validator::ValidationError,
+    },
 }
 
 pub type RepositoryResult<T> = Result<T, RepositoryError>;
@@ -433,6 +444,21 @@ pub trait Repository: Send + Sync + 'static {
 
     async fn create_consent(&self, consent: &Consent) -> RepositoryResult<()>;
 
+    /// Persist a tool authority manifest. Implementations MUST run the
+    /// publish-time validator
+    /// ([`crate::permissions::manifest::validator::validate_published_manifest`])
+    /// before writing. Invalid manifests fail with
+    /// [`RepositoryError::ManifestValidation`] and are NOT persisted —
+    /// the runtime trusts that every persisted `ToolAuthorityManifest`
+    /// has cleared the four publish-time rules (composite/`#kind:`
+    /// consistency, Action × Fundamental, reserved-namespace write
+    /// rejection, Constraint × Fundamental). Per CH-05 / ADR-0044.
+    ///
+    /// Validator warnings (e.g. blanket `kinds == ["*"]`,
+    /// missing-composite-shorthand) are dropped at this boundary —
+    /// callers wanting to surface them should call
+    /// `validate_published_manifest` directly first and persist via
+    /// this method only after acknowledging the warnings.
     async fn create_tool_authority_manifest(
         &self,
         manifest: &ToolAuthorityManifest,

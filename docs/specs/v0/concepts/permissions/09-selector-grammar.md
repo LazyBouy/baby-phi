@@ -1,5 +1,5 @@
 <!-- Status: EXISTS as of CH-06 (M5.2 / 2026-04-28) — pest-PEG parser + AST + evaluator ship in modules/crates/domain/src/permissions/ -->
-<!-- Last verified: 2026-04-28 by Claude Code -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-05: §"Reserved Namespace Enforcement" lines 190–196 — the publish-time half of the read-vs-write asymmetry now ships as Rule C of `validate_published_manifest` (rejects [Modify] on bare `tag` resource). The full reserved-namespace prefix list (`#kind:`, `delegated_from:`, `derived_from:`, plus one `{kind}:` per `Composite::ALL`) is exposed via `permissions::manifest::validator::reserved_namespace_prefixes()` for downstream consumers (CH-12 frozen-tag enforcement). Drift D-new-31 closed; ADR-0044 ratifies. Doc body UNCHANGED.) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 
 # Selector Grammar (PEG)

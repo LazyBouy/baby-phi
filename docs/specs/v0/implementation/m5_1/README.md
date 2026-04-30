@@ -104,7 +104,7 @@ Agent picked 3 stratified claims and independently verified each against shipped
    → Confirmed: [`domain/src/permissions/selector.rs`](../../../../../modules/crates/domain/src/permissions/selector.rs) implements only 4 variants (`Any`, `Exact`, `Prefix`, `KindTag`); no composition operators. Drift D-new-03 correctly classifies.
 
 3. **`permissions/03-action-vocabulary.md` §Conservative Over-Declaration** (status: honored)
-   → Confirmed: [`domain/src/permissions/manifest.rs:34-50`](../../../../../modules/crates/domain/src/permissions/manifest.rs) + [`domain/src/permissions/engine.rs:153-171`](../../../../../modules/crates/domain/src/permissions/engine.rs) implement resource ∪ transitive expansion exactly as specified.
+   → Confirmed: [`domain/src/permissions/manifest/mod.rs:34-50`](../../../../../modules/crates/domain/src/permissions/manifest/mod.rs) + [`domain/src/permissions/engine.rs:153-171`](../../../../../modules/crates/domain/src/permissions/engine.rs) implement resource ∪ transitive expansion exactly as specified.
 
 **No matrix-wrong / matrix-stale findings.**
 

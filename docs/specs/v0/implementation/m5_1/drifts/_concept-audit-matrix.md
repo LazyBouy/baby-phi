@@ -172,7 +172,7 @@ testable claim extracted from a concept doc.
 | Step 6 consent gating | Missing consent → Pending | honored | `engine.rs:106` | — | N/A |
 | Decision outcomes | Allowed/Denied/Pending | honored | `decision.rs:99-130` | — | N/A |
 | **All steps hard-gate** (not advisory) | Any Denied → refuse | contradicted | launch.rs:221 advisory-only | **D4.1** (existing HIGH) | N/A |
-| Publish-time manifest validator | Rejects missing fundamentals, reserved-namespace writes | silent-in-code | no validator | D-new-07 | N/A |
+| Publish-time manifest validator | Rejects missing fundamentals, reserved-namespace writes | **honored** | `validate_published_manifest` at `domain::permissions::manifest::validator` shipped with 4 hard rules + 3 warnings; Repository-level guard wired at both `SurrealStore::create_tool_authority_manifest` + `InMemoryRepository::create_tool_authority_manifest` via `RepositoryError::ManifestValidation { source }` variant; 38 tests cover all rejection classes including 81-cell Constraint × Fundamental matrix transcribed verbatim | **D-new-07 (remediated 2026-04-29 via CH-05)** | N/A |
 | 5-tier scope cascade | Project → Org → base_project → base_org → intersection | partially-honored | step_5 exists; full cascade depth unclear | D-new-06 | N/A |
 | Provenance chain to bootstrap | Traversal via `descends_from` | partially-honored | field exists; walker missing | D-new-14 | N/A |
 | Composite expansion invariant | Memory vs Session disambiguated by `#kind:` | honored | `expansion.rs:140-146` | — | N/A |
@@ -215,7 +215,7 @@ testable claim extracted from a concept doc.
 | Standard Org Template config | tools_allowlist/resource_catalogue/etc. as embedded config | concept-aspirational | minimal Org node; template via adoption ARs only | D-new-30 | N/A |
 | Standard Project Template config | filesystem/session/memory grants | concept-aspirational | minimal Project scaffold | D-new-30 | N/A |
 | 14 Tool Authority Manifest examples | Declared shape per tool | partially-honored | ToolAuthorityManifest fields partial | D4.3 + D-new-07 | N/A |
-| Manifest validation at publish-time | Reject invalid declarations | silent-in-code | no validator | **D-new-07** | N/A |
+| Manifest validation at publish-time | Reject invalid declarations | **honored** | Same as the §04 row above — validator + repo guard land at CH-05 | **D-new-07 (remediated 2026-04-29 via CH-05)** | N/A |
 
 ### `concepts/permissions/08-worked-example.md`
 
@@ -233,7 +233,7 @@ testable claim extracted from a concept doc.
 | PEG grammar (atoms + predicates + composition) | Full recursive-descent parser | honored | CH-06 ships pest-PEG with 13 productions matching concept-09 lines 58-102 | **D-new-03** (remediated) | N/A |
 | `tags contains/intersects/any_match/subset_of` | Tag-predicate primitives | contradicted | only Exact/Prefix/KindTag | **D-new-03** | N/A |
 | AND/OR/NOT logical composition | Combinators | honored | CH-06 ships `BoolExpr::Or/And/Not` with NOT > AND > OR precedence + parens; 6 unit tests pin precedence | **D-new-03** (remediated) | N/A |
-| Reserved namespace write rejection | Publish-time validator denies | silent-in-code | no validator | **D-new-07** (related) | N/A |
+| Reserved namespace write rejection | Publish-time validator denies | **honored** | Rule C of `validate_published_manifest` rejects `[Modify]` on bare `tag` resource (cleanest publish-time discriminator); full reserved-namespace prefix list (`#kind:`, `delegated_from:`, `derived_from:`, plus auto-generated `{kind}:` per `Composite::ALL`) ships via `reserved_namespace_prefixes()` for downstream consumers (CH-12 frozen-tag enforcement) | **D-new-31 (remediated 2026-04-29 via CH-05)** | N/A |
 
 ---
 

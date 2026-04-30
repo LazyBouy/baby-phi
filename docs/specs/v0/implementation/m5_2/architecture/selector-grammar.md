@@ -154,7 +154,7 @@ impl SetRefRegistry for NoopSetRefRegistry { /* always None */ }
 pub static NOOP_SET_REF_REGISTRY: NoopSetRefRegistry = NoopSetRefRegistry;
 ```
 
-Field on [`CheckContext`](../../../../../../modules/crates/domain/src/permissions/manifest.rs):
+Field on [`CheckContext`](../../../../../../modules/crates/domain/src/permissions/manifest/mod.rs):
 
 ```rust
 pub set_ref_registry: &'a dyn SetRefRegistry,

@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-29 by Claude Code (CH-04: Step 1's `(Fundamental, action)` reach is now `(Fundamental, Action)` — the engine operates on typed `domain::permissions::Action` values throughout; wire format byte-stable via snake_case serde so audit hash chain unchanged. ADR-0043 ratifies. CH-06: Step 3 evaluator interprets the full PEG tag-predicate DSL; SetRefRegistry threaded through CheckContext per ADR-0036; see m5_2/architecture/selector-grammar.md) -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-05: the engine assumes every persisted `ToolAuthorityManifest` has cleared the publish-time validator at `domain::permissions::manifest::validator::validate_published_manifest`. The validator runs as a hard precondition in both Repository impls and rejects via `RepositoryError::ManifestValidation`. ADR-0044 ratifies. CH-04: Step 1's `(Fundamental, action)` reach is now `(Fundamental, Action)` — the engine operates on typed `domain::permissions::Action` values throughout; wire format byte-stable via snake_case serde so audit hash chain unchanged. ADR-0043 ratifies. CH-06: Step 3 evaluator interprets the full PEG tag-predicate DSL; SetRefRegistry threaded through CheckContext per ADR-0036; see m5_2/architecture/selector-grammar.md) -->
 
 # Permission Check engine
 
@@ -87,7 +87,7 @@ grant satisfy the manifest's constraints?" before the winner exists.
 |---|---|
 | [`mod.rs`](../../../../../../modules/crates/domain/src/permissions/mod.rs) | Re-exports + crate-level module docs |
 | [`decision.rs`](../../../../../../modules/crates/domain/src/permissions/decision.rs) | `Decision`, `DeniedReason`, `FailedStep`, `ResolvedReach`, `AwaitingConsent` |
-| [`manifest.rs`](../../../../../../modules/crates/domain/src/permissions/manifest.rs) | `CheckContext`, `Manifest`, `ToolCall`, `ConsentIndex` |
+| [`manifest.rs`](../../../../../../modules/crates/domain/src/permissions/manifest/mod.rs) | `CheckContext`, `Manifest`, `ToolCall`, `ConsentIndex` |
 | [`selector.rs`](../../../../../../modules/crates/domain/src/permissions/selector.rs) | `Selector` grammar + parser + matcher |
 | [`catalogue.rs`](../../../../../../modules/crates/domain/src/permissions/catalogue.rs) | `CatalogueLookup` trait + `StaticCatalogue` in-memory fake |
 | [`metrics.rs`](../../../../../../modules/crates/domain/src/permissions/metrics.rs) | `PermissionCheckMetrics` trait + `NoopMetrics` |

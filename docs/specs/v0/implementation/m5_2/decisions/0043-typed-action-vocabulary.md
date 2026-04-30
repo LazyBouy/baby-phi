@@ -62,7 +62,7 @@ The matrix is exhaustively asserted in 306 cells (9 fundamentals × 34 canonical
 Three carriers flip from `Vec<String>` to `Vec<Action>`:
 
 - [`Grant.action`](../../../../../../modules/crates/domain/src/model/nodes.rs) at line 627.
-- [`Manifest.actions`](../../../../../../modules/crates/domain/src/permissions/manifest.rs) at line 38 — the engine-facing projection.
+- [`Manifest.actions`](../../../../../../modules/crates/domain/src/permissions/manifest/mod.rs) at line 38 — the engine-facing projection.
 - [`ToolAuthorityManifest.actions`](../../../../../../modules/crates/domain/src/model/nodes.rs) at line 775 — the persisted graph-node form.
 
 Migration is atomic per the user-decided fork (Q3, plan-review 2026-04-28). All ~60 construction sites + ~20 test-fixture assertion sites flip together in this chunk. No SurrealDB schema migration is needed; the on-disk JSON shape is preserved via `#[serde(rename_all = "snake_case")]`.
@@ -162,7 +162,7 @@ See D43.8 (CH-05/CH-08 deferrals) and D43.9 (v1 per-resource enum design). Track
   - [`modules/crates/domain/src/permissions/action.rs`](../../../../../../modules/crates/domain/src/permissions/action.rs) — the new module.
   - [`modules/crates/domain/src/permissions/mod.rs`](../../../../../../modules/crates/domain/src/permissions/mod.rs) — re-exports.
   - [`modules/crates/domain/src/model/nodes.rs`](../../../../../../modules/crates/domain/src/model/nodes.rs) — `Grant.action` + `ToolAuthorityManifest.actions` carrier types.
-  - [`modules/crates/domain/src/permissions/manifest.rs`](../../../../../../modules/crates/domain/src/permissions/manifest.rs) — `Manifest.actions` carrier type.
+  - [`modules/crates/domain/src/permissions/manifest/mod.rs`](../../../../../../modules/crates/domain/src/permissions/manifest/mod.rs) — `Manifest.actions` carrier type.
   - [`modules/crates/domain/src/permissions/decision.rs`](../../../../../../modules/crates/domain/src/permissions/decision.rs) — `DeniedReason` + `ResolvedReach`.
   - [`modules/crates/domain/src/permissions/engine.rs`](../../../../../../modules/crates/domain/src/permissions/engine.rs) — `ReachKey` + ceiling/match logic.
   - [`modules/crates/domain/src/permissions/expansion.rs`](../../../../../../modules/crates/domain/src/permissions/expansion.rs) — `ResolvedGrant::covers`.

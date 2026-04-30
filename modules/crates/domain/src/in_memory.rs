@@ -383,6 +383,12 @@ impl Repository for InMemoryRepository {
         &self,
         manifest: &ToolAuthorityManifest,
     ) -> RepositoryResult<()> {
+        // CH-05 / ADR-0044 — publish-time validator runs as a hard
+        // precondition on every Repository impl. Warnings are dropped
+        // here; callers wanting them call validate_published_manifest
+        // directly first.
+        crate::permissions::manifest::validator::validate_published_manifest(manifest)
+            .map_err(|source| RepositoryError::ManifestValidation { source })?;
         self.lock()?.manifests.insert(manifest.id, manifest.clone());
         Ok(())
     }

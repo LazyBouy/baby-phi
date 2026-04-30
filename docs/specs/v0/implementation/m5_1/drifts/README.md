@@ -100,7 +100,7 @@ fixed.
 | D-new-04 | Consent node has 5 fields; concept mandates 10+ | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-04.md](D-new-04.md) |
 | D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-05.md](D-new-05.md) |
 | D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | discovered | TBD | [D-new-06.md](D-new-06.md) |
-| D-new-07 | Publish-time manifest validator missing | **HIGH** | **A** | permissions/04, 07 | N/A | discovered | TBD | [D-new-07.md](D-new-07.md) |
+| D-new-07 | Publish-time manifest validator missing | **HIGH** | **A** | permissions/04, 07 | N/A | **remediated** | CH-05 ✓ | [D-new-07.md](D-new-07.md) |
 | D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | discovered | TBD | [D-new-08.md](D-new-08.md) |
 | D-new-09 | Action vocabulary stored as `Vec<String>` (no enum) | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-09.md](D-new-09.md) |
 | D-new-10 | Action × Fundamental applicability matrix not enforced | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-10.md](D-new-10.md) |
@@ -124,7 +124,7 @@ fixed.
 | D-new-28 | Memory memory_type enum missing | LOW | B | coordination | N/A | discovered | M6 C-M6-1 | [D-new-28.md](D-new-28.md) |
 | D-new-29 | allocate refinement constraints (no_further_delegation) missing | LOW | B | permissions/03 | N/A | discovered | TBD | [D-new-29.md](D-new-29.md) |
 | D-new-30 | Org/Project template as config object (vs adoption AR) not materialized | LOW | C | permissions/07 | N/A | discovered | TBD (doc refresh) | [D-new-30.md](D-new-30.md) |
-| D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | discovered | TBD (w/ D-new-07) | [D-new-31.md](D-new-31.md) |
+| D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | **remediated** | CH-05 ✓ | [D-new-31.md](D-new-31.md) |
 
 **Row count at P1 close: 29 files written, all row cells populated. ✅**
 **Row count at P2 close: 60 files written (29 existing + 31 new D-new-NN). ✅**

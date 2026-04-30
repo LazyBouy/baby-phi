@@ -1,5 +1,5 @@
 <!-- Status: CONCEPTUAL -->
-<!-- Last verified: 2026-04-15 by Claude Code -->
+<!-- Last verified: 2026-04-29 by Claude Code (CH-05: §"The Transitive-Grant Match Rule" lines 67–75 + §"Manifest Validation at Publish Time" rules are now lifted into typed Rust at `domain::permissions::manifest::validator::validate_published_manifest`. Rules A (composite/#kind: consistency) + B (Action × Fundamental matrix) + C (reserved-namespace write rejection) + D (Constraint × Fundamental matrix) are enforced via Repository-level guard at both impls. Drift D-new-07 closed; ADR-0044 ratifies. Doc body UNCHANGED.) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 
 
