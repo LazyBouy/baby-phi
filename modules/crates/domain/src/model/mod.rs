@@ -43,10 +43,10 @@ pub use ids::{
 };
 pub use nodes::{
     Agent, AgentKind, AgentProfile, AgentRole, ApproverSlot, ApproverSlotState, AuthRequest,
-    AuthRequestState, Channel, ChannelKind, Consent, Grant, InboxObject, LoopRecordNode, Memory,
-    NodeKind, Organization, OutboxObject, PrincipalRef, Project, ProjectShape, ProjectStatus,
-    ResourceRef, ResourceSlot, ResourceSlotState, Session, SessionGovernanceState, Template,
-    TemplateKind, ToolAuthorityManifest, TurnNode, User,
+    AuthRequestState, Channel, ChannelKind, Consent, ConsentScope, ConsentState, Grant,
+    InboxObject, LoopRecordNode, Memory, NodeKind, Organization, OutboxObject, PrincipalRef,
+    Project, ProjectShape, ProjectStatus, ResourceRef, ResourceSlot, ResourceSlotState, Session,
+    SessionGovernanceState, Template, TemplateKind, ToolAuthorityManifest, TurnNode, User,
 };
 pub use principal_resource::{Principal, Resource};
 

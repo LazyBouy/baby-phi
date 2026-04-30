@@ -14,9 +14,9 @@ use domain::model::ids::{
 };
 use domain::model::nodes::{
     Agent, AgentKind, AgentProfile, ApproverSlot, ApproverSlotState, AuthRequest, AuthRequestState,
-    Channel, ChannelKind, Consent, Grant, InboxObject, Memory, Organization, OutboxObject,
-    PrincipalRef, ResourceRef, ResourceSlot, ResourceSlotState, Template, ToolAuthorityManifest,
-    User,
+    Channel, ChannelKind, Consent, ConsentScope, ConsentState, Grant, InboxObject, Memory,
+    Organization, OutboxObject, PrincipalRef, ResourceRef, ResourceSlot, ResourceSlotState,
+    Template, ToolAuthorityManifest, User,
 };
 use domain::repository::{self, Repository};
 use store::SurrealStore;
@@ -350,34 +350,42 @@ async fn create_memory_persists_row_preserving_tags() {
 }
 
 #[tokio::test]
-async fn create_consent_persists_row_with_subordinate_and_org() {
+async fn create_consent_persists_row_with_agent_id_and_scope() {
     let (store, _dir) = fresh_store().await;
     let id = ConsentId::new();
-    let subordinate = AgentId::new();
+    let agent_id = AgentId::new();
     let org = OrgId::new();
     store
         .create_consent(&Consent {
             id,
-            subordinate,
-            scoped_to: org,
-            granted_at: Utc::now(),
+            agent_id,
+            scope: ConsentScope {
+                org,
+                templates: vec![],
+                actions: vec![],
+            },
+            state: ConsentState::Acknowledged,
+            requested_at: Utc::now(),
+            responded_at: Some(Utc::now()),
             revoked_at: None,
+            revocable: true,
+            provenance: "test:fixture".into(),
         })
         .await
         .unwrap();
     assert!(row_exists(&store, "consent", &id.to_string()).await);
 
-    let subs: Vec<String> = store
+    let agents: Vec<String> = store
         .client()
-        .query("SELECT subordinate FROM type::thing('consent', $id)")
+        .query("SELECT agent_id FROM type::thing('consent', $id)")
         .bind(("id", id.to_string()))
         .await
         .unwrap()
-        .take((0, "subordinate"))
+        .take((0, "agent_id"))
         .unwrap();
     assert_eq!(
-        subs.first().map(String::as_str),
-        Some(subordinate.to_string().as_str())
+        agents.first().map(String::as_str),
+        Some(agent_id.to_string().as_str())
     );
 }
 

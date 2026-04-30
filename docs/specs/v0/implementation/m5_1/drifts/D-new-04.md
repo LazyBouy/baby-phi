@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-04-30 by Claude Code (CH-09: terminally remediated. The 11-field Consent shape from `concepts/permissions/06-multi-scope-consent.md` lines 351-363 is now encoded as `domain::model::nodes::Consent` with nested `ConsentScope { org, templates, actions }` + `ConsentState` enum (6 variants, snake_case serde, Default::Acknowledged for back-compat). Migration 0010 redefines the consent table cleanly; the one existing test fixture is updated. CH-09 ships the data shape; CH-10 (D-new-05) wires the state-transition function. ADR-0045 ratifies. Status flipped to `remediated`.) -->
 
 # D-new-04 — Consent node carries only 5 fields; concept mandates 10+ (state / requested_at / responded_at / revocable / provenance / nested scope.*)
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `ontology-gap`, `consent-model`, `concept-contradiction`
@@ -45,3 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report + user-verification)
+- 2026-04-30 — `in-chunk-plan` — assigned to CH-09 (plan archived as [`build/03061b67-ch-09-consent-node-full-shape.md`](../../../../plan/build/03061b67-ch-09-consent-node-full-shape.md)).
+- 2026-04-30 — `remediated` — CH-09 chunk-seal — `Consent` struct extended to 11 concept-doc-mandated fields per `concepts/permissions/06-multi-scope-consent.md` lines 351–363 verbatim: `id`, `agent_id`, `scope: ConsentScope { org, templates, actions }`, `state: ConsentState`, `requested_at`, `responded_at: Option<DateTime>`, `revoked_at: Option<DateTime>`, `revocable: bool`, `provenance: String`. `ConsentState` enum ships with all 6 lifecycle variants (Requested, Acknowledged, Declined, Revoked, TimedOut, Expired) + `#[serde(rename_all = "snake_case")]` + `#[default] Acknowledged`. Migration 0010 redefines the consent table cleanly; the one existing test fixture at `store/tests/repository_test.rs:353` is updated to construct the new shape. State-machine transitions remain CH-10 (D-new-05). [ADR-0045](../../m5_2/decisions/0045-consent-node-full-shape.md) Accepted ratifies.

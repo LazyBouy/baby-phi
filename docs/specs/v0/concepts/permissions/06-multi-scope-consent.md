@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-04-30 by Claude Code (CH-09 amendment: §"Consent Node (New Node Type)" lines 351–363 lifted into typed Rust at `domain::model::nodes::Consent` + `ConsentScope` + `ConsentState`. Migration 0010 redefines the consent table to the 11-field shape. State-machine transitions (§"Consent Lifecycle" lines 369–414) remain CH-10 / D-new-05. Doc body unchanged.) -->
 <!-- Last verified: 2026-04-15 by Claude Code -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 

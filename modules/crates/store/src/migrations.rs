@@ -85,6 +85,16 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "identity_node",
         sql: include_str!("../migrations/0009_identity_node.surql"),
     },
+    // CH-09 — Consent node full shape (D-new-04 closure).
+    // Lifts the consent table from the 5-field M2 stub to the 11-field
+    // shape mandated by `concepts/permissions/06-multi-scope-consent.md`
+    // §"Consent Node". CH-10 will add the state-transition function
+    // (drift D-new-05).
+    Migration {
+        version: 10,
+        slug: "consent_full_shape",
+        sql: include_str!("../migrations/0010_consent_full_shape.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

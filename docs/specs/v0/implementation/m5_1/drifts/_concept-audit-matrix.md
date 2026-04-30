@@ -202,7 +202,7 @@ testable claim extracted from a concept doc.
 | Implicit consent: auto-issue on edge | Template listeners fire | honored | listeners wired | — | N/A |
 | One-Time consent: Consent node lifecycle | Requested → Acknowledged | partially-honored | Consent exists; no state machine | **D-new-05** | N/A |
 | Per-Session consent: subordinate_required | Grant flag + real-time approval flow | partially-honored | Step 6 stub only | D-new-17 | N/A |
-| Consent node full field list | consent_id/agent_id/scope/state/requested_at/responded_at/revocable/provenance | contradicted | 5 fields only | **D-new-04** | N/A |
+| Consent node full field list | consent_id/agent_id/scope/state/requested_at/responded_at/revocable/provenance | honored | 11-field shape shipped at CH-09 (ADR-0045) | **D-new-04** ✓ | N/A |
 | Contractor model | base_org ceiling does not reach cross-scope | silent-in-code | no contractor-specific logic | D-new-20 | N/A |
 
 ### `concepts/permissions/07-templates-and-tools.md`

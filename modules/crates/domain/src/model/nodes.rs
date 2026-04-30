@@ -755,13 +755,82 @@ pub enum ApproverSlotState {
 }
 
 /// Subordinate consent record gating Authority Template grants.
+///
+/// Concept doc: [`docs/specs/v0/concepts/permissions/06-multi-scope-consent.md`]
+/// §"Consent Node (New Node Type)" lines 351–363 + §"Consent Lifecycle"
+/// lines 369–414. CH-09 lifts the 11-field shape into typed Rust; CH-10
+/// will add the state-transition function + lifecycle invariants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Consent {
     pub id: ConsentId,
-    pub subordinate: AgentId,
-    pub scoped_to: OrgId,
-    pub granted_at: DateTime<Utc>,
+    pub agent_id: AgentId,
+    pub scope: ConsentScope,
+    /// Lifecycle state. `#[serde(default)]` so any pre-CH-09 wire
+    /// payload that omits the field decodes to `Acknowledged` per
+    /// `Default for ConsentState` (ADR-0045 §D45.4).
+    #[serde(default)]
+    pub state: ConsentState,
+    pub requested_at: DateTime<Utc>,
+    #[serde(default)]
+    pub responded_at: Option<DateTime<Utc>>,
+    #[serde(default)]
     pub revoked_at: Option<DateTime<Utc>>,
+    pub revocable: bool,
+    pub provenance: String,
+}
+
+/// What a Consent record covers — the org under whose policy the consent
+/// applies, and (optionally) the Authority Templates and Actions inside
+/// that scope.
+///
+/// Per concept doc 06 §"Consent Node" lines 355–357, the `templates` /
+/// `actions` lists narrow the consent to a subset of the org's template
+/// catalog; an empty list means "any template / any action covered by
+/// the org-level policy". The Permission Check engine intersects this
+/// scope with the grant's claimed reach at runtime.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsentScope {
+    pub org: OrgId,
+    #[serde(default)]
+    pub templates: Vec<TemplateId>,
+    #[serde(default)]
+    pub actions: Vec<crate::permissions::action::Action>,
+}
+
+/// Lifecycle state of a [`Consent`] record.
+///
+/// Per concept doc 06 §"Consent Lifecycle" lines 369–414. CH-09 ships
+/// the type only; CH-10 (drift D-new-05) wires the transition function
+/// + forward-only revocation invariant + timeout handling.
+///
+/// `Default = Acknowledged` matches the `implicit` consent policy
+/// semantic (concept-doc line 410 — "Consent is auto-Acknowledged at
+/// agent creation, no request is sent") and acts as the safe back-compat
+/// default for any pre-CH-09 wire payload that omits the field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ConsentState {
+    Requested,
+    #[default]
+    Acknowledged,
+    Declined,
+    Revoked,
+    TimedOut,
+    Expired,
+}
+
+impl ConsentState {
+    /// Every variant in declaration order. Used by tests + by future
+    /// CH-10 transition logic to enumerate the closed set without
+    /// reflection.
+    pub const ALL: [ConsentState; 6] = [
+        ConsentState::Requested,
+        ConsentState::Acknowledged,
+        ConsentState::Declined,
+        ConsentState::Revoked,
+        ConsentState::TimedOut,
+        ConsentState::Expired,
+    ];
 }
 
 /// Publish-time authority declaration for a tool.
@@ -1543,5 +1612,162 @@ mod tests {
         assert_eq!(iden.agent_id, aid);
         assert_eq!(iden.self_description, "");
         assert!(iden.embedding.is_empty());
+    }
+
+    // ---- CH-09: Consent full shape (D-new-04 closure) ----------------------
+
+    fn sample_consent() -> Consent {
+        let now = Utc::now();
+        Consent {
+            id: ConsentId::new(),
+            agent_id: AgentId::new(),
+            scope: ConsentScope {
+                org: OrgId::new(),
+                templates: vec![],
+                actions: vec![],
+            },
+            state: ConsentState::Acknowledged,
+            requested_at: now,
+            responded_at: Some(now),
+            revoked_at: None,
+            revocable: true,
+            provenance: "agent:test@unit".into(),
+        }
+    }
+
+    #[test]
+    fn consent_struct_carries_concept_doc_fields() {
+        // CH-09 closes drift D-new-04 by lifting concept doc 06 lines
+        // 351-363 into the typed Consent struct. This test pins the
+        // 11-field shape via construction (a missing or extra field
+        // wouldn't compile).
+        let c = sample_consent();
+        // 11 logical fields per concept doc — `scope` is nested
+        // (3 sub-fields). Touch every leaf to defend against silent
+        // field removal.
+        let _ = (
+            c.id,
+            c.agent_id,
+            c.scope.org,
+            c.scope.templates.clone(),
+            c.scope.actions.clone(),
+            c.state,
+            c.requested_at,
+            c.responded_at,
+            c.revoked_at,
+            c.revocable,
+            c.provenance.clone(),
+        );
+    }
+
+    #[test]
+    fn consent_state_all_has_six_variants() {
+        assert_eq!(ConsentState::ALL.len(), 6);
+        let set: std::collections::HashSet<_> = ConsentState::ALL.iter().collect();
+        assert_eq!(set.len(), 6);
+    }
+
+    #[test]
+    fn consent_state_default_is_acknowledged() {
+        // Per ADR-0045 §D45.4: matches the implicit-policy semantic
+        // (concept doc 06 line 410 — auto-Acknowledged at agent
+        // creation) and acts as safe back-compat default for legacy
+        // wire payloads that omit the field.
+        assert_eq!(ConsentState::default(), ConsentState::Acknowledged);
+    }
+
+    #[test]
+    fn consent_state_serializes_as_snake_case() {
+        // Migration 0010 stores `state` as a string with DEFAULT
+        // "acknowledged"; this test pins the wire form so the migration
+        // and the Rust enum can never drift.
+        for (state, wire) in [
+            (ConsentState::Requested, "requested"),
+            (ConsentState::Acknowledged, "acknowledged"),
+            (ConsentState::Declined, "declined"),
+            (ConsentState::Revoked, "revoked"),
+            (ConsentState::TimedOut, "timed_out"),
+            (ConsentState::Expired, "expired"),
+        ] {
+            let j = serde_json::to_value(state).expect("serialize");
+            assert_eq!(j, serde_json::Value::String(wire.into()));
+            let back: ConsentState = serde_json::from_value(j).expect("deserialize");
+            assert_eq!(back, state);
+        }
+    }
+
+    #[test]
+    fn consent_scope_serde_round_trip() {
+        let scope = ConsentScope {
+            org: OrgId::new(),
+            templates: vec![TemplateId::new(), TemplateId::new()],
+            actions: vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::List,
+            ],
+        };
+        let j = serde_json::to_value(&scope).expect("serialize");
+        let back: ConsentScope = serde_json::from_value(j).expect("deserialize");
+        assert_eq!(back.org, scope.org);
+        assert_eq!(back.templates, scope.templates);
+        assert_eq!(back.actions, scope.actions);
+    }
+
+    #[test]
+    fn consent_full_serde_round_trip() {
+        let c = sample_consent();
+        let j = serde_json::to_value(&c).expect("serialize");
+        let back: Consent = serde_json::from_value(j).expect("deserialize");
+        assert_eq!(back.id, c.id);
+        assert_eq!(back.agent_id, c.agent_id);
+        assert_eq!(back.scope.org, c.scope.org);
+        assert_eq!(back.state, c.state);
+        assert_eq!(back.revocable, c.revocable);
+        assert_eq!(back.provenance, c.provenance);
+    }
+
+    #[test]
+    fn consent_legacy_wire_format_decodes_with_defaults() {
+        // Pre-CH-09 wire payloads carried only 5 fields; #[serde(default)]
+        // on `responded_at` + `revoked_at` and Default::Acknowledged on
+        // `state` ensure such payloads (or any future payload with
+        // missing optional fields) still decode cleanly.
+        let now = Utc::now();
+        let payload = serde_json::json!({
+            "id": ConsentId::new().to_string(),
+            "agent_id": AgentId::new().to_string(),
+            "scope": {
+                "org": OrgId::new().to_string(),
+            },
+            // No `state` — must default to Acknowledged.
+            "requested_at": now,
+            // No `responded_at`, no `revoked_at` — both Option, default None.
+            "revocable": true,
+            "provenance": "",
+        });
+        let c: Consent = serde_json::from_value(payload).expect("legacy decode");
+        assert_eq!(c.state, ConsentState::Acknowledged);
+        assert!(c.responded_at.is_none());
+        assert!(c.revoked_at.is_none());
+        assert!(c.scope.templates.is_empty());
+        assert!(c.scope.actions.is_empty());
+    }
+
+    #[test]
+    fn consent_with_action_in_scope_serializes_action_as_snake_case() {
+        // Cross-check: ConsentScope.actions uses the typed Action from
+        // ADR-0043. Action serializes snake_case; this test pins the
+        // ConsentScope wire form for `[Read]`.
+        let scope = ConsentScope {
+            org: OrgId::new(),
+            templates: vec![],
+            actions: vec![crate::permissions::action::Action::Read],
+        };
+        let j = serde_json::to_value(&scope).expect("serialize");
+        assert_eq!(
+            j.get("actions"),
+            Some(&serde_json::json!(["read"])),
+            "ConsentScope.actions must serialize as snake_case strings"
+        );
     }
 }
