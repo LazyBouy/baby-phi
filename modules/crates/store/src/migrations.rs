@@ -105,6 +105,15 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "manages_supervisor_edges",
         sql: include_str!("../migrations/0011_manages_supervisor_edges.surql"),
     },
+    // CH-10 — Consent state-machine deadline column (ADR-0047 §D47.6).
+    // Adds `deadline_at: option<string>` to the `consent` table so the
+    // sweeper can scan for past-deadline `Requested` consents and flip
+    // them to `TimedOut`.
+    Migration {
+        version: 12,
+        slug: "consent_deadline",
+        sql: include_str!("../migrations/0012_consent_deadline.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

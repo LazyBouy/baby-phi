@@ -22,8 +22,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::audit::AuditEvent;
 use crate::model::ids::{
-    AgentId, AuditEventId, AuthRequestId, EdgeId, GrantId, McpServerId, ModelProviderId, NodeId,
-    OrgId, ProjectId, SecretId, SessionId,
+    AgentId, AuditEventId, AuthRequestId, ConsentId, EdgeId, GrantId, McpServerId, ModelProviderId,
+    NodeId, OrgId, ProjectId, SecretId, SessionId,
 };
 use crate::model::nodes::{
     Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
@@ -67,6 +67,15 @@ pub enum RepositoryError {
     ManifestValidation {
         #[source]
         source: crate::permissions::manifest::validator::ValidationError,
+    },
+    /// CH-10 / D-new-05 — consent state-machine rejected a transition.
+    /// Wraps [`crate::consents::ConsentTransitionError`] so handlers
+    /// can map illegal-transition / not-revocable cases to
+    /// `409 Conflict`. The Consent row is NOT mutated.
+    #[error("consent transition failed: {source}")]
+    ConsentTransition {
+        #[source]
+        source: crate::consents::ConsentTransitionError,
     },
 }
 
@@ -479,6 +488,85 @@ pub trait Repository: Send + Sync + 'static {
     async fn list_memories_for_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Memory>>;
 
     async fn create_consent(&self, consent: &Consent) -> RepositoryResult<()>;
+
+    // ---- CH-10 — Consent state-machine surface (D-new-05 closure) ------
+    //
+    // CH-10 / ADR-0047 ships five per-transition methods + one sweeper
+    // method. Each per-transition method's compound tx (a) reads the
+    // Consent row, (b) calls the matching pure-fn at
+    // [`crate::consents::transitions`], (c) writes the new row + audit
+    // event atomically, (d) returns the audit event id. Failures inside
+    // the pure-fn surface as
+    // [`RepositoryError::ConsentTransition { source }`] so handlers can
+    // map illegal-transition / not-revocable cases to 409 Conflict.
+
+    /// `Requested → Acknowledged`. Stamps `responded_at` to `at`. Emits
+    /// `consent.acknowledged` audit. Rejects from any non-`Requested`
+    /// state with [`RepositoryError::ConsentTransition`].
+    async fn acknowledge_consent(
+        &self,
+        consent_id: ConsentId,
+        at: DateTime<Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<AuditEventId>;
+
+    /// `Requested → Declined`. Stamps `responded_at` to `at`. Emits
+    /// `consent.declined` audit.
+    async fn decline_consent(
+        &self,
+        consent_id: ConsentId,
+        at: DateTime<Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<AuditEventId>;
+
+    /// `Acknowledged → Revoked`. Stamps `revoked_at` to `at`. Emits
+    /// `consent.revoked` audit. Rejects with
+    /// [`RepositoryError::ConsentTransition`] (variant
+    /// `NotRevocable { consent_id }`) when `consent.revocable == false`.
+    /// Forward-only: re-revoke is illegal.
+    async fn revoke_consent(
+        &self,
+        consent_id: ConsentId,
+        at: DateTime<Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<AuditEventId>;
+
+    /// `Requested → TimedOut`. Called by the sweeper (or an explicit
+    /// admin override). No timestamp field is mutated by this transition.
+    /// Emits `consent.timed_out` audit.
+    async fn mark_consent_timed_out(
+        &self,
+        consent_id: ConsentId,
+        at: DateTime<Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<AuditEventId>;
+
+    /// Any non-terminal → `Expired` (natural-scope-end). Emits
+    /// `consent.expired` audit; the audit captures the `from_state` so
+    /// reviewers can distinguish `Requested → Expired` from
+    /// `Acknowledged → Expired`.
+    async fn mark_consent_expired(
+        &self,
+        consent_id: ConsentId,
+        at: DateTime<Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<AuditEventId>;
+
+    /// CH-10 sweeper — flip every `Requested` consent whose
+    /// `deadline_at <= now` to `TimedOut`, emitting one
+    /// `consent.timed_out` audit per flip. Returns the list of flipped
+    /// consent ids in deterministic order (storage-order; tests pin
+    /// behaviour without depending on order).
+    ///
+    /// Implementations cap the per-call blast radius (≤ 256 rows) so a
+    /// single tick can't explode the audit hash chain on a misconfigured
+    /// fixture. Subsequent ticks pick up the remainder.
+    ///
+    /// Rows with `deadline_at == None` are ignored — the consent has no
+    /// deadline (e.g. an `Acknowledged`-by-default consent under the
+    /// implicit policy). Rows in any non-`Requested` state are also
+    /// ignored.
+    async fn sweep_consent_timeouts(&self, now: DateTime<Utc>) -> RepositoryResult<Vec<ConsentId>>;
 
     /// Persist a tool authority manifest. Implementations MUST run the
     /// publish-time validator

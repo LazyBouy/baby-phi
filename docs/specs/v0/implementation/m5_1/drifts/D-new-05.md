@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-05-02 by Claude Code (CH-10: terminally remediated. The 6-state Consent lifecycle from `concepts/permissions/06-multi-scope-consent.md` §"Consent Lifecycle" is now executable code at `domain::consents::{state, transitions}`. 5 pure-fn transitions (acknowledge / decline / revoke / mark_timed_out / mark_expired) + 5 per-transition Repository methods on both backends + auto-timeout sweeper task at `server::state::spawn_consent_sweeper`. Migration 0012 adds `deadline_at: option<string>` column. Single-pod-only at v0; CHK8S-D-09 records the multi-pod deferral. ADR-0047 ratifies. Status flipped to `remediated`.) -->
 
 # D-new-05 — Consent lifecycle state machine missing (Requested → Acknowledged / Declined / TimedOut / Revoked / Expired)
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `state-machine`, `consent-model`
@@ -45,3 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report)
+- 2026-05-02 — `in-chunk-plan` — assigned to CH-10 (plan archived as [`build/ch-10-consent-state-machine-and-sweeper-fda01605.md`](../../../../plan/build/ch-10-consent-state-machine-and-sweeper-fda01605.md)).
+- 2026-05-02 — `remediated` — CH-10 chunk-seal — 6-state Consent lifecycle materialised at `domain::consents::{state, transitions}` per `concepts/permissions/06-multi-scope-consent.md` §"Consent Lifecycle" verbatim. `state.rs` exposes `is_terminal` + `legal_transition` (the 6-arrow legal table). `transitions.rs` exposes 5 pure-fn helpers (`acknowledge`, `decline`, `revoke`, `mark_timed_out`, `mark_expired`) returning `Result<Consent, ConsentTransitionError>`. Forward-only revocation enforced at the table level — `Revoked → _` returns false for everything. 5 per-transition Repository methods + 5 audit-event builders at `audit::events::m5::consents` ship on both backends. Auto-timeout sweeper task at `server::state::spawn_consent_sweeper` flips past-deadline `Requested` rows to `TimedOut` on a configurable interval (default 60s). Migration 0012 adds `deadline_at: option<string>` column. Single-pod-only at v0 — `CHK8S-D-09` records the multi-pod leader-election deferral. [ADR-0047](../../m5_2/decisions/0047-consent-state-machine-and-sweeper.md) Accepted ratifies.

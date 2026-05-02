@@ -17,6 +17,7 @@
 
 pub mod audit;
 pub mod auth_requests;
+pub mod consents;
 pub mod events;
 pub mod model;
 pub mod permissions;

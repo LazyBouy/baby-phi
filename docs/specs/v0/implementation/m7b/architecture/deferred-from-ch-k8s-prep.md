@@ -27,8 +27,9 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 | [CHK8S-D-06](#chk8s-d-06--broker-backed-eventbus-impl-the-cross-pod-pubsub) | Broker-backed `EventBus` impl (the cross-pod pub/sub) | HIGH | P-4 (EventBus drain semantics) | M7b "externalize event bus" (Step 3) | ADR-0028; readiness doc §B2 |
 | [CHK8S-D-07](#chk8s-d-07--durable-replay-queue-for-events-emitted-during-shutdown-window) | Durable replay queue for events emitted during shutdown window | MEDIUM | P-4 (EventBus drain semantics) | M7b "audit-durability + orphan reconciliation" | shares scope with D-01; readiness doc §B5 |
 | [CHK8S-D-08](#chk8s-d-08--audit-emitter-shutdowndrain-symmetry-with-eventbus) | `AuditEmitter` shutdown/drain symmetry with `EventBus` | MEDIUM | P-4 (EventBus drain semantics) | M7b "audit-durability + orphan reconciliation" | shares scope with D-01, D-07; readiness doc §B5 |
+| [CHK8S-D-09](#chk8s-d-09--consent-sweeper-leader-election-for-multi-pod-deployments) | Consent sweeper leader-election for multi-pod deployments | MEDIUM | CH-10 (consent state machine + sweeper) | M7b "leader-election + cross-pod schedulers" | ADR-0047 §D47.7 |
 
-**Status totals (as of last verified):** 8 captured
+**Status totals (as of last verified):** 9 captured
 
 ## 3. Items (detail)
 
@@ -178,6 +179,24 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 - **M7b sub-task owner:** "Audit-durability + orphan reconciliation". Pairs with [D-07](#chk8s-d-07--durable-replay-queue-for-events-emitted-during-shutdown-window) and [D-01](#chk8s-d-01--hard-clear-orphan-registry-entries-on-sigterm-failedlaunch-flip).
 - **Cross-refs:** [readiness doc §B5](./k8s-microservices-readiness.md); ADR-0013 (audit class hash-chain).
 - **Note on provenance:** unlike D-01..D-07 (each cited from a code comment authored in the prep refactor), D-08 is a *gap* the prep refactor noticed but didn't address. It would not surface from a code grep — only from reading the EventBus changes and asking "what about the sibling AuditEmitter trait?". Recorded here so M7b plan-open doesn't miss it.
+
+---
+
+### CHK8S-D-09 — Consent sweeper leader-election for multi-pod deployments
+
+- **Severity:** MEDIUM
+- **Source prep refactor:** CH-10 / ADR-0047 §D47.7 — the consent state-machine sweeper.
+- **Where the deferral is recorded:** [`server::state::spawn_consent_sweeper`](../../../../../../modules/crates/server/src/state.rs) doc-comment + the [`consent`] block in [`config/default.toml`](../../../../../../config/default.toml).
+- **Description:** CH-10 ships a tokio task ([`server::state::spawn_consent_sweeper`](../../../../../../modules/crates/server/src/state.rs)) that periodically scans for past-deadline `Requested` consents and flips them to `TimedOut`, emitting one `consent.timed_out` audit per flip. The task runs on every pod that boots `phi-server`. In a single-pod deployment (the M5 / v0 production target) this is correct: one sweeper, one audit per consent flip. In a multi-pod deployment, every pod runs its own sweeper — the storage UPDATE is idempotent (SurrealDB's `WHERE state = 'requested'` guards against the second flip), but the audit-event creation is NOT idempotent. Each pod that observes the eligible row would emit a duplicate `consent.timed_out` audit before the storage UPDATE fails for the second pod. This breaks the audit hash chain's "one event per state transition" invariant.
+  - The CH-10 plan §3.B A1 row records this as a single-pod-only constraint at v0; ADR-0047 §D47.7 documents it; the deferral lands here so M7b plan-open finds it.
+- **What needs to be added at M7b:**
+  - **Option A — leader-election lock**: a leader-election primitive (Redis SETNX with TTL, etcd lease, or SurrealDB equivalent) that elects exactly one pod as the consent-sweeper holder per tick. Non-leader pods skip the sweep. Tradeoff: ~2-3 days to wire + a new infrastructure dependency.
+  - **Option B — externalised scheduler**: an off-pod cron job (Kubernetes `CronJob` or equivalent) calls a single `POST /api/v0/internal/sweep-consent-timeouts` endpoint at the configured interval. The pod that handles the HTTP request runs the sweep. Tradeoff: simpler infra, depends on the deployment topology managing the schedule.
+  - **Option C — accept duplicate audits**: relax the "one audit per transition" invariant to "at least one"; the audit hash chain becomes a partial-order log. Tradeoff: invasive — affects every existing audit-driven invariant.
+  - The expected M7b path is **Option A** — pairs naturally with [`CHK8S-D-04`](#chk8s-d-04--redis-backed-sessionregistry-impl-the-cross-pod-swap) (Redis-backed SessionRegistry) which would already be in scope, so the leader-election primitive is shared infra.
+- **Disable knob:** the chunk ships `[consent] sweeper_interval_secs = 0` as a disable flag — multi-pod operators wanting to defer the sweeper entirely (e.g. while the sweep is run by an external cron) set this to 0 on every pod.
+- **M7b sub-task owner:** "Leader-election + cross-pod schedulers". Pairs with [D-04](#chk8s-d-04--redis-backed-sessionregistry-impl-the-cross-pod-swap).
+- **Cross-refs:** [ADR-0047](../../m5_2/decisions/0047-consent-state-machine-and-sweeper.md) §D47.7; [drift D-new-05](../../m5_1/drifts/D-new-05.md) (closed at CH-10).
 
 ---
 

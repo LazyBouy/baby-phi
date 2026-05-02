@@ -410,6 +410,184 @@ impl Repository for InMemoryRepository {
         Ok(())
     }
 
+    // ---- CH-10 — Consent state-machine impls (D-new-05 closure) ------
+
+    async fn acknowledge_consent(
+        &self,
+        consent_id: crate::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<crate::model::ids::AuditEventId> {
+        let mut state = self.lock()?;
+        let consent = state
+            .consents
+            .get(&consent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        let next = crate::consents::transitions::acknowledge(consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = crate::audit::events::m5::consents::consent_acknowledged(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        let audit_id = audit_event.event_id;
+        state.consents.insert(consent_id, next);
+        state.audit_events.push(audit_event);
+        Ok(audit_id)
+    }
+
+    async fn decline_consent(
+        &self,
+        consent_id: crate::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<crate::model::ids::AuditEventId> {
+        let mut state = self.lock()?;
+        let consent = state
+            .consents
+            .get(&consent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        let next = crate::consents::transitions::decline(consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = crate::audit::events::m5::consents::consent_declined(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        let audit_id = audit_event.event_id;
+        state.consents.insert(consent_id, next);
+        state.audit_events.push(audit_event);
+        Ok(audit_id)
+    }
+
+    async fn revoke_consent(
+        &self,
+        consent_id: crate::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<crate::model::ids::AuditEventId> {
+        let mut state = self.lock()?;
+        let consent = state
+            .consents
+            .get(&consent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        let next = crate::consents::transitions::revoke(consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = crate::audit::events::m5::consents::consent_revoked(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        let audit_id = audit_event.event_id;
+        state.consents.insert(consent_id, next);
+        state.audit_events.push(audit_event);
+        Ok(audit_id)
+    }
+
+    async fn mark_consent_timed_out(
+        &self,
+        consent_id: crate::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<crate::model::ids::AuditEventId> {
+        let mut state = self.lock()?;
+        let consent = state
+            .consents
+            .get(&consent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        let next = crate::consents::transitions::mark_timed_out(consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = crate::audit::events::m5::consents::consent_timed_out(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        let audit_id = audit_event.event_id;
+        state.consents.insert(consent_id, next);
+        state.audit_events.push(audit_event);
+        Ok(audit_id)
+    }
+
+    async fn mark_consent_expired(
+        &self,
+        consent_id: crate::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<crate::model::ids::AuditEventId> {
+        let mut state = self.lock()?;
+        let consent = state
+            .consents
+            .get(&consent_id)
+            .ok_or(RepositoryError::NotFound)?;
+        let from_state = consent.state;
+        let next = crate::consents::transitions::mark_expired(consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = crate::audit::events::m5::consents::consent_expired(
+            actor,
+            next.scope.org,
+            consent_id,
+            from_state,
+            at,
+        );
+        let audit_id = audit_event.event_id;
+        state.consents.insert(consent_id, next);
+        state.audit_events.push(audit_event);
+        Ok(audit_id)
+    }
+
+    async fn sweep_consent_timeouts(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<Vec<crate::model::ids::ConsentId>> {
+        // Two-pass to avoid holding the mutex across the per-row
+        // mark_consent_timed_out calls. First pass collects eligible
+        // ids; second pass flips each via the per-transition method.
+        // Cap at 256 per-call to bound the audit-chain blast radius
+        // (per ADR-0047 §D47.5).
+        const MAX_PER_TICK: usize = 256;
+        let eligible: Vec<crate::model::ids::ConsentId> = {
+            let state = self.lock()?;
+            state
+                .consents
+                .values()
+                .filter(|c| c.state == crate::model::nodes::ConsentState::Requested)
+                .filter_map(|c| {
+                    c.deadline_at.and_then(
+                        |deadline| {
+                            if deadline <= now {
+                                Some(c.id)
+                            } else {
+                                None
+                            }
+                        },
+                    )
+                })
+                .take(MAX_PER_TICK)
+                .collect()
+        };
+        let mut flipped = Vec::with_capacity(eligible.len());
+        // System-actor for sweeper-driven audits (no human in the loop).
+        // Mirrors the AgentCatalogListener / MemoryExtractionListener
+        // pattern of synthesising an actor for background work.
+        let sweeper_actor = AgentId::new();
+        for id in eligible {
+            // Skip rows that were flipped concurrently — the
+            // mark_consent_timed_out call returns IllegalTransition.
+            if self
+                .mark_consent_timed_out(id, now, sweeper_actor)
+                .await
+                .is_ok()
+            {
+                flipped.push(id);
+            }
+        }
+        Ok(flipped)
+    }
+
     async fn create_tool_authority_manifest(
         &self,
         manifest: &ToolAuthorityManifest,

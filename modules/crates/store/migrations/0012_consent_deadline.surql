@@ -1,0 +1,28 @@
+-- ============================================================================
+-- 0012_consent_deadline.surql
+--
+-- Schema evolution for CH-10 / ADR-0047 §D47.6 — adds the
+-- `deadline_at` column to the `consent` table so the auto-timeout
+-- sweeper can scan for past-deadline `Requested` consents and flip
+-- them to `TimedOut`.
+--
+-- Concept doc: `permissions/06-multi-scope-consent.md` §"Default
+-- response on timeout" lines 316–348. The `deadline_at` is computed
+-- at consent-creation time per the org's `approval_timeout`
+-- configuration; population of the field at creation lands at CH-11
+-- alongside the per-policy minter rewrite. CH-10 only adds the
+-- column + the sweeper that consumes it.
+--
+-- The field is `option<string>` because:
+--   - Legacy rows (pre-CH-10) carry no deadline; serde decodes the
+--     missing field as `None` via the `#[serde(default)]` shield on
+--     `Consent.deadline_at`.
+--   - `Acknowledged`-by-default consents under the implicit policy
+--     have no deadline (concept doc 06 line 410 — they auto-Acknowledge
+--     at agent creation, never enter `Requested`).
+--
+-- Forward-only per ADR-0012; no down script. Idempotent under
+-- repeated runs of the migration runner per ADR-0042 §D42.3 #5.
+-- ============================================================================
+
+DEFINE FIELD OVERWRITE deadline_at ON consent TYPE option<string>;

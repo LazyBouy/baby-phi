@@ -29,6 +29,11 @@ pub struct ServerConfig {
     /// `[listeners.*]` blocks.
     #[serde(default)]
     pub listeners: ListenersConfig,
+    /// Consent state-machine sweeper tuning (CH-10 / ADR-0047 §D47.7).
+    /// Defaults preserve the 60-second tick if the `[consent]` block
+    /// is omitted.
+    #[serde(default)]
+    pub consent: ConsentConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -211,6 +216,34 @@ where
             "unknown listeners.catalog.audit_mode {other:?}; expected \"silent\" or \"debug\""
         ))),
     }
+}
+
+/// Consent-sweeper tuning (CH-10 / ADR-0047 §D47.7). The sweeper task
+/// periodically scans for past-deadline `Requested` consents and flips
+/// them to `TimedOut`. The default 60-second tick balances "deadlines
+/// honoured promptly" against "audit-chain blast radius bounded".
+///
+/// Single-pod-only at v0 — multi-pod leader-election deferred to M7b
+/// per the entry in `m7b/architecture/deferred-from-ch-k8s-prep.md`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConsentConfig {
+    /// Tick interval for the consent sweeper task. Defaults to 60s.
+    /// Tunable via `PHI_CONSENT__SWEEPER_INTERVAL_SECS`. Set to `0` to
+    /// disable the sweeper (acceptance tests use this knob).
+    #[serde(default = "default_consent_sweeper_interval_secs")]
+    pub sweeper_interval_secs: u64,
+}
+
+impl Default for ConsentConfig {
+    fn default() -> Self {
+        Self {
+            sweeper_interval_secs: default_consent_sweeper_interval_secs(),
+        }
+    }
+}
+
+fn default_consent_sweeper_interval_secs() -> u64 {
+    60
 }
 
 impl ServerConfig {

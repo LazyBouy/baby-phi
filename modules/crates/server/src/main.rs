@@ -132,6 +132,15 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
     // every emit() routed through the running handlers.
     let event_bus_for_shutdown: Arc<dyn domain::events::EventBus> = event_bus.clone();
     let shutdown_timeout = std::time::Duration::from_secs(cfg.shutdown.timeout_secs);
+    // CH-10 / ADR-0047 §D47.7 — spawn the consent state-machine sweeper.
+    // Single-pod-only at v0; multi-pod leader election deferred to M7b.
+    // Set `[consent] sweeper_interval_secs = 0` to disable. The handle
+    // is dropped here; the task runs until process exit (M7b will wire
+    // it into the graceful-shutdown drain).
+    let _consent_sweeper_handle = server::state::spawn_consent_sweeper(
+        repo.clone(),
+        std::time::Duration::from_secs(cfg.consent.sweeper_interval_secs),
+    );
     let state = AppState {
         repo,
         session,

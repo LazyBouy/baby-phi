@@ -41,6 +41,7 @@ fn full_consent() -> Consent {
         revoked_at: None,
         revocable: true,
         provenance: "agent:test@acceptance".into(),
+        deadline_at: None,
     }
 }
 

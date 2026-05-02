@@ -115,6 +115,59 @@ async fn take_first_row(
     Ok(rows.into_iter().next())
 }
 
+// ---------------------------------------------------------------------------
+// CH-10 — Consent state-machine helpers (D-new-05 closure)
+// ---------------------------------------------------------------------------
+
+/// Read a Consent row from SurrealDB, deserialise into the typed struct.
+/// Returns `RepositoryError::NotFound` if the row is absent.
+async fn read_consent_row(
+    client: &surrealdb::Surreal<surrealdb::engine::any::Any>,
+    consent_id: domain::model::ids::ConsentId,
+) -> RepositoryResult<domain::model::nodes::Consent> {
+    let mut resp = client
+        .query("SELECT * OMIT id FROM type::thing('consent', $id)")
+        .bind(("id", consent_id.to_string()))
+        .await
+        .map_err(backend)?;
+    let row = take_first_row(&mut resp, 0)
+        .await?
+        .ok_or(RepositoryError::NotFound)?;
+    let row = inject_id(row, consent_id)?;
+    serde_json::from_value(row).map_err(backend)
+}
+
+/// Persist a Consent transition: UPDATE the row + CREATE the audit
+/// event in one compound tx. The two writes commit together; the
+/// post-tx state is `(new consent state, audit event recorded)` or
+/// `(unchanged, no audit event)` — never partial.
+async fn persist_consent_tx(
+    client: &surrealdb::Surreal<surrealdb::engine::any::Any>,
+    consent_id: domain::model::ids::ConsentId,
+    next: &domain::model::nodes::Consent,
+    audit_event: &domain::audit::AuditEvent,
+) -> RepositoryResult<()> {
+    let consent_body = strip_id(serde_json::to_value(next).map_err(backend)?);
+    let audit_body =
+        serde_json::to_value(AuditEventRow::from_domain(audit_event)).map_err(backend)?;
+    client
+        .query(
+            "BEGIN TRANSACTION;\n\
+             UPDATE type::thing('consent', $cid) CONTENT $cbody RETURN NONE;\n\
+             CREATE type::thing('audit_events', $aid) CONTENT $abody RETURN NONE;\n\
+             COMMIT TRANSACTION;",
+        )
+        .bind(("cid", consent_id.to_string()))
+        .bind(("cbody", consent_body))
+        .bind(("aid", audit_event.event_id.to_string()))
+        .bind(("abody", audit_body))
+        .await
+        .map_err(backend)?
+        .check()
+        .map_err(backend)?;
+    Ok(())
+}
+
 // ============================================================================
 // Grant row translator
 // ============================================================================
@@ -638,6 +691,160 @@ impl Repository for SurrealStore {
             .check()
             .map_err(backend)?;
         Ok(())
+    }
+
+    // ---- CH-10 — Consent state-machine impls (D-new-05 closure) ------
+    //
+    // Each per-transition method (a) SELECT-reads the row, (b) calls the
+    // matching pure-fn at `domain::consents::transitions`, (c) writes
+    // the new row + the audit event in one compound tx (BEGIN / UPDATE /
+    // CREATE / COMMIT). Failures inside the pure-fn map to
+    // `RepositoryError::ConsentTransition { source }`.
+
+    async fn acknowledge_consent(
+        &self,
+        consent_id: domain::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<domain::model::ids::AuditEventId> {
+        let consent = read_consent_row(self.client(), consent_id).await?;
+        let next = domain::consents::transitions::acknowledge(&consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = domain::audit::events::m5::consents::consent_acknowledged(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        persist_consent_tx(self.client(), consent_id, &next, &audit_event).await?;
+        Ok(audit_event.event_id)
+    }
+
+    async fn decline_consent(
+        &self,
+        consent_id: domain::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<domain::model::ids::AuditEventId> {
+        let consent = read_consent_row(self.client(), consent_id).await?;
+        let next = domain::consents::transitions::decline(&consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = domain::audit::events::m5::consents::consent_declined(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        persist_consent_tx(self.client(), consent_id, &next, &audit_event).await?;
+        Ok(audit_event.event_id)
+    }
+
+    async fn revoke_consent(
+        &self,
+        consent_id: domain::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<domain::model::ids::AuditEventId> {
+        let consent = read_consent_row(self.client(), consent_id).await?;
+        let next = domain::consents::transitions::revoke(&consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = domain::audit::events::m5::consents::consent_revoked(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        persist_consent_tx(self.client(), consent_id, &next, &audit_event).await?;
+        Ok(audit_event.event_id)
+    }
+
+    async fn mark_consent_timed_out(
+        &self,
+        consent_id: domain::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<domain::model::ids::AuditEventId> {
+        let consent = read_consent_row(self.client(), consent_id).await?;
+        let next = domain::consents::transitions::mark_timed_out(&consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = domain::audit::events::m5::consents::consent_timed_out(
+            actor,
+            next.scope.org,
+            consent_id,
+            at,
+        );
+        persist_consent_tx(self.client(), consent_id, &next, &audit_event).await?;
+        Ok(audit_event.event_id)
+    }
+
+    async fn mark_consent_expired(
+        &self,
+        consent_id: domain::model::ids::ConsentId,
+        at: chrono::DateTime<chrono::Utc>,
+        actor: AgentId,
+    ) -> RepositoryResult<domain::model::ids::AuditEventId> {
+        let consent = read_consent_row(self.client(), consent_id).await?;
+        let from_state = consent.state;
+        let next = domain::consents::transitions::mark_expired(&consent, at)
+            .map_err(|source| RepositoryError::ConsentTransition { source })?;
+        let audit_event = domain::audit::events::m5::consents::consent_expired(
+            actor,
+            next.scope.org,
+            consent_id,
+            from_state,
+            at,
+        );
+        persist_consent_tx(self.client(), consent_id, &next, &audit_event).await?;
+        Ok(audit_event.event_id)
+    }
+
+    async fn sweep_consent_timeouts(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> RepositoryResult<Vec<domain::model::ids::ConsentId>> {
+        const MAX_PER_TICK: usize = 256;
+        // Phase 1: probe eligible consent ids whose deadline has passed.
+        // The body field `edge_id` would be cleaner, but `consent` rows
+        // expose the row id directly via meta::id(id). We read just the
+        // id + state + deadline_at, deserialise the id-string, and walk.
+        let mut probe = self
+            .client()
+            .query(
+                "SELECT VALUE meta::id(id) AS cid \
+                 FROM consent \
+                 WHERE state = 'requested' \
+                 AND deadline_at != NONE \
+                 AND deadline_at <= $now \
+                 LIMIT $cap",
+            )
+            .bind(("now", now.to_rfc3339()))
+            .bind(("cap", MAX_PER_TICK as i64))
+            .await
+            .map_err(backend)?;
+        let raw_ids: Vec<String> = probe.take(0).map_err(backend)?;
+
+        // Phase 2: for each eligible id, run mark_consent_timed_out.
+        // Each call is its own compound tx (UPDATE + audit CREATE).
+        let sweeper_actor = AgentId::new();
+        let mut flipped = Vec::with_capacity(raw_ids.len());
+        for raw in raw_ids {
+            let uuid = match uuid::Uuid::parse_str(&raw) {
+                Ok(u) => u,
+                Err(_) => continue,
+            };
+            let cid = domain::model::ids::ConsentId::from_uuid(uuid);
+            // Skip rows that lost the race (already flipped by another
+            // sweep). The pure-fn returns IllegalTransition for
+            // already-TimedOut rows.
+            if self
+                .mark_consent_timed_out(cid, now, sweeper_actor)
+                .await
+                .is_ok()
+            {
+                flipped.push(cid);
+            }
+        }
+        Ok(flipped)
     }
 
     async fn create_tool_authority_manifest(

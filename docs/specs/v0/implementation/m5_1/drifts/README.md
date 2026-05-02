@@ -98,7 +98,7 @@ fixed.
 | D-new-02 | Storage backend is SurrealDB (not SQLite per concept) | **HIGH** | **A** | coordination | N/A | **remediated** | CH-03 ✓ | [D-new-02.md](D-new-02.md) |
 | D-new-03 | Selector grammar has 4 variants; PEG tag-predicate DSL absent | **HIGH** | **A** | permissions/05, 09 | N/A | remediated | CH-06 | [D-new-03.md](D-new-03.md) |
 | D-new-04 | Consent node has 5 fields; concept mandates 10+ | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-09 ✓ | [D-new-04.md](D-new-04.md) |
-| D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-05.md](D-new-05.md) |
+| D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-10 ✓ | [D-new-05.md](D-new-05.md) |
 | D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | discovered | TBD | [D-new-06.md](D-new-06.md) |
 | D-new-07 | Publish-time manifest validator missing | **HIGH** | **A** | permissions/04, 07 | N/A | **remediated** | CH-05 ✓ | [D-new-07.md](D-new-07.md) |
 | D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | discovered | TBD | [D-new-08.md](D-new-08.md) |

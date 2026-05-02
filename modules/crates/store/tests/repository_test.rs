@@ -370,6 +370,7 @@ async fn create_consent_persists_row_with_agent_id_and_scope() {
             revoked_at: None,
             revocable: true,
             provenance: "test:fixture".into(),
+            deadline_at: None,
         })
         .await
         .unwrap();
@@ -1948,4 +1949,119 @@ async fn surreal_create_has_agent_supervisor_edge_persists_row_and_audit() {
         .unwrap();
     assert!(!second.created);
     assert_eq!(receipt.edge_id, second.edge_id);
+}
+
+// ---------------------------------------------------------------------------
+// CH-10 / ADR-0047 — Consent state-machine (SurrealStore parity)
+// ---------------------------------------------------------------------------
+
+fn surreal_consent(state: ConsentState, revocable: bool) -> Consent {
+    let now = Utc::now();
+    Consent {
+        id: ConsentId::new(),
+        agent_id: AgentId::new(),
+        scope: ConsentScope {
+            org: OrgId::new(),
+            templates: vec![],
+            actions: vec![],
+        },
+        state,
+        requested_at: now,
+        responded_at: None,
+        revoked_at: None,
+        revocable,
+        provenance: "agent:test@store".into(),
+        deadline_at: None,
+    }
+}
+
+#[tokio::test]
+async fn surreal_acknowledge_consent_persists_new_state_and_audit() {
+    let (store, _dir) = fresh_store().await;
+    let c = surreal_consent(ConsentState::Requested, true);
+    store.create_consent(&c).await.unwrap();
+    let actor = AgentId::new();
+    let at = Utc::now();
+
+    let audit_id = store
+        .acknowledge_consent(c.id, at, actor)
+        .await
+        .expect("acknowledge succeeds");
+
+    // Storage-side: the state row flipped.
+    let states: Vec<String> = store
+        .client()
+        .query("SELECT state FROM type::thing('consent', $id)")
+        .bind(("id", c.id.to_string()))
+        .await
+        .unwrap()
+        .take((0, "state"))
+        .unwrap();
+    assert_eq!(states.first().map(String::as_str), Some("acknowledged"));
+
+    // Audit row exists with the right id.
+    let audits = store
+        .list_recent_audit_events_for_org(c.scope.org, 100)
+        .await
+        .unwrap();
+    let ev = audits
+        .iter()
+        .find(|e| e.event_id == audit_id)
+        .expect("audit landed");
+    assert_eq!(ev.event_type, "consent.acknowledged");
+}
+
+#[tokio::test]
+async fn surreal_revoke_consent_non_revocable_rejects_with_consent_transition() {
+    let (store, _dir) = fresh_store().await;
+    let c = surreal_consent(ConsentState::Acknowledged, false);
+    store.create_consent(&c).await.unwrap();
+
+    let err = store
+        .revoke_consent(c.id, Utc::now(), AgentId::new())
+        .await
+        .expect_err("non-revocable consent must reject");
+    assert!(matches!(
+        err,
+        repository::RepositoryError::ConsentTransition { .. }
+    ));
+}
+
+#[tokio::test]
+async fn surreal_sweep_consent_timeouts_flips_eligible_rows() {
+    let (store, _dir) = fresh_store().await;
+    let now = Utc::now();
+    let mut eligible = surreal_consent(ConsentState::Requested, true);
+    eligible.deadline_at = Some(now - Duration::seconds(60));
+    store.create_consent(&eligible).await.unwrap();
+    let mut future = surreal_consent(ConsentState::Requested, true);
+    future.deadline_at = Some(now + Duration::seconds(3600));
+    store.create_consent(&future).await.unwrap();
+    let no_deadline = surreal_consent(ConsentState::Requested, true);
+    store.create_consent(&no_deadline).await.unwrap();
+
+    let flipped = store.sweep_consent_timeouts(now).await.unwrap();
+    assert_eq!(flipped.len(), 1);
+    assert_eq!(flipped[0], eligible.id);
+
+    // The eligible row's state is now timed_out in storage.
+    let states: Vec<String> = store
+        .client()
+        .query("SELECT state FROM type::thing('consent', $id)")
+        .bind(("id", eligible.id.to_string()))
+        .await
+        .unwrap()
+        .take((0, "state"))
+        .unwrap();
+    assert_eq!(states.first().map(String::as_str), Some("timed_out"));
+}
+
+#[tokio::test]
+async fn surreal_acknowledge_consent_on_missing_id_returns_not_found() {
+    let (store, _dir) = fresh_store().await;
+    let err = store
+        .acknowledge_consent(ConsentId::new(), Utc::now(), AgentId::new())
+        .await
+        .expect_err("missing consent must reject");
+    assert!(matches!(err, repository::RepositoryError::NotFound));
 }

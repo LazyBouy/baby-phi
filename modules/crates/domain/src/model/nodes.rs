@@ -777,6 +777,15 @@ pub struct Consent {
     pub revoked_at: Option<DateTime<Utc>>,
     pub revocable: bool,
     pub provenance: String,
+    /// CH-10 / ADR-0047 §D47.6 — When a `Requested` consent should be
+    /// auto-flipped to `TimedOut` by the sweeper. `None` for legacy
+    /// rows and `Acknowledged`-by-default (implicit-policy) consents
+    /// that have no deadline. The sweeper only flips rows where
+    /// `state = Requested AND deadline_at <= now`. Population of this
+    /// field at consent creation time lands at CH-11 (per-policy
+    /// minter rewrite).
+    #[serde(default)]
+    pub deadline_at: Option<DateTime<Utc>>,
 }
 
 /// What a Consent record covers — the org under whose policy the consent
@@ -1632,6 +1641,7 @@ mod tests {
             revoked_at: None,
             revocable: true,
             provenance: "agent:test@unit".into(),
+            deadline_at: None,
         }
     }
 

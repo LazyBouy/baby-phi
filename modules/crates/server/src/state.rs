@@ -217,6 +217,61 @@ pub fn build_event_bus_with_m5_listeners(
     bus
 }
 
+/// CH-10 / ADR-0047 §D47.7 — Spawn the consent state-machine sweeper
+/// task. The task loops `tokio::time::sleep(interval)` then calls
+/// [`Repository::sweep_consent_timeouts`], which scans for past-deadline
+/// `Requested` consents and flips them to `TimedOut` (with one
+/// `consent.timed_out` audit per flip).
+///
+/// Returns a [`tokio::task::JoinHandle<()>`] so the caller can store +
+/// abort it on graceful shutdown. When `interval` is `Duration::ZERO`
+/// the task is not spawned and the handle returned points at an
+/// immediately-completed future — used by acceptance tests that drive
+/// the sweep manually.
+///
+/// **Single-pod-only at v0.** Multi-pod leader-election is deferred to
+/// M7b per the entry in `m7b/architecture/deferred-from-ch-k8s-prep.md`.
+/// Running this task on more than one pod simultaneously causes
+/// duplicate `consent.timed_out` audit emissions for the same flip
+/// (the storage UPDATE is idempotent, but the audit is not).
+pub fn spawn_consent_sweeper(
+    repo: Arc<dyn Repository>,
+    interval: std::time::Duration,
+) -> tokio::task::JoinHandle<()> {
+    if interval.is_zero() {
+        // Disabled — return a handle that immediately resolves so the
+        // caller's bookkeeping doesn't need a special-case.
+        return tokio::spawn(async {});
+    }
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(interval);
+        // Skip the first immediate tick so the sweeper waits one
+        // interval before its first sweep — matches operator
+        // expectations ("set interval=60s" → first sweep ~60s after boot).
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        ticker.tick().await; // consume the immediate first tick.
+        loop {
+            ticker.tick().await;
+            match repo.sweep_consent_timeouts(chrono::Utc::now()).await {
+                Ok(flipped) if !flipped.is_empty() => {
+                    tracing::info!(
+                        flipped_count = flipped.len(),
+                        "consent sweeper: flipped {} consent(s) to TimedOut",
+                        flipped.len(),
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "consent sweeper tick failed; retrying next interval",
+                    );
+                }
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

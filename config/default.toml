@@ -44,3 +44,12 @@ max_concurrent = 16
 #          for end-to-end traceability during dev / acceptance tests.
 # Override via env: PHI_LISTENERS__CATALOG__AUDIT_MODE=debug.
 audit_mode = "silent"
+
+# Consent state-machine sweeper (CH-10 / ADR-0047 §D47.7).
+# Periodically scans for past-deadline `Requested` consents and flips
+# them to `TimedOut`. Single-pod-only at v0 — multi-pod leader election
+# is deferred to M7b. Set `sweeper_interval_secs = 0` to disable the
+# sweeper (used by acceptance tests that drive the sweep manually).
+# Override via env: PHI_CONSENT__SWEEPER_INTERVAL_SECS=120.
+[consent]
+sweeper_interval_secs = 60
