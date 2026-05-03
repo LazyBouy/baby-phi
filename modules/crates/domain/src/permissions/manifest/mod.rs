@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 
 use std::collections::HashSet;
 
-use crate::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId};
-use crate::model::nodes::{Grant, ToolAuthorityManifest};
+use crate::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId, SessionId};
+use crate::model::nodes::{ConsentState, Grant, TimeoutResponse, ToolAuthorityManifest};
 
 use super::action::Action;
 use super::catalogue::CatalogueLookup;
@@ -132,6 +132,19 @@ pub struct CheckContext<'a> {
     pub current_org: Option<OrgId>,
     /// The project scope the call runs under, if any.
     pub current_project: Option<ProjectId>,
+    /// CH-11 / ADR-0048 §D48.3 — Per-Session ambient context. The session
+    /// the call runs under, when applicable. `None` for class-level
+    /// invocations. Populated by the launch handler from `session.id`;
+    /// preview / handler_support test fixtures pass `None` and rely on
+    /// `approval_mode == Implicit` short-circuiting Step 6.
+    ///
+    /// Mirrors `current_org` / `current_project` ambient-context
+    /// pattern. Step 6's `PerSession` policy branch reads this; if the
+    /// engine encounters a `PerSession`-policy grant with
+    /// `current_session = None`, it returns
+    /// `Decision::Denied(NoSessionContext)` — the caller is responsible
+    /// for populating the field at the call site.
+    pub current_session: Option<SessionId>,
     /// Grants the agent holds directly.
     pub agent_grants: &'a [Grant],
     /// Grants the agent's current project holds (propagate to members).
@@ -143,13 +156,27 @@ pub struct CheckContext<'a> {
     pub ceiling_grants: &'a [Grant],
     /// The resources catalogue for Step 0.
     pub catalogue: &'a dyn CatalogueLookup,
-    /// Consent records keyed by (subordinate, org) — Step 6 looks up here.
-    /// Missing entries count as "no consent recorded yet" and yield `Pending`.
+    /// Consent records keyed by (subordinate, org, session_id) — Step 6
+    /// looks up here. Missing entries count as "no consent recorded yet"
+    /// and yield `Pending`.
     pub consents: &'a ConsentIndex,
+    /// CH-11 / ADR-0048 §D48.4 — Default response when a `Requested`
+    /// consent has crossed its deadline and the sweeper auto-flipped it
+    /// to `TimedOut`. Step 6 consults this for the `TimedOut` arm of the
+    /// response table: `Deny` → `Denied(ConsentTimedOutDeny)`, `Allow`
+    /// → proceed to Allow. Defaults to `Deny` per concept doc 06 line
+    /// 349 ("absence of consent is not consent"). The launch handler
+    /// populates this from `org.approval_timeout_default_response`.
+    pub timeout_default_response: TimeoutResponse,
     /// Which Auth Request ids are known to be template-gated (Templates
     /// A/B/C/D). Step 6 only runs when a winning grant's `descends_from`
     /// is in this set. Empty in M1 — P4 populates it once the Auth Request
     /// state machine tracks template provenance.
+    ///
+    /// CH-11 soft-deprecation: the engine prefers `winner.grant.approval_mode`
+    /// for routing Step 6 logic. This field stays for back-compat with
+    /// pre-CH-11 callers that haven't been migrated; new code populates
+    /// `approval_mode` instead. Removal lands at a future chunk.
     pub template_gated_auth_requests: &'a HashSet<AuthRequestId>,
     /// Resolves `subset_of foo(args…)` set references during selector
     /// evaluation. Default at every call site is
@@ -162,31 +189,127 @@ pub struct CheckContext<'a> {
     pub call: ToolCall,
 }
 
-/// Lookup from `(subordinate, org)` → `has_acknowledged_consent`. Concrete
-/// implementations live in P4; P3 tests use [`ConsentIndex::empty`] /
-/// [`ConsentIndex::from_pairs`].
+/// Lookup from `(subordinate, org, Option<session_id>)` → [`ConsentState`].
+///
+/// CH-11 / ADR-0048 §D48.7 — extended from a `(subordinate, org)` →
+/// `bool(acknowledged?)` projection to a full state-carrying map keyed
+/// by the per-session axis. The launch handler builds this projection
+/// from the persisted `Consent` rows for the calling agent's
+/// subordinates before constructing [`CheckContext`].
+///
+/// **Back-compat**: [`ConsentIndex::is_acknowledged`] preserves M1
+/// semantics — it returns `true` iff `(subordinate, org, None)` maps to
+/// [`ConsentState::Acknowledged`]. Existing callers that don't carry a
+/// session-id continue to work; the OneTime-policy lookup path uses
+/// `None` as the session key.
+///
+/// **phi-core leverage**: none — phi-core has no consent concept.
 #[derive(Debug, Clone, Default)]
 pub struct ConsentIndex {
-    pairs: std::collections::HashSet<(AgentId, OrgId)>,
+    /// All recorded consents keyed by `(subordinate, org, session_id)`.
+    /// `session_id == None` rows cover Implicit / OneTime policies;
+    /// `session_id == Some(id)` rows cover Per-Session policy.
+    states: HashMap<(AgentId, OrgId, Option<SessionId>), ConsentState>,
 }
 
 impl ConsentIndex {
-    /// Empty index — every consent lookup returns `false`.
+    /// Empty index — every consent lookup returns `None`.
     pub fn empty() -> Self {
         Self::default()
     }
 
-    /// Build an index from an iterator of `(subordinate, org)` pairs that
-    /// have recorded an `Acknowledged` consent.
+    /// Build an index from an iterator of `(subordinate, org)` pairs
+    /// that have recorded an `Acknowledged` consent at the
+    /// `session_id = None` axis. Back-compat constructor; new callers
+    /// should prefer [`ConsentIndex::from_state_map`] which lets them
+    /// distinguish per-session rows + non-Acknowledged states.
     pub fn from_pairs<I: IntoIterator<Item = (AgentId, OrgId)>>(pairs: I) -> Self {
+        let states = pairs
+            .into_iter()
+            .map(|(a, o)| ((a, o, None), ConsentState::Acknowledged))
+            .collect();
+        Self { states }
+    }
+
+    /// CH-11 / ADR-0048 §D48.7 — build from a fully-typed state map.
+    /// The launch handler's projection step uses this constructor: it
+    /// fetches every `Consent` row for the calling subordinate and
+    /// folds each into `((subordinate, scope.org, scope.session_id),
+    /// state)`.
+    pub fn from_state_map<I>(entries: I) -> Self
+    where
+        I: IntoIterator<Item = ((AgentId, OrgId, Option<SessionId>), ConsentState)>,
+    {
         Self {
-            pairs: pairs.into_iter().collect(),
+            states: entries.into_iter().collect(),
         }
     }
 
-    /// Does this subordinate have a recorded consent under this org?
+    /// CH-11 / ADR-0048 §D48.7 — full-state lookup. Returns `None` when
+    /// no consent row exists for the triple. Step 6's response table
+    /// maps `Some(state)` and `None` separately (the latter triggers
+    /// the launch-handler mint path; the former routes per the response
+    /// table per state).
+    pub fn lookup(
+        &self,
+        subordinate: AgentId,
+        org: OrgId,
+        session_id: Option<SessionId>,
+    ) -> Option<ConsentState> {
+        self.states.get(&(subordinate, org, session_id)).copied()
+    }
+
+    /// Back-compat: does this subordinate have an `Acknowledged`
+    /// consent at the `session_id = None` axis under this org?
+    /// Preserved verbatim from CH-09's M1 semantics: callers without
+    /// session info still work, and the OneTime-policy lookup path
+    /// reads through this method via `lookup(subordinate, org, None)`.
     pub fn is_acknowledged(&self, subordinate: AgentId, org: OrgId) -> bool {
-        self.pairs.contains(&(subordinate, org))
+        self.lookup(subordinate, org, None) == Some(ConsentState::Acknowledged)
+    }
+
+    /// CH-11 / ADR-0048 §D48.7 — Per-Session-axis acknowledged check.
+    /// Returns `true` iff `(subordinate, org, Some(session_id))` maps
+    /// to [`ConsentState::Acknowledged`].
+    pub fn is_acknowledged_for_session(
+        &self,
+        subordinate: AgentId,
+        org: OrgId,
+        session_id: SessionId,
+    ) -> bool {
+        self.lookup(subordinate, org, Some(session_id)) == Some(ConsentState::Acknowledged)
+    }
+
+    /// CH-11 / ADR-0048 §D48.9 — projection helper. Fetches every
+    /// [`crate::model::nodes::Consent`] row for `subordinate` via the
+    /// repository, then folds each `(scope.org, scope.session_id)` pair
+    /// into the typed-state map keyed by
+    /// `(subordinate, scope.org, scope.session_id)`.
+    ///
+    /// The launch handler calls this BEFORE constructing
+    /// [`CheckContext`] so Step 6's `(target, org, session?)` lookups
+    /// hit a fresh projection. Multiple rows for the same key collapse
+    /// onto the most-recently-seen state (deterministic in tests but
+    /// arbitrary across SurrealDB insertion order — production rarely
+    /// has more than one row per key, since the engine only mints when
+    /// the lookup is empty).
+    ///
+    /// The argument is the subordinate the engine is gating reads
+    /// against — typically the `target_agent` on the [`ToolCall`].
+    pub async fn project_from_repo(
+        repo: &dyn crate::repository::Repository,
+        subordinate: AgentId,
+    ) -> crate::repository::RepositoryResult<Self> {
+        let rows = repo.list_consents_for_subordinate(subordinate).await?;
+        let mut states: HashMap<(AgentId, OrgId, Option<SessionId>), ConsentState> =
+            HashMap::with_capacity(rows.len());
+        for row in rows {
+            states.insert(
+                (subordinate, row.scope.org, row.scope.session_id),
+                row.state,
+            );
+        }
+        Ok(Self { states })
     }
 }
 
@@ -225,6 +348,7 @@ mod tests {
         let a = AgentId::new();
         let o = OrgId::new();
         assert!(!idx.is_acknowledged(a, o));
+        assert!(idx.lookup(a, o, None).is_none());
     }
 
     #[test]
@@ -234,5 +358,36 @@ mod tests {
         let idx = ConsentIndex::from_pairs([(a, o)]);
         assert!(idx.is_acknowledged(a, o));
         assert!(!idx.is_acknowledged(AgentId::new(), o));
+    }
+
+    #[test]
+    fn consent_index_from_pairs_back_compat_uses_none_session_axis() {
+        // CH-11 back-compat invariant: the existing
+        // `is_acknowledged(a, o)` semantics translate to a HashMap
+        // entry `((a, o, None) -> Acknowledged)`.
+        let a = AgentId::new();
+        let o = OrgId::new();
+        let idx = ConsentIndex::from_pairs([(a, o)]);
+        assert_eq!(idx.lookup(a, o, None), Some(ConsentState::Acknowledged));
+        // A different session-id MUST NOT match a `from_pairs`-built
+        // index — that's the per-session discrimination boundary.
+        assert!(idx.lookup(a, o, Some(SessionId::new())).is_none());
+    }
+
+    #[test]
+    fn consent_index_from_state_map_preserves_session_axis() {
+        let a = AgentId::new();
+        let o = OrgId::new();
+        let s = SessionId::new();
+        let idx = ConsentIndex::from_state_map([
+            ((a, o, None), ConsentState::Requested),
+            ((a, o, Some(s)), ConsentState::Acknowledged),
+        ]);
+        assert_eq!(idx.lookup(a, o, None), Some(ConsentState::Requested));
+        assert_eq!(idx.lookup(a, o, Some(s)), Some(ConsentState::Acknowledged));
+        assert!(idx.is_acknowledged_for_session(a, o, s));
+        // Per-Session row does NOT satisfy the `is_acknowledged`
+        // back-compat predicate (which reads the `None` axis).
+        assert!(!idx.is_acknowledged(a, o));
     }
 }

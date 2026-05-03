@@ -118,6 +118,8 @@ mod tests {
             defaults_snapshot: None,
             default_model_provider: None,
             system_agents: vec![],
+            approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
             created_at: Utc::now(),
         }
     }

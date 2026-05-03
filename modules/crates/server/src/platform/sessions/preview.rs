@@ -105,12 +105,22 @@ pub async fn preview_session(
         agent: agent.id,
         current_org: Some(input.org_id),
         current_project: Some(input.project_id),
+        // Preview is stateless — no live session ambient context. The
+        // launch handler at P3 populates `current_session = Some(s)`
+        // for real launches. CH-11 / ADR-0048 §D48.3.
+        current_session: None,
         agent_grants: &agent_grants,
         project_grants: &project_grants,
         org_grants: &org_grants,
         ceiling_grants: &ceiling_grants,
         catalogue: &catalogue,
         consents: &consents,
+        // Preview doesn't observe org timeout-default; the
+        // approval_timeout_default_response axis only applies to
+        // TimedOut consents, which preview never has. Default to
+        // `Deny` per concept doc 06 line 349 ("absence of consent is
+        // not consent").
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call: ToolCall::default(),

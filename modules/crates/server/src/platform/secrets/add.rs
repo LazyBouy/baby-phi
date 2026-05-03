@@ -140,6 +140,7 @@ pub async fn add_secret(
         delegable: true,
         issued_at: input.now,
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     };
     repo.create_grant(&grant).await?;
 

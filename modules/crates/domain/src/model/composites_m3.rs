@@ -12,7 +12,7 @@
 //! types here ([`ConsentPolicy`], [`TokenBudgetPool`]) are governance
 //! primitives phi-core has no counterpart for.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::ids::{NodeId, OrgId};
@@ -65,6 +65,184 @@ impl ConsentPolicy {
         ConsentPolicy::OneTime,
         ConsentPolicy::PerSession,
     ];
+}
+
+// ============================================================================
+// ApprovalTimeout — phi-only org-level approval-deadline configuration.
+// ============================================================================
+
+/// Org-level approval-timeout configuration governing how long a
+/// `Requested` consent waits before the sweeper auto-flips it to
+/// `TimedOut` (CH-10's sweeper consumes `Consent.deadline_at`; CH-11's
+/// launch handler computes that deadline from this enum).
+///
+/// Concept doc anchor:
+/// `docs/specs/v0/concepts/permissions/06-multi-scope-consent.md`
+/// §"Approval Timeout" lines 317–347 + line 322 "approval_timeout:
+/// project_duration (default)".
+///
+/// Variants:
+/// - [`ApprovalTimeout::ProjectDuration`] (default per concept doc 06
+///   line 322) — the deadline equals the active project's
+///   `deadline_at`. For multi-project sessions the launch handler
+///   takes `max(project.deadline_at)` (concept doc 06 lines 336–347).
+///   For sessions with no project (Shape D) v0 falls back to a
+///   24-hour fixed timeout (CH-11 deferred-from-ledger entry).
+/// - [`ApprovalTimeout::Fixed`] — explicit duration like `"24h"`.
+///   Carries a `chrono::Duration` payload; serialized via the
+///   ISO-8601 duration form.
+///
+/// Wire format is a tag-payload object:
+/// - `{"kind": "project_duration"}` — variant `ProjectDuration`.
+/// - `{"kind": "fixed", "duration": "PT24H"}` — variant `Fixed`.
+///
+/// **phi-core leverage**: none — phi-core has no approval-deadline
+/// concept. Pure phi.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ApprovalTimeout {
+    /// Deadline equals the active project's `deadline_at`. Default
+    /// per concept doc 06 line 322.
+    #[default]
+    ProjectDuration,
+    /// Explicit fixed duration. The launch handler computes
+    /// `deadline = now + duration` at consent-mint time.
+    Fixed {
+        #[serde(with = "iso8601_duration")]
+        duration: Duration,
+    },
+}
+
+/// `chrono::Duration` does not implement `Serialize` / `Deserialize`
+/// natively. We serialise as an ISO-8601 duration string (`"PT24H"`,
+/// `"PT15M"`, etc.) — round-trips through SurrealDB's `object`
+/// storage cleanly and matches the on-disk shape the migration 0013
+/// `FLEXIBLE TYPE object` column expects.
+mod iso8601_duration {
+    use chrono::Duration;
+    use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(d: &Duration, ser: S) -> Result<S::Ok, S::Error> {
+        format_iso8601(*d).serialize(ser)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Duration, D::Error> {
+        let s = String::deserialize(de)?;
+        parse_iso8601(&s).map_err(D::Error::custom)
+    }
+
+    /// Render a chrono `Duration` as a minimal ISO-8601 duration.
+    /// Always emits the `PT…` form (we never carry day/month/year
+    /// components — `chrono::Duration` is a fixed offset of seconds,
+    /// not a calendar duration).
+    fn format_iso8601(d: Duration) -> String {
+        let mut total_secs = d.num_seconds();
+        let mut prefix = "PT";
+        let mut sign = "";
+        if total_secs < 0 {
+            sign = "-";
+            total_secs = -total_secs;
+            // Negative durations are rejected by the parser below;
+            // we still render them defensively rather than panic.
+            let _ = prefix; // silence false-positive on some toolchains
+            prefix = "PT";
+        }
+        let hours = total_secs / 3600;
+        let mins = (total_secs % 3600) / 60;
+        let secs = total_secs % 60;
+        let mut out = String::with_capacity(16);
+        out.push_str(sign);
+        out.push_str(prefix);
+        if hours > 0 {
+            out.push_str(&format!("{hours}H"));
+        }
+        if mins > 0 {
+            out.push_str(&format!("{mins}M"));
+        }
+        if secs > 0 || (hours == 0 && mins == 0) {
+            out.push_str(&format!("{secs}S"));
+        }
+        out
+    }
+
+    /// Parse a minimal ISO-8601 `PT…H…M…S` duration. Accepts any
+    /// combination of H/M/S components in that order. Rejects
+    /// negative / calendar / week-form durations — the wire format
+    /// for `ApprovalTimeout::Fixed` is always `PT…`.
+    fn parse_iso8601(s: &str) -> Result<Duration, String> {
+        let rest = s
+            .strip_prefix("PT")
+            .ok_or_else(|| format!("approval_timeout duration must start with `PT` (got `{s}`)"))?;
+        let mut hours: i64 = 0;
+        let mut mins: i64 = 0;
+        let mut secs: i64 = 0;
+        let mut buf = String::new();
+        for ch in rest.chars() {
+            if ch.is_ascii_digit() {
+                buf.push(ch);
+            } else {
+                let n: i64 = buf.parse().map_err(|_| {
+                    format!("approval_timeout duration component is not numeric: `{buf}`")
+                })?;
+                buf.clear();
+                match ch {
+                    'H' => hours = n,
+                    'M' => mins = n,
+                    'S' => secs = n,
+                    other => {
+                        return Err(format!(
+                            "approval_timeout duration carries unsupported unit `{other}` \
+                             (only H/M/S accepted)"
+                        ));
+                    }
+                }
+            }
+        }
+        if !buf.is_empty() {
+            return Err(format!(
+                "approval_timeout duration ends without unit suffix: `{s}`"
+            ));
+        }
+        Ok(Duration::seconds(hours * 3600 + mins * 60 + secs))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn format_emits_pt24h_for_one_day() {
+            assert_eq!(format_iso8601(Duration::hours(24)), "PT24H");
+        }
+
+        #[test]
+        fn format_emits_pt15m_for_quarter_hour() {
+            assert_eq!(format_iso8601(Duration::minutes(15)), "PT15M");
+        }
+
+        #[test]
+        fn format_emits_pt0s_for_zero() {
+            assert_eq!(format_iso8601(Duration::zero()), "PT0S");
+        }
+
+        #[test]
+        fn parse_accepts_pt24h() {
+            assert_eq!(parse_iso8601("PT24H").unwrap(), Duration::hours(24));
+        }
+
+        #[test]
+        fn parse_accepts_combined_components() {
+            assert_eq!(
+                parse_iso8601("PT1H30M15S").unwrap(),
+                Duration::seconds(3600 + 30 * 60 + 15)
+            );
+        }
+
+        #[test]
+        fn parse_rejects_missing_pt_prefix() {
+            assert!(parse_iso8601("24H").is_err());
+        }
+    }
 }
 
 // ============================================================================
@@ -334,5 +512,58 @@ mod tests {
         let json = serde_json::to_string(&p).expect("serialize");
         let back: TokenBudgetPool = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(back, p);
+    }
+
+    // ----------------------------------------------------------------
+    // CH-11 / ADR-0048 §D48.4 + §D48.11 — ApprovalTimeout coverage.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn approval_timeout_default_is_project_duration() {
+        // Concept doc 06 line 322 — `approval_timeout: project_duration
+        // (default)`. Pre-CH-11 wire payloads must decode to this
+        // variant via `#[serde(default)]` on Organization.approval_timeout.
+        assert_eq!(ApprovalTimeout::default(), ApprovalTimeout::ProjectDuration);
+    }
+
+    #[test]
+    fn approval_timeout_serde_roundtrip_project_duration() {
+        // The wire form is a tag-payload object — `{"kind": "project_duration"}`.
+        let v = ApprovalTimeout::ProjectDuration;
+        let j = serde_json::to_value(&v).expect("serialize");
+        assert_eq!(j, serde_json::json!({"kind": "project_duration"}));
+        let back: ApprovalTimeout = serde_json::from_value(j).expect("deserialize");
+        assert_eq!(back, v);
+    }
+
+    #[test]
+    fn approval_timeout_serde_roundtrip_fixed_24h() {
+        // The wire form for Fixed carries the duration as ISO-8601:
+        // `{"kind": "fixed", "duration": "PT24H"}`. The `Duration`
+        // payload is a chrono::Duration serialized via the local
+        // iso8601_duration helper.
+        let v = ApprovalTimeout::Fixed {
+            duration: Duration::hours(24),
+        };
+        let j = serde_json::to_value(&v).expect("serialize");
+        assert_eq!(j, serde_json::json!({"kind": "fixed", "duration": "PT24H"}),);
+        let back: ApprovalTimeout = serde_json::from_value(j).expect("deserialize");
+        assert_eq!(back, v);
+    }
+
+    #[test]
+    fn approval_timeout_serde_decodes_pre_ch11_legacy_object() {
+        // Pre-CH-11 organizations have no `approval_timeout` key on
+        // disk; the FLEXIBLE TYPE object column ships absent. The
+        // `#[serde(default)]` shield on `Organization.approval_timeout`
+        // resolves the missing key to `ApprovalTimeout::ProjectDuration`.
+        let payload = serde_json::json!({});
+        let _no_default: Result<ApprovalTimeout, _> = serde_json::from_value(payload);
+        // Direct deserialise from `{}` fails (the tag is required by
+        // the enum's `tag = "kind"` shape). The default-fill happens
+        // on the *parent struct*, not on the enum itself; this test
+        // pins the behaviour so a future serde upgrade that silently
+        // changes default semantics is caught.
+        assert!(_no_default.is_err());
     }
 }

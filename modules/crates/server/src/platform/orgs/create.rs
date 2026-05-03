@@ -187,6 +187,7 @@ pub async fn create_organization(
         delegable: true,
         issued_at: input.now,
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     };
 
     // 4. Two system agents with phi-core blueprints cloned from the
@@ -232,6 +233,8 @@ pub async fn create_organization(
         defaults_snapshot: Some(snapshot.clone()),
         default_model_provider: input.default_model_provider,
         system_agents: system_agent_ids.to_vec(),
+        approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+        approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
         created_at: input.now,
     };
 

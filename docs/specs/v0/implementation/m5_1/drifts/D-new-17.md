@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-24 by Claude Code -->
+<!-- Last verified: 2026-05-03 by Claude Code (CH-11 chunk-seal: status flipped to `remediated`; lifecycle entry appended) -->
 
 # D-new-17 — Per-Session consent gating (`subordinate_required` approval-mode flow) incomplete; Step 6 is stub-only
 
@@ -7,7 +7,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `consent-policy`, `permission-gating`
@@ -45,3 +45,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report)
+- 2026-05-02 — `discovered → in-chunk-plan` — CH-11 plan ratified ([`plan/build/ch-11-per-session-consent-gating-d5428c43/plan.md`](../../../../plan/build/ch-11-per-session-consent-gating-d5428c43/plan.md))
+- 2026-05-03 — `in-chunk-plan → remediated` — CH-11 chunk-seal (ADR-0048 Accepted; engine `step_6_consent_gating` real body shipped; `Grant.approval_mode` + `ConsentScope.session_id` + `Organization.approval_timeout` + `Organization.approval_timeout_default_response` shipped; per-policy minters + `Repository::request_consent` shipped; migration 0013 registered)

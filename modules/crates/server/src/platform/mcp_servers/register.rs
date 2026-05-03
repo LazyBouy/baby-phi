@@ -128,6 +128,7 @@ pub async fn register_mcp_server(
         delegable: true,
         issued_at: input.now,
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     };
     repo.create_grant(&grant).await?;
 

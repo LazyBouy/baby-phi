@@ -34,6 +34,7 @@ fn full_consent() -> Consent {
             org: OrgId::new(),
             templates: vec![TemplateId::new()],
             actions: vec![Action::Read, Action::List],
+            session_id: None,
         },
         state: ConsentState::Acknowledged,
         requested_at: now,

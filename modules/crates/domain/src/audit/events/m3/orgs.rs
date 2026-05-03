@@ -183,6 +183,8 @@ mod tests {
             defaults_snapshot: None,
             default_model_provider: None,
             system_agents: vec![AgentId::new(), AgentId::new()],
+            approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
             created_at: Utc::now(),
         }
     }

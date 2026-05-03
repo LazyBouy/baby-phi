@@ -46,6 +46,7 @@
 //! Zero. phi-core has no governance-consent concept. This module is
 //! baby-phi-native.
 
+pub mod minters;
 pub mod state;
 pub mod transitions;
 

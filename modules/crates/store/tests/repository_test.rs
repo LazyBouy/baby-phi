@@ -81,6 +81,8 @@ async fn organization_create_and_get_round_trip() {
         defaults_snapshot: None,
         default_model_provider: None,
         system_agents: vec![],
+        approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+        approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
         created_at: Utc::now(),
     };
     store.create_organization(&org).await.expect("create");
@@ -363,6 +365,7 @@ async fn create_consent_persists_row_with_agent_id_and_scope() {
                 org,
                 templates: vec![],
                 actions: vec![],
+                session_id: None,
             },
             state: ConsentState::Acknowledged,
             requested_at: Utc::now(),
@@ -496,6 +499,7 @@ fn sample_grant(
         delegable: false,
         issued_at: Utc::now(),
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     }
 }
 
@@ -1655,6 +1659,7 @@ fn bootstrap_claim_for(
             delegable: true,
             issued_at: now,
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         },
         catalogue_entries: vec![
             (
@@ -1820,6 +1825,8 @@ async fn seed_org_with_two_agents_in_store(store: &SurrealStore) -> (OrgId, Agen
         defaults_snapshot: None,
         default_model_provider: None,
         system_agents: vec![],
+        approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+        approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
         created_at: Utc::now(),
     };
     store.create_organization(&org).await.unwrap();
@@ -1964,6 +1971,7 @@ fn surreal_consent(state: ConsentState, revocable: bool) -> Consent {
             org: OrgId::new(),
             templates: vec![],
             actions: vec![],
+            session_id: None,
         },
         state,
         requested_at: now,
@@ -2064,4 +2072,73 @@ async fn surreal_acknowledge_consent_on_missing_id_returns_not_found() {
         .await
         .expect_err("missing consent must reject");
     assert!(matches!(err, repository::RepositoryError::NotFound));
+}
+
+// ---------------------------------------------------------------------------
+// CH-11 / ADR-0048 — request_consent + list_consents_for_subordinate +
+// get_consent (SurrealStore parity).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn surreal_request_consent_persists_row_and_emits_consent_requested_audit() {
+    let (store, _dir) = fresh_store().await;
+    let consent = surreal_consent(ConsentState::Requested, true);
+    let audit_id = store
+        .request_consent(&consent)
+        .await
+        .expect("request_consent succeeds");
+
+    // The row landed.
+    let fetched = store
+        .get_consent(consent.id)
+        .await
+        .expect("get_consent succeeds")
+        .expect("row exists");
+    assert_eq!(fetched.id, consent.id);
+    assert_eq!(fetched.state, ConsentState::Requested);
+
+    // The audit event landed.
+    let audits = store
+        .list_recent_audit_events_for_org(consent.scope.org, 100)
+        .await
+        .unwrap();
+    let ev = audits
+        .iter()
+        .find(|e| e.event_id == audit_id)
+        .expect("audit event landed");
+    assert_eq!(ev.event_type, "consent.requested");
+}
+
+#[tokio::test]
+async fn surreal_list_consents_for_subordinate_filters_by_agent_id() {
+    let (store, _dir) = fresh_store().await;
+    let target = AgentId::new();
+    let mut my_a = surreal_consent(ConsentState::Requested, true);
+    my_a.agent_id = target;
+    let mut my_b = surreal_consent(ConsentState::Acknowledged, true);
+    my_b.agent_id = target;
+    let other = surreal_consent(ConsentState::Requested, true);
+    store.create_consent(&my_a).await.unwrap();
+    store.create_consent(&my_b).await.unwrap();
+    store.create_consent(&other).await.unwrap();
+
+    let mine = store
+        .list_consents_for_subordinate(target)
+        .await
+        .expect("list succeeds");
+    assert_eq!(mine.len(), 2, "got {mine:?}");
+    let ids: std::collections::HashSet<_> = mine.iter().map(|c| c.id).collect();
+    assert!(ids.contains(&my_a.id));
+    assert!(ids.contains(&my_b.id));
+    assert!(!ids.contains(&other.id));
+}
+
+#[tokio::test]
+async fn surreal_get_consent_returns_none_for_missing_id() {
+    let (store, _dir) = fresh_store().await;
+    let got = store
+        .get_consent(ConsentId::new())
+        .await
+        .expect("query succeeds");
+    assert!(got.is_none());
 }

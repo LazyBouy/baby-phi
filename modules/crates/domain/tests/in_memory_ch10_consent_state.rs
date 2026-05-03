@@ -30,6 +30,7 @@ fn fresh_consent(state: ConsentState, revocable: bool) -> Consent {
             org: OrgId::new(),
             templates: vec![],
             actions: vec![],
+            session_id: None,
         },
         state,
         requested_at: now,
@@ -303,4 +304,69 @@ async fn sweep_consent_timeouts_re_run_returns_empty_when_no_more_eligible() {
         second.is_empty(),
         "no rows should remain eligible after first sweep"
     );
+}
+
+// ---------------------------------------------------------------------------
+// CH-11 / ADR-0048 — request_consent (initial mint) + list_consents_for_subordinate
+// + get_consent (in-memory parity).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn request_consent_persists_row_and_emits_consent_requested_audit() {
+    let repo = InMemoryRepository::new();
+    let consent = fresh_consent(ConsentState::Requested, true);
+
+    let audit_id = repo
+        .request_consent(&consent)
+        .await
+        .expect("request_consent succeeds");
+
+    // Row landed.
+    let fetched = repo
+        .get_consent(consent.id)
+        .await
+        .expect("get_consent succeeds")
+        .expect("row exists");
+    assert_eq!(fetched.id, consent.id);
+    assert_eq!(fetched.state, ConsentState::Requested);
+
+    // Audit emitted with the right event_type + Logged class.
+    let audits = repo
+        .list_recent_audit_events_for_org(consent.scope.org, 100)
+        .await
+        .unwrap();
+    let ev = audits
+        .iter()
+        .find(|e| e.event_id == audit_id)
+        .expect("audit event landed");
+    assert_eq!(ev.event_type, "consent.requested");
+    assert_eq!(ev.audit_class, AuditClass::Logged);
+}
+
+#[tokio::test]
+async fn list_consents_for_subordinate_returns_only_matching_agent_id() {
+    let repo = InMemoryRepository::new();
+    let target = AgentId::new();
+    let mut my_a = fresh_consent(ConsentState::Requested, true);
+    my_a.agent_id = target;
+    let mut my_b = fresh_consent(ConsentState::Acknowledged, true);
+    my_b.agent_id = target;
+    let other = fresh_consent(ConsentState::Requested, true);
+    seed(&repo, &my_a).await;
+    seed(&repo, &my_b).await;
+    seed(&repo, &other).await;
+
+    let mine = repo.list_consents_for_subordinate(target).await.unwrap();
+    assert_eq!(mine.len(), 2);
+    let ids: std::collections::HashSet<_> = mine.iter().map(|c| c.id).collect();
+    assert!(ids.contains(&my_a.id));
+    assert!(ids.contains(&my_b.id));
+    assert!(!ids.contains(&other.id));
+}
+
+#[tokio::test]
+async fn get_consent_returns_none_for_unknown_id() {
+    let repo = InMemoryRepository::new();
+    let got = repo.get_consent(ConsentId::new()).await.unwrap();
+    assert!(got.is_none());
 }

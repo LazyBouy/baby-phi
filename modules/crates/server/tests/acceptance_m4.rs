@@ -382,6 +382,8 @@ async fn seed_unrelated_org_with_project(
             defaults_snapshot: None,
             default_model_provider: None,
             system_agents: vec![],
+            approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
             created_at: Utc::now(),
         })
         .await
@@ -534,6 +536,8 @@ async fn dashboard_shape_counters_are_org_scoped() {
             defaults_snapshot: None,
             default_model_provider: None,
             system_agents: vec![],
+            approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
             created_at: Utc::now(),
         })
         .await

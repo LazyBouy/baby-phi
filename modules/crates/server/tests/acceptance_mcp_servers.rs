@@ -401,6 +401,7 @@ async fn narrow_tenants_cascades_and_emits_summary_plus_auth_request_revoked() {
         delegable: false,
         issued_at: Utc::now(),
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     };
     admin.acc.store.create_grant(&grant).await.unwrap();
 

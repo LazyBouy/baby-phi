@@ -26,7 +26,9 @@ pub use composites_m2::{
     ExternalService, ExternalServiceKind, ModelRuntime, PlatformDefaults, ProviderKind,
     RuntimeStatus, SecretCredential, SecretRef, TenantSet,
 };
-pub use composites_m3::{ConsentPolicy, OrganizationDefaultsSnapshot, TokenBudgetPool};
+pub use composites_m3::{
+    ApprovalTimeout, ConsentPolicy, OrganizationDefaultsSnapshot, TokenBudgetPool,
+};
 pub use composites_m4::{
     AgentExecutionLimitsOverride, KeyResult, KeyResultStatus, MeasurementType, Objective,
     ObjectiveStatus, OkrValue, ResourceBoundaries,
@@ -42,11 +44,12 @@ pub use ids::{
     SystemAgentRuntimeStatusId, TemplateId, TurnNodeId, UserId,
 };
 pub use nodes::{
-    Agent, AgentKind, AgentProfile, AgentRole, ApproverSlot, ApproverSlotState, AuthRequest,
-    AuthRequestState, Channel, ChannelKind, Consent, ConsentScope, ConsentState, Grant,
-    InboxObject, LoopRecordNode, Memory, NodeKind, Organization, OutboxObject, PrincipalRef,
+    Agent, AgentKind, AgentProfile, AgentRole, ApprovalMode, ApproverSlot, ApproverSlotState,
+    AuthRequest, AuthRequestState, Channel, ChannelKind, Consent, ConsentScope, ConsentState,
+    Grant, InboxObject, LoopRecordNode, Memory, NodeKind, Organization, OutboxObject, PrincipalRef,
     Project, ProjectShape, ProjectStatus, ResourceRef, ResourceSlot, ResourceSlotState, Session,
-    SessionGovernanceState, Template, TemplateKind, ToolAuthorityManifest, TurnNode, User,
+    SessionGovernanceState, Template, TemplateKind, TimeoutResponse, ToolAuthorityManifest,
+    TurnNode, User,
 };
 pub use principal_resource::{Principal, Resource};
 

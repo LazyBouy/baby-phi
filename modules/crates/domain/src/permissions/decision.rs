@@ -93,6 +93,33 @@ pub enum DeniedReason {
         fundamental: Fundamental,
         action: Action,
     },
+    /// CH-11 / ADR-0048 §D48.6 — a `Requested` consent crossed its
+    /// deadline, the sweeper auto-flipped it to `TimedOut`, and the
+    /// org's `approval_timeout_default_response` is `Deny`.
+    /// Denial mapped to [`FailedStep::Consent`].
+    ConsentTimedOutDeny { subordinate: AgentId, org: OrgId },
+    /// CH-11 / ADR-0048 §D48.6 — the subordinate explicitly declined
+    /// the consent request. Denial mapped to [`FailedStep::Consent`].
+    ConsentDeclined { subordinate: AgentId, org: OrgId },
+    /// CH-11 / ADR-0048 §D48.6 — the consent was previously
+    /// `Acknowledged` and has since been revoked by the subordinate.
+    /// New reads under the revoked consent fail; per concept doc 06
+    /// the revocation is forward-only (CH-10 enforces). Denial mapped
+    /// to [`FailedStep::Consent`].
+    ConsentRevoked { subordinate: AgentId, org: OrgId },
+    /// CH-11 / ADR-0048 §D48.6 — the consent crossed its `expires_at`
+    /// (CH-10 lifecycle terminal state) before the subordinate
+    /// acknowledged. Denial mapped to [`FailedStep::Consent`].
+    ConsentExpired { subordinate: AgentId, org: OrgId },
+    /// CH-11 / ADR-0048 — engine-bug guard. A grant carrying
+    /// `ApprovalMode::SubordinateRequired { policy: PerSession }`
+    /// fired but [`crate::permissions::manifest::CheckContext::current_session`]
+    /// was `None`. The launch handler is responsible for populating the
+    /// session ambient-context; this variant surfaces if a caller
+    /// invokes the engine on a per-session-policy grant from a
+    /// class-level call site (preview / handler-support tests). Denial
+    /// mapped to [`FailedStep::Consent`].
+    NoSessionContext { subordinate: AgentId, org: OrgId },
 }
 
 /// The three outcomes the Permission Check engine can return.

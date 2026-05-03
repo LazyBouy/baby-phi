@@ -154,7 +154,7 @@ Each phase documented as:
 
 ### §8 — Tests summary
 
-- **Expected total test count at chunk close** — concrete number (e.g., "973 from current 966 baseline + 7 new tests").
+- **Expected total test count at chunk close** — concrete number (e.g., "973 from current 966 baseline + 7 new tests"). Apply a **× 1.10–1.15 buffer** to the sum of deliverable-listed unit + integration + property + acceptance tests. Healthy implementer over-shoot (one-property-per-row determinism tests; round-trip helpers; paired audit-event tests; ISO-8601 / serde-format helper unit tests) is normal and should not trigger a re-plan. Orchestrator's per-phase implementation review accepts test-count delta within ±15% of this figure; outside that band → AskUserQuestion. *Added v2026-05-03 per CH-11 retrospective (cycle hex `d5428c43`); CH-11 actual was +22 over conservative target.*
 - **Layer breakdown** — unit / integration / acceptance / e2e counts.
 - **Named test files** — list the new test file paths.
 - **Named expected-still-green tests** — anything fragile that the chunk's changes risk breaking; re-verified at chunk close.
@@ -169,6 +169,7 @@ The reading list + invariant check the drafter walks BEFORE `ExitPlanMode` is in
 3. Every prior-chunk plan cited in §6 (under `docs/specs/plan/build/`).
 4. [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 + §7 (the chunk row + binding Q&A decisions).
 5. [`baby-phi/CLAUDE.md`](../../../../../../CLAUDE.md) phi-core Leverage section.
+6. **Conditional (v2026-05-03 per CH-11 retrospective, cycle hex `d5428c43`)**: if the chunk touches `domain::permissions::engine` Step N body, the reading list MUST include `server::platform::sessions::launch.rs` body + `server::platform::sessions::preview.rs` body (the synthetic-manifest construction sites), so manifest-shape preconditions are discovered at plan time, not at implementation. CH-11 surfaced drift D4.1 (preview-path manifest-resource bug) at implementation that should have been visible at plan time.
 
 **Carry-forward invariants** (explicit list, verified green at chunk open):
 - `cargo test --workspace` test count matches the expected baseline (currently 966; update as chunks land).
@@ -202,6 +203,8 @@ Composite 4-aspect + 2 confidence % ritual. **Source of truth: concept docs.** N
 **Composite = min(impl%, doc%, code-aspect-binary, phi-core-leverage-aspect-binary, concept-alignment-aspect-binary).** A failing aspect is 0%. Composite below target blocks close.
 
 **Explicit close-target discipline:** close report states ALL FIVE measures with named numerators/denominators. No aspect-averaging. No rounding up.
+
+**P4 chunk-seal paperwork checklist (v2026-05-03 per CH-11 retrospective, cycle hex `d5428c43`):** for every modified doc with a verified-header (line 1 `<!-- Last verified: ... -->`), confirm the header description matches the body diff exactly. Mismatch → fix the header before chunk-seal. CH-11 audit B claim 7 (`_concept-audit-matrix.md`) caught a header overpromise that survived to audit time; this checklist item ensures it's caught at P4.
 
 ### §11 — Post-chunk independent audit plan
 

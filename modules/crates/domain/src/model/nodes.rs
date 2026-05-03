@@ -407,6 +407,25 @@ pub struct Organization {
     /// wiring.
     #[serde(default)]
     pub system_agents: Vec<AgentId>,
+    /// CH-11 / ADR-0048 §D48.4 — how long a `Requested` consent waits
+    /// before the sweeper auto-flips it to `TimedOut`. Default is
+    /// `ProjectDuration` per concept doc 06 line 322. The launch
+    /// handler reads this at consent-mint time to compute the row's
+    /// `deadline_at`.
+    ///
+    /// `#[serde(default)]` shields pre-CH-11 wire payloads — they
+    /// decode as `ApprovalTimeout::ProjectDuration`.
+    #[serde(default)]
+    pub approval_timeout: crate::model::ApprovalTimeout,
+    /// CH-11 / ADR-0048 §D48.4 — what the engine returns when a
+    /// consent crosses into `TimedOut`. Default is `Deny` per concept
+    /// doc 06 line 349 ("absence of consent is not consent").
+    ///
+    /// `#[serde(default = "Organization::default_timeout_response")]`
+    /// shields pre-CH-11 wire payloads — they decode as
+    /// `TimeoutResponse::Deny`.
+    #[serde(default = "Organization::default_timeout_response")]
+    pub approval_timeout_default_response: TimeoutResponse,
     pub created_at: DateTime<Utc>,
 }
 
@@ -416,6 +435,13 @@ impl Organization {
     }
     fn default_audit_class() -> crate::audit::AuditClass {
         crate::audit::AuditClass::Logged
+    }
+    /// Default response for a `TimedOut` consent on this org. Used by
+    /// `#[serde(default = "...")]` on
+    /// [`Organization::approval_timeout_default_response`] so pre-CH-11
+    /// wire payloads decode cleanly.
+    fn default_timeout_response() -> TimeoutResponse {
+        TimeoutResponse::Deny
     }
 }
 
@@ -636,6 +662,90 @@ pub struct Grant {
     pub delegable: bool,
     pub issued_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
+    /// CH-11 / ADR-0048 §D48.1 — approval-mode at the time the grant
+    /// was issued. Templates issuing per-session-policy grants set this
+    /// to `SubordinateRequired { policy: PerSession }` so the engine's
+    /// Step 6 doesn't have to re-look-up the org node at check time.
+    /// Pre-CH-11 grants decode as `ApprovalMode::Implicit` via serde's
+    /// default — Step 6 short-circuits to Allow for those.
+    ///
+    /// Concept doc anchor:
+    /// `permissions/06-multi-scope-consent.md` line 244.
+    #[serde(default)]
+    pub approval_mode: ApprovalMode,
+}
+
+/// Per-grant approval mode — captures whether a read under this grant
+/// requires runtime subordinate approval, and (when so) which
+/// org-level [`ConsentPolicy`] applies.
+///
+/// CH-11 / ADR-0048 §D48.1 — denormalises the issuing org's
+/// [`ConsentPolicy`] into the grant so the Permission Check engine's
+/// Step 6 can branch without re-reading the org node.
+///
+/// Variants:
+/// - [`ApprovalMode::Implicit`] (default) — no runtime gating; the
+///   grant's holder reads without further consent. Pre-CH-11 grants
+///   decode as this via serde's `#[serde(default)]` shield on
+///   [`Grant::approval_mode`].
+/// - [`ApprovalMode::SubordinateRequired`] — runtime consent required
+///   from the read target ("subordinate"). The carried
+///   [`ConsentPolicy`] (Implicit / OneTime / PerSession) governs how
+///   often the prompt fires. Concept doc 06 line 244 — "Templates
+///   auto-issue grants with `approval_mode: subordinate_required`".
+/// - [`ApprovalMode::HumanApprovalRequired`] — reserved for future
+///   human-in-the-loop flows. Engine returns `Pending` with a marker
+///   reason; no real handling at CH-11 (placeholder per §3
+///   "What this chunk does NOT do").
+///
+/// Wire format is a tag-payload object:
+/// - `{"kind": "implicit"}`
+/// - `{"kind": "subordinate_required", "policy": "per_session"}`
+/// - `{"kind": "human_approval_required"}`
+///
+/// **phi-core leverage**: none — phi-core has no consent / governance
+/// concept.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ApprovalMode {
+    /// No runtime consent gate — the grant's holder reads directly.
+    /// Default for pre-CH-11 grants.
+    #[default]
+    Implicit,
+    /// Read target's consent required at runtime. The carried
+    /// [`ConsentPolicy`] governs how often the prompt fires (Implicit
+    /// auto-acks; OneTime prompts once per (subordinate, org) pair;
+    /// PerSession prompts on every new session).
+    SubordinateRequired { policy: crate::model::ConsentPolicy },
+    /// Reserved for future human-in-the-loop flows. CH-11 records the
+    /// variant for forward-compat; the engine returns `Pending` with a
+    /// marker reason but has no real handling.
+    HumanApprovalRequired,
+}
+
+/// Default response when a `Requested` consent crosses its
+/// `deadline_at` and the sweeper auto-flips it to `TimedOut`.
+///
+/// CH-11 / ADR-0048 §D48.4 — `Organization.approval_timeout_default_response`
+/// carries this. Concept doc 06 line 349 — "Default response on
+/// timeout: `deny`, on the principle that absence of consent is not
+/// consent."
+///
+/// Wire format is a snake-case JSON string: `"deny"` or `"allow"`.
+///
+/// **phi-core leverage**: none — phi-only governance primitive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeoutResponse {
+    /// Treat a `TimedOut` consent as a denial. Concept-doc default
+    /// (line 349 — "absence of consent is not consent").
+    #[default]
+    Deny,
+    /// Treat a `TimedOut` consent as an approval. Operators that want
+    /// the opposite of the default opt in via
+    /// `Organization.approval_timeout_default_response: allow`
+    /// (concept doc 06 line 349).
+    Allow,
 }
 
 /// Who holds a grant / submits a request / is an approver.
@@ -804,6 +914,20 @@ pub struct ConsentScope {
     pub templates: Vec<TemplateId>,
     #[serde(default)]
     pub actions: Vec<crate::permissions::action::Action>,
+    /// CH-11 / ADR-0048 §D48.2 — Per-Session axis. `None` means the
+    /// consent is not session-scoped (Implicit / OneTime policies).
+    /// `Some(id)` means the consent only applies to reads on the
+    /// named session (Per-Session policy). The
+    /// [`crate::permissions::manifest::ConsentIndex`] projection keys
+    /// on `(subordinate, org, Option<session_id>)` to discriminate.
+    ///
+    /// `#[serde(default)]` shields pre-CH-11 wire payloads — they
+    /// decode as `None`. Migration 0013 leaves the SurrealDB schema
+    /// untouched here because `scope` is already
+    /// `FLEXIBLE TYPE object` per ADR-0045 §D45.5 — the new field
+    /// rides under the FLEXIBLE shield.
+    #[serde(default)]
+    pub session_id: Option<SessionId>,
 }
 
 /// Lifecycle state of a [`Consent`] record.
@@ -1634,6 +1758,7 @@ mod tests {
                 org: OrgId::new(),
                 templates: vec![],
                 actions: vec![],
+                session_id: None,
             },
             state: ConsentState::Acknowledged,
             requested_at: now,
@@ -1715,6 +1840,7 @@ mod tests {
                 crate::permissions::action::Action::Read,
                 crate::permissions::action::Action::List,
             ],
+            session_id: None,
         };
         let j = serde_json::to_value(&scope).expect("serialize");
         let back: ConsentScope = serde_json::from_value(j).expect("deserialize");
@@ -1772,6 +1898,7 @@ mod tests {
             org: OrgId::new(),
             templates: vec![],
             actions: vec![crate::permissions::action::Action::Read],
+            session_id: None,
         };
         let j = serde_json::to_value(&scope).expect("serialize");
         assert_eq!(
@@ -1779,5 +1906,164 @@ mod tests {
             Some(&serde_json::json!(["read"])),
             "ConsentScope.actions must serialize as snake_case strings"
         );
+    }
+
+    // ----------------------------------------------------------------
+    // CH-11 / ADR-0048 — ApprovalMode + TimeoutResponse + ConsentScope
+    // .session_id + Organization defaults coverage.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn approval_mode_default_is_implicit() {
+        // Pre-CH-11 grants decode without an `approval_mode` key; the
+        // `#[serde(default)]` shield on `Grant.approval_mode` resolves
+        // to `ApprovalMode::Implicit`, so Step 6 short-circuits to
+        // Allow for legacy grants. ADR-0048 §D48.1.
+        assert_eq!(ApprovalMode::default(), ApprovalMode::Implicit);
+    }
+
+    #[test]
+    fn approval_mode_serde_roundtrip_all_variants() {
+        // Tag-payload wire format: `{"kind": "implicit"}`, etc. The
+        // `subordinate_required` variant carries `policy: ConsentPolicy`
+        // verbatim alongside the tag.
+        let cases = [
+            (
+                ApprovalMode::Implicit,
+                serde_json::json!({"kind": "implicit"}),
+            ),
+            (
+                ApprovalMode::SubordinateRequired {
+                    policy: crate::model::ConsentPolicy::Implicit,
+                },
+                serde_json::json!({"kind": "subordinate_required", "policy": "implicit"}),
+            ),
+            (
+                ApprovalMode::SubordinateRequired {
+                    policy: crate::model::ConsentPolicy::OneTime,
+                },
+                serde_json::json!({"kind": "subordinate_required", "policy": "one_time"}),
+            ),
+            (
+                ApprovalMode::SubordinateRequired {
+                    policy: crate::model::ConsentPolicy::PerSession,
+                },
+                serde_json::json!({"kind": "subordinate_required", "policy": "per_session"}),
+            ),
+            (
+                ApprovalMode::HumanApprovalRequired,
+                serde_json::json!({"kind": "human_approval_required"}),
+            ),
+        ];
+        for (variant, expected_wire) in cases {
+            let j = serde_json::to_value(&variant).expect("serialize");
+            assert_eq!(j, expected_wire, "wire form for {variant:?}");
+            let back: ApprovalMode = serde_json::from_value(j).expect("deserialize");
+            assert_eq!(back, variant);
+        }
+    }
+
+    #[test]
+    fn timeout_response_default_is_deny() {
+        // Concept doc 06 line 349 — "Default response on timeout: deny,
+        // on the principle that absence of consent is not consent."
+        assert_eq!(TimeoutResponse::default(), TimeoutResponse::Deny);
+    }
+
+    #[test]
+    fn timeout_response_serde_roundtrip() {
+        // Snake-case JSON-string wire form so migration 0013's
+        // `TYPE string DEFAULT "deny"` ASSERT clause matches the
+        // serde rendering exactly.
+        for (variant, wire) in [
+            (TimeoutResponse::Deny, "deny"),
+            (TimeoutResponse::Allow, "allow"),
+        ] {
+            let j = serde_json::to_value(variant).expect("serialize");
+            assert_eq!(j, serde_json::json!(wire));
+            let back: TimeoutResponse =
+                serde_json::from_value(serde_json::json!(wire)).expect("deserialize");
+            assert_eq!(back, variant);
+        }
+    }
+
+    #[test]
+    fn consent_scope_session_id_serde_default_is_none() {
+        // Pre-CH-11 wire payloads carry no `session_id` key on
+        // ConsentScope; the `#[serde(default)]` shield resolves the
+        // missing field to `None`. ADR-0048 §D48.2 — the
+        // FLEXIBLE-shielded scope object accepts the new field
+        // optionally.
+        let pre_ch11 = serde_json::json!({
+            "org": OrgId::new().to_string(),
+            "templates": [],
+            "actions": [],
+        });
+        let scope: ConsentScope = serde_json::from_value(pre_ch11).expect("decode legacy scope");
+        assert!(scope.session_id.is_none());
+    }
+
+    #[test]
+    fn organization_approval_timeout_default_is_project_duration() {
+        // CH-11 / ADR-0048 §D48.4 — the `approval_timeout` field
+        // defaults to ProjectDuration via `#[serde(default)]` on
+        // Organization.approval_timeout. Concept doc 06 line 322.
+        // We assert via the default-instance path: the field's
+        // `#[serde(default)]` shield resolves missing keys to the
+        // enum's Default impl.
+        let now = Utc::now();
+        let org_pre_ch11 = serde_json::json!({
+            "id": OrgId::new().to_string(),
+            "display_name": "legacy-org",
+            "consent_policy": "implicit",
+            "audit_class_default": "logged",
+            "created_at": now,
+        });
+        let org: Organization =
+            serde_json::from_value(org_pre_ch11).expect("decode legacy organization");
+        assert_eq!(
+            org.approval_timeout,
+            crate::model::ApprovalTimeout::ProjectDuration
+        );
+    }
+
+    #[test]
+    fn organization_approval_timeout_default_response_default_is_deny() {
+        // CH-11 / ADR-0048 §D48.4 — the
+        // `approval_timeout_default_response` field defaults to Deny
+        // via `#[serde(default = "Organization::default_timeout_response")]`.
+        // Concept doc 06 line 349.
+        let now = Utc::now();
+        let org_pre_ch11 = serde_json::json!({
+            "id": OrgId::new().to_string(),
+            "display_name": "legacy-org",
+            "consent_policy": "implicit",
+            "audit_class_default": "logged",
+            "created_at": now,
+        });
+        let org: Organization =
+            serde_json::from_value(org_pre_ch11).expect("decode legacy organization");
+        assert_eq!(org.approval_timeout_default_response, TimeoutResponse::Deny);
+    }
+
+    #[test]
+    fn grant_approval_mode_default_is_implicit_via_legacy_decode() {
+        // CH-11 / ADR-0048 §D48.1 — Pre-CH-11 grants decode as
+        // `ApprovalMode::Implicit`, preserving the engine's existing
+        // back-compat path through Step 6.
+        let now = Utc::now();
+        let legacy_grant = serde_json::json!({
+            "id": GrantId::new().to_string(),
+            "holder": {"agent": AgentId::new().to_string()},
+            "action": ["read"],
+            "resource": {"uri": "system:root"},
+            "fundamentals": [],
+            "descends_from": null,
+            "delegable": false,
+            "issued_at": now,
+            "revoked_at": null,
+        });
+        let g: Grant = serde_json::from_value(legacy_grant).expect("decode legacy grant");
+        assert_eq!(g.approval_mode, ApprovalMode::Implicit);
     }
 }

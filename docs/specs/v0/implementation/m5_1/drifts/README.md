@@ -110,7 +110,7 @@ fixed.
 | D-new-14 | system:genesis axiom + authority-chain traversal missing | **HIGH** | **A** | permissions/02, 04; README | N/A | discovered | TBD | [D-new-14.md](D-new-14.md) |
 | D-new-15 | AuthRequest 2-tier retention (90d active + archived) not wired | MEDIUM | B | permissions/02 | N/A | discovered | M7b | [D-new-15.md](D-new-15.md) |
 | D-new-16 | Memory recall/store/delete action execution missing | **HIGH** | **A** | permissions/05 | N/A | discovered | M6 C-M6-1 | [D-new-16.md](D-new-16.md) |
-| D-new-17 | Per-Session consent gating incomplete | **HIGH** | **A** | permissions/06 | N/A | discovered | TBD | [D-new-17.md](D-new-17.md) |
+| D-new-17 | Per-Session consent gating incomplete | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-11 ✓ | [D-new-17.md](D-new-17.md) |
 | D-new-18 | Grant revocation cascade full-tree walk needs verification | **HIGH** | **A** | permissions/08; README | N/A | discovered | TBD | [D-new-18.md](D-new-18.md) |
 | D-new-19 | audit_class composition (strictest wins) not enforced | MEDIUM | B | permissions/07 | N/A | discovered | TBD | [D-new-19.md](D-new-19.md) |
 | D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | discovered | TBD | [D-new-20.md](D-new-20.md) |
@@ -125,6 +125,7 @@ fixed.
 | D-new-29 | allocate refinement constraints (no_further_delegation) missing | LOW | B | permissions/03 | N/A | discovered | TBD | [D-new-29.md](D-new-29.md) |
 | D-new-30 | Org/Project template as config object (vs adoption AR) not materialized | LOW | C | permissions/07 | N/A | discovered | TBD (doc refresh) | [D-new-30.md](D-new-30.md) |
 | D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | **remediated** | CH-05 ✓ | [D-new-31.md](D-new-31.md) |
+| D-CH11-FOLLOWUP-01 | `Project.deadline_at` missing; CH-11 falls back to `now+24h` for `ApprovalTimeout::ProjectDuration` | LOW | B | permissions/06 | N/A | discovered | M6+ Project enrichment | [D-CH11-FOLLOWUP-01.md](D-CH11-FOLLOWUP-01.md) |
 
 **Row count at P1 close: 29 files written, all row cells populated. ✅**
 **Row count at P2 close: 60 files written (29 existing + 31 new D-new-NN). ✅**

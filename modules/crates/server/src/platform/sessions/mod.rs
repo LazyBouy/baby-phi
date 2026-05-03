@@ -27,7 +27,7 @@
 //! See
 //! [`docs/specs/v0/implementation/m5/architecture/session-launch.md`](../../../../../docs/specs/v0/implementation/m5/architecture/session-launch.md).
 
-use domain::model::ids::{AgentId, ModelProviderId, ProjectId, SessionId};
+use domain::model::ids::{AgentId, ConsentId, ModelProviderId, ProjectId, SessionId};
 use domain::repository::RepositoryError;
 
 pub mod launch;
@@ -117,6 +117,27 @@ pub enum SessionError {
     #[error("COMPOUND_TX_FAILURE: {0}")]
     CompoundTxFailure(String),
 
+    // ---- Consent gating (CH-11 / ADR-0048 §D48.5+) ------------------
+    /// Engine Step 6 surfaced `Pending` for a `SubordinateRequired`
+    /// grant. The launch handler minted a `Requested` consent row on
+    /// the matching `(subordinate, org, session?)` axis; the operator
+    /// must wait for the subordinate to acknowledge / decline before
+    /// re-attempting the launch. The `consent_id` is returned so the
+    /// operator can correlate.
+    #[error("CONSENT_PENDING: consent {consent_id} pending on subordinate {subordinate}")]
+    ConsentPending {
+        consent_id: ConsentId,
+        subordinate: AgentId,
+    },
+    /// Engine Step 6 returned `Denied(Consent*)` (Declined / Revoked /
+    /// Expired / TimedOut + Deny default). The launch is rejected
+    /// without further side effects.
+    #[error("CONSENT_DENIED: subordinate {subordinate} consent denied ({reason})")]
+    ConsentDenied {
+        subordinate: AgentId,
+        reason: String,
+    },
+
     // ---- Pass-throughs ---------------------------------------------
     #[error("repository error: {0}")]
     Repository(String),
@@ -148,7 +169,9 @@ pub fn http_status_for(err: &SessionError) -> u16 {
         | SessionError::ModelRuntimeUnresolved(_)
         | SessionError::ModelRuntimeArchived(_)
         | SessionError::AgentProfileMissing(_)
-        | SessionError::SessionAlreadyTerminal(_) => 409,
+        | SessionError::SessionAlreadyTerminal(_)
+        | SessionError::ConsentPending { .. }
+        | SessionError::ConsentDenied { .. } => 409,
         SessionError::SessionWorkerSaturated { .. } => 503,
         SessionError::RecorderFailure(_)
         | SessionError::SessionReplayPanic(_)
@@ -185,5 +208,7 @@ pub fn wire_code_for(err: &SessionError) -> &'static str {
         SessionError::CompoundTxFailure(_) => "COMPOUND_TX_FAILURE",
         SessionError::Repository(_) => "REPOSITORY_ERROR",
         SessionError::AuditEmit(_) => "AUDIT_EMIT_ERROR",
+        SessionError::ConsentPending { .. } => "CONSENT_PENDING",
+        SessionError::ConsentDenied { .. } => "CONSENT_DENIED",
     }
 }

@@ -89,6 +89,7 @@ pub fn fire_grant_on_has_agent_supervisor(args: FireArgs) -> Grant {
         delegable: false,
         issued_at: now,
         revoked_at: None,
+        approval_mode: crate::model::ApprovalMode::Implicit,
     }
 }
 

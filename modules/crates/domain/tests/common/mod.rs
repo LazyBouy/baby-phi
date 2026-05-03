@@ -43,12 +43,14 @@ impl OwnedCtx {
             agent: self.agent,
             current_org: self.current_org,
             current_project: self.current_project,
+            current_session: None,
             agent_grants: &self.agent_grants,
             project_grants: &self.project_grants,
             org_grants: &self.org_grants,
             ceiling_grants: &self.ceiling_grants,
             catalogue: &self.catalogue,
             consents: &self.consents,
+            timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &self.template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
@@ -97,6 +99,7 @@ pub fn grant_on(holder: PrincipalRef, actions: &[Action], resource_uri: &str) ->
         delegable: false,
         issued_at: ts(0),
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     }
 }
 
@@ -152,6 +155,7 @@ pub fn any_agent_grant(agent: AgentId) -> impl Strategy<Value = Grant> {
         delegable: false,
         issued_at: ts(0),
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     })
 }
 

@@ -239,6 +239,7 @@ pub async fn execute_claim(
         delegable: true,
         issued_at: now,
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     };
 
     // Alerted audit event — `PlatformAdminClaimed`.

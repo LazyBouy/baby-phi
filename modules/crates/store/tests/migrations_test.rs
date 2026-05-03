@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 12, "every embedded migration recorded");
+    assert_eq!(rows.len(), 13, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -88,6 +88,12 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[11].get("slug").and_then(|v| v.as_str()),
         Some("consent_deadline")
+    );
+    // CH-11 — Per-session consent gating (ADR-0048 §D48.1 + §D48.4).
+    assert_eq!(rows[12].get("version").and_then(|v| v.as_i64()), Some(13));
+    assert_eq!(
+        rows[12].get("slug").and_then(|v| v.as_str()),
+        Some("per_session_consent_gating")
     );
 
     // A sample table from the initial migration exists and accepts a row

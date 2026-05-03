@@ -68,12 +68,14 @@ fn build_ctx<'a>(
         agent,
         current_org: None,
         current_project: None,
+        current_session: None,
         agent_grants: grants,
         project_grants: &[],
         org_grants: &[],
         ceiling_grants: &[],
         catalogue,
         consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call,
@@ -100,6 +102,7 @@ proptest! {
             delegable: false,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         };
         let grants = [grant];
         let mut catalogue = StaticCatalogue::empty();
@@ -148,6 +151,7 @@ proptest! {
             delegable: false,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         };
         let grants = [grant];
         // Empty `target_uri` skips Step 0 catalogue — same as the M1
@@ -205,6 +209,7 @@ proptest! {
             delegable: false,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         };
         let grants = [grant];
         let mut catalogue = StaticCatalogue::empty();

@@ -1618,6 +1618,8 @@ mod tests {
             defaults_snapshot: None,
             default_model_provider: None,
             system_agents: vec![extractor_agent_id],
+            approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
             created_at: now,
         };
         repo.create_organization(&org).await.unwrap();
@@ -2031,6 +2033,8 @@ mod tests {
             defaults_snapshot: None,
             default_model_provider: None,
             system_agents: vec![catalog_sys_agent_id],
+            approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
             created_at: now,
         };
         repo.create_organization(&org).await.unwrap();

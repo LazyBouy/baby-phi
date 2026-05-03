@@ -114,6 +114,23 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "consent_deadline",
         sql: include_str!("../migrations/0012_consent_deadline.surql"),
     },
+    // CH-11 — Per-session consent gating (ADR-0048 §D48.1 + §D48.4).
+    // Adds three columns:
+    //   * `grant.approval_mode` (FLEXIBLE TYPE object — tag-payload
+    //      typed enum carrying `{kind, policy}` for the
+    //      subordinate_required variant)
+    //   * `organization.approval_timeout` (FLEXIBLE TYPE object —
+    //      tag-payload typed enum carrying `{kind, duration}` for the
+    //      fixed variant)
+    //   * `organization.approval_timeout_default_response` (TYPE string
+    //      DEFAULT "deny" — snake-case enum)
+    // The `consent.scope.session_id` field rides under the existing
+    // FLEXIBLE `scope` shield (no schema change required).
+    Migration {
+        version: 13,
+        slug: "per_session_consent_gating",
+        sql: include_str!("../migrations/0013_per_session_consent_gating.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

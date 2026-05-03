@@ -189,6 +189,11 @@ struct GrantRow {
     delegable: bool,
     issued_at: DateTime<Utc>,
     revoked_at: Option<DateTime<Utc>>,
+    /// CH-11 / ADR-0048 §D48.1 — `Grant.approval_mode`. Riding under
+    /// the migration 0013 FLEXIBLE TYPE object column. Pre-CH-11 rows
+    /// deserialise via `#[serde(default)]` to `ApprovalMode::Implicit`.
+    #[serde(default)]
+    approval_mode: domain::model::ApprovalMode,
 }
 
 impl GrantRow {
@@ -204,6 +209,7 @@ impl GrantRow {
             delegable: g.delegable,
             issued_at: g.issued_at,
             revoked_at: g.revoked_at,
+            approval_mode: g.approval_mode.clone(),
         }
     }
 
@@ -227,6 +233,7 @@ impl GrantRow {
             delegable: self.delegable,
             issued_at: self.issued_at,
             revoked_at: self.revoked_at,
+            approval_mode: self.approval_mode,
         })
     }
 }
@@ -691,6 +698,99 @@ impl Repository for SurrealStore {
             .check()
             .map_err(backend)?;
         Ok(())
+    }
+
+    // ---- CH-11 — initial mint (request_consent) + read methods ----------
+
+    async fn request_consent(
+        &self,
+        consent: &Consent,
+    ) -> RepositoryResult<domain::model::ids::AuditEventId> {
+        // Compound tx: CREATE the consent row + the audit event in one
+        // BEGIN..COMMIT block. Either both writes land or neither does.
+        let consent_body = strip_id(serde_json::to_value(consent).map_err(backend)?);
+        let audit_event = domain::audit::events::m5::consents::consent_requested(
+            // Actor = subordinate (read target). Mirrors CH-10's
+            // convention.
+            consent.agent_id,
+            consent.scope.org,
+            consent.id,
+            consent.agent_id,
+            consent.scope.session_id,
+            consent.deadline_at,
+            consent.requested_at,
+        );
+        let audit_id = audit_event.event_id;
+        let audit_body =
+            serde_json::to_value(AuditEventRow::from_domain(&audit_event)).map_err(backend)?;
+        self.client()
+            .query(
+                "BEGIN TRANSACTION;\n\
+                 CREATE type::thing('consent', $cid) CONTENT $cbody RETURN NONE;\n\
+                 CREATE type::thing('audit_events', $aid) CONTENT $abody RETURN NONE;\n\
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("cid", consent.id.to_string()))
+            .bind(("cbody", consent_body))
+            .bind(("aid", audit_id.to_string()))
+            .bind(("abody", audit_body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(audit_id)
+    }
+
+    async fn list_consents_for_subordinate(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Vec<Consent>> {
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id \
+                 FROM consent \
+                 WHERE agent_id = $aid",
+            )
+            .bind(("aid", agent_id.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            // Each row carries `_rid` from the SELECT-OMIT projection.
+            // Pull the id out + re-inject it under the `id` key so the
+            // typed `Consent` deserialiser sees the canonical shape.
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("consent missing _rid".into()))?;
+            let cid = domain::model::ids::ConsentId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, cid)?;
+            out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn get_consent(
+        &self,
+        consent_id: domain::model::ids::ConsentId,
+    ) -> RepositoryResult<Option<Consent>> {
+        let mut resp = self
+            .client()
+            .query("SELECT * OMIT id FROM type::thing('consent', $id)")
+            .bind(("id", consent_id.to_string()))
+            .await
+            .map_err(backend)?;
+        let row = take_first_row(&mut resp, 0).await?;
+        match row {
+            None => Ok(None),
+            Some(row) => {
+                let row = inject_id(row, consent_id)?;
+                Ok(Some(serde_json::from_value(row).map_err(backend)?))
+            }
+        }
     }
 
     // ---- CH-10 — Consent state-machine impls (D-new-05 closure) ------

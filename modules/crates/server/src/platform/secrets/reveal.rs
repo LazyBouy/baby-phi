@@ -89,12 +89,14 @@ pub async fn reveal_secret(
         agent: input.actor,
         current_org: None,
         current_project: None,
+        current_session: None,
         agent_grants: &agent_grants,
         project_grants: &[],
         org_grants: &[],
         ceiling_grants: &[],
         catalogue: &catalogue,
         consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         call,
@@ -239,6 +241,21 @@ fn denial_reason_text(reason: &DeniedReason) -> String {
             fundamental,
             action,
         } => format!("scope cascade failed for `{fundamental:?}`/`{action}`"),
+        // CH-11 / ADR-0048 §D48.6 — consent-axis denials. The reveal
+        // path's text formatter never sees these in practice (the
+        // reveal manifest's grants don't carry SubordinateRequired
+        // approval modes), but the match must stay exhaustive.
+        DeniedReason::ConsentTimedOutDeny { .. } => {
+            "consent request timed out (org default: deny)".to_string()
+        }
+        DeniedReason::ConsentDeclined { .. } => {
+            "subordinate declined the consent request".to_string()
+        }
+        DeniedReason::ConsentRevoked { .. } => "consent has been revoked".to_string(),
+        DeniedReason::ConsentExpired { .. } => "consent has expired".to_string(),
+        DeniedReason::NoSessionContext { .. } => {
+            "per-session consent gate fired without a session context".to_string()
+        }
     }
 }
 
@@ -321,6 +338,7 @@ mod tests {
             delegable: true,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -332,12 +350,14 @@ mod tests {
             agent,
             current_org: None,
             current_project: None,
+            current_session: None,
             agent_grants: &grants,
             project_grants: &[],
             org_grants: &[],
             ceiling_grants: &[],
             catalogue: &catalogue,
             consents: &consents,
+            timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
@@ -363,6 +383,7 @@ mod tests {
             delegable: true,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -381,12 +402,14 @@ mod tests {
             agent,
             current_org: None,
             current_project: None,
+            current_session: None,
             agent_grants: &grants,
             project_grants: &[],
             org_grants: &[],
             ceiling_grants: &[],
             catalogue: &catalogue,
             consents: &consents,
+            timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,
@@ -415,6 +438,7 @@ mod tests {
             delegable: true,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: domain::model::ApprovalMode::Implicit,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -427,12 +451,14 @@ mod tests {
             agent,
             current_org: None,
             current_project: None,
+            current_session: None,
             agent_grants: &grants,
             project_grants: &[],
             org_grants: &[],
             ceiling_grants: &[],
             catalogue: &catalogue,
             consents: &consents,
+            timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             call,

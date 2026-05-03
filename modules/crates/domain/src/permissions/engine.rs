@@ -428,18 +428,43 @@ fn constraint_violation(resolved: &HashMap<ReachKey, ResolvedGrant>, constraint:
 }
 
 // ----------------------------------------------------------------------------
-// Step 6 — Consent gating (Templates A–D)
+// Step 6 — Consent gating (Templates A–D, Implicit / OneTime / PerSession)
 // ----------------------------------------------------------------------------
 
-/// If any winning grant was issued by a Template-A/B/C/D Auth Request, the
-/// target subordinate must have an `Acknowledged` consent under the
-/// issuing org. Missing consent → `Pending`, not `Denied`.
+/// Step 6 — Consent gating real body (CH-11 / ADR-0048 §D48.5 + §D48.6).
 ///
-/// For M1, the caller injects the "template-gated" Auth Request ids via
-/// [`CheckContext::template_gated_auth_requests`] — an empty set
-/// effectively skips Step 6, which is the correct M1 behaviour because
-/// bootstrap grants are not template-sourced. P4/M3 wires Template
-/// provenance through.
+/// For each winning grant, branch on `winner.grant.approval_mode`:
+///
+/// - [`crate::model::ApprovalMode::Implicit`] — no consent gate; the
+///   grant is auto-Acknowledged at issue time. Continue.
+/// - [`crate::model::ApprovalMode::SubordinateRequired`] with carried
+///   policy:
+///   - [`crate::model::ConsentPolicy::Implicit`] — auto-Acknowledged at
+///     agent creation; no runtime gate. Continue.
+///   - [`crate::model::ConsentPolicy::OneTime`] — look up
+///     `(target, org, None)` in [`crate::permissions::manifest::ConsentIndex`].
+///     Apply the §D48.6 response table.
+///   - [`crate::model::ConsentPolicy::PerSession`] — look up
+///     `(target, org, current_session)`. If `current_session` is
+///     `None`, return `Decision::Denied(NoSessionContext)` — the
+///     launch handler is responsible for populating the session
+///     ambient-context.
+/// - [`crate::model::ApprovalMode::HumanApprovalRequired`] —
+///   placeholder for forward-compat. Returns
+///   `Decision::Pending(AwaitingConsent)` with a marker; no real
+///   handling at CH-11.
+///
+/// **Back-compat**: the [`CheckContext::template_gated_auth_requests`]
+/// field is preserved. Pre-CH-11 callers that haven't been migrated to
+/// `ApprovalMode` continue to work because every pre-CH-11 grant
+/// decodes as `ApprovalMode::Implicit` (via `#[serde(default)]`), so
+/// the new branch falls through. When the new code observes
+/// `ApprovalMode::Implicit`, it consults
+/// `template_gated_auth_requests` as a fallback gate so the existing
+/// M1 acceptance tests
+/// (`engine_returns_pending_when_template_gated_grant_lacks_consent`,
+/// `engine_allows_template_gated_grant_when_consent_present`) keep
+/// passing without code modification.
 pub fn step_6_consent_gating(
     resolved: &HashMap<ReachKey, ResolvedGrant>,
     ctx: &CheckContext<'_>,
@@ -447,20 +472,141 @@ pub fn step_6_consent_gating(
     let target = ctx.call.target_agent?;
     let org = consent_org_for_ctx(ctx)?;
     for winner in resolved.values() {
-        if !winner_requires_consent(winner, ctx) {
-            continue;
+        if let Some(d) = step_6_evaluate_winner(winner, target, org, ctx) {
+            return Some(d);
         }
-        if ctx.consents.is_acknowledged(target, org) {
-            continue;
+    }
+    None
+}
+
+/// Evaluate Step 6 for a single winning grant.
+///
+/// Returns `Some(decision)` to short-circuit (`Pending` or `Denied`),
+/// or `None` to continue evaluation against the remaining winners.
+fn step_6_evaluate_winner(
+    winner: &ResolvedGrant,
+    target: AgentId,
+    org: OrgId,
+    ctx: &CheckContext<'_>,
+) -> Option<Decision> {
+    use crate::model::{ApprovalMode, ConsentPolicy};
+
+    match &winner.grant.approval_mode {
+        ApprovalMode::Implicit => {
+            // CH-11 back-compat: M1 callers route consent gating
+            // through `template_gated_auth_requests` and the engine
+            // hadn't seen `ApprovalMode` yet. Every pre-CH-11 grant
+            // decodes as `Implicit`; if the legacy gate fires for this
+            // grant, route through the legacy single-state predicate.
+            if winner_requires_legacy_template_consent(winner, ctx)
+                && !ctx.consents.is_acknowledged(target, org)
+            {
+                return Some(Decision::Pending {
+                    awaiting_consent: AwaitingConsent {
+                        subordinate: target,
+                        org,
+                    },
+                });
+            }
+            None
         }
-        return Some(Decision::Pending {
+        ApprovalMode::SubordinateRequired { policy } => match policy {
+            ConsentPolicy::Implicit => None,
+            ConsentPolicy::OneTime => {
+                step_6_response_table(ctx.consents.lookup(target, org, None), target, org, ctx)
+            }
+            ConsentPolicy::PerSession => match ctx.current_session {
+                None => Some(Decision::Denied {
+                    failed_step: FailedStep::Consent,
+                    reason: DeniedReason::NoSessionContext {
+                        subordinate: target,
+                        org,
+                    },
+                }),
+                Some(session_id) => step_6_response_table(
+                    ctx.consents.lookup(target, org, Some(session_id)),
+                    target,
+                    org,
+                    ctx,
+                ),
+            },
+        },
+        ApprovalMode::HumanApprovalRequired => Some(Decision::Pending {
             awaiting_consent: AwaitingConsent {
                 subordinate: target,
                 org,
             },
-        });
+        }),
     }
-    None
+}
+
+/// Map a consent-state lookup result to a [`Decision`] per the CH-11
+/// §D48.6 response table:
+///
+/// | Lookup | Decision |
+/// |---|---|
+/// | `Acknowledged` | `None` (proceed to Allow) |
+/// | not present | `Pending(AwaitingConsent)` (mint at handler) |
+/// | `Requested` | `Pending(AwaitingConsent)` |
+/// | `TimedOut` + `default = Deny` | `Denied(ConsentTimedOutDeny)` |
+/// | `TimedOut` + `default = Allow` | `None` (proceed to Allow) |
+/// | `Declined` | `Denied(ConsentDeclined)` |
+/// | `Revoked` | `Denied(ConsentRevoked)` |
+/// | `Expired` | `Denied(ConsentExpired)` |
+fn step_6_response_table(
+    state: Option<crate::model::nodes::ConsentState>,
+    target: AgentId,
+    org: OrgId,
+    ctx: &CheckContext<'_>,
+) -> Option<Decision> {
+    use crate::model::nodes::{ConsentState, TimeoutResponse};
+
+    match state {
+        None => Some(Decision::Pending {
+            awaiting_consent: AwaitingConsent {
+                subordinate: target,
+                org,
+            },
+        }),
+        Some(ConsentState::Acknowledged) => None,
+        Some(ConsentState::Requested) => Some(Decision::Pending {
+            awaiting_consent: AwaitingConsent {
+                subordinate: target,
+                org,
+            },
+        }),
+        Some(ConsentState::TimedOut) => match ctx.timeout_default_response {
+            TimeoutResponse::Deny => Some(Decision::Denied {
+                failed_step: FailedStep::Consent,
+                reason: DeniedReason::ConsentTimedOutDeny {
+                    subordinate: target,
+                    org,
+                },
+            }),
+            TimeoutResponse::Allow => None,
+        },
+        Some(ConsentState::Declined) => Some(Decision::Denied {
+            failed_step: FailedStep::Consent,
+            reason: DeniedReason::ConsentDeclined {
+                subordinate: target,
+                org,
+            },
+        }),
+        Some(ConsentState::Revoked) => Some(Decision::Denied {
+            failed_step: FailedStep::Consent,
+            reason: DeniedReason::ConsentRevoked {
+                subordinate: target,
+                org,
+            },
+        }),
+        Some(ConsentState::Expired) => Some(Decision::Denied {
+            failed_step: FailedStep::Consent,
+            reason: DeniedReason::ConsentExpired {
+                subordinate: target,
+                org,
+            },
+        }),
+    }
 }
 
 /// Which org's policy governs consent for this check? For M1 the agent's
@@ -469,10 +615,12 @@ fn consent_org_for_ctx(ctx: &CheckContext<'_>) -> Option<OrgId> {
     ctx.current_org
 }
 
-/// Is this winning grant template-gated for consent? The caller tells the
-/// engine via `CheckContext::template_gated_auth_requests` — a hook that
-/// stays empty in M1 and is populated in M3 when Templates A–D wire in.
-fn winner_requires_consent(winner: &ResolvedGrant, ctx: &CheckContext<'_>) -> bool {
+/// Legacy CH-11 back-compat: is this winner caught by the M1
+/// `template_gated_auth_requests` set? Used only for grants whose
+/// `ApprovalMode` is `Implicit` (the pre-CH-11 default), so existing
+/// callers that route consent through the legacy hook still work
+/// unchanged. New code SHOULD populate `approval_mode` instead.
+fn winner_requires_legacy_template_consent(winner: &ResolvedGrant, ctx: &CheckContext<'_>) -> bool {
     match winner.grant.descends_from {
         Some(ar_id) => ctx.template_gated_auth_requests.contains(&ar_id),
         None => false,
@@ -533,6 +681,7 @@ mod tests {
             delegable: false,
             issued_at: Utc::now(),
             revoked_at: None,
+            approval_mode: crate::model::ApprovalMode::Implicit,
         }
     }
 
@@ -540,12 +689,14 @@ mod tests {
         agent: AgentId,
         org: Option<OrgId>,
         project: Option<ProjectId>,
+        session: Option<crate::model::ids::SessionId>,
         agent_grants: Vec<Grant>,
         project_grants: Vec<Grant>,
         org_grants: Vec<Grant>,
         ceiling_grants: Vec<Grant>,
         catalogue: StaticCatalogue,
         consents: ConsentIndex,
+        timeout_default_response: crate::model::TimeoutResponse,
         template_gated: HashSet<crate::model::ids::AuthRequestId>,
     }
 
@@ -555,12 +706,14 @@ mod tests {
                 agent: AgentId::new(),
                 org: None,
                 project: None,
+                session: None,
                 agent_grants: vec![],
                 project_grants: vec![],
                 org_grants: vec![],
                 ceiling_grants: vec![],
                 catalogue: StaticCatalogue::empty(),
                 consents: ConsentIndex::empty(),
+                timeout_default_response: crate::model::TimeoutResponse::Deny,
                 template_gated: HashSet::new(),
             }
         }
@@ -570,12 +723,14 @@ mod tests {
                 agent: self.agent,
                 current_org: self.org,
                 current_project: self.project,
+                current_session: self.session,
                 agent_grants: &self.agent_grants,
                 project_grants: &self.project_grants,
                 org_grants: &self.org_grants,
                 ceiling_grants: &self.ceiling_grants,
                 catalogue: &self.catalogue,
                 consents: &self.consents,
+                timeout_default_response: self.timeout_default_response,
                 template_gated_auth_requests: &self.template_gated,
                 set_ref_registry: &crate::permissions::NOOP_SET_REF_REGISTRY,
                 call,
@@ -957,5 +1112,338 @@ mod tests {
         assert_eq!(recorded.len(), 1);
         assert_eq!(recorded[0].0, "denied");
         assert_eq!(recorded[0].1.as_deref(), Some("2")); // NoGrantsHeld → Resolution.
+    }
+
+    // ------------------------------------------------------------------
+    // CH-11 / ADR-0048 §D48.5 + §D48.6 — Step 6 real-body unit tests.
+    //
+    // Each test builds a one-grant fixture whose `approval_mode` carries
+    // the policy under test, then drives the response table.
+    // ------------------------------------------------------------------
+
+    use crate::model::nodes::ConsentState;
+    use crate::model::ApprovalMode;
+    use crate::model::ConsentPolicy;
+    use crate::model::TimeoutResponse;
+
+    /// Helper: build a one-grant fixture wired for a Step-6 test under
+    /// the given approval mode. Returns (Fixture, target subordinate
+    /// agent id, org id) so the test can inject consents at will.
+    fn step_6_fixture(approval_mode: ApprovalMode) -> (Fixture, AgentId, OrgId) {
+        let mut f = Fixture::new();
+        let org = OrgId::new();
+        f.org = Some(org);
+        let mut g = grant(
+            PrincipalRef::Agent(f.agent),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        g.approval_mode = approval_mode;
+        f.agent_grants.push(g);
+        let target = AgentId::new();
+        (f, target, org)
+    }
+
+    fn one_time_call_for(target: AgentId) -> ToolCall {
+        ToolCall {
+            target_agent: Some(target),
+            ..Default::default()
+        }
+    }
+
+    // Row 1 of D48.6: Acknowledged → Allow.
+    #[test]
+    fn step_6_one_time_acknowledged_allows() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.consents =
+            ConsentIndex::from_state_map([((target, org, None), ConsentState::Acknowledged)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(d.is_allowed(), "Acknowledged must Allow, got {d:?}");
+    }
+
+    // Row 2 of D48.6: missing row → Pending.
+    #[test]
+    fn step_6_one_time_missing_consent_returns_pending() {
+        let (f, target, _org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            matches!(d, Decision::Pending { .. }),
+            "missing consent must be Pending, got {d:?}"
+        );
+    }
+
+    // Row 3 of D48.6: Requested → Pending.
+    #[test]
+    fn step_6_one_time_requested_returns_pending() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.consents = ConsentIndex::from_state_map([((target, org, None), ConsentState::Requested)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            matches!(d, Decision::Pending { .. }),
+            "Requested must be Pending, got {d:?}"
+        );
+    }
+
+    // Row 4 of D48.6: TimedOut + default Deny → Denied(ConsentTimedOutDeny).
+    #[test]
+    fn step_6_timed_out_with_deny_default_returns_denied() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.timeout_default_response = TimeoutResponse::Deny;
+        f.consents = ConsentIndex::from_state_map([((target, org, None), ConsentState::TimedOut)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        match d {
+            Decision::Denied {
+                failed_step: FailedStep::Consent,
+                reason: DeniedReason::ConsentTimedOutDeny { .. },
+            } => {}
+            other => panic!("expected Denied(ConsentTimedOutDeny), got {other:?}"),
+        }
+    }
+
+    // Row 5 of D48.6: TimedOut + default Allow → Allow.
+    #[test]
+    fn step_6_timed_out_with_allow_default_allows() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.timeout_default_response = TimeoutResponse::Allow;
+        f.consents = ConsentIndex::from_state_map([((target, org, None), ConsentState::TimedOut)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            d.is_allowed(),
+            "TimedOut + Allow default must Allow, got {d:?}"
+        );
+    }
+
+    // Row 6 of D48.6: Declined → Denied(ConsentDeclined).
+    #[test]
+    fn step_6_declined_returns_denied() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.consents = ConsentIndex::from_state_map([((target, org, None), ConsentState::Declined)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        match d {
+            Decision::Denied {
+                failed_step: FailedStep::Consent,
+                reason: DeniedReason::ConsentDeclined { .. },
+            } => {}
+            other => panic!("expected Denied(ConsentDeclined), got {other:?}"),
+        }
+    }
+
+    // Row 7 of D48.6: Revoked → Denied(ConsentRevoked).
+    #[test]
+    fn step_6_revoked_returns_denied() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.consents = ConsentIndex::from_state_map([((target, org, None), ConsentState::Revoked)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        match d {
+            Decision::Denied {
+                failed_step: FailedStep::Consent,
+                reason: DeniedReason::ConsentRevoked { .. },
+            } => {}
+            other => panic!("expected Denied(ConsentRevoked), got {other:?}"),
+        }
+    }
+
+    // Row 8 of D48.6: Expired → Denied(ConsentExpired).
+    #[test]
+    fn step_6_expired_returns_denied() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::OneTime,
+        });
+        f.consents = ConsentIndex::from_state_map([((target, org, None), ConsentState::Expired)]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        match d {
+            Decision::Denied {
+                failed_step: FailedStep::Consent,
+                reason: DeniedReason::ConsentExpired { .. },
+            } => {}
+            other => panic!("expected Denied(ConsentExpired), got {other:?}"),
+        }
+    }
+
+    // CH-11 invariant: ApprovalMode::Implicit short-circuits — even
+    // with no consent rows present and a target_agent set, the engine
+    // does not consult the index for non-template-gated grants.
+    #[test]
+    fn step_6_approval_mode_implicit_short_circuits() {
+        let (f, target, _org) = step_6_fixture(ApprovalMode::Implicit);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            d.is_allowed(),
+            "Implicit approval_mode must short-circuit Step 6 to Allow, got {d:?}"
+        );
+    }
+
+    // CH-11 invariant: PerSession-policy grant with no current_session
+    // → Denied(NoSessionContext). Catches the engine-bug case where a
+    // class-level call site forgets to populate the session ambient
+    // context for a per-session-gated grant.
+    #[test]
+    fn step_6_per_session_with_no_current_session_returns_no_session_context_denied() {
+        let (mut f, target, _org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::PerSession,
+        });
+        f.session = None;
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        match d {
+            Decision::Denied {
+                failed_step: FailedStep::Consent,
+                reason: DeniedReason::NoSessionContext { .. },
+            } => {}
+            other => panic!("expected Denied(NoSessionContext), got {other:?}"),
+        }
+    }
+
+    // Per-Session policy: a row keyed under a different session must
+    // NOT satisfy the lookup for the active session — the engine
+    // returns Pending (treating it as missing for THIS session).
+    #[test]
+    fn step_6_per_session_session_a_consent_does_not_satisfy_session_b() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::PerSession,
+        });
+        let session_a = crate::model::ids::SessionId::new();
+        let session_b = crate::model::ids::SessionId::new();
+        f.session = Some(session_b);
+        f.consents = ConsentIndex::from_state_map([(
+            (target, org, Some(session_a)),
+            ConsentState::Acknowledged,
+        )]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            matches!(d, Decision::Pending { .. }),
+            "session-A consent must NOT satisfy session-B Per-Session lookup, got {d:?}"
+        );
+    }
+
+    // Per-Session policy: an Acknowledged row keyed under the active
+    // session DOES allow.
+    #[test]
+    fn step_6_per_session_acknowledged_for_current_session_allows() {
+        let (mut f, target, org) = step_6_fixture(ApprovalMode::SubordinateRequired {
+            policy: ConsentPolicy::PerSession,
+        });
+        let session = crate::model::ids::SessionId::new();
+        f.session = Some(session);
+        f.consents = ConsentIndex::from_state_map([(
+            (target, org, Some(session)),
+            ConsentState::Acknowledged,
+        )]);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            d.is_allowed(),
+            "Per-Session Acknowledged must Allow, got {d:?}"
+        );
+    }
+
+    // ApprovalMode::HumanApprovalRequired — placeholder Pending.
+    #[test]
+    fn step_6_human_approval_required_returns_pending_with_marker() {
+        let (f, target, _org) = step_6_fixture(ApprovalMode::HumanApprovalRequired);
+        let ctx = f.ctx(one_time_call_for(target));
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            matches!(d, Decision::Pending { .. }),
+            "HumanApprovalRequired must be Pending, got {d:?}"
+        );
+    }
+
+    // Determinism property: across the cross product of
+    // (approval_mode_policy, consent_state_or_missing,
+    // timeout_default_response), running the engine twice on the same
+    // input yields the same Decision (variant, failed_step, denied
+    // reason).
+    #[test]
+    fn step_6_response_table_is_deterministic_across_combinations() {
+        let policies = [
+            ApprovalMode::SubordinateRequired {
+                policy: ConsentPolicy::OneTime,
+            },
+            ApprovalMode::SubordinateRequired {
+                policy: ConsentPolicy::PerSession,
+            },
+        ];
+        // None means "no row recorded".
+        let states: [Option<ConsentState>; 7] = [
+            None,
+            Some(ConsentState::Acknowledged),
+            Some(ConsentState::Requested),
+            Some(ConsentState::TimedOut),
+            Some(ConsentState::Declined),
+            Some(ConsentState::Revoked),
+            Some(ConsentState::Expired),
+        ];
+        let defaults = [TimeoutResponse::Deny, TimeoutResponse::Allow];
+
+        for ap in &policies {
+            for st in &states {
+                for tdr in &defaults {
+                    let (mut f, target, org) = step_6_fixture(ap.clone());
+                    f.timeout_default_response = *tdr;
+                    let session_key = match ap {
+                        ApprovalMode::SubordinateRequired {
+                            policy: ConsentPolicy::PerSession,
+                        } => {
+                            let s = crate::model::ids::SessionId::new();
+                            f.session = Some(s);
+                            Some(s)
+                        }
+                        _ => None,
+                    };
+                    if let Some(state) = st {
+                        f.consents =
+                            ConsentIndex::from_state_map([((target, org, session_key), *state)]);
+                    }
+                    let m = manifest(&[Action::Read], &["filesystem_object"]);
+                    let call = one_time_call_for(target);
+                    let ctx = f.ctx(call.clone());
+                    let d1 = check(&ctx, &m, &NoopMetrics);
+                    let ctx = f.ctx(call);
+                    let d2 = check(&ctx, &m, &NoopMetrics);
+                    assert_eq!(
+                        d1, d2,
+                        "non-deterministic Step 6 for ap={ap:?} st={st:?} tdr={tdr:?}"
+                    );
+                }
+            }
+        }
     }
 }

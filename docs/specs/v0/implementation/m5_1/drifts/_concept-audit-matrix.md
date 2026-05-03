@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-28 by Claude Code -->
+<!-- Last verified: 2026-05-03 by Claude Code (CH-11 chunk-seal: existing Per-Session-consent row in the `permissions/06` block flipped from `partially-honored` to `honored`; CH-11 / ADR-0048 evidence + D-new-17 ✓ added in the Code-evidence + Covering-drift cells. No separate ADR-0048 row was added — the Per-Session claim was already enumerated.) -->
 
 # M5.1/P2 — Concept-audit matrix
 
@@ -201,7 +201,7 @@ testable claim extracted from a concept doc.
 | 3 consent policies | Implicit / One-Time / Per-Session | honored | `ConsentPolicy` enum | — | N/A |
 | Implicit consent: auto-issue on edge | Template listeners fire | honored | listeners wired | — | N/A |
 | One-Time consent: Consent node lifecycle | Requested → Acknowledged | honored | 6-state machine + per-transition repo + sweeper shipped at CH-10 (ADR-0047) | **D-new-05** ✓ | N/A |
-| Per-Session consent: subordinate_required | Grant flag + real-time approval flow | partially-honored | Step 6 stub only | D-new-17 | N/A |
+| Per-Session consent: subordinate_required | Grant flag + real-time approval flow | honored | CH-11 shipped: `Grant.approval_mode: ApprovalMode` + engine `step_6_consent_gating` real body branches on `approval_mode × ConsentPolicy × ConsentState` per ADR-0048 D48.5/D48.6; per-policy minters + `Repository::request_consent` ship at `domain::consents::minters` + `repository.rs`; `consent.requested` audit event + `(subordinate, org, Option<session_id>)` ConsentIndex; Channel notification remains M6+ per concept-doc line 416 | **D-new-17** ✓ | N/A |
 | Consent node full field list | consent_id/agent_id/scope/state/requested_at/responded_at/revocable/provenance | honored | 11-field shape shipped at CH-09 (ADR-0045) | **D-new-04** ✓ | N/A |
 | Contractor model | base_org ceiling does not reach cross-scope | silent-in-code | no contractor-specific logic | D-new-20 | N/A |
 

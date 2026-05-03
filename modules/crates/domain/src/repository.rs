@@ -489,6 +489,43 @@ pub trait Repository: Send + Sync + 'static {
 
     async fn create_consent(&self, consent: &Consent) -> RepositoryResult<()>;
 
+    /// CH-11 / ADR-0048 §D48.9 — initial mint of a `Requested` consent.
+    /// Compound tx: CREATE the consent row + emit `consent.requested`
+    /// audit event atomically. The two writes commit together.
+    ///
+    /// The caller (engine Step 6's launch-handler integration) builds
+    /// the [`Consent`] via [`crate::consents::minters::request_one_time`]
+    /// or [`crate::consents::minters::request_per_session`] then hands
+    /// it here. The audit emitter records the actor as the subordinate
+    /// the consent is being requested *from* — the read target — so the
+    /// audit chain captures whose-consent-was-requested per row.
+    ///
+    /// Returns the audit event id; mirrors the CH-10 per-transition
+    /// methods' return shape so handlers can echo it on the wire.
+    async fn request_consent(&self, consent: &Consent) -> RepositoryResult<AuditEventId>;
+
+    /// CH-11 / ADR-0048 §D48.9 — list every consent whose
+    /// `agent_id == agent_id` (i.e., the subordinate whose consent the
+    /// row records). Used by the launch handler's
+    /// [`crate::permissions::manifest::ConsentIndex::project_from_repo`]
+    /// helper to build the `(subordinate, org, session?) -> state`
+    /// projection at Permission Check time.
+    ///
+    /// Order is unspecified; callers projecting into a HashMap key on
+    /// `(scope.org, scope.session_id)` and don't depend on iteration
+    /// order.
+    async fn list_consents_for_subordinate(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Vec<Consent>>;
+
+    /// CH-11 / ADR-0048 §D48.9 — fetch a single consent by id, or
+    /// `None` if no row exists. Used by tests + future M6+ consent-ack
+    /// handlers; the engine itself reads through the
+    /// [`crate::permissions::manifest::ConsentIndex`] projection rather
+    /// than querying per-row.
+    async fn get_consent(&self, consent_id: ConsentId) -> RepositoryResult<Option<Consent>>;
+
     // ---- CH-10 — Consent state-machine surface (D-new-05 closure) ------
     //
     // CH-10 / ADR-0047 ships five per-transition methods + one sweeper

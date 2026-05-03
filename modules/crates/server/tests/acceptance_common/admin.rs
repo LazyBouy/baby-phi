@@ -239,6 +239,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         delegable: true,
         issued_at: Utc::now(),
         revoked_at: None,
+        approval_mode: domain::model::ApprovalMode::Implicit,
     };
     // Two system agents with phi-core blueprints — the same role
     // defaults M3/P4 will assign at the real wizard.
@@ -302,6 +303,8 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         defaults_snapshot: None,
         default_model_provider: None,
         system_agents: sys_ids.to_vec(),
+        approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
+        approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
         created_at: Utc::now(),
     };
     let token_budget_pool = TokenBudgetPool::new(org_id, 1_000_000, Utc::now());

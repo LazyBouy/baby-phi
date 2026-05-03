@@ -153,6 +153,7 @@ mod tests {
                 org: OrgId::new(),
                 templates: vec![],
                 actions: vec![],
+                session_id: None,
             },
             state,
             requested_at: now,

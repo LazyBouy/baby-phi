@@ -70,16 +70,21 @@
 //! compile-time pin against rename; real continuation flows
 //! (re-runs, branches) ship at M6+.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use domain::audit::AuditEmitter;
 use domain::events::{DomainEvent, EventBus};
 use domain::model::composites_m2::ModelRuntime;
 use domain::model::composites_m5::SessionDetail;
 use domain::model::ids::{AgentId, AuditEventId, LoopId, OrgId, ProjectId, SessionId};
-use domain::model::nodes::{AgentProfile, Session, SessionGovernanceState};
-use domain::permissions::Decision;
+use domain::model::nodes::{AgentProfile, PrincipalRef, Session, SessionGovernanceState};
+use domain::model::{ApprovalTimeout, ConsentPolicy};
+use domain::permissions::{
+    check, Action, CheckContext, ConsentIndex, Decision, DeniedReason, FailedStep, Manifest,
+    NoopMetrics, StaticCatalogue, ToolCall,
+};
 use domain::session_recorder::{BabyPhiSessionRecorder, SessionLaunchContext};
 use domain::Repository;
 use phi_core::agent_loop::AgentLoopConfig;
@@ -240,6 +245,17 @@ pub async fn launch_session(
         );
     }
 
+    // Step 3.5 — CH-11 / ADR-0048 §D48.5+ — session-launch consent
+    // gating. Allocate the session id now so PerSession-policy mints
+    // can scope themselves to it. The id is also used at Step 6 for
+    // the persisted compound tx.
+    let session_id = SessionId::new();
+    if let Some(err) =
+        gate_session_launch_consent(repo.clone(), &input, session_id, input.now).await?
+    {
+        return Err(err);
+    }
+
     // Step 4 — per-agent parallelize gate (W2).
     let active_count_u32 = repo.count_active_sessions_for_agent(input.agent_id).await?;
     if active_count_u32 >= profile.parallelize {
@@ -259,8 +275,8 @@ pub async fn launch_session(
         });
     }
 
-    // Step 6 — compound tx.
-    let session_id = SessionId::new();
+    // Step 6 — compound tx. (`session_id` was allocated at Step 3.5
+    // for consent-gating scoping; reused here.)
     let phi_core_session_id = format!("sess-{}", session_id.as_uuid());
     let first_loop_id = LoopId::new();
     let config_id_segment = profile
@@ -500,4 +516,206 @@ pub async fn await_finalised_detail(
     repo.fetch_session(session_id)
         .await?
         .ok_or(SessionError::SessionNotFound(session_id))
+}
+
+/// CH-11 / ADR-0048 §D48.5 + §D48.6 — session-launch consent gating.
+///
+/// Runs the Permission Check engine with a launch-shaped synthetic
+/// manifest (`Action::Invoke` on `session`) + `target_agent =
+/// input.agent_id` (the launching subordinate) populated. Iterates the
+/// engine's response table:
+///
+/// - `Allowed` / no `Pending` returned → returns `Ok(None)`; launch
+///   continues.
+/// - `Pending(AwaitingConsent { subordinate, org })` → mints a
+///   `Requested` consent row via the matching minter
+///   ([`domain::consents::minters::request_one_time`] /
+///   [`domain::consents::minters::request_per_session`]) at the
+///   policy + deadline computed from the issuing org's
+///   `approval_timeout`, persists via
+///   [`Repository::request_consent`], returns
+///   `Ok(Some(SessionError::ConsentPending { consent_id, .. }))`.
+/// - `Denied(failed_step: Consent, reason: ...)` → returns
+///   `Ok(Some(SessionError::ConsentDenied { ... }))` without minting
+///   anything. The deny path covers `Declined / Revoked / Expired /
+///   TimedOutDeny`.
+///
+/// The engine returns `None` (i.e., not Pending and not consent
+/// Denied) for paths the launch handler doesn't gate on (ManifestEmpty,
+/// NoGrantsHeld, etc.) — those are advisory at M5 (drift D4.1) and
+/// surface only via the `preview_session` decision on the receipt.
+///
+/// `now` is `input.now`; it threads through to the deadline
+/// computation per `Org.approval_timeout` (§D48.5 + concept doc 06
+/// lines 322–347).
+async fn gate_session_launch_consent(
+    repo: Arc<dyn Repository>,
+    input: &LaunchInput,
+    session_id: SessionId,
+    now: DateTime<Utc>,
+) -> Result<Option<SessionError>, SessionError> {
+    // Project consents from the repo for the subordinate (launch
+    // target). The launch agent's `agent_id` is the subordinate at
+    // this gate — its grants are also what we evaluate against,
+    // because the subordinate's role at session launch is the principal
+    // whose grants the engine reads against.
+    let consents = ConsentIndex::project_from_repo(repo.as_ref(), input.agent_id)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+
+    // Gather grants — same projection the preview path uses.
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(input.agent_id))
+        .await?;
+    let project_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Project(input.project_id))
+        .await?;
+    let org_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Organization(input.org_id))
+        .await?;
+    let ceiling_grants: Vec<_> = org_grants.clone();
+
+    // Fetch the org for `approval_timeout` + `default_response`.
+    let org = repo.get_organization(input.org_id).await?.ok_or(
+        SessionError::AgentNotMemberOfProject {
+            agent: input.agent_id,
+            project: input.project_id,
+        },
+    )?;
+
+    // Build synthetic launch manifest. CH-11 widens the resource from
+    // the preview's `"session"` (operator-readable label) to the
+    // canonical fundamental `"identity_principal"` so the engine's
+    // Step 1 expansion produces a non-empty fundamental set + Step 5
+    // can pick a winner. The launching agent's identity is the
+    // fundamental being touched at session-launch time. With
+    // `target_agent` set to the subordinate, Step 6's consent gate
+    // fires when a winning grant carries `SubordinateRequired`.
+    let manifest = Manifest {
+        actions: vec![Action::Invoke],
+        resource: vec!["identity_principal".to_string()],
+        transitive: vec![],
+        constraints: vec![],
+        constraint_requirements: std::collections::HashMap::new(),
+        kinds: vec![],
+    };
+    let catalogue =
+        StaticCatalogue::with_entries([(Some(input.org_id), "identity_principal".to_string())]);
+    let template_gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let call = ToolCall {
+        target_agent: Some(input.agent_id),
+        ..Default::default()
+    };
+
+    let ctx = CheckContext {
+        agent: input.agent_id,
+        current_org: Some(input.org_id),
+        current_project: Some(input.project_id),
+        // CH-11 / ADR-0048 §D48.3 — populate the per-session ambient
+        // context now that we know the session id.
+        current_session: Some(session_id),
+        agent_grants: &agent_grants,
+        project_grants: &project_grants,
+        org_grants: &org_grants,
+        ceiling_grants: &ceiling_grants,
+        catalogue: &catalogue,
+        consents: &consents,
+        // CH-11 / ADR-0048 §D48.4 — the engine consults this for the
+        // `TimedOut` arm of the response table.
+        timeout_default_response: org.approval_timeout_default_response,
+        template_gated_auth_requests: &template_gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        call,
+    };
+
+    let decision = check(&ctx, &manifest, &NoopMetrics);
+
+    match decision {
+        Decision::Pending { awaiting_consent } => {
+            // §D48.5 — choose minter per org's consent_policy +
+            // compute deadline from `org.approval_timeout`.
+            let deadline_at = compute_consent_deadline(&org.approval_timeout, now);
+            let consent = match org.consent_policy {
+                ConsentPolicy::Implicit => {
+                    // Should not reach Pending under the Implicit
+                    // policy — engine short-circuits Step 6. Defend
+                    // anyway by treating as one-time.
+                    domain::consents::minters::request_one_time(
+                        awaiting_consent.subordinate,
+                        awaiting_consent.org,
+                        deadline_at,
+                    )
+                }
+                ConsentPolicy::OneTime => domain::consents::minters::request_one_time(
+                    awaiting_consent.subordinate,
+                    awaiting_consent.org,
+                    deadline_at,
+                ),
+                ConsentPolicy::PerSession => domain::consents::minters::request_per_session(
+                    awaiting_consent.subordinate,
+                    awaiting_consent.org,
+                    session_id,
+                    deadline_at,
+                ),
+            };
+            let consent_id = consent.id;
+            repo.request_consent(&consent)
+                .await
+                .map_err(|e| SessionError::Repository(e.to_string()))?;
+            Ok(Some(SessionError::ConsentPending {
+                consent_id,
+                subordinate: awaiting_consent.subordinate,
+            }))
+        }
+        Decision::Denied {
+            failed_step: FailedStep::Consent,
+            ref reason,
+        } => match reason {
+            // `NoGrantsHeld` etc. don't surface here because
+            // `failed_step == Consent`. The match is exhaustive across
+            // the consent-tagged DeniedReason variants.
+            DeniedReason::ConsentDeclined { subordinate, .. }
+            | DeniedReason::ConsentRevoked { subordinate, .. }
+            | DeniedReason::ConsentExpired { subordinate, .. }
+            | DeniedReason::ConsentTimedOutDeny { subordinate, .. }
+            | DeniedReason::NoSessionContext { subordinate, .. } => {
+                Ok(Some(SessionError::ConsentDenied {
+                    subordinate: *subordinate,
+                    reason: format!("{reason:?}"),
+                }))
+            }
+            // Any other DeniedReason flagged at FailedStep::Consent is
+            // an engine-shape bug, not a launch-time gate. Pass through
+            // as advisory denial — the M5 advisory-only policy at the
+            // preview layer covers this case for now.
+            _ => Ok(None),
+        },
+        // M5 advisory: every other denial path is logged at the
+        // preview layer (drift D4.1) — not enforced at launch time.
+        Decision::Denied { .. } | Decision::Allowed { .. } => Ok(None),
+    }
+}
+
+/// Compute the consent `deadline_at` per `Org.approval_timeout` (CH-11
+/// / ADR-0048 §D48.5; concept doc 06 lines 322–347).
+///
+/// - [`ApprovalTimeout::Fixed`] → `now + duration` exactly.
+/// - [`ApprovalTimeout::ProjectDuration`] → fall back to `now + 24h`
+///   for v0. The concept doc's "max(project.deadline_at)" behaviour
+///   for shape A/B/C is recorded as a CH-11 deferred-from-ledger entry
+///   (Project has no `deadline_at` field at this milestone). Shape D
+///   (no project) also resolves to `now + 24h` per concept doc 06 line
+///   343.
+fn compute_consent_deadline(
+    timeout: &ApprovalTimeout,
+    now: DateTime<Utc>,
+) -> Option<DateTime<Utc>> {
+    match timeout {
+        ApprovalTimeout::ProjectDuration => {
+            // v0 fallback — Project has no `deadline_at` field at this
+            // milestone (deferred-from-CH-11 ledger entry).
+            Some(now + Duration::hours(24))
+        }
+        ApprovalTimeout::Fixed { duration } => Some(now + *duration),
+    }
 }

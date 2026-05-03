@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-05-02 by Claude Code -->
+<!-- Last verified: 2026-05-03 by Claude Code (CH-11-d5428c43 cycle complete; awaiting user commit) -->
 
 # Cycle index — baby-phi multi-agent chunk pipeline
 
@@ -10,7 +10,7 @@ Pointer index for hex-tagged cycles under this directory. Each row points to a c
 
 | Hex | Slug | Phases | Auditors | Iterations | Status | Retro |
 |---|---|---|---|---|---|---|
-| _none yet — first folder-style cycle will be the next chunk landed under the new system_ | | | | | | |
+| [`d5428c43`](ch-11-per-session-consent-gating-d5428c43/plan.md) | CH-11 — Per-Session consent gating | 4 | 2 (audit envelope: medium) | 1 (Trivial-1L orchestrator inline patch) | `retro-complete` (cycle GREEN; awaiting user commit) | [retrospective](ch-11-per-session-consent-gating-d5428c43/retrospective.md) |
 
 ## Legacy cycles (flat-file, pre-multi-agent)
 

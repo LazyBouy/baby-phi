@@ -102,6 +102,31 @@ pub fn denial_to_api_error(
         } => {
             format!("scope cascade could not pick a winner for `{fundamental:?}`/`{action}`")
         }
+        // CH-11 / ADR-0048 §D48.6 — consent-axis denials produced by
+        // the engine's Step 6 real body. The launch handler at P3
+        // surfaces these to operators via dedicated codes; until that
+        // wiring lands, the generic denial path renders a readable
+        // message + maps to the Consent FailedStep below.
+        DeniedReason::ConsentTimedOutDeny {
+            subordinate: _,
+            org: _,
+        } => "consent request timed out and the org's default response is `deny`".to_string(),
+        DeniedReason::ConsentDeclined {
+            subordinate: _,
+            org: _,
+        } => "subordinate declined the consent request".to_string(),
+        DeniedReason::ConsentRevoked {
+            subordinate: _,
+            org: _,
+        } => "subordinate revoked consent for this scope".to_string(),
+        DeniedReason::ConsentExpired {
+            subordinate: _,
+            org: _,
+        } => "consent record has expired".to_string(),
+        DeniedReason::NoSessionContext {
+            subordinate: _,
+            org: _,
+        } => "per-session consent gate fired without a session ambient context".to_string(),
     };
 
     match failed_step {

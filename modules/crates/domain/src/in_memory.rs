@@ -410,6 +410,55 @@ impl Repository for InMemoryRepository {
         Ok(())
     }
 
+    // ---- CH-11 — initial mint (request_consent) + read methods ----------
+
+    async fn request_consent(
+        &self,
+        consent: &Consent,
+    ) -> RepositoryResult<crate::model::ids::AuditEventId> {
+        let mut state = self.lock()?;
+        // Compound tx: insert the row + emit the audit event atomically.
+        // The mutex keeps the two writes ordered + observable to readers
+        // as a unit. Mirrors the per-transition pattern from CH-10.
+        let audit_event = crate::audit::events::m5::consents::consent_requested(
+            // The actor is the subordinate from whom the consent is
+            // being requested — the read target. Mirrors the CH-10
+            // per-transition methods: the subordinate's id is the
+            // canonical actor for consent audit events.
+            consent.agent_id,
+            consent.scope.org,
+            consent.id,
+            consent.agent_id,
+            consent.scope.session_id,
+            consent.deadline_at,
+            consent.requested_at,
+        );
+        let audit_id = audit_event.event_id;
+        state.consents.insert(consent.id, consent.clone());
+        state.audit_events.push(audit_event);
+        Ok(audit_id)
+    }
+
+    async fn list_consents_for_subordinate(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Vec<Consent>> {
+        Ok(self
+            .lock()?
+            .consents
+            .values()
+            .filter(|c| c.agent_id == agent_id)
+            .cloned()
+            .collect())
+    }
+
+    async fn get_consent(
+        &self,
+        consent_id: crate::model::ids::ConsentId,
+    ) -> RepositoryResult<Option<Consent>> {
+        Ok(self.lock()?.consents.get(&consent_id).cloned())
+    }
+
     // ---- CH-10 — Consent state-machine impls (D-new-05 closure) ------
 
     async fn acknowledge_consent(
