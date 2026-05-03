@@ -1,14 +1,15 @@
-<!-- Last verified: 2026-05-03 by Claude Code -->
+<!-- Last verified: 2026-05-03 by Claude Code (added row for 18564835; 478b9384 status flipped to "Accepted (extended by 18564835)") -->
 
 # Permissions design docs
 
-Index of permission-policy / hook design documents that govern how Claude Code interacts with the `/root/projects/phi/` project. These are **policy** docs — they describe how the agent's tool calls are gated (allow rules, deny rules, defaultMode, hooks).
+Index of permission-policy / hook design documents that govern how Claude Code interacts with the `/root/projects/phi/` project. These are **policy** docs — they describe how the agent's tool calls are gated (allow rules, deny rules, defaultMode, hooks, telemetry, audits).
 
 ## Active design
 
 | Hex | Title | Date | Status |
 |---|---|---|---|
-| `478b9384` | [Project permissions hardening — settings.json + hooks](project-permissions-hardening-478b9384.md) | 2026-05-03 | Accepted |
+| `18564835` | [Tool-use logging + permissions-audit skill — closing the feedback loop](tool-use-logging-and-permissions-audit-skill-18564835.md) | 2026-05-03 | Accepted |
+| `478b9384` | [Project permissions hardening — settings.json + hooks](project-permissions-hardening-478b9384.md) | 2026-05-03 | Accepted (extended by `18564835`) |
 
 ## Conventions
 
