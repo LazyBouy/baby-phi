@@ -32,12 +32,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::audit::AuditEmitter;
+use crate::audit::{AuditClass, AuditEmitter};
 use crate::events::{DomainEvent, EventHandler};
 use crate::model::composites_m5::{AgentCatalogEntry, SystemAgentRuntimeStatus};
 use crate::model::ids::{
     AgentCatalogEntryId, AgentId, AuthRequestId, OrgId, ProjectId, SystemAgentRuntimeStatusId,
 };
+use crate::permissions::compose_audit_class_with_source;
 use crate::templates::a::{fire_grant_on_lead_assignment, FireArgs};
 use crate::Repository;
 
@@ -116,6 +117,80 @@ pub async fn record_system_agent_fire(
             "record_system_agent_fire: upsert failed — runtime-status tile stale",
         );
     }
+}
+
+/// Resolve the strictest-wins composed [`AuditClass`] for a fire
+/// listener (CH-13 / ADR-0050 §D50.5).
+///
+/// Reads the org's `audit_class_default` + the adoption AR's
+/// `audit_class` from the repository, then folds them through
+/// [`compose_audit_class_with_source`] with no per-Grant override
+/// (Templates A/C/D do not currently supply one; reserved for
+/// forward-scope templates).
+///
+/// Fail-safe semantics (ADR-0028): a repo error or a missing-row
+/// hit logs at WARN and returns `None`, in which case the listener
+/// falls back to `(AuditClass::Silent, AuditClassSource::OrgDefault)`
+/// — the loosest class is the safest default for the
+/// "row not found" path because it avoids accidentally escalating
+/// audit volume on a degraded read path. Concept-doc 07 line 71's
+/// no-silent-downgrade invariant only applies to the **happy** path
+/// (both rows present); a missing-row hit is structural divergence,
+/// not a downgrade decision.
+async fn resolve_composed_audit_class(
+    repo: &dyn Repository,
+    org: OrgId,
+    adoption_ar_id: AuthRequestId,
+) -> (AuditClass, crate::permissions::AuditClassSource) {
+    let org_default = match repo.get_organization(org).await {
+        Ok(Some(o)) => o.audit_class_default,
+        Ok(None) => {
+            tracing::warn!(
+                org = %org,
+                "resolve_composed_audit_class: organization row not found; falling back to Silent",
+            );
+            return (
+                AuditClass::Silent,
+                crate::permissions::AuditClassSource::OrgDefault,
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                org = %org,
+                error = %e,
+                "resolve_composed_audit_class: repo.get_organization failed; falling back to Silent",
+            );
+            return (
+                AuditClass::Silent,
+                crate::permissions::AuditClassSource::OrgDefault,
+            );
+        }
+    };
+
+    let template_ar = match repo.get_auth_request(adoption_ar_id).await {
+        Ok(Some(ar)) => ar.audit_class,
+        Ok(None) => {
+            tracing::warn!(
+                adoption_ar_id = %adoption_ar_id,
+                "resolve_composed_audit_class: adoption AR row not found; \
+                 composing without template_ar candidate",
+            );
+            // Treat missing template_ar as `Silent` so it never wins
+            // strictest-of-three: the org default decides alone.
+            AuditClass::Silent
+        }
+        Err(e) => {
+            tracing::warn!(
+                adoption_ar_id = %adoption_ar_id,
+                error = %e,
+                "resolve_composed_audit_class: repo.get_auth_request failed; \
+                 composing without template_ar candidate",
+            );
+            AuditClass::Silent
+        }
+    };
+
+    compose_audit_class_with_source(org_default, template_ar, None)
 }
 
 /// Reactive subscriber that fires the Template A lead grant every
@@ -220,11 +295,19 @@ impl EventHandler for TemplateAFireListener {
                 };
 
                 let now = Utc::now();
+                // CH-13 / ADR-0050 §D50.5 — strictest-wins composed
+                // audit class over (org_default, template_ar, None).
+                // Production Templates A/C/D do not supply per-Grant
+                // overrides today; reserved for forward-scope.
+                let (resolved_class, audit_class_source) =
+                    resolve_composed_audit_class(self.repo.as_ref(), org, adoption_ar).await;
+
                 let grant = fire_grant_on_lead_assignment(FireArgs {
                     project: *project,
                     lead: *lead,
                     adoption_auth_request_id: adoption_ar,
                     now,
+                    audit_class: resolved_class,
                 });
                 let grant_id = grant.id;
 
@@ -252,6 +335,8 @@ impl EventHandler for TemplateAFireListener {
                     *lead,
                     grant_id,
                     adoption_ar,
+                    resolved_class,
+                    audit_class_source,
                     now,
                 );
                 if let Err(e) = self.audit.emit(audit_event).await {
@@ -343,12 +428,17 @@ impl EventHandler for TemplateCFireListener {
         };
 
         let now = Utc::now();
+        // CH-13 / ADR-0050 §D50.5 — strictest-wins composed audit class.
+        let (resolved_class, audit_class_source) =
+            resolve_composed_audit_class(self.repo.as_ref(), *org_id, adoption_ar).await;
+
         let grant =
             crate::templates::c::fire_grant_on_manages_edge(crate::templates::c::FireArgs {
                 manager: *manager,
                 subordinate: *subordinate,
                 adoption_auth_request_id: adoption_ar,
                 now,
+                audit_class: resolved_class,
             });
         let grant_id = grant.id;
 
@@ -369,6 +459,8 @@ impl EventHandler for TemplateCFireListener {
             *subordinate,
             grant_id,
             adoption_ar,
+            resolved_class,
+            audit_class_source,
             now,
         );
         if let Err(e) = self.audit.emit(audit_event).await {
@@ -455,6 +547,10 @@ impl EventHandler for TemplateDFireListener {
         };
 
         let now = Utc::now();
+        // CH-13 / ADR-0050 §D50.5 — strictest-wins composed audit class.
+        let (resolved_class, audit_class_source) =
+            resolve_composed_audit_class(self.repo.as_ref(), org, adoption_ar).await;
+
         let grant = crate::templates::d::fire_grant_on_has_agent_supervisor(
             crate::templates::d::FireArgs {
                 project: *project_id,
@@ -462,6 +558,7 @@ impl EventHandler for TemplateDFireListener {
                 supervisee: *supervisee,
                 adoption_auth_request_id: adoption_ar,
                 now,
+                audit_class: resolved_class,
             },
         );
         let grant_id = grant.id;
@@ -484,6 +581,8 @@ impl EventHandler for TemplateDFireListener {
             *supervisee,
             grant_id,
             adoption_ar,
+            resolved_class,
+            audit_class_source,
             now,
         );
         if let Err(e) = self.audit.emit(audit_event).await {
@@ -1483,6 +1582,371 @@ mod tests {
         ))
         .await;
         assert!(audit.events.lock().unwrap().is_empty());
+    }
+
+    // ========================================================================
+    // CH-13 P2 — strictest-wins audit-class composition wired through
+    // the 3 production fire listeners. ADR-0050 §D50.5 +
+    // concept-doc-07 §"audit_class Composition Through Templates" lines
+    // 63–71. These tests pin the listener-level honoring of:
+    //   - line 67 strictest-of-three ordering
+    //   - line 69 audit_class_source attribution in the diff
+    //   - line 71 no-silent-downgrade when org default is Alerted
+    // ========================================================================
+
+    /// Persist an [`Organization`] with the supplied `audit_class_default`
+    /// so the listeners' `repo.get_organization(...)` lookup hits a row
+    /// instead of falling back to the missing-row default.
+    async fn seed_organization(
+        repo: &Arc<dyn Repository>,
+        org_id: OrgId,
+        audit_class_default: crate::audit::AuditClass,
+    ) {
+        let org = crate::model::nodes::Organization {
+            id: org_id,
+            display_name: "ch13-test-org".to_string(),
+            vision: None,
+            mission: None,
+            consent_policy: crate::model::ConsentPolicy::Implicit,
+            audit_class_default,
+            authority_templates_enabled: vec![],
+            defaults_snapshot: None,
+            default_model_provider: None,
+            system_agents: vec![],
+            approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
+            approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
+            created_at: Utc::now(),
+        };
+        repo.create_organization(&org).await.unwrap();
+    }
+
+    /// Persist an [`AuthRequest`] mimicking a template-adoption AR
+    /// with the supplied `audit_class`. Mirrors the production
+    /// `templates::adoption::build_adoption_request` shape closely
+    /// enough for the listener's `audit_class` read (the composer
+    /// only consults that one field).
+    async fn seed_adoption_ar(
+        repo: &Arc<dyn Repository>,
+        ar_id: AuthRequestId,
+        org_id: OrgId,
+        ceo: AgentId,
+        audit_class: crate::audit::AuditClass,
+    ) {
+        use crate::model::nodes::{
+            AuthRequest, AuthRequestState, PrincipalRef, ResourceRef, ResourceSlot,
+            ResourceSlotState,
+        };
+        let now = Utc::now();
+        let ar = AuthRequest {
+            id: ar_id,
+            requestor: PrincipalRef::Agent(ceo),
+            kinds: vec!["#template:a".to_string(), "#kind:control_plane".to_string()],
+            scope: vec![format!("org:{}", org_id)],
+            state: AuthRequestState::Approved,
+            valid_until: None,
+            submitted_at: now,
+            resource_slots: vec![ResourceSlot {
+                resource: ResourceRef {
+                    uri: format!("org:{}/template:a", org_id),
+                },
+                approvers: vec![],
+                state: ResourceSlotState::Approved,
+            }],
+            justification: Some("ch13 test adoption".to_string()),
+            audit_class,
+            terminal_state_entered_at: Some(now),
+            archived: false,
+            active_window_days: 365,
+            provenance_template: None,
+            tags: vec![],
+        };
+        repo.create_auth_request(&ar).await.unwrap();
+    }
+
+    /// CH-13 / concept-doc-07 line 67 — TemplateA: org default supplies
+    /// the winning class; both candidates Alerted (org) and Logged
+    /// (template_ar) → resolved Alerted, source `org_default`. (Tie at
+    /// strictest is impossible here; org wins outright.)
+    #[tokio::test]
+    async fn template_a_listener_org_default_wins_when_strictest() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let project = ProjectId::new();
+        let lead = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Alerted).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Logged).await;
+
+        let listener = Arc::new(TemplateAFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticAdoption(Some((org, adoption_ar)))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(sample_event(project, lead)).await;
+
+        // Grant carries the resolved class.
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+
+        // Audit event carries class + source.
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "org_default");
+    }
+
+    /// CH-13 / concept-doc-07 line 67 — TemplateC: same shape on the
+    /// `MANAGES` edge listener.
+    #[tokio::test]
+    async fn template_c_listener_org_default_wins_when_strictest() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let manager = AgentId::new();
+        let subordinate = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Alerted).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Logged).await;
+
+        let listener = Arc::new(TemplateCFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticOrgAdoption(Some(adoption_ar))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(manages_edge_event(org, manager, subordinate))
+            .await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(manager))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "org_default");
+    }
+
+    /// CH-13 / concept-doc-07 line 67 — TemplateD: same shape on the
+    /// `HAS_AGENT_SUPERVISOR` edge listener.
+    #[tokio::test]
+    async fn template_d_listener_org_default_wins_when_strictest() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let project = ProjectId::new();
+        let supervisor = AgentId::new();
+        let supervisee = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Alerted).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Logged).await;
+
+        let listener = Arc::new(TemplateDFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticDAdoption(Some((org, adoption_ar)))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(has_agent_supervisor_event(project, supervisor, supervisee))
+            .await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(supervisor))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "org_default");
+    }
+
+    /// CH-13 / concept-doc-07 line 67 — TemplateA: template_ar wins
+    /// when org default is Logged + adoption AR is Alerted (the
+    /// production-default adoption AR per `templates/adoption.rs:109`
+    /// uses Alerted). Source attribution is `template_ar`.
+    #[tokio::test]
+    async fn template_a_listener_template_ar_wins_when_strictest() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let project = ProjectId::new();
+        let lead = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Logged).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Alerted).await;
+
+        let listener = Arc::new(TemplateAFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticAdoption(Some((org, adoption_ar)))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(sample_event(project, lead)).await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "template_ar");
+    }
+
+    /// CH-13 / concept-doc-07 line 67 — TemplateC: template_ar wins.
+    #[tokio::test]
+    async fn template_c_listener_template_ar_wins_when_strictest() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let manager = AgentId::new();
+        let subordinate = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Logged).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Alerted).await;
+
+        let listener = Arc::new(TemplateCFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticOrgAdoption(Some(adoption_ar))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(manages_edge_event(org, manager, subordinate))
+            .await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(manager))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "template_ar");
+    }
+
+    /// CH-13 / concept-doc-07 line 67 — TemplateD: template_ar wins.
+    #[tokio::test]
+    async fn template_d_listener_template_ar_wins_when_strictest() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let project = ProjectId::new();
+        let supervisor = AgentId::new();
+        let supervisee = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Logged).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Alerted).await;
+
+        let listener = Arc::new(TemplateDFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticDAdoption(Some((org, adoption_ar)))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(has_agent_supervisor_event(project, supervisor, supervisee))
+            .await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(supervisor))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "template_ar");
+    }
+
+    /// CH-13 / concept-doc-07 line 71 — no-silent-downgrade canonical
+    /// compliance posture. Org compliance posture is Alerted; the
+    /// production-default adoption AR is Alerted. The composed result
+    /// MUST be Alerted (never silently downgraded by the listener
+    /// path). The tie-breaker per ADR-0050 §D50.3 awards the source
+    /// to `template_ar` (more specific than `org_default`).
+    #[tokio::test]
+    async fn template_a_listener_no_silent_downgrade_when_org_alerted() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let ceo = AgentId::new();
+        let project = ProjectId::new();
+        let lead = AgentId::new();
+
+        seed_organization(&repo, org, AuditClass::Alerted).await;
+        seed_adoption_ar(&repo, adoption_ar, org, ceo, AuditClass::Alerted).await;
+
+        let listener = Arc::new(TemplateAFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticAdoption(Some((org, adoption_ar)))),
+            Arc::new(StaticActor(Some(ceo))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(sample_event(project, lead)).await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(
+            grants[0].audit_class,
+            AuditClass::Alerted,
+            "concept-doc-07 line 71: org default Alerted MUST flow through to Grant"
+        );
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].audit_class, AuditClass::Alerted);
+        // Tie-breaker: org and template_ar both Alerted; more-specific
+        // source (template_ar) wins per ADR-0050 §D50.3.
+        assert_eq!(events[0].diff["after"]["audit_class_source"], "template_ar");
     }
 
     // ========================================================================

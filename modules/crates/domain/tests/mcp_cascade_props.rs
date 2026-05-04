@@ -94,6 +94,7 @@ fn grant_for_ar(holder: AgentId, ar_id: AuthRequestId) -> Grant {
         issued_at: Utc::now(),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     }
 }
 

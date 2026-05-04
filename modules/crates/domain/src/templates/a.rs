@@ -30,6 +30,7 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::audit::AuditClass;
 use crate::model::ids::{AgentId, AuthRequestId, GrantId, ProjectId};
 use crate::model::nodes::{AuthRequest, Grant, PrincipalRef, ResourceRef, TemplateKind};
 
@@ -65,6 +66,15 @@ pub struct FireArgs {
     /// Wall-clock time for `issued_at`. Injected so tests can pin
     /// deterministic timestamps.
     pub now: DateTime<Utc>,
+    /// CH-13 / ADR-0050 §D50.5 — strictest-wins composed
+    /// [`AuditClass`] for the minted Grant. The P2 listener wiring
+    /// computes this from
+    /// [`crate::permissions::compose_audit_class_with_source`] over
+    /// (org_default, template_ar, optional_override) and passes it
+    /// through to the pure-fn at fire time. Pure-fn discipline
+    /// preserved (no I/O, no Repository — composition happens above
+    /// the pure-fn boundary in the listener body).
+    pub audit_class: AuditClass,
 }
 
 /// Build the `[read, inspect, list]` Grant for the lead on
@@ -96,6 +106,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         lead,
         adoption_auth_request_id,
         now,
+        audit_class,
     } = args;
     Grant {
         id: GrantId::new(),
@@ -114,6 +125,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         issued_at: now,
         revoked_at: None,
         approval_mode: crate::model::ApprovalMode::Implicit,
+        audit_class,
     }
 }
 
@@ -155,6 +167,7 @@ mod tests {
             lead: AgentId::new(),
             adoption_auth_request_id: AuthRequestId::new(),
             now: Utc::now(),
+            audit_class: AuditClass::Silent,
         }
     }
 

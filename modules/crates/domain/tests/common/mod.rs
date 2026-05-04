@@ -9,6 +9,7 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::{Duration, TimeZone, Utc};
+use domain::audit::AuditClass;
 use domain::model::ids::{AgentId, AuthRequestId, GrantId, OrgId, ProjectId};
 use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
 use domain::model::Fundamental;
@@ -100,6 +101,7 @@ pub fn grant_on(holder: PrincipalRef, actions: &[Action], resource_uri: &str) ->
         issued_at: ts(0),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     }
 }
 
@@ -156,6 +158,7 @@ pub fn any_agent_grant(agent: AgentId) -> impl Strategy<Value = Grant> {
         issued_at: ts(0),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     })
 }
 

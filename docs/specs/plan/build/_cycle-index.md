@@ -1,4 +1,6 @@
-<!-- Last verified: 2026-05-04 by Claude Code (CH-12-6a748175 status flipped ready-for-audit → retro-complete after Audit A GREEN + Audit B iter 2 GREEN + orchestrator final cycle re-audit GREEN + retrospective written + 7 standards updates applied + D-CH12-FOLLOWUP-01 filed; iteration count flipped 1 → 2 reflecting Audit B re-spawn for Trivial-multi paperwork patch) -->
+<!-- Last verified: 2026-05-04 by Claude Code (CH-13-d4fe1b7c status flipped ready-for-audit → retro-complete after Audit A iter 1 GREEN + Audit B iter 1 TRIVIAL FAIL→ 2 Trivial-1L orchestrator inline patches at gate 4 + orchestrator final cycle re-audit GREEN + retrospective written + 6 standards updates applied + D-CH13-FOLLOWUP-01 filed; iteration count stays 1 — Trivial-1L per CLAUDE.md does NOT re-spawn auditors) -->
+<!-- Last verified: 2026-05-04 by Claude Code (CH-13-d4fe1b7c row status flipped from `in-flight` to `ready-for-audit` at P3 close; iteration count remains 1; P0+P1+P2+P3 deliverables shipped per plan; chunk-implementer handed off to orchestrator for sub-agent audit dispatch.) -->
+<!-- Last verified: 2026-05-04 by Claude Code (CH-13-d4fe1b7c row appended at chunk-open; status `in-flight`; folder `ch-13-audit-class-composition-strictest-wins-d4fe1b7c/` created via chunk-archive-plan skill; planner draft archived to plan.md verbatim) -->
 
 # Cycle index — baby-phi multi-agent chunk pipeline
 
@@ -12,6 +14,7 @@ Pointer index for hex-tagged cycles under this directory. Each row points to a c
 |---|---|---|---|---|---|---|
 | [`d5428c43`](ch-11-per-session-consent-gating-d5428c43/plan.md) | CH-11 — Per-Session consent gating | 4 | 2 (audit envelope: medium) | 1 (Trivial-1L orchestrator inline patch) | `retro-complete` (cycle GREEN; awaiting user commit) | [retrospective](ch-11-per-session-consent-gating-d5428c43/retrospective.md) |
 | [`6a748175`](ch-12-frozen-session-tag-immutability-6a748175/plan.md) | CH-12 — Frozen session-tag immutability | 3 | 2 (audit envelope: medium) | 2 (Trivial-multi audit-fix re-spawn for `_concept-audit-matrix.md` row 191) | `retro-complete` (cycle GREEN; awaiting user commit) | [retrospective](ch-12-frozen-session-tag-immutability-6a748175/retrospective.md) |
+| [`d4fe1b7c`](ch-13-audit-class-composition-strictest-wins-d4fe1b7c/plan.md) | CH-13 — `audit_class` composition (strictest wins) | 4 | 2 (audit envelope: medium) | 1 (2 Trivial-1L orchestrator inline patches on ADR-0050; no auditor re-spawn per CLAUDE.md trivial split) | `retro-complete` (cycle GREEN; awaiting user commit) | [retrospective](ch-13-audit-class-composition-strictest-wins-d4fe1b7c/retrospective.md) |
 
 ## Legacy cycles (flat-file, pre-multi-agent)
 

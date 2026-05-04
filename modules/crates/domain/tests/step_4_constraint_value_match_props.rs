@@ -12,6 +12,7 @@ use chrono::Utc;
 use proptest::prelude::*;
 use std::collections::HashMap;
 
+use domain::audit::AuditClass;
 use domain::model::ids::{AgentId, GrantId};
 use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
 use domain::permissions::{
@@ -36,6 +37,7 @@ fn fixture_grant(agent: AgentId) -> Grant {
         issued_at: Utc::now(),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     }
 }
 

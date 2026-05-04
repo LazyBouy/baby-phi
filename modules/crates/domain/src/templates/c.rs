@@ -23,6 +23,7 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::audit::AuditClass;
 use crate::model::ids::{AgentId, AuthRequestId, GrantId};
 use crate::model::nodes::{AuthRequest, Grant, PrincipalRef, ResourceRef, TemplateKind};
 
@@ -51,6 +52,12 @@ pub struct FireArgs {
     pub adoption_auth_request_id: AuthRequestId,
     /// Wall-clock time for `issued_at`.
     pub now: DateTime<Utc>,
+    /// CH-13 / ADR-0050 §D50.5 — strictest-wins composed
+    /// [`AuditClass`] for the minted Grant. P2 listener wiring
+    /// computes this via
+    /// [`crate::permissions::compose_audit_class_with_source`] and
+    /// passes it through to the pure-fn at fire time.
+    pub audit_class: AuditClass,
 }
 
 /// Build the `[read, inspect]` Grant for the manager on
@@ -77,6 +84,7 @@ pub fn fire_grant_on_manages_edge(args: FireArgs) -> Grant {
         subordinate,
         adoption_auth_request_id,
         now,
+        audit_class,
     } = args;
     Grant {
         id: GrantId::new(),
@@ -94,6 +102,7 @@ pub fn fire_grant_on_manages_edge(args: FireArgs) -> Grant {
         issued_at: now,
         revoked_at: None,
         approval_mode: crate::model::ApprovalMode::Implicit,
+        audit_class,
     }
 }
 
@@ -135,6 +144,7 @@ mod tests {
             subordinate: AgentId::new(),
             adoption_auth_request_id: AuthRequestId::new(),
             now: Utc::now(),
+            audit_class: AuditClass::Silent,
         }
     }
 

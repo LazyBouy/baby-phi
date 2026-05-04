@@ -23,6 +23,7 @@
 use chrono::Utc;
 use proptest::prelude::*;
 
+use domain::audit::AuditClass;
 use domain::model::ids::{AgentId, GrantId};
 use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
 use domain::model::Fundamental;
@@ -103,6 +104,7 @@ proptest! {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
+            audit_class: AuditClass::Silent,
         };
         let grants = [grant];
         let mut catalogue = StaticCatalogue::empty();
@@ -152,6 +154,7 @@ proptest! {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
+            audit_class: AuditClass::Silent,
         };
         let grants = [grant];
         // Empty `target_uri` skips Step 0 catalogue — same as the M1
@@ -210,6 +213,7 @@ proptest! {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
+            audit_class: AuditClass::Silent,
         };
         let grants = [grant];
         let mut catalogue = StaticCatalogue::empty();

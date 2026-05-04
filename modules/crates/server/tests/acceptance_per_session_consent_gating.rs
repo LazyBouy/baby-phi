@@ -29,7 +29,7 @@
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
-use domain::audit::AuditEmitter;
+use domain::audit::{AuditClass, AuditEmitter};
 use domain::events::{EventBus, InProcessEventBus};
 use domain::in_memory::InMemoryRepository;
 use domain::model::ids::{AgentId, ConsentId, ModelProviderId, NodeId, OrgId, ProjectId};
@@ -186,6 +186,7 @@ async fn build_fixture(
         issued_at: now,
         revoked_at: None,
         approval_mode,
+        audit_class: AuditClass::Silent,
     };
     repo.create_grant(&grant).await.expect("create grant");
 

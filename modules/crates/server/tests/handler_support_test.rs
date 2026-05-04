@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use chrono::Utc;
 
-use domain::audit::{AuditEmitter, AuditEvent, NoopAuditEmitter};
+use domain::audit::{AuditClass, AuditEmitter, AuditEvent, NoopAuditEmitter};
 use domain::model::ids::{AgentId, AuditEventId, GrantId, OrgId};
 use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
 use domain::model::Fundamental;
@@ -48,6 +48,7 @@ fn mk_grant(holder: PrincipalRef, actions: &[Action], resource: &str) -> Grant {
         issued_at: Utc::now(),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     }
 }
 

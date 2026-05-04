@@ -286,6 +286,7 @@ mod tests {
 
     use super::*;
     use chrono::Utc;
+    use domain::audit::AuditClass;
     use domain::model::ids::{AgentId, GrantId};
     use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
     use domain::model::Fundamental;
@@ -339,6 +340,7 @@ mod tests {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
+            audit_class: AuditClass::Silent,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -384,6 +386,7 @@ mod tests {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
+            audit_class: AuditClass::Silent,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -439,6 +442,7 @@ mod tests {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
+            audit_class: AuditClass::Silent,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);

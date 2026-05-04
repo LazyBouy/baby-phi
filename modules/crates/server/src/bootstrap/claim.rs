@@ -240,6 +240,11 @@ pub async fn execute_claim(
         issued_at: now,
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        // CH-13 / ADR-0050: platform-admin grants are out of scope for
+        // the strictest-wins composer (no template_AR input). Defaults
+        // to `Silent` (loosest) per concept-doc 07 line 71's
+        // no-silent-escalation invariant; future chunks may refine.
+        audit_class: AuditClass::Silent,
     };
 
     // Alerted audit event — `PlatformAdminClaimed`.

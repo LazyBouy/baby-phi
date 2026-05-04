@@ -159,6 +159,9 @@ pub async fn register_provider(
         issued_at: input.now,
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        // CH-13 / ADR-0050: platform-admin grant; out of scope for the
+        // composer (no template_AR input).
+        audit_class: AuditClass::Silent,
     };
     repo.create_grant(&grant).await?;
 

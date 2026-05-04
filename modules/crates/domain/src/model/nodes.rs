@@ -673,6 +673,36 @@ pub struct Grant {
     /// `permissions/06-multi-scope-consent.md` line 244.
     #[serde(default)]
     pub approval_mode: ApprovalMode,
+    /// CH-13 / ADR-0050 §D50.5 — strictest-wins composed audit class
+    /// at the time the grant was issued. The 3 production fire
+    /// listeners (Template A/C/D) call
+    /// [`crate::permissions::compose_audit_class_with_source`] with
+    /// (org_default, template_ar, optional_override) and stamp the
+    /// resolved class here.
+    ///
+    /// `#[serde(default = "Grant::default_audit_class")]` shielding
+    /// produces `AuditClass::Silent` (the loosest — preserves the
+    /// "no escalation by silent migration" property per concept-doc 07
+    /// line 71) for pre-CH-13 grant rows.
+    ///
+    /// Concept doc anchor:
+    /// `permissions/07-templates-and-tools.md` §"audit_class
+    /// Composition Through Templates" line 69 — *"The resolved
+    /// `audit_class` is recorded on the Grant at issuance time"*.
+    #[serde(default = "Grant::default_audit_class")]
+    pub audit_class: crate::audit::AuditClass,
+}
+
+impl Grant {
+    /// Default `audit_class` for pre-CH-13 grants deserialised from
+    /// storage. Loosest class (`Silent`) is the safe default — it
+    /// preserves the concept-doc 07 line 71 invariant that adopting a
+    /// template *can never silently downgrade* an org's audit posture
+    /// (a `Silent` placeholder cannot mask a stricter org default that
+    /// the composer would otherwise apply).
+    pub fn default_audit_class() -> crate::audit::AuditClass {
+        crate::audit::AuditClass::Silent
+    }
 }
 
 /// Per-grant approval mode — captures whether a read under this grant

@@ -31,7 +31,19 @@ pub mod events;
 /// - `Logged` — kept 365 days, logged to structured sink.
 /// - `Alerted` — kept 365+ days, delivered to the org's alert channel
 ///   within 60 s.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// # Ordering
+///
+/// `derive(PartialOrd, Ord)` encodes the loosest-to-strictest ordering
+/// `Silent < Logged < Alerted` via Rust's auto-derived lexicographic
+/// ordering on declaration order. This is the strictest-wins ordering
+/// concept doc 07 §"audit_class Composition Through Templates" line 67
+/// specifies as `none < logged < alerted` — the concept-doc `none` term
+/// maps to enum [`AuditClass::Silent`] semantically (CH-13 / ADR-0050
+/// §D50.1; "no audit" in the doc-comment lines above). The composer
+/// `domain::permissions::audit_composition::compose_audit_class` folds
+/// candidate inputs by `max()` per this ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuditClass {
     Silent,

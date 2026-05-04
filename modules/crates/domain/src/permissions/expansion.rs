@@ -228,6 +228,7 @@ mod tests {
             issued_at: Utc::now(),
             revoked_at: None,
             approval_mode: crate::model::ApprovalMode::Implicit,
+            audit_class: crate::audit::AuditClass::Silent,
         }
     }
 

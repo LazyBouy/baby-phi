@@ -141,6 +141,7 @@ fn make_grant(descends_from: AuthRequestId) -> Grant {
         issued_at: Utc::now(),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     }
 }
 

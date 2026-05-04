@@ -15,6 +15,7 @@
 //! 8. Distinct `GrantId` across independent calls.
 
 use chrono::{DateTime, TimeZone, Utc};
+use domain::audit::AuditClass;
 use domain::model::ids::{AgentId, AuthRequestId};
 use domain::model::{Fundamental, PrincipalRef};
 use domain::templates::c::{fire_grant_on_manages_edge, FireArgs};
@@ -30,6 +31,7 @@ fn arb_args() -> impl Strategy<Value = FireArgs> {
         subordinate: AgentId::new(),
         adoption_auth_request_id: AuthRequestId::new(),
         now,
+        audit_class: AuditClass::Silent,
     })
 }
 

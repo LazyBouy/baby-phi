@@ -194,6 +194,12 @@ struct GrantRow {
     /// deserialise via `#[serde(default)]` to `ApprovalMode::Implicit`.
     #[serde(default)]
     approval_mode: domain::model::ApprovalMode,
+    /// CH-13 / ADR-0050 §D50.5 — `Grant.audit_class`. Riding under the
+    /// existing FLEXIBLE TYPE object column (no schema migration).
+    /// Pre-CH-13 rows deserialise via `#[serde(default = ...)]` to
+    /// `AuditClass::Silent` per `Grant::default_audit_class`.
+    #[serde(default = "domain::model::Grant::default_audit_class")]
+    audit_class: domain::audit::AuditClass,
 }
 
 impl GrantRow {
@@ -210,6 +216,7 @@ impl GrantRow {
             issued_at: g.issued_at,
             revoked_at: g.revoked_at,
             approval_mode: g.approval_mode.clone(),
+            audit_class: g.audit_class,
         }
     }
 
@@ -234,6 +241,7 @@ impl GrantRow {
             issued_at: self.issued_at,
             revoked_at: self.revoked_at,
             approval_mode: self.approval_mode,
+            audit_class: self.audit_class,
         })
     }
 }

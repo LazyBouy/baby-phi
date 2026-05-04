@@ -188,6 +188,10 @@ pub async fn create_organization(
         issued_at: input.now,
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        // CH-13 / ADR-0050: platform-admin/org-bootstrap grant; out of
+        // scope for the composer (no adoption AR yet at org-create
+        // time).
+        audit_class: AuditClass::Silent,
     };
 
     // 4. Two system agents with phi-core blueprints cloned from the

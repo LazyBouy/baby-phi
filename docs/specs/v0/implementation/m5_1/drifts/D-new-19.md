@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-04 by Claude Code (CH-13 P3 chunk-seal: Status flipped `discovered` → `remediated`; lifecycle history entry appended pointing to ADR-0050 Accepted + composer fn at `domain::permissions::audit_composition` + `Grant.audit_class` denormalisation + 3 fire listeners (Template A/C/D) wired via `resolve_composed_audit_class` helper at `events/listeners.rs:303,433,552`.) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-19 — `audit_class` composition rule (strictest-of org-default / template-AR / per-grant override) not enforced
@@ -7,7 +8,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: B — underspecified shape choice
 - **Severity**: MEDIUM
 - **Tags**: `audit-composition`, `security-policy`
@@ -45,3 +46,4 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report)
+- 2026-05-04 — `in-chunk-plan` → `remediated` — CH-13 chunk-seal — `compose_audit_class(...)` strictest-wins composer at `domain::permissions::audit_composition`; `Grant.audit_class` denormalisation per ADR-0050 §D50.5; 3 production fire listeners (Template A/C/D) wired to read org_default + adoption_ar.audit_class and emit composed class via audit-event diff with `audit_class_source` attribution; ADR-0050 Accepted; cycle hex `d4fe1b7c`.

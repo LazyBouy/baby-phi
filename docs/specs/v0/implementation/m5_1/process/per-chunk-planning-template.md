@@ -129,6 +129,11 @@ Each chunk that makes a non-trivial architectural or convention decision MUST dr
 
 For each ADR list: number, title, drafted-at-phase, decision-summary (one line), expected flip-to-Accepted phase.
 
+**ADR-body checklist (v2026-05-04 per CH-13 retrospective, cycle hex `d4fe1b7c`):** every ADR drafted by a chunk MUST include:
+
+1. **§"Forks" header with explicit user-lock outcome.** Direct-approval cycle: `Forks (all planner-recommended at chunk-open; user-locked at plan approval to F1.A / F2.A / F3.A)`. Divergent cycle: `Forks (F1 user-locked to F1.B at plan approval — diverges from planner recommendation F1.A; F2 / F3 at planner-recommendation)`. The header MUST capture the lock-state, not just the planner-recommendation.
+2. **§"Cross-references" with all 4 categories.** (a) originating concept-doc + section + line range; (b) closed drift(s) by ID; (c) prior ADRs cited as precedent; (d) **forward-scope row** that scoped this chunk (path + line range). The forward-scope cross-reference is mandatory — the ADR is the bridge between concept-doc and code, and must trace back to the chunk-source. Closes CH-13 Audit B Trivial-1L gaps F-AUDB-1 + F-AUDB-2.
+
 ### §6 — Prior-chunk regression re-verification
 
 List every upstream chunk whose invariants this chunk depends on. For each, state the re-verification recipe:

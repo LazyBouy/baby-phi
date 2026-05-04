@@ -300,6 +300,7 @@ fn grant_owned_by_org(org: OrgId, ar: AuthRequestId) -> Grant {
         issued_at: Utc::now(),
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
     }
 }
 

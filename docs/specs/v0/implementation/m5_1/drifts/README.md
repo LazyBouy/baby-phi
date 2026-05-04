@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-04 by Claude Code (CH-13 chunk-seal: D-new-19 row Status flipped to remediated; "Impl. chunk" set to CH-13 ✓) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-12 chunk-seal: D-new-08 row Status flipped to remediated; "Impl. chunk" set to CH-12 ✓) -->
 <!-- Last verified: 2026-04-28 by Claude Code -->
 
@@ -113,7 +114,7 @@ fixed.
 | D-new-16 | Memory recall/store/delete action execution missing | **HIGH** | **A** | permissions/05 | N/A | discovered | M6 C-M6-1 | [D-new-16.md](D-new-16.md) |
 | D-new-17 | Per-Session consent gating incomplete | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-11 ✓ | [D-new-17.md](D-new-17.md) |
 | D-new-18 | Grant revocation cascade full-tree walk needs verification | **HIGH** | **A** | permissions/08; README | N/A | discovered | TBD | [D-new-18.md](D-new-18.md) |
-| D-new-19 | audit_class composition (strictest wins) not enforced | MEDIUM | B | permissions/07 | N/A | discovered | TBD | [D-new-19.md](D-new-19.md) |
+| D-new-19 | audit_class composition (strictest wins) not enforced | MEDIUM | B | permissions/07 | N/A | **remediated** | CH-13 ✓ | [D-new-19.md](D-new-19.md) |
 | D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | discovered | TBD | [D-new-20.md](D-new-20.md) |
 | D-new-21 | Edge-count documentation mismatch | LOW | B | ontology | N/A | discovered | TBD | [D-new-21.md](D-new-21.md) |
 | D-new-22 | Agent role immutability post-creation not enforced | MEDIUM | B | agent | N/A | remediated | CH-01 ✓ | [D-new-22.md](D-new-22.md) |
@@ -128,6 +129,7 @@ fixed.
 | D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | **remediated** | CH-05 ✓ | [D-new-31.md](D-new-31.md) |
 | D-CH11-FOLLOWUP-01 | `Project.deadline_at` missing; CH-11 falls back to `now+24h` for `ApprovalTimeout::ProjectDuration` | LOW | B | permissions/06 | N/A | discovered | M6+ Project enrichment | [D-CH11-FOLLOWUP-01.md](D-CH11-FOLLOWUP-01.md) |
 | D-CH12-FOLLOWUP-01 | Session structural-tag emission gap (6 M6+ categories not yet auto-emitted on Session creation) | LOW | B | permissions/05 | N/A | discovered | M6+ Session structural-tag emission | [D-CH12-FOLLOWUP-01.md](D-CH12-FOLLOWUP-01.md) |
+| D-CH13-FOLLOWUP-01 | Platform-admin Grant-mint paths do not invoke `compose_audit_class` against `Organization.audit_class_default` | LOW | B | permissions/07 | N/A | discovered | M6+ Platform-admin compliance-posture extension | [D-CH13-FOLLOWUP-01.md](D-CH13-FOLLOWUP-01.md) |
 
 **Row count at P1 close: 29 files written, all row cells populated. ✅**
 **Row count at P2 close: 60 files written (29 existing + 31 new D-new-NN). ✅**

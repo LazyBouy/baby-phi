@@ -32,6 +32,7 @@
 //! Prometheus histogram into this trait in P6.
 
 pub mod action;
+pub mod audit_composition;
 pub mod catalogue;
 pub mod decision;
 pub mod engine;
@@ -41,6 +42,9 @@ pub mod metrics;
 pub mod selector;
 
 pub use action::{Action, ActionCategory, ParseActionError};
+pub use audit_composition::{
+    compose_audit_class, compose_audit_class_with_source, AuditClassSource,
+};
 pub use catalogue::{CatalogueLookup, StaticCatalogue};
 pub use decision::{Decision, DeniedReason, FailedStep};
 pub use engine::check;
