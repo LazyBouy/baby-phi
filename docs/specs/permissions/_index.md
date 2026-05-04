@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-05-03 by Claude Code (added row for 18564835; 478b9384 status flipped to "Accepted (extended by 18564835)") -->
+<!-- Last verified: 2026-05-04 by Claude Code (added row for ab19399b — granular Bash discipline + matcher semantics + CH-13 prompt analysis; sister to 478b9384 + 18564835) -->
 
 # Permissions design docs
 
@@ -8,8 +8,9 @@ Index of permission-policy / hook design documents that govern how Claude Code i
 
 | Hex | Title | Date | Status |
 |---|---|---|---|
+| `ab19399b` | [Granular Bash discipline + matcher semantics + CH-13 prompt analysis](granular-bash-discipline-ab19399b.md) | 2026-05-04 | Accepted |
 | `18564835` | [Tool-use logging + permissions-audit skill — closing the feedback loop](tool-use-logging-and-permissions-audit-skill-18564835.md) | 2026-05-03 | Accepted |
-| `478b9384` | [Project permissions hardening — settings.json + hooks](project-permissions-hardening-478b9384.md) | 2026-05-03 | Accepted (extended by `18564835`) |
+| `478b9384` | [Project permissions hardening — settings.json + hooks](project-permissions-hardening-478b9384.md) | 2026-05-03 | Accepted (extended by `18564835` + `ab19399b`) |
 
 ## Conventions
 
