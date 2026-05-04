@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL — Instance Identity Tags section [EXISTS] as of CH-06 (M5.2 / 2026-04-28) -->
+<!-- Last verified: 2026-05-04 by Claude Code (CH-12 amendment: rule-1 enforcement gap at line 267 — "no grant template ever issues `[modify]` on `tag` for these reserved namespaces; attempts are caught at publish-time" — is now closed for the composite case. CH-05 Rule C of `validate_published_manifest` already rejected `[Modify]` on the bare `tag` fundamental; CH-12 (ADR-0049) adds Rule E to reject `[Modify]` on composites (e.g., `session_object`) whose `target_kinds` overlaps the reserved-namespace prefix list. Runtime half lands at `domain::permissions::manifest::validator::validate_tag_write_on_session` + `SESSION_FROZEN_TAG_PREFIXES`; audit-event half at `domain::audit::events::m5_2::tool_authority::frozen_tag_write_rejected` (Alerted) per F5.B. Doc body unchanged.) -->
 <!-- Last verified: 2026-04-28 by Claude Code (CH-06: instance-identity tags now emitted at 10+ first-class-ID creation paths per ADR-0037) -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 

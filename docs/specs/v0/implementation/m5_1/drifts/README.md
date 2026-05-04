@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-04 by Claude Code (CH-12 chunk-seal: D-new-08 row Status flipped to remediated; "Impl. chunk" set to CH-12 ✓) -->
 <!-- Last verified: 2026-04-28 by Claude Code -->
 
 # M5.1 Drift catalogue — index
@@ -101,7 +102,7 @@ fixed.
 | D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-10 ✓ | [D-new-05.md](D-new-05.md) |
 | D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | discovered | TBD | [D-new-06.md](D-new-06.md) |
 | D-new-07 | Publish-time manifest validator missing | **HIGH** | **A** | permissions/04, 07 | N/A | **remediated** | CH-05 ✓ | [D-new-07.md](D-new-07.md) |
-| D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | discovered | TBD | [D-new-08.md](D-new-08.md) |
+| D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | **remediated** | CH-12 ✓ | [D-new-08.md](D-new-08.md) |
 | D-new-09 | Action vocabulary stored as `Vec<String>` (no enum) | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-09.md](D-new-09.md) |
 | D-new-10 | Action × Fundamental applicability matrix not enforced | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-10.md](D-new-10.md) |
 | D-new-11 | Composite instance self-identity tag not auto-added | MEDIUM | B | permissions/01 | N/A | remediated | CH-06 | [D-new-11.md](D-new-11.md) |
@@ -126,6 +127,7 @@ fixed.
 | D-new-30 | Org/Project template as config object (vs adoption AR) not materialized | LOW | C | permissions/07 | N/A | discovered | TBD (doc refresh) | [D-new-30.md](D-new-30.md) |
 | D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | **remediated** | CH-05 ✓ | [D-new-31.md](D-new-31.md) |
 | D-CH11-FOLLOWUP-01 | `Project.deadline_at` missing; CH-11 falls back to `now+24h` for `ApprovalTimeout::ProjectDuration` | LOW | B | permissions/06 | N/A | discovered | M6+ Project enrichment | [D-CH11-FOLLOWUP-01.md](D-CH11-FOLLOWUP-01.md) |
+| D-CH12-FOLLOWUP-01 | Session structural-tag emission gap (6 M6+ categories not yet auto-emitted on Session creation) | LOW | B | permissions/05 | N/A | discovered | M6+ Session structural-tag emission | [D-CH12-FOLLOWUP-01.md](D-CH12-FOLLOWUP-01.md) |
 
 **Row count at P1 close: 29 files written, all row cells populated. ✅**
 **Row count at P2 close: 60 files written (29 existing + 31 new D-new-NN). ✅**

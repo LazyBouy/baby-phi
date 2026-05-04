@@ -267,3 +267,185 @@ async fn cross_impl_consistency_for_valid_manifest() {
         .await
         .expect("surreal must accept");
 }
+
+// ----------------------------------------------------------------------------
+// Rule E — Composite structural-tag-write rejection (CH-12 / ADR-0049 §D49.1)
+//
+// Trigger: actions ∋ Modify AND a non-Memory composite (e.g.
+// `session_object`) AND a `target_kinds` entry overlapping a reserved
+// namespace (`#kind` / `kind` / `delegated_from` / `derived_from`). The
+// validator surfaces this as `ValidationError::CompositeStructuralTagWrite`
+// at the publish-time Repository boundary; the manifest is NOT persisted.
+//
+// D49.1.a — Memory exemption. `Composite::MemoryObject` is exempt
+// because Memory tags ARE intentionally agent-mutable per concept doc
+// 05 lines 24–26. The Memory happy-path test below pins this: same
+// shape (`[Modify]` + `target_kinds: ["memory"]`) on `memory_object`
+// passes Rule E and persists cleanly.
+// ----------------------------------------------------------------------------
+
+fn manifest_session_modify_with_target_kinds(target_kinds: Vec<&str>) -> ToolAuthorityManifest {
+    let mut m = manifest(
+        vec!["session_object"],
+        vec![Action::Read, Action::Modify],
+        vec!["session"],
+    );
+    m.target_kinds = target_kinds.into_iter().map(String::from).collect();
+    m
+}
+
+#[tokio::test]
+async fn rule_e_session_modify_with_session_target_kind_rejected() {
+    // Test 1 — `actions: [Modify], resource: ["session_object"],
+    // target_kinds: ["session"]` overlaps the runtime-owned `session:`
+    // reserved-namespace prefix (matched via the `tk == "session"` ==
+    // `"session:".trim_end_matches(':')` branch of Rule E).
+    let repo = fresh_in_memory_repo().await;
+    let m = manifest_session_modify_with_target_kinds(vec!["session"]);
+    let err = repo
+        .create_tool_authority_manifest(&m)
+        .await
+        .expect_err("Rule E must reject session_object target_kind");
+    match err {
+        RepositoryError::ManifestValidation {
+            source:
+                ValidationError::CompositeStructuralTagWrite {
+                    composite,
+                    action: Action::Modify,
+                    namespace,
+                },
+        } => {
+            assert_eq!(composite, Composite::SessionObject);
+            // namespace is the matched reserved-namespace literal, e.g.
+            // `"session"` (one of CompositeStructuralTagWrite reserved
+            // namespaces). The exact literal is validator-internal; the
+            // assertion below pins the variant + composite identity.
+            assert!(
+                !namespace.is_empty(),
+                "namespace field must carry the matched reserved literal"
+            );
+        }
+        other => panic!(
+            "expected CompositeStructuralTagWrite{{ session_object, Modify, _ }}, got {:?}",
+            other
+        ),
+    }
+}
+
+#[tokio::test]
+async fn rule_e_session_modify_with_kind_prefix_target_kinds_rejected() {
+    // Test 2 — `target_kinds: ["#kind"]` overlaps the `#kind:` reserved
+    // prefix via the namespace literal `kind`.
+    let repo = fresh_in_memory_repo().await;
+    let m = manifest_session_modify_with_target_kinds(vec!["#kind"]);
+    let err = repo
+        .create_tool_authority_manifest(&m)
+        .await
+        .expect_err("Rule E must reject #kind target_kind");
+    assert!(
+        matches!(
+            err,
+            RepositoryError::ManifestValidation {
+                source: ValidationError::CompositeStructuralTagWrite {
+                    composite: Composite::SessionObject,
+                    action: Action::Modify,
+                    ..
+                }
+            }
+        ),
+        "expected CompositeStructuralTagWrite for #kind target on session_object, got {:?}",
+        err
+    );
+}
+
+#[tokio::test]
+async fn rule_e_session_modify_with_delegated_from_target_kinds_rejected() {
+    // Test 3 — `target_kinds: ["delegated_from"]` overlaps the
+    // `delegated_from` reserved namespace literal directly.
+    let repo = fresh_in_memory_repo().await;
+    let m = manifest_session_modify_with_target_kinds(vec!["delegated_from"]);
+    let err = repo
+        .create_tool_authority_manifest(&m)
+        .await
+        .expect_err("Rule E must reject delegated_from target_kind");
+    assert!(
+        matches!(
+            err,
+            RepositoryError::ManifestValidation {
+                source: ValidationError::CompositeStructuralTagWrite {
+                    composite: Composite::SessionObject,
+                    action: Action::Modify,
+                    ..
+                }
+            }
+        ),
+        "expected CompositeStructuralTagWrite for delegated_from target on session_object, got {:?}",
+        err
+    );
+}
+
+#[tokio::test]
+async fn rule_e_cross_impl_consistency_session_object_modify_rejected_identically() {
+    // Test 4 — same invalid manifest fed to both backends produces the
+    // same `CompositeStructuralTagWrite` value (composite + action +
+    // namespace identity). Pins the cross-impl consistency invariant
+    // for the Rule E rejection path.
+    let invalid = || manifest_session_modify_with_target_kinds(vec!["session"]);
+
+    let in_mem = fresh_in_memory_repo().await;
+    let in_mem_err = in_mem
+        .create_tool_authority_manifest(&invalid())
+        .await
+        .expect_err("in-memory must reject Rule E composite write");
+
+    let (surreal, _dir) = fresh_surreal_store().await;
+    let surreal_err = surreal
+        .create_tool_authority_manifest(&invalid())
+        .await
+        .expect_err("surreal must reject Rule E composite write");
+
+    let in_mem_variant = match in_mem_err {
+        RepositoryError::ManifestValidation { source } => source,
+        other => panic!("in-memory: expected ManifestValidation, got {:?}", other),
+    };
+    let surreal_variant = match surreal_err {
+        RepositoryError::ManifestValidation { source } => source,
+        other => panic!("surreal: expected ManifestValidation, got {:?}", other),
+    };
+    assert_eq!(
+        in_mem_variant, surreal_variant,
+        "Rule E rejection must be byte-identical across InMemoryRepository and SurrealStore"
+    );
+    // Sanity: the variant is the Rule E one.
+    assert!(
+        matches!(
+            in_mem_variant,
+            ValidationError::CompositeStructuralTagWrite {
+                composite: Composite::SessionObject,
+                action: Action::Modify,
+                ..
+            }
+        ),
+        "expected CompositeStructuralTagWrite, got {:?}",
+        in_mem_variant
+    );
+}
+
+#[tokio::test]
+async fn rule_e_memory_modify_happy_path_passes_d49_1_a_exemption() {
+    // Test 5 — D49.1.a memory exemption. Same shape as the Rule E
+    // rejection (`[Modify]` + a `target_kinds` overlap), but on
+    // `memory_object` it MUST pass: Memory tags are agent-mutable per
+    // concept doc 05 lines 24–26. The validator's Rule E body skips
+    // `Composite::MemoryObject` explicitly.
+    let repo = fresh_in_memory_repo().await;
+    let mut m = manifest(
+        vec!["memory_object"],
+        vec![Action::Read, Action::Modify],
+        vec!["memory"],
+    );
+    m.target_kinds = vec!["memory".to_string()];
+    repo.create_tool_authority_manifest(&m)
+        .await
+        .expect("Memory exemption (D49.1.a) — manifest must persist cleanly");
+}

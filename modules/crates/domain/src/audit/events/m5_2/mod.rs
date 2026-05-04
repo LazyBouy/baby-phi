@@ -10,3 +10,4 @@
 
 pub mod identity;
 pub mod memory;
+pub mod tool_authority;

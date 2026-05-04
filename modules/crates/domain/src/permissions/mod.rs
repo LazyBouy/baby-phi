@@ -46,9 +46,10 @@ pub use decision::{Decision, DeniedReason, FailedStep};
 pub use engine::check;
 pub use expansion::{expand_resource_to_fundamentals, ResolvedGrant};
 pub use manifest::validator::{
-    constraint_applies_to, reserved_namespace_prefixes, validate_published_manifest, ResourceClass,
-    ValidationError, ValidationWarning, RESERVED_NAMESPACE_LITERALS, SPECIFIC_CONSTRAINT_NAMES,
-    UNIVERSAL_CONSTRAINTS,
+    constraint_applies_to, reserved_namespace_prefixes, validate_published_manifest,
+    validate_tag_write_on_session, FrozenTagViolation, ResourceClass, ValidationError,
+    ValidationWarning, RESERVED_NAMESPACE_LITERALS, SESSION_FROZEN_TAG_PREFIXES,
+    SPECIFIC_CONSTRAINT_NAMES, UNIVERSAL_CONSTRAINTS,
 };
 pub use manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
 pub use metrics::{NoopMetrics, PermissionCheckMetrics};

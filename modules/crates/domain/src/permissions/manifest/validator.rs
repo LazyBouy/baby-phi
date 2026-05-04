@@ -25,6 +25,12 @@
 //!   namespaces"). Composites that internally include `Tag` (memory,
 //!   session, …) remain legitimate — tools modify their composite data,
 //!   not the composite's runtime-assigned identity tags.
+//! - **Rule E** — Composite reserved-namespace target_kinds rejection
+//!   (CH-12 / ADR-0049 §D49.1). Reject `[Modify]` on a composite when
+//!   its `target_kinds` overlaps the reserved-namespace prefix list
+//!   from [`reserved_namespace_prefixes`]. `MemoryObject` is exempt
+//!   because Memory tags are intentionally agent-mutable per concept
+//!   doc 05 lines 24–26 (D49.1.a Memory-vs-Session discrimination).
 //! - **Rule D** — Constraint × Fundamental matrix. Every declared
 //!   constraint must apply to at least one expanded fundamental, OR be a
 //!   universal constraint (`time_window`, `approval_requirement`,
@@ -76,6 +82,36 @@ pub fn reserved_namespace_prefixes() -> Vec<String> {
     }
     out
 }
+
+// ----------------------------------------------------------------------------
+// Session-frozen tag prefix list (CH-12 / ADR-0049 §D49.6)
+// ----------------------------------------------------------------------------
+
+/// All session-tag prefixes that are concept-doc-frozen at creation per
+/// `permissions/05-memory-sessions.md` §"Tag Vocabulary for Sessions"
+/// lines 220–231. Lifecycle tags (`#archived`, `#active`) are NOT in
+/// this set — they remain agent-mutable per concept doc 05 line 541.
+///
+/// CH-12's runtime gate ([`validate_tag_write_on_session`]) enforces
+/// every prefix in this list. The 6 M6+ categories (`agent:`,
+/// `project:`, `org:`, `task:`, `delegated_from:`, `role_at_creation:`,
+/// `agent_kind:`, `derived_from:`) are forward-defensive: they are NOT
+/// yet emitted on Session.tags creation today (only `#kind:session` +
+/// `session:<id>` are auto-emitted via
+/// [`crate::model::composites::auto_tags_for`]); emission expansion is a
+/// separate forward-scope item (M6+ "Session structural-tag emission").
+pub const SESSION_FROZEN_TAG_PREFIXES: &[&str] = &[
+    "#kind:",
+    "session:",
+    "agent:",
+    "project:",
+    "org:",
+    "task:",
+    "delegated_from:",
+    "role_at_creation:",
+    "agent_kind:",
+    "derived_from:",
+];
 
 // ----------------------------------------------------------------------------
 // Constraint × Fundamental applicability matrix
@@ -261,6 +297,20 @@ pub enum ValidationError {
         crate::permissions::manifest::validator::RESERVED_NAMESPACE_LITERALS.join(", ")
     )]
     ReservedNamespaceWrite { namespace: String, action: Action },
+
+    /// Rule E — manifest declares `[Modify]` on a composite whose
+    /// `target_kinds` overlaps a reserved-namespace prefix (CH-12 /
+    /// ADR-0049 §D49.1). `MemoryObject` is exempt per D49.1.a (Memory
+    /// tags are agent-mutable per concept doc 05 lines 24–26).
+    #[error(
+        "manifest declares action {:?} on composite {:?} with target_kinds entry overlapping reserved namespace {:?} — runtime owns these tag namespaces",
+        action, composite, namespace
+    )]
+    CompositeStructuralTagWrite {
+        composite: Composite,
+        action: Action,
+        namespace: String,
+    },
 }
 
 /// Non-blocking advisory from [`validate_published_manifest`]. Warnings
@@ -388,6 +438,44 @@ pub fn validate_published_manifest(
     }
 
     // -----------------------------------------------------------------
+    // Rule E — Composite reserved-namespace target_kinds rejection
+    //          (CH-12 / ADR-0049 §D49.1)
+    // -----------------------------------------------------------------
+    // Trigger: actions ∋ Modify AND any declared composite whose
+    // `target_kinds` entry overlaps a reserved-namespace prefix. The
+    // composite resource itself is legitimate (Rule C still passes for
+    // `memory_object`/`session_object` etc.); what Rule E forbids is
+    // the *combination* with a `target_kinds` entry naming a runtime-
+    // owned namespace — that combination would let a tool retag a
+    // session under a structural namespace it doesn't own.
+    //
+    // D49.1.a — Memory exemption. `Composite::MemoryObject` is exempt
+    // because Memory tags ARE intentionally agent-mutable per concept
+    // doc 05 lines 24–26 (Memory tags are chosen by the agent at
+    // creation; `Action::Modify.applies_to_composite(MemoryObject) ==
+    // true` is asserted at `action.rs:766`).
+    if m.actions.contains(&Action::Modify) {
+        let reserved = reserved_namespace_prefixes();
+        for c in &declared_composites {
+            if *c == Composite::MemoryObject {
+                continue;
+            }
+            for tk in &m.target_kinds {
+                if let Some(matched) = reserved
+                    .iter()
+                    .find(|p| tk.starts_with(p.as_str()) || tk == p.trim_end_matches(':'))
+                {
+                    return Err(ValidationError::CompositeStructuralTagWrite {
+                        composite: *c,
+                        action: Action::Modify,
+                        namespace: matched.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
     // Rule B — Action × Fundamental matrix
     // -----------------------------------------------------------------
     // For every (action, fundamental) pair derivable from
@@ -453,6 +541,105 @@ pub fn validate_published_manifest(
     }
 
     Ok(warnings)
+}
+
+// ----------------------------------------------------------------------------
+// Runtime tag-write validator (CH-12 / ADR-0049 §D49.3 + §D49.4)
+// ----------------------------------------------------------------------------
+
+/// A frozen-tag invariant violation surfaced by
+/// [`validate_tag_write_on_session`].
+///
+/// Each variant identifies the session whose tag set was about to be
+/// changed and the specific tag that the change tried to add or remove.
+/// Lifecycle tags (`#archived`, `#active`) never produce this error —
+/// they are intentionally agent-mutable per concept doc
+/// `permissions/05-memory-sessions.md` §"Frozen-at-creation tags
+/// (immutability)".
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum FrozenTagViolation {
+    /// `proposed_tags` contains a frozen-namespace tag that
+    /// `current_tags` does not — the runtime owns the namespace; tools
+    /// cannot create new structural tags on an existing session.
+    #[error("session {session_id} attempt to add frozen tag {tag:?}")]
+    FrozenTagAdded {
+        session_id: crate::model::ids::SessionId,
+        tag: String,
+    },
+
+    /// `current_tags` contains a frozen-namespace tag that
+    /// `proposed_tags` does not — the runtime owns the namespace; tools
+    /// cannot remove structural tags from an existing session.
+    #[error("session {session_id} attempt to remove frozen tag {tag:?}")]
+    FrozenTagRemoved {
+        session_id: crate::model::ids::SessionId,
+        tag: String,
+    },
+}
+
+/// Runtime gate for any future Repository method that proposes to
+/// update a `Session`'s tag set (CH-12 / ADR-0049 §D49.3).
+///
+/// Pure function — no I/O. Today no production callsite exists; this
+/// gate is forward-defensive symmetric to CH-05's
+/// [`validate_published_manifest`]. The Repository trait module-level
+/// docstring documents the precondition contract: any future
+/// `update_session_tags` / `set_session_tags` / `retag_session`
+/// implementation MUST call this function as its first line and
+/// propagate failures as `RepositoryError::FrozenSessionTagWrite`.
+///
+/// ## Logic
+///
+/// For every prefix in [`SESSION_FROZEN_TAG_PREFIXES`]:
+/// - any tag with that prefix in `proposed_tags` that is NOT in
+///   `current_tags` is a [`FrozenTagViolation::FrozenTagAdded`];
+/// - any tag with that prefix in `current_tags` that is NOT in
+///   `proposed_tags` is a [`FrozenTagViolation::FrozenTagRemoved`].
+///
+/// Lifecycle tags (`#archived`, `#active`) and any non-frozen tags
+/// pass through unchanged — they are not in the prefix list.
+///
+/// On the first violation found the function returns
+/// `Err(FrozenTagViolation)`. On all-frozen-tags-stable input it
+/// returns `Ok(())`.
+pub fn validate_tag_write_on_session(
+    session_id: crate::model::ids::SessionId,
+    current_tags: &[String],
+    proposed_tags: &[String],
+) -> Result<(), FrozenTagViolation> {
+    let is_frozen = |tag: &str| -> bool {
+        SESSION_FROZEN_TAG_PREFIXES
+            .iter()
+            .any(|p| tag.starts_with(*p))
+    };
+
+    // Detect added frozen tags: in proposed but not in current.
+    for tag in proposed_tags {
+        if !is_frozen(tag) {
+            continue;
+        }
+        if !current_tags.iter().any(|t| t == tag) {
+            return Err(FrozenTagViolation::FrozenTagAdded {
+                session_id,
+                tag: tag.clone(),
+            });
+        }
+    }
+
+    // Detect removed frozen tags: in current but not in proposed.
+    for tag in current_tags {
+        if !is_frozen(tag) {
+            continue;
+        }
+        if !proposed_tags.iter().any(|t| t == tag) {
+            return Err(FrozenTagViolation::FrozenTagRemoved {
+                session_id,
+                tag: tag.clone(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 // ============================================================================
@@ -944,5 +1131,441 @@ mod tests {
                 panic!("composite {:?} should validate cleanly, got {:?}", c, e)
             });
         }
+    }
+
+    // ---- CH-12 Rule E + runtime validator + frozen-tag prefixes ---------
+
+    /// Build a manifest with the supplied `target_kinds` entry. This is
+    /// the trigger surface for Rule E.
+    fn manifest_with_target_kinds(
+        resource: Vec<&str>,
+        actions: Vec<Action>,
+        kinds: Vec<&str>,
+        target_kinds: Vec<&str>,
+    ) -> ToolAuthorityManifest {
+        let mut m = manifest(resource, actions, kinds);
+        m.target_kinds = target_kinds.into_iter().map(String::from).collect();
+        m
+    }
+
+    #[test]
+    fn rule_e_rejects_session_object_modify_with_session_target_kind() {
+        // The exfiltration vector closed by CH-12: `[Modify] +
+        // session_object + target_kinds=["session"]` must be rejected.
+        let m = manifest_with_target_kinds(
+            vec!["session_object"],
+            vec![Action::Modify],
+            vec!["session"],
+            vec!["session"],
+        );
+        let err = validate_published_manifest(&m).expect_err("must reject");
+        match err {
+            ValidationError::CompositeStructuralTagWrite {
+                composite,
+                action,
+                namespace,
+            } => {
+                assert_eq!(composite, Composite::SessionObject);
+                assert_eq!(action, Action::Modify);
+                assert_eq!(namespace, "session:");
+            }
+            other => panic!("expected CompositeStructuralTagWrite, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn rule_e_rejects_for_every_non_memory_composite() {
+        // Iterate over every composite; for each non-Memory composite,
+        // the `[Modify] + composite + target_kinds=[<reserved-prefixed>]`
+        // shape must be rejected with Rule E.
+        for c in Composite::ALL {
+            if c == Composite::MemoryObject {
+                continue; // D49.1.a Memory exemption
+            }
+            // target_kinds entry uses the composite's own kind prefix —
+            // each composite kind prefix is itself reserved, so this
+            // overlaps the reserved-namespace prefix list.
+            let tk = format!("{}:specific-instance", c.kind_name());
+            let m = manifest_with_target_kinds(
+                vec![c.as_str()],
+                vec![Action::Modify],
+                vec![c.kind_name()],
+                vec![tk.as_str()],
+            );
+            let err = validate_published_manifest(&m).err().unwrap_or_else(|| {
+                panic!("composite {:?} expected Rule E rejection but it passed", c)
+            });
+            assert!(
+                matches!(
+                    err,
+                    ValidationError::CompositeStructuralTagWrite { composite, .. }
+                        if composite == c
+                ),
+                "composite {:?} expected CompositeStructuralTagWrite, got {:?}",
+                c,
+                err
+            );
+        }
+    }
+
+    #[test]
+    fn rule_e_memory_exemption() {
+        // D49.1.a Memory-vs-Session discrimination. Memory tags ARE
+        // intentionally agent-mutable per concept doc 05 lines 24-26;
+        // Rule E must NOT fire for `Composite::MemoryObject` even when
+        // target_kinds overlaps a reserved-namespace prefix.
+        let m = manifest_with_target_kinds(
+            vec!["memory_object"],
+            vec![Action::Modify],
+            vec!["memory"],
+            vec!["memory:specific-id"],
+        );
+        validate_published_manifest(&m).expect("memory_object exempt from Rule E (D49.1.a)");
+    }
+
+    #[test]
+    fn rule_e_does_not_fire_without_modify() {
+        // Same shape as the rejected case but with Action::Read instead
+        // of Modify: Rule E must NOT fire.
+        let m = manifest_with_target_kinds(
+            vec!["session_object"],
+            vec![Action::Read],
+            vec!["session"],
+            vec!["session"],
+        );
+        validate_published_manifest(&m).expect("Rule E only fires on Modify; Read should pass");
+    }
+
+    #[test]
+    fn rule_e_does_not_fire_for_unrestricted_target_kinds() {
+        // session_object + Modify + target_kinds=["#archived"] (lifecycle
+        // tag, NOT in reserved-namespace prefix list).
+        let m = manifest_with_target_kinds(
+            vec!["session_object"],
+            vec![Action::Modify],
+            vec!["session"],
+            vec!["#archived"],
+        );
+        validate_published_manifest(&m)
+            .expect("non-reserved target_kinds entry must not trigger Rule E");
+    }
+
+    #[test]
+    fn rule_e_target_kinds_bare_kind_name_match() {
+        // target_kinds entry is the bare kind name "session" (no `:`
+        // suffix). The rule should still fire because the bare name
+        // matches the trim_end_matches(':') form of the prefix.
+        let m = manifest_with_target_kinds(
+            vec!["session_object"],
+            vec![Action::Modify],
+            vec!["session"],
+            vec!["session"],
+        );
+        let err = validate_published_manifest(&m).expect_err("must reject");
+        assert!(matches!(
+            err,
+            ValidationError::CompositeStructuralTagWrite { .. }
+        ));
+    }
+
+    #[test]
+    fn rule_e_target_kinds_prefixed_match() {
+        // target_kinds entry is "session:s-9831" (instance-prefixed).
+        // The rule should fire because the entry starts_with the prefix
+        // "session:".
+        let m = manifest_with_target_kinds(
+            vec!["session_object"],
+            vec![Action::Modify],
+            vec!["session"],
+            vec!["session:s-9831"],
+        );
+        let err = validate_published_manifest(&m).expect_err("must reject");
+        assert!(matches!(
+            err,
+            ValidationError::CompositeStructuralTagWrite { .. }
+        ));
+    }
+
+    #[test]
+    fn rule_e_kind_hash_prefix_match() {
+        // target_kinds entry uses the `#kind:` prefix.
+        let m = manifest_with_target_kinds(
+            vec!["session_object"],
+            vec![Action::Modify],
+            vec!["session"],
+            vec!["#kind:session"],
+        );
+        let err = validate_published_manifest(&m).expect_err("must reject");
+        match err {
+            ValidationError::CompositeStructuralTagWrite { namespace, .. } => {
+                assert_eq!(namespace, "#kind:");
+            }
+            other => panic!("expected CompositeStructuralTagWrite, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn rule_c_still_fires_before_rule_e_for_bare_tag_modify() {
+        // Mixed manifest: declares `tag` AND `session_object` with
+        // Modify + target_kinds=["session"]. Rule C runs before Rule E
+        // and catches the bare-tag case first.
+        let m = manifest_with_target_kinds(
+            vec!["tag", "session_object"],
+            vec![Action::Modify],
+            vec!["session"],
+            vec!["session"],
+        );
+        let err = validate_published_manifest(&m).expect_err("must reject");
+        assert!(
+            matches!(err, ValidationError::ReservedNamespaceWrite { .. }),
+            "Rule C should fire first for bare-tag, got {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn rule_e_compatible_with_action_modify_applies_to_session_object() {
+        // Sanity: `Action::Modify.applies_to_composite(SessionObject)`
+        // remains true at action.rs:766-777 (CH-04 invariant). Rule E
+        // is the validator-side rejection; the algebra at the
+        // composite-applicability layer is unchanged.
+        assert!(Action::Modify.applies_to_composite(Composite::SessionObject));
+        // Rule E is the reason a manifest with this shape can't ship.
+    }
+
+    // ---- SESSION_FROZEN_TAG_PREFIXES exhaustive checks ------------------
+
+    #[test]
+    fn session_frozen_tag_prefixes_has_ten_entries() {
+        assert_eq!(SESSION_FROZEN_TAG_PREFIXES.len(), 10);
+    }
+
+    #[test]
+    fn session_frozen_tag_prefixes_contains_emitted_today_pair() {
+        // The 2 prefixes that `auto_tags_for("session", id)` actually
+        // emits today must both be in the frozen list.
+        assert!(SESSION_FROZEN_TAG_PREFIXES.contains(&"#kind:"));
+        assert!(SESSION_FROZEN_TAG_PREFIXES.contains(&"session:"));
+    }
+
+    #[test]
+    fn session_frozen_tag_prefixes_contains_six_concept_doc_categories() {
+        // Concept doc 05 lines 220-231 lists 6 forward-defensive
+        // categories that aren't auto-emitted today.
+        for prefix in [
+            "agent:",
+            "project:",
+            "org:",
+            "task:",
+            "role_at_creation:",
+            "agent_kind:",
+        ] {
+            assert!(
+                SESSION_FROZEN_TAG_PREFIXES.contains(&prefix),
+                "missing forward-defensive prefix {:?}",
+                prefix
+            );
+        }
+    }
+
+    #[test]
+    fn session_frozen_tag_prefixes_does_not_contain_lifecycle_tags() {
+        // Lifecycle tags (`#archived`, `#active`) MUST NOT be in the
+        // frozen list — they are intentionally agent-mutable per
+        // concept doc 05 line 541.
+        assert!(!SESSION_FROZEN_TAG_PREFIXES.contains(&"#archived"));
+        assert!(!SESSION_FROZEN_TAG_PREFIXES.contains(&"#active"));
+    }
+
+    // ---- validate_tag_write_on_session — happy paths --------------------
+
+    #[test]
+    fn validate_tag_write_lifecycle_flip_active_to_archived_passes() {
+        // The only legitimate session-tag mutation today: flipping
+        // `#active` ↔ `#archived`.
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec![
+            "#kind:session".to_string(),
+            format!("session:{}", sid),
+            "#active".to_string(),
+        ];
+        let proposed = vec![
+            "#kind:session".to_string(),
+            format!("session:{}", sid),
+            "#archived".to_string(),
+        ];
+        validate_tag_write_on_session(sid, &current, &proposed).expect("lifecycle flip must pass");
+    }
+
+    #[test]
+    fn validate_tag_write_round_trip_unchanged_passes() {
+        // current == proposed for every frozen tag.
+        let sid = crate::model::ids::SessionId::new();
+        let tags = vec!["#kind:session".to_string(), format!("session:{}", sid)];
+        validate_tag_write_on_session(sid, &tags, &tags).expect("identity round-trip must pass");
+    }
+
+    #[test]
+    fn validate_tag_write_empty_to_empty_passes() {
+        // Edge case: both inputs empty (no session was created with
+        // tags).
+        let sid = crate::model::ids::SessionId::new();
+        validate_tag_write_on_session(sid, &[], &[]).expect("empty-to-empty must pass");
+    }
+
+    #[test]
+    fn validate_tag_write_adding_lifecycle_tag_passes() {
+        // Adding `#active` (lifecycle, not in SESSION_FROZEN_TAG_PREFIXES).
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec!["#kind:session".to_string()];
+        let proposed = vec!["#kind:session".to_string(), "#active".to_string()];
+        validate_tag_write_on_session(sid, &current, &proposed)
+            .expect("adding lifecycle tag must pass");
+    }
+
+    #[test]
+    fn validate_tag_write_removing_lifecycle_tag_passes() {
+        // Removing `#archived` is legitimate (lifecycle).
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec!["#kind:session".to_string(), "#archived".to_string()];
+        let proposed = vec!["#kind:session".to_string()];
+        validate_tag_write_on_session(sid, &current, &proposed)
+            .expect("removing lifecycle tag must pass");
+    }
+
+    #[test]
+    fn validate_tag_write_non_frozen_namespace_passes() {
+        // Adding a tag in a non-frozen namespace (e.g., `priority:high`)
+        // must pass.
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec!["#kind:session".to_string()];
+        let proposed = vec!["#kind:session".to_string(), "priority:high".to_string()];
+        validate_tag_write_on_session(sid, &current, &proposed)
+            .expect("non-frozen namespace must pass");
+    }
+
+    // ---- validate_tag_write_on_session — rejection paths ----------------
+
+    #[test]
+    fn validate_tag_write_rejects_added_session_tag() {
+        // Concept-doc Example 7 (lines 516-525): "A worker tries to
+        // retag... Denied." Adding a `session:<other>` tag is rejected.
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec!["#kind:session".to_string(), format!("session:{}", sid)];
+        let proposed = vec![
+            "#kind:session".to_string(),
+            format!("session:{}", sid),
+            "session:other".to_string(),
+        ];
+        let err = validate_tag_write_on_session(sid, &current, &proposed).expect_err("must reject");
+        match err {
+            FrozenTagViolation::FrozenTagAdded { tag, .. } => {
+                assert_eq!(tag, "session:other");
+            }
+            other => panic!("expected FrozenTagAdded, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_tag_write_rejects_removed_session_tag() {
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec!["#kind:session".to_string(), format!("session:{}", sid)];
+        let proposed = vec!["#kind:session".to_string()];
+        let err = validate_tag_write_on_session(sid, &current, &proposed).expect_err("must reject");
+        match err {
+            FrozenTagViolation::FrozenTagRemoved { tag, .. } => {
+                assert!(tag.starts_with("session:"));
+            }
+            other => panic!("expected FrozenTagRemoved, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_tag_write_rejects_added_org_tag_forward_defensive() {
+        // The 6 M6+ categories aren't auto-emitted today, but the
+        // runtime gate is forward-defensive. A tool trying to add
+        // `org:Y` is the exfiltration vector concept doc 05 §"Frozen-
+        // at-creation tags (immutability)" warns about.
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec![format!("session:{}", sid), "org:X".to_string()];
+        let proposed = vec![
+            format!("session:{}", sid),
+            "org:X".to_string(),
+            "org:Y".to_string(),
+        ];
+        let err = validate_tag_write_on_session(sid, &current, &proposed).expect_err("must reject");
+        match err {
+            FrozenTagViolation::FrozenTagAdded { tag, .. } => {
+                assert_eq!(tag, "org:Y");
+            }
+            other => panic!("expected FrozenTagAdded for org:Y, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_tag_write_rejects_removed_kind_tag() {
+        // Removing `#kind:session` would erase the type identity.
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec!["#kind:session".to_string(), format!("session:{}", sid)];
+        let proposed = vec![format!("session:{}", sid)];
+        let err = validate_tag_write_on_session(sid, &current, &proposed).expect_err("must reject");
+        match err {
+            FrozenTagViolation::FrozenTagRemoved { tag, .. } => {
+                assert_eq!(tag, "#kind:session");
+            }
+            other => panic!("expected FrozenTagRemoved, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_tag_write_rejects_swap_session_id() {
+        // Retag from `session:<self>` to `session:<other>` (a
+        // particularly nasty cross-session impersonation attempt).
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec![format!("session:{}", sid)];
+        let proposed = vec!["session:other".to_string()];
+        let err = validate_tag_write_on_session(sid, &current, &proposed).expect_err("must reject");
+        // Either branch is acceptable (added-other or removed-self);
+        // the test asserts at-least-one frozen violation surfaces.
+        assert!(matches!(
+            err,
+            FrozenTagViolation::FrozenTagAdded { .. } | FrozenTagViolation::FrozenTagRemoved { .. }
+        ));
+    }
+
+    #[test]
+    fn validate_tag_write_rejects_added_role_at_creation_tag() {
+        // Forward-defensive: role_at_creation: is in the M6+ category
+        // list per concept doc 05. The runtime gate enforces it now.
+        let sid = crate::model::ids::SessionId::new();
+        let current = vec![format!("session:{}", sid)];
+        let proposed = vec![
+            format!("session:{}", sid),
+            "role_at_creation:lead".to_string(),
+        ];
+        let err = validate_tag_write_on_session(sid, &current, &proposed).expect_err("must reject");
+        assert!(matches!(err, FrozenTagViolation::FrozenTagAdded { .. }));
+    }
+
+    // ---- FrozenTagViolation Display test --------------------------------
+
+    #[test]
+    fn frozen_tag_violation_display_round_trip() {
+        let sid = crate::model::ids::SessionId::new();
+        let v = FrozenTagViolation::FrozenTagAdded {
+            session_id: sid,
+            tag: "session:other".to_string(),
+        };
+        let s = format!("{}", v);
+        assert!(s.contains(&sid.to_string()));
+        assert!(s.contains("session:other"));
+
+        let v2 = FrozenTagViolation::FrozenTagRemoved {
+            session_id: sid,
+            tag: "#kind:session".to_string(),
+        };
+        let s2 = format!("{}", v2);
+        assert!(s2.contains(&sid.to_string()));
+        assert!(s2.contains("#kind:session"));
     }
 }

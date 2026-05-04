@@ -15,6 +15,37 @@
 //! to reject wrong-pair ID types at compile time, then delegate to the
 //! trait's `*_raw` methods (which take `NodeId`). See ADR-0015 for the
 //! rationale.
+//!
+//! ## Future-method precondition: Session tag writes (CH-12 / ADR-0049)
+//!
+//! No `update_session_tags` / `set_session_tags` / `retag_session`
+//! method exists on this trait today. ADR-0049 §D49.5 + §D49.7 fixes
+//! the contract for whichever future chunk introduces one:
+//!
+//! Any future [`Repository`] method that proposes to update a
+//! `Session`'s tag set MUST
+//! 1. call
+//!    [`crate::permissions::manifest::validator::validate_tag_write_on_session`]
+//!    as its first line,
+//! 2. propagate failures as
+//!    [`RepositoryError::FrozenSessionTagWrite { source }`], AND
+//! 3. emit
+//!    [`crate::audit::events::m5_2::tool_authority::frozen_tag_write_rejected`]
+//!    via the injected
+//!    [`crate::audit::AuditEmitter`] BEFORE propagating the error
+//!    (per ADR-0049 §D49.7 — the audit event makes the rejection
+//!    operator-visible at `AuditClass::Alerted` retention tier; the
+//!    validator's pure-fn rejection is byte-stably paired with the
+//!    audit event). The audit emission and the rejection-error return
+//!    are SIBLING side effects of the same precondition: every
+//!    rejection produces exactly one audit event before the error
+//!    propagates upward.
+//!
+//! The pairing is part of the trait contract, not an implementation
+//! detail — every backend (in-memory, SurrealDB, future Postgres) must
+//! honor it identically. CH-12 ships the validator pure-fn + audit
+//! event builder + `RepositoryError` variant so the future tag-write
+//! chunk has all three plumbing ingredients pre-built.
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -76,6 +107,26 @@ pub enum RepositoryError {
     ConsentTransition {
         #[source]
         source: crate::consents::ConsentTransitionError,
+    },
+    /// CH-12 / D-new-08 / ADR-0049 §D49.5 — runtime tag-write validator
+    /// rejected a proposed update to a `Session`'s tag set. Wraps the
+    /// structured
+    /// [`crate::permissions::manifest::validator::FrozenTagViolation`]
+    /// so handlers can map the rejection to `422 Unprocessable Entity`
+    /// (per `m5_2/operations/permission-engine-operations.md`).
+    ///
+    /// The Session row is NOT mutated. The pairing contract on the
+    /// [`Repository`] trait module-level docstring requires the
+    /// rejecting callsite to ALSO emit
+    /// [`crate::audit::events::m5_2::tool_authority::frozen_tag_write_rejected`]
+    /// at `AuditClass::Alerted` before propagating this error
+    /// (ADR-0049 §D49.7). No production callsite emits this variant
+    /// today; the variant ships forward-defensive at CH-12 so the
+    /// future `update_session_tags`-style chunk has a typed channel.
+    #[error("frozen session-tag write rejected: {source}")]
+    FrozenSessionTagWrite {
+        #[source]
+        source: crate::permissions::manifest::validator::FrozenTagViolation,
     },
 }
 

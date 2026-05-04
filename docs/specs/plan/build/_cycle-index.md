@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-05-03 by Claude Code (CH-11-d5428c43 cycle complete; awaiting user commit) -->
+<!-- Last verified: 2026-05-04 by Claude Code (CH-12-6a748175 status flipped ready-for-audit → retro-complete after Audit A GREEN + Audit B iter 2 GREEN + orchestrator final cycle re-audit GREEN + retrospective written + 7 standards updates applied + D-CH12-FOLLOWUP-01 filed; iteration count flipped 1 → 2 reflecting Audit B re-spawn for Trivial-multi paperwork patch) -->
 
 # Cycle index — baby-phi multi-agent chunk pipeline
 
@@ -11,6 +11,7 @@ Pointer index for hex-tagged cycles under this directory. Each row points to a c
 | Hex | Slug | Phases | Auditors | Iterations | Status | Retro |
 |---|---|---|---|---|---|---|
 | [`d5428c43`](ch-11-per-session-consent-gating-d5428c43/plan.md) | CH-11 — Per-Session consent gating | 4 | 2 (audit envelope: medium) | 1 (Trivial-1L orchestrator inline patch) | `retro-complete` (cycle GREEN; awaiting user commit) | [retrospective](ch-11-per-session-consent-gating-d5428c43/retrospective.md) |
+| [`6a748175`](ch-12-frozen-session-tag-immutability-6a748175/plan.md) | CH-12 — Frozen session-tag immutability | 3 | 2 (audit envelope: medium) | 2 (Trivial-multi audit-fix re-spawn for `_concept-audit-matrix.md` row 191) | `retro-complete` (cycle GREEN; awaiting user commit) | [retrospective](ch-12-frozen-session-tag-immutability-6a748175/retrospective.md) |
 
 ## Legacy cycles (flat-file, pre-multi-agent)
 

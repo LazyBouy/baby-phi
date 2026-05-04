@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-04 by Claude Code (CH-12 chunk-seal: D-new-08 remediated; Status flipped to remediated; lifecycle entry appended) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-08 — Frozen session-tag immutability not enforced (no grant prevents [modify] on structural tags)
@@ -7,7 +8,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `security-boundary`, `tag-immutability`, `exfiltration-prevention`
@@ -45,3 +46,4 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 flagged twice; merged D-new-session-tag-mutability + D-new-frozen-tag-enforcement)
+- 2026-05-04 — in-chunk-plan → remediated — CH-12 chunk-seal — validate_published_manifest extended with Rule E (CompositeStructuralTagWrite) + validate_tag_write_on_session function + SESSION_FROZEN_TAG_PREFIXES constant; runtime gate ready for any future tag-write Repository method; tool.frozen_tag_write_rejected audit-event builder shipped per F5.B user lock.
