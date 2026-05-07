@@ -81,11 +81,11 @@
 - Deliverables: Selector enum extended with `Contains`, `Intersects`, `AnyMatch`, `SubsetOf`, `Empty`, `NonEmpty` + `And`/`Or`/`Not` combinators; PEG parser (likely via `pest` crate); `matches()` body for each predicate; instance tag auto-emission helper wired into every composite creation path; all existing grants migrated to new vocabulary where applicable; selector acceptance suite covering every predicate + combinator. **May benefit from internal split** into CH-06a (grammar + parser) + CH-06b (instance tag wiring) if scope proves too large mid-chunk.
 - **Unblocks**: CH-07 (multi-scope cascade uses predicates), CH-12 (frozen-tag enforcement uses grammar), CH-15 (permission manifest selectors), deferred Memory contract (M6).
 
-**CH-07 — Multi-scope cascade + contractor model** · ⚠HIGH · ~3 days
+**CH-07 — Multi-scope cascade + contractor model** · ⚠HIGH · ~3 days · **CLOSED 2026-05-07** (cycle hex `cc912d07`)
 - Drifts closed: **D-new-06** (full 5-tier cascade), **D-new-20** (contractor-model scope-membership bounds).
 - Concept docs: [`permissions/04-manifest-and-resolution.md`](../../v0/concepts/permissions/04-manifest-and-resolution.md) §"Scope Resolution", [`permissions/06-multi-scope-consent.md`](../../v0/concepts/permissions/06-multi-scope-consent.md) §"Unified Resolution Rule", [`permissions/08-worked-example.md`](../../v0/concepts/permissions/08-worked-example.md) scenarios 4–6.
 - Prerequisites: **CH-06** (cascade uses tag-predicate selectors).
-- Deliverables: `step_5_scope_resolution` full 5-tier cascade (Project → Org → base_project → base_org → intersection fallback); contractor-model scope-membership bound at Step 2a; acceptance tests matching worked-example scenarios 4–6.
+- Deliverables: `step_5_scope_resolution` full 5-tier cascade (Project → Org → base_project → base_org → intersection fallback) **(informal labeling for 5 distinct outcomes — concept-doc canonical phrasing is "2 main tiers + base_X tie-breakers + intersection fallback" per concept 04 lines 354–375 + concept 06 lines 28–63; F1.A locked at plan approval to concept-doc framing per CH-07 retro §5 row 3)**; contractor-model scope-membership bound at Step 2a; acceptance tests matching worked-example scenarios 4–6.
 - Unblocks: nothing critical (standalone Permission-engine quality improvement).
 
 **CH-08 — allocate/transfer cardinality + refinements** · ⚠HIGH · ~2 days

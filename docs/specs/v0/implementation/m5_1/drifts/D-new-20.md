@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-07 by Claude Code (CH-07 chunk-seal: Status flipped discovered → remediated; membership-bounded clamp shipped at engine.rs::step_2a_ceiling per ADR-0051 §D51.6; closes at CH-07 cycle cc912d07.) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-20 — Contractor-model logic: reader's base_org ceiling does NOT reach into sessions of scopes they aren't a member of
@@ -7,7 +8,8 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: **remediated**
+- **Closes**: CH-07 cc912d07
 - **Bucket**: B — underspecified shape choice
 - **Severity**: MEDIUM
 - **Tags**: `multi-scope`, `contractor-model`, `security-boundary`
@@ -45,3 +47,4 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report)
+- 2026-05-07 — remediated — CH-07 cycle cc912d07 — membership-bounded clamp shipped at engine.rs::step_2a_ceiling per ADR-0051 §D51.6; 4 unit tests + Scenario 7 acceptance test (contractor_model_acceptance_test_per_concept_08_step_7 + scenario_7_contractor_reads_acme_session_project_tier_wins).

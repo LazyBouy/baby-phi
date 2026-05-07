@@ -185,8 +185,68 @@ pub struct CheckContext<'a> {
     /// conforming criteria so a future remote-backed registry slots in
     /// without touching the engine.
     pub set_ref_registry: &'a dyn SetRefRegistry,
+    /// CH-07 / ADR-0051 §D51.4 — Session's owning-organization tags
+    /// parsed from `Session.tags` `org:<uuid>` prefixes.
+    ///
+    /// **Empty slice** = single-org (Shape A/D) path; the cascade
+    /// reduces to today's behaviour (top-tier-then-tie-break) so M1
+    /// callsite-count test invariants are preserved exactly. Concept
+    /// 06 lines 14–53 reads scopes from `session.tags` directly; the
+    /// launch handler computes this slice via
+    /// [`parse_session_scope_tags`] before constructing the context.
+    ///
+    /// **Non-empty** = multi-scope (Shape B/C) — the cascade applies
+    /// the 2-tier branching with intersection fallback per ADR-0051
+    /// §D51.4 + §D51.5.
+    pub session_org_tags: &'a [OrgId],
+    /// CH-07 / ADR-0051 §D51.4 — Session's owning-project tags parsed
+    /// from `Session.tags` `project:<uuid>` prefixes.
+    ///
+    /// **Empty slice** = no project (Shape D) OR single-project (Shape
+    /// A); the cascade falls through to the org tier or stays at
+    /// today's behaviour. Concept 06 lines 14–53 reads scopes from
+    /// `session.tags` directly.
+    pub session_project_tags: &'a [ProjectId],
     /// The invocation being checked.
     pub call: ToolCall,
+}
+
+/// CH-07 / ADR-0051 §D51.4 — parse `org:<uuid>` and `project:<uuid>`
+/// prefixes from a session's tag set into typed `OrgId` / `ProjectId`
+/// vectors.
+///
+/// Returns deduplicated, deterministic-order vectors (insertion order
+/// preserving first-occurrence; subsequent duplicates dropped). Tags
+/// whose suffix is not a parseable UUID are silently skipped — the
+/// cascade treats them as no-ops, matching CH-06's
+/// `format!("org:{}", session.owning_org)` emission shape at
+/// `events/listeners.rs:703-704`.
+///
+/// `session.tags` is the canonical multi-scope encoding per concept
+/// doc 06 lines 14–53. The launch handler at
+/// `server::platform::sessions::launch.rs` calls this helper before
+/// constructing [`CheckContext`].
+pub fn parse_session_scope_tags(session_tags: &[String]) -> (Vec<OrgId>, Vec<ProjectId>) {
+    let mut orgs: Vec<OrgId> = Vec::new();
+    let mut projects: Vec<ProjectId> = Vec::new();
+    for tag in session_tags {
+        if let Some(rest) = tag.strip_prefix("org:") {
+            if let Ok(uuid) = uuid::Uuid::parse_str(rest) {
+                let id = OrgId::from_uuid(uuid);
+                if !orgs.contains(&id) {
+                    orgs.push(id);
+                }
+            }
+        } else if let Some(rest) = tag.strip_prefix("project:") {
+            if let Ok(uuid) = uuid::Uuid::parse_str(rest) {
+                let id = ProjectId::from_uuid(uuid);
+                if !projects.contains(&id) {
+                    projects.push(id);
+                }
+            }
+        }
+    }
+    (orgs, projects)
 }
 
 /// Lookup from `(subordinate, org, Option<session_id>)` → [`ConsentState`].

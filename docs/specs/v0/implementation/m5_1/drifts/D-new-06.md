@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-07 by Claude Code (CH-07 chunk-seal: Status flipped discovered → remediated; full 2-tier cascade + intersection fallback shipped at engine.rs::step_5_scope_resolution per ADR-0051; closes at CH-07 cycle cc912d07.) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-06 — Multi-scope cascade resolution (Project → Org → base_project → base_org → intersection fallback) not fully implemented
@@ -7,7 +8,8 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: **remediated**
+- **Closes**: CH-07 cc912d07
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `permission-engine`, `scope-resolution`, `multi-scope`
@@ -45,3 +47,4 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agents 2 + 3 both flagged; merged)
+- 2026-05-07 — remediated — CH-07 cycle cc912d07 — full 2-tier cascade + intersection fallback shipped at engine.rs::step_5_scope_resolution per ADR-0051; 10 unit tests + 6 acceptance tests cover the 5 distinct outcomes (cascade_*, scenario_4/5/6, shape_a/d).

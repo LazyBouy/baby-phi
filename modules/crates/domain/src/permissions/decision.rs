@@ -120,6 +120,20 @@ pub enum DeniedReason {
     /// class-level call site (preview / handler-support tests). Denial
     /// mapped to [`FailedStep::Consent`].
     NoSessionContext { subordinate: AgentId, org: OrgId },
+    /// CH-07 / ADR-0051 §D51.5 + §D51.7 — multi-scope cascade
+    /// intersection-fallback returned an empty winner set. The reader
+    /// is in 0 of the session's tagged projects/orgs (concept-doc 06
+    /// "outsider" case), and the union of session-scope ceiling grants
+    /// clamps every candidate to empty. Denial mapped to
+    /// [`FailedStep::Scope`]. `session_scope_count` reports the number
+    /// of distinct session-tagged scopes the cascade considered (org +
+    /// project tag count) — useful in audit logs without leaking the
+    /// specific OrgIds.
+    IntersectionEmpty {
+        fundamental: Fundamental,
+        action: Action,
+        session_scope_count: u8,
+    },
 }
 
 /// The three outcomes the Permission Check engine can return.

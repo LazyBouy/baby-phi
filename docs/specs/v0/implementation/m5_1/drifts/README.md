@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-07 by Claude Code (CH-07 chunk-seal: D-new-06 + D-new-20 rows Status flipped to **remediated** with "Impl. chunk" set to CH-07 ✓; new row added for D-CH07-FOLLOWUP-01 — LOW Bucket B drift tracking the M6+ deferral of Agent.base_project / Agent.base_org Vec field additions per ADR-0051 §D51.2/§D51.3.) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-13 chunk-seal: D-new-19 row Status flipped to remediated; "Impl. chunk" set to CH-13 ✓) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-12 chunk-seal: D-new-08 row Status flipped to remediated; "Impl. chunk" set to CH-12 ✓) -->
 <!-- Last verified: 2026-04-28 by Claude Code -->
@@ -101,7 +102,7 @@ fixed.
 | D-new-03 | Selector grammar has 4 variants; PEG tag-predicate DSL absent | **HIGH** | **A** | permissions/05, 09 | N/A | remediated | CH-06 | [D-new-03.md](D-new-03.md) |
 | D-new-04 | Consent node has 5 fields; concept mandates 10+ | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-09 ✓ | [D-new-04.md](D-new-04.md) |
 | D-new-05 | Consent lifecycle state machine missing | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-10 ✓ | [D-new-05.md](D-new-05.md) |
-| D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | discovered | TBD | [D-new-06.md](D-new-06.md) |
+| D-new-06 | Multi-scope cascade resolution incomplete | **HIGH** | **A** | permissions/04, 06, 08 | N/A | **remediated** | CH-07 ✓ | [D-new-06.md](D-new-06.md) |
 | D-new-07 | Publish-time manifest validator missing | **HIGH** | **A** | permissions/04, 07 | N/A | **remediated** | CH-05 ✓ | [D-new-07.md](D-new-07.md) |
 | D-new-08 | Frozen session-tag immutability not enforced | **HIGH** | **A** | permissions/05 | N/A | **remediated** | CH-12 ✓ | [D-new-08.md](D-new-08.md) |
 | D-new-09 | Action vocabulary stored as `Vec<String>` (no enum) | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-09.md](D-new-09.md) |
@@ -115,7 +116,7 @@ fixed.
 | D-new-17 | Per-Session consent gating incomplete | **HIGH** | **A** | permissions/06 | N/A | **remediated** | CH-11 ✓ | [D-new-17.md](D-new-17.md) |
 | D-new-18 | Grant revocation cascade full-tree walk needs verification | **HIGH** | **A** | permissions/08; README | N/A | discovered | TBD | [D-new-18.md](D-new-18.md) |
 | D-new-19 | audit_class composition (strictest wins) not enforced | MEDIUM | B | permissions/07 | N/A | **remediated** | CH-13 ✓ | [D-new-19.md](D-new-19.md) |
-| D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | discovered | TBD | [D-new-20.md](D-new-20.md) |
+| D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | **remediated** | CH-07 ✓ | [D-new-20.md](D-new-20.md) |
 | D-new-21 | Edge-count documentation mismatch | LOW | B | ontology | N/A | discovered | TBD | [D-new-21.md](D-new-21.md) |
 | D-new-22 | Agent role immutability post-creation not enforced | MEDIUM | B | agent | N/A | remediated | CH-01 ✓ | [D-new-22.md](D-new-22.md) |
 | D-new-23 | Human Agents lack Identity-assignment guard | LOW | C | human-agent | N/A | remediated | CH-16 | [D-new-23.md](D-new-23.md) |
@@ -130,6 +131,7 @@ fixed.
 | D-CH11-FOLLOWUP-01 | `Project.deadline_at` missing; CH-11 falls back to `now+24h` for `ApprovalTimeout::ProjectDuration` | LOW | B | permissions/06 | N/A | discovered | M6+ Project enrichment | [D-CH11-FOLLOWUP-01.md](D-CH11-FOLLOWUP-01.md) |
 | D-CH12-FOLLOWUP-01 | Session structural-tag emission gap (6 M6+ categories not yet auto-emitted on Session creation) | LOW | B | permissions/05 | N/A | discovered | M6+ Session structural-tag emission | [D-CH12-FOLLOWUP-01.md](D-CH12-FOLLOWUP-01.md) |
 | D-CH13-FOLLOWUP-01 | Platform-admin Grant-mint paths do not invoke `compose_audit_class` against `Organization.audit_class_default` | LOW | B | permissions/07 | N/A | discovered | M6+ Platform-admin compliance-posture extension | [D-CH13-FOLLOWUP-01.md](D-CH13-FOLLOWUP-01.md) |
+| D-CH07-FOLLOWUP-01 | Agent.base_project + Agent.base_org Vec field additions deferred (cascade tie-breaker placeholder) | LOW | B | permissions/04, 06 | N/A | discovered | M6+ long-lived multi-org/multi-project Agents | [D-CH07-FOLLOWUP-01.md](D-CH07-FOLLOWUP-01.md) |
 
 **Row count at P1 close: 29 files written, all row cells populated. ✅**
 **Row count at P2 close: 60 files written (29 existing + 31 new D-new-NN). ✅**

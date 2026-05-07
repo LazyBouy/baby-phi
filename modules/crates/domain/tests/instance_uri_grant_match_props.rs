@@ -79,6 +79,10 @@ fn build_ctx<'a>(
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — single-scope path; preserves
+        // M1/CH-06 invariants for instance-URI grant-match proptest.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call,
     }
 }

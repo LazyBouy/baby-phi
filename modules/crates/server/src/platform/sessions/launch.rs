@@ -607,6 +607,25 @@ async fn gate_session_launch_consent(
         ..Default::default()
     };
 
+    // CH-07 / ADR-0051 §D51.4 — multi-scope cascade reads from
+    // `session.tags` per concept doc 06 lines 14–53. At session-launch
+    // time the Session row hasn't been persisted yet (this gate fires
+    // pre-creation), so the launch path constructs the would-be tag
+    // set from the `LaunchInput` and parses it through the canonical
+    // helper. Shape A/D inputs (singular `org_id` + `project_id`)
+    // produce a 1-org + 1-project tag pair → the cascade still
+    // reduces to today's single-tier behaviour because the reader's
+    // single membership matches both candidate scopes (count == 1 at
+    // each tier). Multi-scope (Shape B/C) session-creation paths land
+    // at CH-15 — at that point the launch handler will populate
+    // `tags` directly with multi-scope prefixes before this parse.
+    let prospective_session_tags = vec![
+        format!("org:{}", input.org_id),
+        format!("project:{}", input.project_id),
+    ];
+    let (session_org_tags, session_project_tags) =
+        domain::permissions::parse_session_scope_tags(&prospective_session_tags);
+
     let ctx = CheckContext {
         agent: input.agent_id,
         current_org: Some(input.org_id),
@@ -625,6 +644,8 @@ async fn gate_session_launch_consent(
         timeout_default_response: org.approval_timeout_default_response,
         template_gated_auth_requests: &template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &session_org_tags,
+        session_project_tags: &session_project_tags,
         call,
     };
 

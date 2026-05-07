@@ -78,7 +78,7 @@ fn check_inner(ctx: &CheckContext<'_>, manifest: &Manifest) -> Decision {
     }
 
     // --- Step 2a ---------------------------------------------------------
-    let effective = step_2a_ceiling(candidates, ctx.ceiling_grants);
+    let effective = step_2a_ceiling(candidates, ctx.ceiling_grants, ctx.session_org_tags);
     if effective.is_empty() {
         return Decision::Denied {
             failed_step: FailedStep::Ceiling,
@@ -233,12 +233,60 @@ pub fn step_2_resolve_grants(ctx: &CheckContext<'_>) -> Vec<Candidate> {
 ///
 /// Selector subset is deferred to M2+ (requires lattice machinery we don't
 /// need yet).
-pub fn step_2a_ceiling(candidates: Vec<Candidate>, ceiling_grants: &[Grant]) -> Vec<Candidate> {
+///
+/// **CH-07 / ADR-0051 §D51.6 — contractor-model membership bound.**
+/// Concept-doc 06 line 162 verbatim: *"an agent's home org
+/// (`base_organization`) does not reach into sessions belonging to
+/// scopes the agent is not a member of."* The `session_org_tags` slice
+/// gates which Organization-tier ceilings actually clamp:
+///
+/// - **Empty `session_org_tags`** — single-org / Shape A / Shape D
+///   path. Every ceiling clamps uniformly, preserving M1 behaviour
+///   exactly so existing callsite-count test invariants hold.
+/// - **Non-empty `session_org_tags`** — multi-scope (Shape B/C) path.
+///   A ceiling whose `holder == PrincipalRef::Organization(o)` only
+///   participates in clamping when `session_org_tags.contains(&o)`.
+///   Non-org ceilings (Project / Agent holders) are unaffected by the
+///   membership bound — they pass through to the existing clamping
+///   logic.
+///
+/// This is the structural enforcement of the contractor-model security
+/// boundary (drift D-new-20): a contractor's home-org ceiling must not
+/// reach into a session whose tag set excludes that org.
+pub fn step_2a_ceiling(
+    candidates: Vec<Candidate>,
+    ceiling_grants: &[Grant],
+    session_org_tags: &[OrgId],
+) -> Vec<Candidate> {
     if ceiling_grants.is_empty() {
         return candidates;
     }
-    let ceilings: Vec<ResolvedGrant> = ceiling_grants
-        .iter()
+    // CH-07 / ADR-0051 §D51.6 — filter ceilings by membership when the
+    // session carries explicit org-scope tags; otherwise pass through
+    // (single-org back-compat path).
+    let applicable_ceilings: Vec<&Grant> = if session_org_tags.is_empty() {
+        ceiling_grants.iter().collect()
+    } else {
+        ceiling_grants
+            .iter()
+            .filter(|g| match g.holder {
+                PrincipalRef::Organization(o) => session_org_tags.contains(&o),
+                // Non-org ceilings (Project / Agent holders) are not
+                // gated by the org-membership bound — concept 06 line
+                // 162 frames the bound around `base_organization`,
+                // not the project / agent tiers.
+                _ => true,
+            })
+            .collect()
+    };
+    if applicable_ceilings.is_empty() {
+        // Every ceiling was filtered out by the membership bound — the
+        // candidate set faces no applicable ceiling, matching the
+        // "infinite ceiling" path of the empty-input branch above.
+        return candidates;
+    }
+    let ceilings: Vec<ResolvedGrant> = applicable_ceilings
+        .into_iter()
         .filter(|c| c.revoked_at.is_none())
         .map(resolve_grant)
         .collect();
@@ -311,29 +359,336 @@ pub fn step_3_match_reaches(
 // Step 5 — Scope resolution cascade
 // ----------------------------------------------------------------------------
 
-/// For each reach, pick the winning grant via the
-/// most-specific-first cascade (Agent → Project → Org). Ties within a tier
-/// are broken by [`tie_break_within_tier`].
+/// For each reach, pick the winning grant via the multi-scope cascade
+/// per ADR-0051 §D51.1 (concept-doc 06 §"The Unified Resolution Rule"
+/// lines 28–53 verbatim).
+///
+/// **Single-scope back-compat (Shape A/D)**: when both
+/// `ctx.session_org_tags` and `ctx.session_project_tags` are empty, the
+/// cascade reduces to today's single-tier behaviour — sort by tier
+/// (Agent → Project → Org), keep top-tier, tie-break by
+/// `(issued_at, id_bytes)`. This preserves M1 callsite-count test
+/// invariants on every Shape A/D path.
+///
+/// **Multi-scope path (Shape B/C)**: when at least one of the slices
+/// is non-empty, run the 2-tier cascade:
+///
+/// 1. **Project tier** — `reader_project_matches = session_project_tags
+///    ∩ {projects whose grants are in `candidates` AND in
+///    `ctx.project_grants` (reader is a member)}`.
+///    - `count == 1` → pick that project's candidate(s); tie-break via
+///      [`tie_break_within_tier`].
+///    - `count > 1` → pick the lexicographically-smallest `ProjectId`
+///      as a deterministic placeholder for `base_project`
+///      (`Agent.base_project: Vec<ProjectId>` deferred to M6+ per
+///      D-CH07-FOLLOWUP-01 + ADR-0051 §D51.2).
+///    - `count == 0` → fall through to the org tier.
+/// 2. **Org tier** — same 3-branch shape using `session_org_tags ∩
+///    reader's org_grants ∩ candidates`. `count > 1` →
+///    lexicographically-smallest `OrgId` placeholder for `base_org`
+///    (FIXME-tagged for M6+).
+/// 3. **Intersection fallback** (concept doc 06 lines 60–62) — when
+///    both tiers fall through (`count == 0` at both), collect the
+///    union of `org_grants` from session-tagged orgs and re-run a
+///    Step-2a-shape ceiling clamp against `candidates`. If non-empty:
+///    tie-break + return winner. If empty: `Decision::Denied {
+///    failed_step: FailedStep::Scope, reason:
+///    DeniedReason::IntersectionEmpty { ... } }` (ADR-0051 §D51.5 +
+///    §D51.7).
 pub fn step_5_scope_resolution(
     matches: HashMap<ReachKey, Vec<Candidate>>,
-    _ctx: &CheckContext<'_>,
+    ctx: &CheckContext<'_>,
 ) -> Result<HashMap<ReachKey, ResolvedGrant>, Decision> {
     let mut winners = HashMap::with_capacity(matches.len());
-    for (key, mut candidates) in matches {
-        // Sort by tier ascending (Agent first).
-        candidates.sort_by_key(|c| c.tier);
-        let top_tier = candidates[0].tier;
-        candidates.retain(|c| c.tier == top_tier);
-        let winner = tie_break_within_tier(candidates).ok_or(Decision::Denied {
+    let multi_scope = !ctx.session_org_tags.is_empty() || !ctx.session_project_tags.is_empty();
+    for (key, candidates) in matches {
+        let winner = if multi_scope {
+            cascade_multi_scope(key, candidates, ctx)?
+        } else {
+            cascade_single_scope(key, candidates)?
+        };
+        winners.insert(key, winner);
+    }
+    Ok(winners)
+}
+
+/// Single-tier cascade — preserves M1 / pre-CH-07 behaviour exactly.
+/// Sort by tier ascending (Agent → Project → Org), keep top-tier,
+/// tie-break by `(issued_at, id_bytes)`.
+fn cascade_single_scope(
+    key: ReachKey,
+    mut candidates: Vec<Candidate>,
+) -> Result<ResolvedGrant, Decision> {
+    candidates.sort_by_key(|c| c.tier);
+    let top_tier = candidates[0].tier;
+    candidates.retain(|c| c.tier == top_tier);
+    tie_break_within_tier(candidates).ok_or(Decision::Denied {
+        failed_step: FailedStep::Scope,
+        reason: DeniedReason::ScopeUnresolvable {
+            fundamental: key.0,
+            action: key.1,
+        },
+    })
+}
+
+/// Multi-scope cascade — concept-doc 06 lines 28–53 verbatim shape.
+fn cascade_multi_scope(
+    key: ReachKey,
+    candidates: Vec<Candidate>,
+    ctx: &CheckContext<'_>,
+) -> Result<ResolvedGrant, Decision> {
+    // Agent-tier candidates always win — they are most-specific by
+    // definition and don't depend on project/org membership scoping.
+    // Concept doc 04 §"Mechanism 2" line 354 ("most-specific-first")
+    // + concept 06 line 30 (cascading "from most-specific to
+    // most-general"; the reader's Agent-tier grants sit above the
+    // Project / Org tiers in the hierarchy).
+    let agent_tier: Vec<Candidate> = candidates
+        .iter()
+        .filter(|c| c.tier == ScopeTier::Agent)
+        .cloned()
+        .collect();
+    if !agent_tier.is_empty() {
+        return tie_break_within_tier(agent_tier).ok_or(Decision::Denied {
             failed_step: FailedStep::Scope,
             reason: DeniedReason::ScopeUnresolvable {
                 fundamental: key.0,
                 action: key.1,
             },
-        })?;
-        winners.insert(key, winner);
+        });
     }
-    Ok(winners)
+
+    // Step A — project-tier resolution.
+    // `reader_project_matches`: projects the reader is a member of
+    // (= holds a Project-tier grant for) AND the session is tagged with
+    // AND have at least one candidate in this reach.
+    let candidate_projects: Vec<ProjectId> = candidates
+        .iter()
+        .filter(|c| c.tier == ScopeTier::Project)
+        .filter_map(|c| match c.resolved.grant.holder {
+            PrincipalRef::Project(p) => Some(p),
+            _ => None,
+        })
+        .collect();
+    let reader_project_ids: Vec<ProjectId> = ctx
+        .project_grants
+        .iter()
+        .filter_map(|g| match g.holder {
+            PrincipalRef::Project(p) => Some(p),
+            _ => None,
+        })
+        .collect();
+    let mut reader_project_matches: Vec<ProjectId> = ctx
+        .session_project_tags
+        .iter()
+        .copied()
+        .filter(|p| reader_project_ids.contains(p) && candidate_projects.contains(p))
+        .collect();
+    reader_project_matches.sort();
+    reader_project_matches.dedup();
+
+    match reader_project_matches.len() {
+        1 => {
+            let chosen = reader_project_matches[0];
+            let bucket: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| {
+                    c.tier == ScopeTier::Project
+                        && matches!(c.resolved.grant.holder, PrincipalRef::Project(p) if p == chosen)
+                })
+                .cloned()
+                .collect();
+            return tie_break_within_tier(bucket).ok_or(Decision::Denied {
+                failed_step: FailedStep::Scope,
+                reason: DeniedReason::ScopeUnresolvable {
+                    fundamental: key.0,
+                    action: key.1,
+                },
+            });
+        }
+        n if n > 1 => {
+            // FIXME(D-CH07-FOLLOWUP-01): tie-breaker deferred to M6 —
+            // using lexicographic ordering as deterministic placeholder
+            // per ADR-0051 §D51.2. Concept-doc 06 line 58: the proper
+            // tie-breaker is `Agent.base_project` (a stable membership
+            // pin). Until that field lands, sorting by `ProjectId`
+            // bytes gives the same Decision across runs.
+            let chosen = reader_project_matches[0]; // sorted above
+            let bucket: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| {
+                    c.tier == ScopeTier::Project
+                        && matches!(c.resolved.grant.holder, PrincipalRef::Project(p) if p == chosen)
+                })
+                .cloned()
+                .collect();
+            return tie_break_within_tier(bucket).ok_or(Decision::Denied {
+                failed_step: FailedStep::Scope,
+                reason: DeniedReason::ScopeUnresolvable {
+                    fundamental: key.0,
+                    action: key.1,
+                },
+            });
+        }
+        _ => { /* count == 0 — fall through to org tier */ }
+    }
+
+    // Step B — org-tier resolution.
+    let candidate_orgs: Vec<OrgId> = candidates
+        .iter()
+        .filter(|c| c.tier == ScopeTier::Organization)
+        .filter_map(|c| match c.resolved.grant.holder {
+            PrincipalRef::Organization(o) => Some(o),
+            _ => None,
+        })
+        .collect();
+    let reader_org_ids: Vec<OrgId> = ctx
+        .org_grants
+        .iter()
+        .filter_map(|g| match g.holder {
+            PrincipalRef::Organization(o) => Some(o),
+            _ => None,
+        })
+        .collect();
+    let mut reader_org_matches: Vec<OrgId> = ctx
+        .session_org_tags
+        .iter()
+        .copied()
+        .filter(|o| reader_org_ids.contains(o) && candidate_orgs.contains(o))
+        .collect();
+    reader_org_matches.sort();
+    reader_org_matches.dedup();
+
+    match reader_org_matches.len() {
+        1 => {
+            let chosen = reader_org_matches[0];
+            let bucket: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| {
+                    c.tier == ScopeTier::Organization
+                        && matches!(c.resolved.grant.holder, PrincipalRef::Organization(o) if o == chosen)
+                })
+                .cloned()
+                .collect();
+            tie_break_within_tier(bucket).ok_or(Decision::Denied {
+                failed_step: FailedStep::Scope,
+                reason: DeniedReason::ScopeUnresolvable {
+                    fundamental: key.0,
+                    action: key.1,
+                },
+            })
+        }
+        n if n > 1 => {
+            // FIXME(D-CH07-FOLLOWUP-01): tie-breaker deferred to M6 —
+            // using lexicographic ordering as deterministic placeholder
+            // per ADR-0051 §D51.2. Proper tie-breaker is
+            // `Agent.base_org` once that field lands.
+            let chosen = reader_org_matches[0]; // sorted above
+            let bucket: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| {
+                    c.tier == ScopeTier::Organization
+                        && matches!(c.resolved.grant.holder, PrincipalRef::Organization(o) if o == chosen)
+                })
+                .cloned()
+                .collect();
+            tie_break_within_tier(bucket).ok_or(Decision::Denied {
+                failed_step: FailedStep::Scope,
+                reason: DeniedReason::ScopeUnresolvable {
+                    fundamental: key.0,
+                    action: key.1,
+                },
+            })
+        }
+        _ => {
+            // Step C — intersection fallback (ADR-0051 §D51.5 + concept
+            // 06 lines 60–62). The reader is in 0 of the session's
+            // tagged scopes — they are an "outsider." Their candidate
+            // grants are clamped against the union of the session's
+            // scope ceilings (the grants held by the orgs in
+            // `session_org_tags`).
+            cascade_intersection_fallback(key, candidates, ctx)
+        }
+    }
+}
+
+/// Step-2a-style ceiling re-clamp at Step 5 for the outsider case.
+/// Concept doc 06 line 60: "[the outsider] faces the intersection of
+/// all the session's scope ceilings."
+///
+/// Implementation: collect every `org_grants` row whose holder is in
+/// `ctx.session_org_tags`, treat them as ceilings, and run the same
+/// `ceiling_admits` predicate (already used by Step 2a) over the
+/// candidate set. Survivors tie-break via [`tie_break_within_tier`];
+/// an empty result fires `DeniedReason::IntersectionEmpty`.
+fn cascade_intersection_fallback(
+    key: ReachKey,
+    candidates: Vec<Candidate>,
+    ctx: &CheckContext<'_>,
+) -> Result<ResolvedGrant, Decision> {
+    use crate::permissions::expansion::resolve_grant;
+    // Collect ceilings from session-tagged orgs only — the contractor-
+    // model security boundary (concept 06 §"Subject-Side Reach Is
+    // Bounded by Scope Membership") is honoured here too.
+    let session_ceilings: Vec<ResolvedGrant> = ctx
+        .org_grants
+        .iter()
+        .filter(|g| g.revoked_at.is_none())
+        .filter(|g| match g.holder {
+            PrincipalRef::Organization(o) => ctx.session_org_tags.contains(&o),
+            _ => false,
+        })
+        .map(resolve_grant)
+        .collect();
+
+    let session_scope_count: u8 =
+        (ctx.session_org_tags.len() + ctx.session_project_tags.len()).min(u8::MAX as usize) as u8;
+
+    // If the reader has Agent / Project / Org-tier candidates, clamp
+    // each against the session-org ceilings. With no ceilings (no
+    // session_org_tags), the fallback is structurally undefined —
+    // concept 06 line 60 frames the fallback as "the intersection of
+    // all the session's scope ceilings"; with no session orgs the
+    // intersection is empty by definition → Denied.
+    if session_ceilings.is_empty() {
+        return Err(Decision::Denied {
+            failed_step: FailedStep::Scope,
+            reason: DeniedReason::IntersectionEmpty {
+                fundamental: key.0,
+                action: key.1,
+                session_scope_count,
+            },
+        });
+    }
+
+    let survivors: Vec<Candidate> = candidates
+        .into_iter()
+        .filter(|cand| {
+            session_ceilings
+                .iter()
+                .any(|c| ceiling_admits(c, &cand.resolved))
+        })
+        .collect();
+
+    if survivors.is_empty() {
+        return Err(Decision::Denied {
+            failed_step: FailedStep::Scope,
+            reason: DeniedReason::IntersectionEmpty {
+                fundamental: key.0,
+                action: key.1,
+                session_scope_count,
+            },
+        });
+    }
+
+    tie_break_within_tier(survivors).ok_or(Decision::Denied {
+        failed_step: FailedStep::Scope,
+        reason: DeniedReason::IntersectionEmpty {
+            fundamental: key.0,
+            action: key.1,
+            session_scope_count,
+        },
+    })
 }
 
 /// Within a tier, pick the most recently issued grant. Deterministic
@@ -699,6 +1054,10 @@ mod tests {
         consents: ConsentIndex,
         timeout_default_response: crate::model::TimeoutResponse,
         template_gated: HashSet<crate::model::ids::AuthRequestId>,
+        /// CH-07 / ADR-0051 §D51.4 — multi-scope session-tag slices.
+        /// Default empty; cascade tests populate per-scenario.
+        session_org_tags: Vec<OrgId>,
+        session_project_tags: Vec<ProjectId>,
     }
 
     impl Fixture {
@@ -716,6 +1075,8 @@ mod tests {
                 consents: ConsentIndex::empty(),
                 timeout_default_response: crate::model::TimeoutResponse::Deny,
                 template_gated: HashSet::new(),
+                session_org_tags: vec![],
+                session_project_tags: vec![],
             }
         }
 
@@ -734,6 +1095,8 @@ mod tests {
                 timeout_default_response: self.timeout_default_response,
                 template_gated_auth_requests: &self.template_gated,
                 set_ref_registry: &crate::permissions::NOOP_SET_REF_REGISTRY,
+                session_org_tags: &self.session_org_tags,
+                session_project_tags: &self.session_project_tags,
                 call,
             }
         }
@@ -1446,5 +1809,607 @@ mod tests {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // CH-07 / ADR-0051 §D51.1–§D51.7 — multi-scope cascade unit tests.
+    //
+    // Each test exercises one branch of the 2-tier-plus-tie-breaker-
+    // plus-intersection-fallback shape from concept-doc 06 lines 28–53.
+    // Fixture is built with non-empty `session_org_tags` /
+    // `session_project_tags` so the multi-scope code path activates;
+    // back-compat for the single-scope path (Shape A/D today) stays
+    // exercised by the existing `agent_tier_beats_project_and_org_in_scope_cascade`
+    // test + every other test that leaves the slices empty.
+    // ------------------------------------------------------------------
+
+    /// Two ProjectIds whose UUID byte ordering is deterministic. `lo`
+    /// sorts before `hi` lexicographically so tie-break tests pin which
+    /// one wins.
+    fn ordered_project_ids() -> (ProjectId, ProjectId) {
+        let lo = ProjectId::from_uuid(uuid::Uuid::from_u128(1));
+        let hi = ProjectId::from_uuid(uuid::Uuid::from_u128(2));
+        (lo, hi)
+    }
+
+    fn ordered_org_ids() -> (OrgId, OrgId) {
+        let lo = OrgId::from_uuid(uuid::Uuid::from_u128(1));
+        let hi = OrgId::from_uuid(uuid::Uuid::from_u128(2));
+        (lo, hi)
+    }
+
+    // P1 test 1 — project-tier `count == 1`: Shape A baseline with
+    // multi-scope flag ON. Reader is a member of one of the session's
+    // tagged projects → project-tier picks.
+    #[test]
+    fn cascade_project_tier_single_match_picks_project_scope() {
+        let mut f = Fixture::new();
+        let proj = ProjectId::new();
+        let org = OrgId::new();
+        f.project = Some(proj);
+        f.org = Some(org);
+        // Reader has both a project-tier grant and an org-tier grant.
+        let project_grant = grant(
+            PrincipalRef::Project(proj),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let org_grant = grant(
+            PrincipalRef::Organization(org),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.project_grants.push(project_grant.clone());
+        f.org_grants.push(org_grant);
+        f.session_project_tags = vec![proj];
+        f.session_org_tags = vec![org];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!("expected Allowed, got {:?}", other),
+        };
+        assert_eq!(
+            allowed[0].grant_id, project_grant.id,
+            "project-tier count==1 must beat org-tier"
+        );
+    }
+
+    // P1 test 2 — project-tier `count == 0` → org-tier picks.
+    #[test]
+    fn cascade_project_tier_zero_match_falls_through_to_org() {
+        let mut f = Fixture::new();
+        let session_proj = ProjectId::new(); // session is tagged with this
+        let reader_proj = ProjectId::new(); // reader is in a DIFFERENT project
+        let org = OrgId::new();
+        f.org = Some(org);
+        // Reader's project grant is for `reader_proj`, NOT in
+        // session.tags → reader_project_matches is empty.
+        f.project_grants.push(grant(
+            PrincipalRef::Project(reader_proj),
+            &[Action::Read],
+            "filesystem_object",
+        ));
+        let org_grant = grant(
+            PrincipalRef::Organization(org),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.org_grants.push(org_grant.clone());
+        f.session_project_tags = vec![session_proj];
+        f.session_org_tags = vec![org];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!("expected Allowed (org-tier fallthrough), got {:?}", other),
+        };
+        assert_eq!(
+            allowed[0].grant_id, org_grant.id,
+            "project-tier count==0 must fall through to org-tier"
+        );
+    }
+
+    // P1 test 3 — project-tier `count > 1` → lexicographic-min
+    // ProjectId placeholder (D-CH07-FOLLOWUP-01 base_project deferral).
+    #[test]
+    fn cascade_project_tier_multiple_matches_picks_lexicographic_min() {
+        let mut f = Fixture::new();
+        let (lo, hi) = ordered_project_ids();
+        let org = OrgId::new();
+        f.org = Some(org);
+        // Reader is a member of both projects (both project_grants
+        // present) AND both are session-tagged.
+        let lo_grant = grant(
+            PrincipalRef::Project(lo),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let hi_grant = grant(
+            PrincipalRef::Project(hi),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.project_grants.push(lo_grant.clone());
+        f.project_grants.push(hi_grant);
+        f.session_project_tags = vec![hi, lo]; // intentionally not pre-sorted
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!("expected Allowed, got {:?}", other),
+        };
+        assert_eq!(
+            allowed[0].grant_id, lo_grant.id,
+            "count>1 must pick lexicographic-min ProjectId per D-CH07-FOLLOWUP-01 placeholder"
+        );
+    }
+
+    // P1 test 4 — org-tier `count == 1` (concept-08 Scenario 4 shape:
+    // lead-acme-1 → org:acme).
+    #[test]
+    fn cascade_org_tier_single_match_picks_org_scope() {
+        let mut f = Fixture::new();
+        let session_proj = ProjectId::new();
+        let org_acme = OrgId::new();
+        f.org = Some(org_acme);
+        // Reader is in the org but not in any session-tagged project
+        // (Scenario 4 — lead-acme-1 is org-level, not project-level).
+        let acme_grant = grant(
+            PrincipalRef::Organization(org_acme),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.org_grants.push(acme_grant.clone());
+        f.session_project_tags = vec![session_proj]; // reader NOT in session_proj
+        f.session_org_tags = vec![org_acme];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!("expected Allowed (org:acme), got {:?}", other),
+        };
+        assert_eq!(
+            allowed[0].grant_id, acme_grant.id,
+            "org-tier count==1 must pick that org's grant"
+        );
+    }
+
+    // P1 test 5 — org-tier other-org match (Scenario 5: lead-beta-1 →
+    // org:beta-corp). Reader is a member of beta-corp; session is
+    // jointly owned by acme + beta-corp; cascade picks beta-corp's
+    // grant (the org reader belongs to).
+    #[test]
+    fn cascade_org_tier_other_org_match() {
+        let mut f = Fixture::new();
+        let acme = OrgId::new();
+        let beta = OrgId::new();
+        // Reader has a grant from beta-corp only (their home org).
+        let beta_grant = grant(
+            PrincipalRef::Organization(beta),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.org_grants.push(beta_grant.clone());
+        // Session is tagged with both orgs (Shape B).
+        f.session_org_tags = vec![acme, beta];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!("expected Allowed (beta-corp), got {:?}", other),
+        };
+        assert_eq!(
+            allowed[0].grant_id, beta_grant.id,
+            "reader in beta-corp only → cascade picks beta's grant"
+        );
+    }
+
+    // P1 test 6 — org-tier `count > 1` → lexicographic-min OrgId
+    // (D-CH07-FOLLOWUP-01 base_org deferral).
+    #[test]
+    fn cascade_org_tier_multiple_matches_picks_lexicographic_min() {
+        let mut f = Fixture::new();
+        let (lo, hi) = ordered_org_ids();
+        let lo_grant = grant(
+            PrincipalRef::Organization(lo),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let hi_grant = grant(
+            PrincipalRef::Organization(hi),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.org_grants.push(lo_grant.clone());
+        f.org_grants.push(hi_grant);
+        // Reader is a member of both orgs (both org_grants present)
+        // AND both are session-tagged.
+        f.session_org_tags = vec![hi, lo];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!("expected Allowed, got {:?}", other),
+        };
+        assert_eq!(
+            allowed[0].grant_id, lo_grant.id,
+            "count>1 must pick lexicographic-min OrgId per D-CH07-FOLLOWUP-01 placeholder"
+        );
+    }
+
+    // P1 test 7 — intersection fallback outsider denied (concept-08
+    // Scenario 6: lead-gamma-1 reading joint-research session). Reader
+    // is in 0 of the session's tagged scopes; their grants are not
+    // covered by any session-org ceiling → IntersectionEmpty.
+    #[test]
+    fn cascade_intersection_fallback_outsider_denied() {
+        let mut f = Fixture::new();
+        let acme = OrgId::new();
+        let beta = OrgId::new();
+        let gamma = OrgId::new();
+        // Reader is in gamma only (not in session-tagged orgs).
+        f.org_grants.push(grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Read],
+            "filesystem_object",
+        ));
+        // No session-org ceiling grants in `org_grants` for acme/beta —
+        // session_ceilings is empty → IntersectionEmpty fires.
+        f.session_org_tags = vec![acme, beta];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        match d {
+            Decision::Denied {
+                failed_step: FailedStep::Scope,
+                reason:
+                    DeniedReason::IntersectionEmpty {
+                        session_scope_count,
+                        ..
+                    },
+            } => {
+                assert_eq!(
+                    session_scope_count, 2,
+                    "session_scope_count must be #orgs+#projects"
+                );
+            }
+            other => panic!("expected Denied(IntersectionEmpty), got {:?}", other),
+        }
+    }
+
+    // P1 test 8 — intersection fallback outsider with universal grant
+    // allows. The reader is in 0 of the session's tagged scopes, but
+    // their candidate grant is also present at the session-org tier
+    // (i.e. the org's ceiling permits the reader's reach) → cascade
+    // returns the surviving candidate.
+    #[test]
+    fn cascade_intersection_fallback_outsider_with_universal_grant_allows() {
+        let mut f = Fixture::new();
+        let acme = OrgId::new();
+        let gamma = OrgId::new();
+        // Reader is in gamma (not session-tagged) — candidate Org-tier
+        // grant traces to gamma, but the cascade collects ALL
+        // org_grants for ceiling clamping; we add an acme ceiling that
+        // permits the reach.
+        let gamma_grant = grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.org_grants.push(gamma_grant.clone());
+        // Add an acme org_grants row so cascade_intersection_fallback
+        // can use it as a ceiling. Acme grants `Read` on
+        // `filesystem_object` → ceiling_admits the gamma candidate
+        // (same fundamentals + same actions).
+        f.org_grants.push(grant(
+            PrincipalRef::Organization(acme),
+            &[Action::Read],
+            "filesystem_object",
+        ));
+        f.session_org_tags = vec![acme];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            d.is_allowed(),
+            "outsider whose candidates survive the session-org ceiling clamp must Allow, got {:?}",
+            d
+        );
+    }
+
+    // P1 test 9 — Display arm pinning for IntersectionEmpty (the
+    // server crate's `denial_to_api_error` arm). The Display string
+    // shape is part of the API contract; this test pins the format
+    // string + the field-render order so accidental edits break.
+    #[test]
+    fn denied_reason_intersection_empty_display_is_stable() {
+        // The engine itself doesn't impl `Display` for DeniedReason
+        // (M2 surface only); the server-tier `denial_to_api_error`
+        // wraps the variant. Here we pin the Debug shape of the
+        // variant — the cross-crate test in
+        // `server::tests::handler_support_test` covers the API string.
+        let reason = DeniedReason::IntersectionEmpty {
+            fundamental: Fundamental::FilesystemObject,
+            action: Action::Read,
+            session_scope_count: 3,
+        };
+        let dbg = format!("{reason:?}");
+        assert!(
+            dbg.contains("IntersectionEmpty"),
+            "Debug must name the variant: {dbg}"
+        );
+        assert!(
+            dbg.contains("FilesystemObject"),
+            "Debug must carry fundamental: {dbg}"
+        );
+        assert!(
+            dbg.contains("session_scope_count"),
+            "Debug must carry session_scope_count: {dbg}"
+        );
+    }
+
+    // P1 test 10 — metric-label arm pinning for IntersectionEmpty.
+    // FailedStep::Scope is the metric label this denial reports under;
+    // the test pins that mapping so engine-bug regressions in
+    // metric-label routing are caught at unit-test time.
+    #[test]
+    fn denied_reason_intersection_empty_metric_label_is_stable() {
+        let mut f = Fixture::new();
+        let acme = OrgId::new();
+        let gamma = OrgId::new();
+        f.org_grants.push(grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Read],
+            "filesystem_object",
+        ));
+        f.session_org_tags = vec![acme];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        // The IntersectionEmpty denial reports under FailedStep::Scope
+        // → metric label "5". This pins ADR-0051 §D51.7 invariant:
+        // the new variant routes through the existing FailedStep::Scope
+        // metric channel rather than introducing a new failed_step.
+        assert_eq!(
+            d.failed_step(),
+            Some(FailedStep::Scope),
+            "IntersectionEmpty must report under FailedStep::Scope (metric label `5`)"
+        );
+        assert_eq!(
+            d.failed_step().unwrap().as_metric_label(),
+            "5",
+            "FailedStep::Scope metric label is `5` per decision.rs"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // P2 — `step_2a_ceiling` membership-bounded clamp tests
+    // (CH-07 / ADR-0051 §D51.3 + §D51.6)
+    // ------------------------------------------------------------------
+
+    // P2 test 1 — contractor scenario: a non-member org's ceiling does
+    // NOT clamp candidates when the session's org tags exclude that
+    // org. Concept-doc 06 line 162 verbatim — "an agent's home org
+    // (`base_organization`) does not reach into sessions belonging to
+    // scopes the agent is not a member of."
+    //
+    // Setup mirrors concept-08 §"Step 7" lines 287–298: contractor's
+    // base_org = Gamma; session is tagged `[org:acme]` only. Gamma
+    // ceiling has `Connect` actions (would NOT admit the `Read`
+    // candidate), so without the membership bound the candidate would
+    // be filtered out. With the bound, Gamma is excluded → candidate
+    // survives.
+    #[test]
+    fn step_2a_membership_bound_excludes_non_member_org_ceiling() {
+        let acme = OrgId::new();
+        let gamma = OrgId::new();
+        // Gamma "ceiling" with Connect (won't admit Read).
+        let gamma_ceiling = grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Connect],
+            "filesystem_object",
+        );
+        let ceilings = vec![gamma_ceiling.clone()];
+        // Acme-issued candidate at Project tier with Read action.
+        let candidate_grant = grant(
+            PrincipalRef::Organization(acme),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let candidates = vec![Candidate {
+            resolved: resolve_grant(&candidate_grant),
+            tier: ScopeTier::Organization,
+        }];
+        // Sanity-check: without the membership bound (empty
+        // session_org_tags), the Gamma ceiling clamps and the
+        // candidate is filtered out.
+        let baseline = step_2a_ceiling(candidates.clone(), &ceilings, &[]);
+        assert!(
+            baseline.is_empty(),
+            "without membership bound, Gamma ceiling clamps the Acme candidate (Read not on Connect ceiling)"
+        );
+        // With session_org_tags = [acme], Gamma is excluded; no
+        // applicable ceilings remain → candidate set passes through
+        // unchanged (infinite-ceiling path).
+        let bounded = step_2a_ceiling(candidates, &ceilings, &[acme]);
+        assert_eq!(
+            bounded.len(),
+            1,
+            "membership bound excludes Gamma ceiling → candidate survives per concept-06 line 162"
+        );
+        assert_eq!(
+            bounded[0].resolved.grant.id, candidate_grant.id,
+            "the surviving candidate must be the original Acme candidate"
+        );
+    }
+
+    // P2 test 2 — back-compat: empty `session_org_tags` preserves M1
+    // behaviour exactly. Every ceiling clamps uniformly, regardless of
+    // its `holder` org. This pins the Shape A / Shape D path (the
+    // dominant production path today) so M1 callsite-count test
+    // invariants hold across CH-07.
+    #[test]
+    fn step_2a_membership_bound_keeps_non_member_org_ceiling_when_session_tags_empty() {
+        let gamma = OrgId::new();
+        // Gamma ceiling with Connect (won't admit Read) — same shape
+        // as P2 test 1, but with empty session_org_tags below.
+        let gamma_ceiling = grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Connect],
+            "filesystem_object",
+        );
+        let ceilings = vec![gamma_ceiling];
+        // Read-action candidate.
+        let candidate_grant = grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let candidates = vec![Candidate {
+            resolved: resolve_grant(&candidate_grant),
+            tier: ScopeTier::Organization,
+        }];
+        // Empty session_org_tags → back-compat path: every ceiling is
+        // applicable; Gamma's Connect ceiling does NOT admit the Read
+        // candidate → candidate is filtered out (same as M1 / pre-CH-07).
+        let result = step_2a_ceiling(candidates, &ceilings, &[]);
+        assert!(
+            result.is_empty(),
+            "empty session_org_tags → uniform clamping (M1 back-compat); Gamma Connect ceiling filters out Read candidate"
+        );
+    }
+
+    // P2 test 3 — Shape B multi-org session: session is tagged
+    // `[org:acme, org:beta-corp]`; reader has both an Acme ceiling
+    // (admits) and a Gamma ceiling (does NOT admit). With the
+    // membership bound, only Acme participates in clamping → candidate
+    // survives via Acme. Verifies the partial-membership path: not all
+    // ceilings are excluded, but only the member-org subset clamps.
+    #[test]
+    fn step_2a_membership_bound_with_multi_org_session_clamps_only_member_orgs() {
+        let acme = OrgId::new();
+        let beta = OrgId::new();
+        let gamma = OrgId::new();
+        // Acme ceiling: Read on filesystem_object (admits a Read
+        // candidate). Beta ceiling: Connect (won't admit Read). Gamma
+        // ceiling: Read on filesystem_object (admits Read but is NOT
+        // member-of since session_org_tags = [acme, beta]).
+        let acme_ceiling = grant(
+            PrincipalRef::Organization(acme),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let beta_ceiling = grant(
+            PrincipalRef::Organization(beta),
+            &[Action::Connect],
+            "filesystem_object",
+        );
+        let gamma_ceiling = grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let ceilings = vec![acme_ceiling, beta_ceiling, gamma_ceiling];
+        // Candidate with Read action.
+        let candidate_grant = grant(
+            PrincipalRef::Organization(acme),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let candidates = vec![Candidate {
+            resolved: resolve_grant(&candidate_grant),
+            tier: ScopeTier::Organization,
+        }];
+        // session_org_tags = [acme, beta] → only Acme + Beta ceilings
+        // are applicable; Gamma is filtered out by the membership
+        // bound. Acme admits the Read candidate (its action list is
+        // [Read]), so candidate survives.
+        let bounded = step_2a_ceiling(candidates.clone(), &ceilings, &[acme, beta]);
+        assert_eq!(
+            bounded.len(),
+            1,
+            "Acme ceiling admits the Read candidate (Beta does not, Gamma is filtered out by membership)"
+        );
+        // Sanity-check the inverse: if session_org_tags = [gamma]
+        // only, then Acme + Beta are filtered out by the membership
+        // bound and only Gamma is applicable. Gamma admits Read, so
+        // the candidate also survives — but via Gamma, not Acme.
+        let inverse = step_2a_ceiling(candidates, &ceilings, &[gamma]);
+        assert_eq!(
+            inverse.len(),
+            1,
+            "membership bound with session_org_tags=[gamma] keeps only Gamma ceiling, which admits Read"
+        );
+    }
+
+    // P2 test 4 — end-to-end acceptance for concept-08 §"Step 7" lines
+    // 287–298 ("contractor-x-9" reading sessions in
+    // `acme-website-redesign`, base_org=Gamma irrelevant). Goes
+    // through the full `check()` pipeline (Step 0 → Step 6) with a
+    // real CheckContext + StaticCatalogue + ConsentIndex. Verifies
+    // the contractor's Gamma base_org ceiling is correctly excluded
+    // by the membership bound (`session_org_tags = [acme]`) so the
+    // project-tier resolution succeeds against an Acme-issued grant.
+    //
+    // ADR-0051 §D51.6 — closes drift D-new-20.
+    #[test]
+    fn contractor_model_acceptance_test_per_concept_08_step_7() {
+        let mut f = Fixture::new();
+        let acme = OrgId::new();
+        let gamma = OrgId::new(); // contractor's home org (base_org)
+        let acme_website_redesign = ProjectId::new();
+        f.project = Some(acme_website_redesign);
+        f.org = Some(acme);
+        // The contractor (`contractor-x-9`) has a Project-tier grant
+        // attributed to the Acme project they're contracted into —
+        // this is the grant that should win the cascade per concept
+        // 08 line 289 ("the reader's base_org is irrelevant when a
+        // project-level resolution succeeds").
+        let acme_project_grant = grant(
+            PrincipalRef::Project(acme_website_redesign),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        f.project_grants.push(acme_project_grant.clone());
+        // Gamma base_org "ceiling" with Connect (would NOT admit a
+        // Read candidate). Without the §D51.6 membership bound, this
+        // ceiling would clamp the Acme candidate at Step 2a and the
+        // permission check would short-circuit at FailedStep::Ceiling.
+        // With the bound, Gamma is excluded (gamma ∉ session_org_tags
+        // = [acme]) → no applicable ceiling remains → candidates pass
+        // through Step 2a unchanged → Step 5 picks the Acme project
+        // grant via the project-tier branch (count == 1).
+        f.ceiling_grants.push(grant(
+            PrincipalRef::Organization(gamma),
+            &[Action::Connect],
+            "filesystem_object",
+        ));
+        // Session is tagged `[org:acme, project:acme_website_redesign]`
+        // — the canonical concept-08 §"Step 7" Shape A scenario. The
+        // contractor is a member of one of the session's tagged
+        // projects (acme_website_redesign).
+        f.session_org_tags = vec![acme];
+        f.session_project_tags = vec![acme_website_redesign];
+        let ctx = f.ctx(ToolCall::default());
+        let m = manifest(&[Action::Read], &["filesystem_object"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        let allowed = match d {
+            Decision::Allowed { resolved_grants } => resolved_grants,
+            other => panic!(
+                "expected Allowed (contractor's Acme project grant wins), got {:?}",
+                other
+            ),
+        };
+        assert_eq!(
+            allowed[0].grant_id, acme_project_grant.id,
+            "concept-08 §Step 7: contractor's Acme project-tier grant wins (Gamma base_org irrelevant)"
+        );
     }
 }

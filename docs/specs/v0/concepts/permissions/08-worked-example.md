@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-05-07 by Claude Code (CH-07 amendment: §"Step 4: Multi-Scope resolution" lines 192–222 (Scenarios 4/5/6) + §"Step 7: Contractor scenario" lines 287–298 covered by acceptance tests at modules/crates/domain/tests/multi_scope_cascade_acceptance.rs per ADR-0051. Doc body unchanged.) -->
 <!-- Last verified: 2026-04-15 by Claude Code -->
 <!-- Part of the permissions spec — see README.md for the full map -->
 

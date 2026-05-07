@@ -58,6 +58,19 @@ Additional mandatory sub-fields:
 
 Per [`baby-phi/CLAUDE.md`](../../../../../../CLAUDE.md) §"phi-core Leverage" rules 1–5. `scripts/check-phi-core-reuse.sh` MUST stay green at chunk close.
 
+#### §3 cascade-artifact discipline (CH-13 retro Row 2; chunk-planner v4)
+
+For every load-bearing struct/enum/function the chunk touches with cascade impact (signature change rippling through callsites, field addition rippling through construction sites, additive enum variant rippling through `match` sites), §3 MUST paste **3 artifacts**:
+
+1. **(a) The exact `git grep -nE` invocation** the planner ran.
+2. **(b) The raw match count** at plan-draft time.
+3. **(c) Per-file breakdown** of where the matches live + the predicted edit-site count for the chunk.
+
+**Caveats** (CH-07 retro §5 rows 2 + 4; chunk-planner v5 effective 2026-05-07):
+
+- **Per-file edit-count predictions are approximate; the aggregate band (lower–upper) is the load-bearing prediction.** Pause threshold (1.5× upper bound) is enforced on the aggregate, not per-file. CH-07 §3 Artifact D predicted 8–14 sites across ~6 files — actual was 14 across 7 files (one predicted file had 0 sites; another predicted file didn't exist; a non-predicted file carried 4 sites). The aggregate band held; per-file precision did not. Avoid promising specific files unless the planner ran a `git grep -lnE` against current HEAD and verified each file's match count.
+- **When a concept-doc semantic could land at multiple pipeline steps, §3 MUST explicitly state which step + cite the rationale.** CH-07 §3 Artifact B is the exemplar: concept doc 06 line 162 ("base_org does not reach into non-member-scope sessions") could plausibly land at `step_2a_ceiling` (clamp time) OR `step_5_scope_resolution` (cascade time). The plan called out the placement explicitly + cited why (Step-2a placement preserves M1 back-compat for empty `session_org_tags` callers + applies uniformly across single-scope and multi-scope paths). Future cycles touching multi-step pipelines should follow the same discipline.
+
 ### §3.B — K8s microservice readiness check
 
 **Binding rule (codified by CH-01 / forward-scope Q8 — every chunk applies):** the chunk plan evaluates whether its changes introduce new K8s-deployment hurdles. The full rationale + strategic context lives in [`m7b/architecture/k8s-microservices-readiness.md`](../../m7b/architecture/k8s-microservices-readiness.md); the tactical ledger of deferred items is at [`m7b/architecture/deferred-from-ch-k8s-prep.md`](../../m7b/architecture/deferred-from-ch-k8s-prep.md). Pre-CH-01 chunks (CH-02, CH-K8S-PREP) are grandfathered.

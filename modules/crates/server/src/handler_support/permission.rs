@@ -127,6 +127,16 @@ pub fn denial_to_api_error(
             subordinate: _,
             org: _,
         } => "per-session consent gate fired without a session ambient context".to_string(),
+        // CH-07 / ADR-0051 §D51.5 + §D51.7 — multi-scope cascade
+        // intersection-fallback exhausted (outsider case, no candidate
+        // survived the session-scope ceiling clamp).
+        DeniedReason::IntersectionEmpty {
+            fundamental,
+            action,
+            session_scope_count,
+        } => format!(
+            "scope cascade intersection-fallback empty for `{fundamental:?}`/`{action}` across {session_scope_count} session scope(s)"
+        ),
     };
 
     match failed_step {

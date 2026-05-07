@@ -85,6 +85,24 @@ CH-13 telemetry surfaced cases where compound commands had each subcommand allow
 
 **Resolution**: rather than chase every quirk with more rules or hooks, switch to the granular principle. Granular invocations sidestep the entire compound-handling layer.
 
+### 2.4 — Empirical observation from CH-07 (redirect+pipe combo defeats single-`*` glob)
+
+CH-07 telemetry (cycle hex `cc912d07`, 2026-05-07) surfaced a third matcher quirk:
+
+- **Single-`*` glob in space-form rules does NOT span the redirect-and-pipe combo `2>&1 | tail -N`.** Specifically, the rule `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh *)` (added per CH-13 retro Row 6) matched bare invocations like `bash /abs/scripts/check-doc-links.sh` cleanly, but **failed to match** `bash /abs/scripts/check-doc-links.sh 2>&1 | tail -30` — 3 PermissionRequest prompts fired in CH-07 on the same root signature post-rule-addition.
+
+**Root cause hypothesis**: the matcher's `*` glob in space-form patterns (`prefix *`) is not equivalent to the colon-form pattern (`prefix:*`) when the input contains `2>&1` redirects followed by `|` pipes. The colon form appears to consume more aggressively across the operator boundary; the space form stops at the redirect token.
+
+**Resolution applied at CH-07 retro §5 row 5** (chunk-planner v5 effective 2026-05-07):
+
+- Added paired rules to `settings.json` after the existing space-form rule:
+  - `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh:*)` (colon form — captures the redirect+pipe combo).
+  - `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh 2>&1*)` (explicit redirect-prefix capture as a belt-and-braces).
+
+**Workaround for future rule authors**: when a rule must match commands that may carry trailing `2>&1` or `2>&1 | <viewer>`, prefer the **colon form** (`Bash(prefix:*)`) over the space form (`Bash(prefix *)`); OR add a paired rule `Bash(prefix 2>&1*)` alongside the space-form rule. Empirically the colon form is more permissive across operator boundaries.
+
+**Validation signal**: CH-08+ retros track PermissionRequest count for `bash:/root/projects/phi/baby-phi/scripts/check-*` signatures — must be 0 to confirm the rule refinement landed. Per CH-07 retro §5 row 7, the `permissions-audit` skill carries a regression-protection step that escalates `rule-pattern-failed-validation` when a hot-allow-rule candidate from a prior retro continues to fire post-fix.
+
 ---
 
 ## §3 — CH-13 telemetry breakdown (the 312 PermissionRequest events)

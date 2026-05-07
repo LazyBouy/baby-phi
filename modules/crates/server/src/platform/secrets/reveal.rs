@@ -99,6 +99,11 @@ pub async fn reveal_secret(
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — class-level secret reveal is not
+        // a multi-scope session read; empty slices preserve M1
+        // single-tier semantics for this path.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call,
     };
 
@@ -256,6 +261,18 @@ fn denial_reason_text(reason: &DeniedReason) -> String {
         DeniedReason::NoSessionContext { .. } => {
             "per-session consent gate fired without a session context".to_string()
         }
+        // CH-07 / ADR-0051 §D51.5 + §D51.7 — multi-scope cascade
+        // intersection-fallback exhausted. The reveal manifest is a
+        // class-level secret read with no session multi-scope shape,
+        // so this branch never fires in practice; the match must stay
+        // exhaustive (no `_ =>` catch-all per F4.A).
+        DeniedReason::IntersectionEmpty {
+            fundamental,
+            action,
+            session_scope_count,
+        } => format!(
+            "intersection-fallback empty for `{fundamental:?}`/`{action}` across {session_scope_count} session scope(s)"
+        ),
     }
 }
 
@@ -362,6 +379,10 @@ mod tests {
             timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+            // CH-07 / ADR-0051 §D51.4 — secret-reveal test fixtures
+            // are class-level; empty slices preserve single-tier path.
+            session_org_tags: &[],
+            session_project_tags: &[],
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);
@@ -415,6 +436,10 @@ mod tests {
             timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+            // CH-07 / ADR-0051 §D51.4 — secret-reveal test fixtures
+            // are class-level; empty slices preserve single-tier path.
+            session_org_tags: &[],
+            session_project_tags: &[],
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);
@@ -465,6 +490,10 @@ mod tests {
             timeout_default_response: domain::model::TimeoutResponse::Deny,
             template_gated_auth_requests: &template_gated,
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+            // CH-07 / ADR-0051 §D51.4 — secret-reveal test fixtures
+            // are class-level; empty slices preserve single-tier path.
+            session_org_tags: &[],
+            session_project_tags: &[],
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);

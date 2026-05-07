@@ -55,7 +55,7 @@ pub use manifest::validator::{
     ValidationWarning, RESERVED_NAMESPACE_LITERALS, SESSION_FROZEN_TAG_PREFIXES,
     SPECIFIC_CONSTRAINT_NAMES, UNIVERSAL_CONSTRAINTS,
 };
-pub use manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+pub use manifest::{parse_session_scope_tags, CheckContext, ConsentIndex, Manifest, ToolCall};
 pub use metrics::{NoopMetrics, PermissionCheckMetrics};
 pub use selector::{
     parse_selector, parse_selector_or_uri, BoolExpr, NoopSetRefRegistry, Predicate, Selector,

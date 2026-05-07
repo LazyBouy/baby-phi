@@ -77,6 +77,10 @@ fn check_permission_allows_when_grant_covers_reach() {
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — handler-support tests are
+        // class-level / single-tier; empty slices preserve M1 path.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call: ToolCall::default(),
     };
     let m = Manifest {
@@ -108,6 +112,10 @@ fn check_permission_maps_step_2_resolution_to_no_grants_held() {
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — handler-support tests are
+        // class-level / single-tier; empty slices preserve M1 path.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call: ToolCall::default(),
     };
     let m = Manifest {
@@ -145,6 +153,10 @@ fn check_permission_maps_step_4_to_constraint_violation() {
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — handler-support tests are
+        // class-level / single-tier; empty slices preserve M1 path.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call: ToolCall::default(),
     };
     let mut m = Manifest {
@@ -191,6 +203,10 @@ fn check_permission_maps_pending_to_awaiting_consent_202() {
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — handler-support tests are
+        // class-level / single-tier; empty slices preserve M1 path.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call: ToolCall {
             target_agent: Some(AgentId::new()),
             ..Default::default()

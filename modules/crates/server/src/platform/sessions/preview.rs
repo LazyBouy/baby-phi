@@ -123,6 +123,12 @@ pub async fn preview_session(
         timeout_default_response: domain::model::TimeoutResponse::Deny,
         template_gated_auth_requests: &template_gated,
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        // CH-07 / ADR-0051 §D51.4 — preview-path is Shape A/D-only
+        // today (read-only, single-scope). Empty slices preserve
+        // today's single-tier cascade behaviour exactly. Multi-scope
+        // preview support lands with CH-15.
+        session_org_tags: &[],
+        session_project_tags: &[],
         call: ToolCall::default(),
     };
 
