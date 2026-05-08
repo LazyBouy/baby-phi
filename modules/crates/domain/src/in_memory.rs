@@ -1856,6 +1856,104 @@ impl Repository for InMemoryRepository {
         })
     }
 
+    // ---- CH-08 — Transfer-grant compound-tx primitive (forward-defensive) ----
+    //
+    // CH-08 / ADR-0052 §D52.5 — atomic three-write tx: rewrite the
+    // resource's `OWNED_BY` edge to `payload.new_owner`, revoke the
+    // sender's matching grant, mint the recipient's grant. Pseudo-atomicity
+    // via the single write-lock (same pattern as `apply_org_creation` /
+    // `apply_bootstrap_claim`). Pre-flight validates every invariant
+    // before mutating, so a rejection leaves zero partial state.
+
+    async fn apply_transfer_grant(
+        &self,
+        payload: &crate::repository::TransferGrantPayload,
+    ) -> RepositoryResult<()> {
+        let mut state = self.lock()?;
+
+        // ---- pre-flight validation --------------------------------------
+        // (a) sender's grant exists.
+        let sender_grant = state
+            .grants
+            .get(&payload.sender_grant_id)
+            .ok_or(RepositoryError::NotFound)?
+            .clone();
+
+        // (b) sender's grant is not already revoked (re-entry safety).
+        if sender_grant.revoked_at.is_some() {
+            return Err(RepositoryError::Conflict(format!(
+                "sender grant {} already revoked",
+                payload.sender_grant_id
+            )));
+        }
+
+        // (c) recipient grant id is fresh (defensive — concept-doc 02 line
+        //     206 atomic-revocation invariant assumes a fresh recipient
+        //     grant; a duplicate id would silently replace an existing row
+        //     under HashMap semantics).
+        if state.grants.contains_key(&payload.recipient_grant.id) {
+            return Err(RepositoryError::Conflict(format!(
+                "recipient grant {} already exists",
+                payload.recipient_grant.id
+            )));
+        }
+
+        // (d) cardinality precondition — recipient_grant.resource matches
+        //     sender_grant.resource (the sender currently has authority
+        //     over what they're transferring; concept-doc 02 lines 199–207).
+        if sender_grant.resource.uri != payload.recipient_grant.resource.uri {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "recipient_grant.resource ({}) must match sender_grant.resource ({})",
+                payload.recipient_grant.resource.uri, sender_grant.resource.uri,
+            )));
+        }
+
+        // (e) recipient_grant.holder matches new_owner (defensive — the
+        //     recipient of the grant must be the new owner per concept-doc
+        //     02 line 206 single-update-of-OWNED_BY-edge framing).
+        if !principals_equal(&payload.recipient_grant.holder, &payload.new_owner) {
+            return Err(RepositoryError::InvalidArgument(
+                "recipient_grant.holder must match payload.new_owner".into(),
+            ));
+        }
+
+        // (f) cardinality precondition — an OWNED_BY edge currently exists
+        //     whose `owner` corresponds to sender_grant.holder. Forward-
+        //     defensive: if no such edge exists, callers seed one before
+        //     calling (test fixtures use `upsert_ownership_raw`); a
+        //     mismatch is a Conflict per concept-doc 02 line 206 framing
+        //     (the sender must currently own the resource through ownership).
+        let sender_owner_node_id = principal_ref_to_node_id(&sender_grant.holder)?;
+        let new_owner_node_id = principal_ref_to_node_id(&payload.new_owner)?;
+        let existing_edge_idx = state
+            .ownership_edges
+            .iter()
+            .position(|e| e.owner == sender_owner_node_id)
+            .ok_or_else(|| {
+                RepositoryError::Conflict(format!(
+                    "no OWNED_BY edge for sender's holder ({:?}); transfer cardinality \
+                     precondition broken",
+                    sender_grant.holder
+                ))
+            })?;
+
+        // ---- commit (atomic under the single lock) ----------------------
+        // (1) Rewrite OWNED_BY edge → new_owner.
+        state.ownership_edges[existing_edge_idx].owner = new_owner_node_id;
+
+        // (2) Revoke sender's grant.
+        if let Some(g) = state.grants.get_mut(&payload.sender_grant_id) {
+            g.revoked_at = Some(payload.at);
+        }
+
+        // (3) Mint recipient's grant.
+        state
+            .grants
+            .insert(payload.recipient_grant.id, payload.recipient_grant.clone());
+
+        Ok(())
+    }
+
     // ---- CH-23 — Template C/D production triggers ---------------------
 
     async fn create_manages_edge(
@@ -2480,5 +2578,27 @@ fn principals_equal(a: &PrincipalRef, b: &PrincipalRef) -> bool {
         (PrincipalRef::Project(x), PrincipalRef::Project(y)) => x == y,
         (PrincipalRef::System(x), PrincipalRef::System(y)) => x == y,
         _ => false,
+    }
+}
+
+/// CH-08 / ADR-0052 §D52.5 — convert a [`PrincipalRef`] to its underlying
+/// [`NodeId`] for ownership-edge matching in `apply_transfer_grant`.
+///
+/// `PrincipalRef::System(_)` has no NodeId backing (system axioms are
+/// string-tagged, not stored as graph nodes); rejected with
+/// [`RepositoryError::InvalidArgument`] — the forward-defensive transfer
+/// primitive does not target system principals at this chunk. The first
+/// M6+ chunk wiring a real transfer-flow surface picks the policy.
+fn principal_ref_to_node_id(p: &PrincipalRef) -> RepositoryResult<NodeId> {
+    use crate::model::Principal;
+    match p {
+        PrincipalRef::Agent(id) => Ok(id.node_id()),
+        PrincipalRef::User(id) => Ok(id.node_id()),
+        PrincipalRef::Organization(id) => Ok(id.node_id()),
+        PrincipalRef::Project(id) => Ok(id.node_id()),
+        PrincipalRef::System(s) => Err(RepositoryError::InvalidArgument(format!(
+            "PrincipalRef::System({s}) has no NodeId; apply_transfer_grant \
+             does not target system axioms"
+        ))),
     }
 }

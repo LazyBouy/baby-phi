@@ -126,6 +126,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         revoked_at: None,
         approval_mode: crate::model::ApprovalMode::Implicit,
         audit_class,
+        allocate_refinement: None,
     }
 }
 

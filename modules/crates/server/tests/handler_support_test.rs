@@ -49,6 +49,7 @@ fn mk_grant(holder: PrincipalRef, actions: &[Action], resource: &str) -> Grant {
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     }
 }
 

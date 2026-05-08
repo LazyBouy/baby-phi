@@ -241,6 +241,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     };
     // Two system agents with phi-core blueprints — the same role
     // defaults M3/P4 will assign at the real wizard.

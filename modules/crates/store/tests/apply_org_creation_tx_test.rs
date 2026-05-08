@@ -100,6 +100,7 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     };
     let sys0_agent = Agent {
         id: AgentId::new(),

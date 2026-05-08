@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-07 by Claude Code (CH-08 amendment: §"`allocate` Scope Semantics" lines 197 (refinement framing) + lines 199–207 (cardinality table + atomic-revocation language at line 206) lifted into typed Rust at domain::permissions::AllocateRefinement + domain::repository::Repository::apply_transfer_grant per ADR-0052 §D52.1–§D52.6. Doc body unchanged.) -->
 <!-- Status: CONCEPTUAL -->
 <!-- Last verified: 2026-04-15 by Claude Code -->
 <!-- Part of the permissions spec — see README.md for the full map -->

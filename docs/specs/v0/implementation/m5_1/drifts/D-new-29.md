@@ -7,7 +7,8 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: **remediated**
+- **Closes**: CH-08 7cbe74a4
 - **Bucket**: B — underspecified shape choice
 - **Severity**: LOW
 - **Tags**: `action-refinement`, `allocate-umbrella`
@@ -25,3 +26,4 @@
 
 ## Lifecycle
 - 2026-04-24 — `discovered`
+- 2026-05-07 — remediated — CH-08 cycle 7cbe74a4 — F2.A + F3.A: AllocateRefinement { no_further_delegation: bool, max_depth: Option<u8> } typed struct at domain::permissions::AllocateRefinement; Grant.allocate_refinement: Option<AllocateRefinement> field at model/nodes.rs:701 with #[serde(default)] shielding (mirrors CH-11 D48.1 + CH-13 D50.5 precedents); 3 unit tests cover default + serde round-trip + legacy decode-as-None.

@@ -501,6 +501,7 @@ fn sample_grant(
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     }
 }
 
@@ -1662,6 +1663,7 @@ fn bootstrap_claim_for(
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         },
         catalogue_entries: vec![
             (

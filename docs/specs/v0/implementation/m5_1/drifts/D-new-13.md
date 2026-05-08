@@ -7,7 +7,8 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: **remediated**
+- **Closes**: CH-08 7cbe74a4
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `permission-model`, `authority-cardinality`, `security-boundary`
@@ -45,3 +46,4 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 2 report)
+- 2026-05-07 — remediated — CH-08 cycle 7cbe74a4 — F1.A + F5.A: Repository::apply_transfer_grant compound-tx primitive shipped at repository.rs:1397 with InMemoryRepository + SurrealStore impls; atomic three-write tx (rewrite OWNED_BY + revoke sender + mint recipient) per concept-doc 02 line 206; allocate-path remains additive via create_grant boundary; 6 InMemory atomicity tests + 2 SurrealStore integration tests; forward-defensive — no production caller wired today (Action::Transfer has zero runtime mint sites).

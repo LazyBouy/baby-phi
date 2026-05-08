@@ -85,6 +85,20 @@ CH-13 telemetry surfaced cases where compound commands had each subcommand allow
 
 **Resolution**: rather than chase every quirk with more rules or hooks, switch to the granular principle. Granular invocations sidestep the entire compound-handling layer.
 
+### 2.5 — Bash-check cluster: 3-cycle pattern (CH-13 → CH-07 → CH-08)
+
+The bash-check rule has now failed across 3 consecutive cycles despite repeated standards-update fixes. Cycle-by-cycle history:
+
+- **CH-13 retro §H1** added `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh:*)` (colon-form). 4-prompt friction. **Friction reduced** but not eliminated.
+- **CH-07 retro §5 row 5** refined to space-form + paired `2>&1*` rule: `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh *)` and `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh 2>&1*)`. 3-prompt residual.
+- **CH-08 retro §3.5 found 15-prompt regression** despite both rules in place. User-led mid-cycle edit (2026-05-08 07:36 UTC) broadened to `Bash(bash /root/projects/phi/baby-phi/scripts/*.sh *)` (drop `check-` prefix; rule applies to ALL `.sh` scripts under that directory). CH-NN+1 must validate.
+
+**Hypothesis (CH-08 retro)**: the `*.sh` glob INSIDE a `Bash(prefix-expr *)` rule is interpreted as a literal `*.sh` filename pattern, NOT as a wildcard binding to the script name. In other words, `Bash(bash /abs/path/check-*.sh *)` matches commands whose script path **literally contains** `check-*.sh` (asterisk-included), not commands whose script path is a glob-expansion of `check-*.sh`. If true, rules MUST either:
+- Use full literal script names (`Bash(bash /abs/path/check-doc-links.sh *)`, etc.) — verbose but matcher-deterministic. **Recommended workaround.**
+- OR drop the `check-` prefix entirely (`Bash(bash /abs/path/*.sh *)`) — broader but the directory restriction still scopes acceptable invocations. CH-08 user adopted this form mid-cycle.
+
+**Validation signal (per CH-08 retro §5 row 7)**: when a hot-allow-rule signature persists across **≥ 2 cycles** post-standards-update, the `permissions-audit` skill escalates the finding to `matcher-semantics-investigation` priority — the next standards update MUST include an empirical test-harness step (run the candidate rule pattern against representative invocations + capture telemetry) before the rule is committed.
+
 ### 2.4 — Empirical observation from CH-07 (redirect+pipe combo defeats single-`*` glob)
 
 CH-07 telemetry (cycle hex `cc912d07`, 2026-05-07) surfaced a third matcher quirk:

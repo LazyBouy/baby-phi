@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-07 by Claude Code (CH-08 amendment: §"`allocate` as the Umbrella Action" lines 48–54 (umbrella + refinement-as-constraint framing) lifted into typed Rust at domain::permissions::AllocateRefinement (typed refinement) + Grant.allocate_refinement field per ADR-0052 §D52.2 + §D52.3. Doc body unchanged.) -->
 <!-- Status: CONCEPTUAL -->
 <!-- Last verified: 2026-04-29 by Claude Code (CH-04: the 34 canonical verbs + 9×10 applicability matrix below are now lifted into typed Rust at `domain::permissions::action::Action` — drifts D-new-09 + D-new-10 closed; ADR-0043 ratifies. Vocabulary table + matrix UNCHANGED at this chunk; new § "Future work — v1 revisit: per-resource action enums" appended at the end.) -->
 <!-- Part of the permissions spec — see README.md for the full map -->

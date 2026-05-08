@@ -459,6 +459,53 @@ pub struct AgentCreationReceipt {
 }
 
 // ----------------------------------------------------------------------------
+// CH-08 / ADR-0052 §D52.5 — compound-tx payload for `apply_transfer_grant`.
+// ----------------------------------------------------------------------------
+
+/// CH-08 / ADR-0052 §D52.5 — compound-tx payload for
+/// [`Repository::apply_transfer_grant`].
+///
+/// Carries the three-write atomic transaction: rewrite the resource's
+/// `OWNED_BY` edge to point at `new_owner`, revoke the sender's matching
+/// `[transfer]`-eligible grant (set `revoked_at = at`), and mint the
+/// recipient's grant. All three writes must commit atomically OR roll
+/// back together — concept-doc 02 line 206 verbatim:
+/// *"on approval, rewrites the OWNED_BY edge and revokes any residual
+/// authority the sender held through ownership"*.
+///
+/// The payload deliberately omits a separate `recipient` /
+/// `resource` field — both are derivable from `recipient_grant.holder`
+/// and `recipient_grant.resource` respectively, so the call sees a
+/// single source of truth (the recipient's grant) for who/what is
+/// receiving authority.
+///
+/// **Forward-defensive (F5.A user-locked):** No production caller wires
+/// this method today (`Action::Transfer` has zero runtime mint sites —
+/// verified at plan-draft via `grep -rn "Action::Transfer" modules/crates/`).
+/// The first M6+ chunk introducing a real transfer-flow surface
+/// consumes this primitive. Mirrors the CH-12 frozen-tag-write
+/// validator + audit-event-builder forward-defensive precedent.
+#[derive(Debug, Clone)]
+pub struct TransferGrantPayload {
+    /// The sender's existing `[transfer]`-eligible grant id. The
+    /// compound tx revokes this grant atomically with the recipient
+    /// mint (sets `revoked_at = at`).
+    pub sender_grant_id: GrantId,
+    /// The new resource owner principal. The compound tx rewrites the
+    /// resource's `OWNED_BY` edge to point at this principal.
+    pub new_owner: PrincipalRef,
+    /// The recipient's new grant — minted atomically with the sender
+    /// revocation. Carries the canonical `(holder, resource)` for the
+    /// transfer; the compound tx pulls `resource` from
+    /// `recipient_grant.resource` to match the OWNED_BY-edge rewrite.
+    pub recipient_grant: Grant,
+    /// Transaction timestamp — used for the sender grant's
+    /// `revoked_at` and for verification consistency on the
+    /// recipient.
+    pub at: DateTime<Utc>,
+}
+
+// ----------------------------------------------------------------------------
 // The trait
 // ----------------------------------------------------------------------------
 
@@ -1290,6 +1337,64 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         payload: &AgentCreationPayload,
     ) -> RepositoryResult<AgentCreationReceipt>;
+
+    // ---- CH-08 — Transfer-grant compound-tx primitive (forward-defensive) ----
+    //
+    // CH-08 / ADR-0052 §D52.1 + §D52.5 + §D52.6 — closes drift D-new-13
+    // (HIGH-A). The structural-enforcement boundary for the "exclusive"
+    // half of concept-doc 02's cardinality table (lines 199–207). Per
+    // line 206: *"on approval, rewrites the OWNED_BY edge and revokes
+    // any residual authority the sender held through ownership"*.
+    //
+    // This method atomically performs three writes:
+    // 1. Rewrites the resource's `OWNED_BY` edge to point at
+    //    `payload.new_owner`.
+    // 2. Revokes the sender's matching `[transfer]`-eligible grant
+    //    (sets `revoked_at = payload.at`).
+    // 3. Mints `payload.recipient_grant`.
+    //
+    // All three writes commit atomically OR roll back together. The
+    // `Allocate` path is **untouched** — `create_grant` remains additive
+    // by construction; sender's existing grant survives a sibling
+    // Allocate-grant mint on the same resource (per concept-doc 02 lines
+    // 199–204 cardinality table — Allocate is "additive" / Arc::clone
+    // semantics; Transfer is "exclusive" / move semantics).
+    //
+    // **Forward-defensive (F5.A user-locked):** No production caller
+    // wires this method today. `Action::Transfer` has zero runtime
+    // mint sites — verified at plan-draft. The first M6+ chunk
+    // introducing a real transfer-flow surface (e.g., a resource
+    // hand-off UX) consumes this primitive at a single callsite.
+    // Mirrors the CH-12 frozen-tag-write validator + audit-event
+    // builder forward-defensive precedent.
+
+    /// CH-08 / ADR-0052 §D52.5 — atomic transfer-grant compound-tx.
+    ///
+    /// Per concept-doc 02 line 206, on transfer approval the system:
+    /// (1) rewrites the `OWNED_BY` edge for the resource to
+    /// `payload.new_owner`, (2) revokes the sender's matching grant
+    /// (sets `revoked_at = payload.at`), (3) mints
+    /// `payload.recipient_grant`. All three writes commit atomically OR
+    /// roll back together.
+    ///
+    /// **No production caller today** — F5.A forward-defensive primitive.
+    ///
+    /// **Errors:**
+    /// - [`RepositoryError::NotFound`] if `payload.sender_grant_id` does
+    ///   not exist.
+    /// - [`RepositoryError::Conflict`] if the sender's grant is already
+    ///   revoked (re-entry safety; matches the [`Repository::apply_org_creation`]
+    ///   precedent's idempotency framing).
+    ///
+    /// **Pre-conditions** (caller's responsibility):
+    /// - `payload.recipient_grant.id` is fresh (unique).
+    /// - `payload.recipient_grant.holder` matches `payload.new_owner`
+    ///   (the recipient is the new owner).
+    /// - `payload.recipient_grant.action` contains `Action::Transfer`
+    ///   when the caller intends true exclusive-cardinality semantics
+    ///   (the method does not check this — it is the caller's
+    ///   responsibility to assemble a `[transfer]`-scoped grant).
+    async fn apply_transfer_grant(&self, payload: &TransferGrantPayload) -> RepositoryResult<()>;
 
     // ---- CH-23 — Template C/D production triggers ---------------------
     //

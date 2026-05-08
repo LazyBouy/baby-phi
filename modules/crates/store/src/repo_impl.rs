@@ -39,7 +39,7 @@ use domain::model::{
 use domain::repository::{
     AgentCreationPayload, AgentCreationReceipt, BootstrapClaim, BootstrapCredentialRow,
     OrgCreationPayload, OrgCreationReceipt, ProjectCreationPayload, ProjectCreationReceipt,
-    ProjectShapeCounts, Repository, RepositoryError, RepositoryResult,
+    ProjectShapeCounts, Repository, RepositoryError, RepositoryResult, TransferGrantPayload,
 };
 
 use crate::SurrealStore;
@@ -67,6 +67,17 @@ fn principal_to_kind_id(p: &PrincipalRef) -> (&'static str, String) {
         PrincipalRef::Project(id) => ("project", id.to_string()),
         PrincipalRef::System(s) => ("system", s.clone()),
     }
+}
+
+/// CH-08 / ADR-0052 §D52.5 — by-value equality on `PrincipalRef`. The
+/// domain `PrincipalRef` enum derives only `Debug + Clone + Serialize +
+/// Deserialize`, not `PartialEq`. `apply_transfer_grant`'s pre-flight
+/// `recipient_grant.holder == new_owner` check needs structural equality;
+/// we compare via the canonical `(kind, id)` projection used elsewhere
+/// in this module to keep the equality semantics consistent across the
+/// adapter.
+fn principal_refs_equal(a: &PrincipalRef, b: &PrincipalRef) -> bool {
+    principal_to_kind_id(a) == principal_to_kind_id(b)
 }
 
 fn principal_from_kind_id(kind: &str, id: &str) -> RepositoryResult<PrincipalRef> {
@@ -200,6 +211,12 @@ struct GrantRow {
     /// `AuditClass::Silent` per `Grant::default_audit_class`.
     #[serde(default = "domain::model::Grant::default_audit_class")]
     audit_class: domain::audit::AuditClass,
+    /// CH-08 / ADR-0052 §D52.3 — `Grant.allocate_refinement`. Riding
+    /// under the existing FLEXIBLE TYPE object column (no schema
+    /// migration per F4.A). Pre-CH-08 rows deserialise via
+    /// `#[serde(default)]` to `None`.
+    #[serde(default)]
+    allocate_refinement: Option<domain::permissions::AllocateRefinement>,
 }
 
 impl GrantRow {
@@ -217,6 +234,7 @@ impl GrantRow {
             revoked_at: g.revoked_at,
             approval_mode: g.approval_mode.clone(),
             audit_class: g.audit_class,
+            allocate_refinement: g.allocate_refinement.clone(),
         }
     }
 
@@ -242,6 +260,7 @@ impl GrantRow {
             revoked_at: self.revoked_at,
             approval_mode: self.approval_mode,
             audit_class: self.audit_class,
+            allocate_refinement: self.allocate_refinement,
         })
     }
 }
@@ -2657,6 +2676,146 @@ impl Repository for SurrealStore {
                 .map(|o| o.id),
             identity_id: payload.identity.as_ref().map(|i| i.id),
         })
+    }
+
+    // ---- CH-08 — Transfer-grant compound-tx primitive (forward-defensive) ----
+    //
+    // CH-08 / ADR-0052 §D52.5 — atomic three-write tx wrapping the
+    // OWNED_BY-edge rewrite + sender-grant revocation + recipient-grant
+    // mint in a single `BEGIN TRANSACTION ... COMMIT TRANSACTION` block.
+    // Mirrors the existing compound-tx pattern at `create_manages_edge`
+    // (line ~2769) and `create_has_agent_supervisor_edge` (line ~2901).
+    //
+    // F5.A forward-defensive — no production caller wired today.
+
+    async fn apply_transfer_grant(&self, payload: &TransferGrantPayload) -> RepositoryResult<()> {
+        // ---- pre-flight validation (read-side) -----------------------
+        // (a) sender's grant exists.
+        let sender_grant = self
+            .get_grant(payload.sender_grant_id)
+            .await?
+            .ok_or(RepositoryError::NotFound)?;
+
+        // (b) sender's grant is not already revoked (re-entry safety).
+        if sender_grant.revoked_at.is_some() {
+            return Err(RepositoryError::Conflict(format!(
+                "sender grant {} already revoked",
+                payload.sender_grant_id
+            )));
+        }
+
+        // (c) cardinality precondition — recipient_grant.resource matches
+        //     sender_grant.resource (sender currently has authority over
+        //     what they're transferring; concept-doc 02 lines 199–207).
+        if sender_grant.resource.uri != payload.recipient_grant.resource.uri {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "recipient_grant.resource ({}) must match sender_grant.resource ({})",
+                payload.recipient_grant.resource.uri, sender_grant.resource.uri,
+            )));
+        }
+
+        // (d) recipient_grant.holder matches new_owner (defensive — the
+        //     recipient of the grant must be the new owner per concept-doc
+        //     02 line 206 single-update-of-OWNED_BY-edge framing).
+        if !principal_refs_equal(&payload.recipient_grant.holder, &payload.new_owner) {
+            return Err(RepositoryError::InvalidArgument(
+                "recipient_grant.holder must match payload.new_owner".into(),
+            ));
+        }
+
+        // (e) cardinality precondition — locate an OWNED_BY edge whose
+        //     `out` matches sender_grant.holder. Forward-defensive: if no
+        //     such edge exists, callers seed one via `upsert_ownership_raw`
+        //     before calling; a mismatch is a Conflict per concept-doc
+        //     02 line 206 framing.
+        let (sender_owner_kind, sender_owner_id) = principal_to_kind_id(&sender_grant.holder);
+        if sender_owner_kind == "system" {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "PrincipalRef::System({sender_owner_id}) has no NodeId; \
+                 apply_transfer_grant does not target system axioms"
+            )));
+        }
+        let (new_owner_kind, new_owner_id) = principal_to_kind_id(&payload.new_owner);
+        if new_owner_kind == "system" {
+            return Err(RepositoryError::InvalidArgument(format!(
+                "PrincipalRef::System({new_owner_id}) has no NodeId; \
+                 apply_transfer_grant does not target system axioms"
+            )));
+        }
+
+        // Probe for an existing OWNED_BY edge whose `out` end matches the
+        // sender's holder. The `node` table is the schemaless catch-all
+        // we use for ownership endpoints (see `upsert_ownership_raw`).
+        // Capture the edge's `in` (resource end) so we can re-RELATE the
+        // resource → new_owner pair under a fresh edge id (SurrealDB
+        // graph-edge `in` / `out` are immutable; rewriting the OWNED_BY
+        // edge requires DELETE + RELATE inside the same transaction).
+        let mut probe = self
+            .client()
+            .query(
+                "SELECT record::id(id) AS edge_id, record::id(in) AS resource_id \
+                 FROM owned_by WHERE record::id(out) = $owner_id LIMIT 1",
+            )
+            .bind(("owner_id", sender_owner_id.clone()))
+            .await
+            .map_err(backend)?;
+        #[derive(serde::Deserialize)]
+        struct EdgeProbe {
+            edge_id: String,
+            resource_id: String,
+        }
+        let probes: Vec<EdgeProbe> = probe.take(0).map_err(backend)?;
+        let probe = probes.into_iter().next().ok_or_else(|| {
+            RepositoryError::Conflict(format!(
+                "no OWNED_BY edge for sender's holder ({sender_owner_kind}:{sender_owner_id}); \
+                 transfer cardinality precondition broken"
+            ))
+        })?;
+        let existing_edge_id = probe.edge_id;
+        let resource_id = probe.resource_id;
+        let new_edge_id = EdgeId::new();
+
+        // Mint the recipient's grant body up-front so serde errors surface
+        // before the transaction opens.
+        let recipient_body = serde_json::to_value(GrantRow::from_domain(&payload.recipient_grant))
+            .map_err(backend)?;
+
+        // ---- compound tx (BEGIN ... COMMIT wraps the three writes) ----
+        // (1) Rewrite OWNED_BY edge → new_owner. SurrealDB graph-edge
+        //     `in` / `out` are immutable on RELATE rows, so we DELETE the
+        //     existing edge and RELATE a fresh one inside the same tx.
+        //     The pair (DELETE + RELATE) is the structural rewrite per
+        //     concept-doc 02 line 206.
+        // (2) Revoke sender's grant (UPDATE revoked_at).
+        // (3) Mint recipient's grant (CREATE).
+        self.client()
+            .query(
+                "BEGIN TRANSACTION;\n\
+                 DELETE type::thing('owned_by', $old_edge_id) RETURN NONE;\n\
+                 LET $f = type::thing('node', $resource_id);\n\
+                 LET $t = type::thing('node', $new_owner_id);\n\
+                 RELATE $f -> owned_by -> $t \
+                     SET id = type::thing('owned_by', $new_edge_id) RETURN NONE;\n\
+                 UPDATE type::thing('grant', $sender_id) \
+                     SET revoked_at = <datetime> $at RETURN NONE;\n\
+                 CREATE type::thing('grant', $recipient_id) \
+                     CONTENT $recipient_body RETURN NONE;\n\
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("old_edge_id", existing_edge_id))
+            .bind(("resource_id", resource_id))
+            .bind(("new_owner_id", new_owner_id))
+            .bind(("new_edge_id", new_edge_id.to_string()))
+            .bind(("sender_id", payload.sender_grant_id.to_string()))
+            .bind(("at", payload.at.to_rfc3339()))
+            .bind(("recipient_id", payload.recipient_grant.id.to_string()))
+            .bind(("recipient_body", recipient_body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+
+        Ok(())
     }
 
     // ========================================================================

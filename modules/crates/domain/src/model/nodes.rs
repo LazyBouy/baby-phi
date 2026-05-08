@@ -691,6 +691,14 @@ pub struct Grant {
     /// `audit_class` is recorded on the Grant at issuance time"*.
     #[serde(default = "Grant::default_audit_class")]
     pub audit_class: crate::audit::AuditClass,
+    /// CH-08 / ADR-0052 §D52.3 — typed allocate-refinement constraints per concept-doc
+    /// 02 line 197. `None` for non-`[allocate]` grants AND for legacy/pre-CH-08 grants
+    /// (serde-default-shielded). When `Some(_)`, the contained `AllocateRefinement`
+    /// narrows the allocate sub-capabilities (`no_further_delegation`, `max_depth`)
+    /// per concept-doc 02 line 197 + concept-doc 03 line 54. Mirrors the CH-11 D48.1
+    /// (Grant.approval_mode) + CH-13 D50.5 (Grant.audit_class) field-add pattern.
+    #[serde(default)]
+    pub allocate_refinement: Option<crate::permissions::AllocateRefinement>,
 }
 
 impl Grant {

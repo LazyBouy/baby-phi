@@ -132,6 +132,7 @@ pub async fn register_mcp_server(
         // CH-13 / ADR-0050: platform-admin grants are out of scope for
         // the strictest-wins composer (no template_AR input).
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     };
     repo.create_grant(&grant).await?;
 

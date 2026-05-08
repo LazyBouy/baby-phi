@@ -192,6 +192,7 @@ pub async fn create_organization(
         // scope for the composer (no adoption AR yet at org-create
         // time).
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     };
 
     // 4. Two system agents with phi-core blueprints cloned from the

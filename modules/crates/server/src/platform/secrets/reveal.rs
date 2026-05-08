@@ -358,6 +358,7 @@ mod tests {
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -408,6 +409,7 @@ mod tests {
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);
@@ -468,6 +470,7 @@ mod tests {
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         }];
         let mut catalogue = StaticCatalogue::empty();
         catalogue.seed(None, &uri);

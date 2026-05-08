@@ -1038,6 +1038,7 @@ mod tests {
             revoked_at: None,
             approval_mode: crate::model::ApprovalMode::Implicit,
             audit_class: crate::audit::AuditClass::Silent,
+            allocate_refinement: None,
         }
     }
 

@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-07 by Claude Code (CH-08 chunk-seal: D-new-13 (HIGH-A) + D-new-29 (LOW-B) rows Status flipped to **remediated** with "Impl. chunk" set to CH-08 ✓ at lines 112 + 128; both drifts close per ADR-0052 §D52.1–§D52.6 (D-new-13: Repository::apply_transfer_grant compound-tx primitive shipped on InMemoryRepository + SurrealStore; D-new-29: Grant.allocate_refinement: Option<AllocateRefinement> typed field added with #[serde(default)] shielding).) -->
 <!-- Last verified: 2026-05-07 by Claude Code (CH-07 chunk-seal: D-new-06 + D-new-20 rows Status flipped to **remediated** with "Impl. chunk" set to CH-07 ✓; new row added for D-CH07-FOLLOWUP-01 — LOW Bucket B drift tracking the M6+ deferral of Agent.base_project / Agent.base_org Vec field additions per ADR-0051 §D51.2/§D51.3.) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-13 chunk-seal: D-new-19 row Status flipped to remediated; "Impl. chunk" set to CH-13 ✓) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-12 chunk-seal: D-new-08 row Status flipped to remediated; "Impl. chunk" set to CH-12 ✓) -->
@@ -109,7 +110,7 @@ fixed.
 | D-new-10 | Action × Fundamental applicability matrix not enforced | MEDIUM | B | permissions/03 | N/A | **remediated** | CH-04 ✓ | [D-new-10.md](D-new-10.md) |
 | D-new-11 | Composite instance self-identity tag not auto-added | MEDIUM | B | permissions/01 | N/A | remediated | CH-06 | [D-new-11.md](D-new-11.md) |
 | D-new-12 | AuthRequest per-state ACL not enforced | MEDIUM | B | permissions/02 | N/A | discovered | TBD | [D-new-12.md](D-new-12.md) |
-| D-new-13 | allocate/transfer cardinality not enforced | **HIGH** | **A** | permissions/02, 03 | N/A | discovered | TBD | [D-new-13.md](D-new-13.md) |
+| D-new-13 | allocate/transfer cardinality not enforced | **HIGH** | **A** | permissions/02, 03 | N/A | **remediated** | CH-08 ✓ | [D-new-13.md](D-new-13.md) |
 | D-new-14 | system:genesis axiom + authority-chain traversal missing | **HIGH** | **A** | permissions/02, 04; README | N/A | discovered | TBD | [D-new-14.md](D-new-14.md) |
 | D-new-15 | AuthRequest 2-tier retention (90d active + archived) not wired | MEDIUM | B | permissions/02 | N/A | discovered | M7b | [D-new-15.md](D-new-15.md) |
 | D-new-16 | Memory recall/store/delete action execution missing | **HIGH** | **A** | permissions/05 | N/A | discovered | M6 C-M6-1 | [D-new-16.md](D-new-16.md) |
@@ -125,7 +126,7 @@ fixed.
 | D-new-26 | Task node fully scaffolded | LOW | C | project | N/A | discovered | later | [D-new-26.md](D-new-26.md) |
 | D-new-27 | Token-economy fields missing on Agent | MEDIUM | C | token-economy | N/A | discovered | later | [D-new-27.md](D-new-27.md) |
 | D-new-28 | Memory memory_type enum missing | LOW | B | coordination | N/A | discovered | M6 C-M6-1 | [D-new-28.md](D-new-28.md) |
-| D-new-29 | allocate refinement constraints (no_further_delegation) missing | LOW | B | permissions/03 | N/A | discovered | TBD | [D-new-29.md](D-new-29.md) |
+| D-new-29 | allocate refinement constraints (no_further_delegation) missing | LOW | B | permissions/03 | N/A | **remediated** | CH-08 ✓ | [D-new-29.md](D-new-29.md) |
 | D-new-30 | Org/Project template as config object (vs adoption AR) not materialized | LOW | C | permissions/07 | N/A | discovered | TBD (doc refresh) | [D-new-30.md](D-new-30.md) |
 | D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | **remediated** | CH-05 ✓ | [D-new-31.md](D-new-31.md) |
 | D-CH11-FOLLOWUP-01 | `Project.deadline_at` missing; CH-11 falls back to `now+24h` for `ApprovalTimeout::ProjectDuration` | LOW | B | permissions/06 | N/A | discovered | M6+ Project enrichment | [D-CH11-FOLLOWUP-01.md](D-CH11-FOLLOWUP-01.md) |

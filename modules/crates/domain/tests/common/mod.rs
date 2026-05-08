@@ -107,6 +107,7 @@ pub fn grant_on(holder: PrincipalRef, actions: &[Action], resource_uri: &str) ->
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     }
 }
 
@@ -164,6 +165,7 @@ pub fn any_agent_grant(agent: AgentId) -> impl Strategy<Value = Grant> {
         revoked_at: None,
         approval_mode: domain::model::ApprovalMode::Implicit,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     })
 }
 

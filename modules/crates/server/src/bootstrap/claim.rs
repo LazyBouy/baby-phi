@@ -245,6 +245,7 @@ pub async fn execute_claim(
         // to `Silent` (loosest) per concept-doc 07 line 71's
         // no-silent-escalation invariant; future chunks may refine.
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     };
 
     // Alerted audit event — `PlatformAdminClaimed`.

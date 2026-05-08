@@ -187,6 +187,7 @@ async fn build_fixture(
         revoked_at: None,
         approval_mode,
         audit_class: AuditClass::Silent,
+        allocate_refinement: None,
     };
     repo.create_grant(&grant).await.expect("create grant");
 

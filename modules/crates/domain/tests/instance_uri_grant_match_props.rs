@@ -109,6 +109,7 @@ proptest! {
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         };
         let grants = [grant];
         let mut catalogue = StaticCatalogue::empty();
@@ -159,6 +160,7 @@ proptest! {
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         };
         let grants = [grant];
         // Empty `target_uri` skips Step 0 catalogue — same as the M1
@@ -218,6 +220,7 @@ proptest! {
             revoked_at: None,
             approval_mode: domain::model::ApprovalMode::Implicit,
             audit_class: AuditClass::Silent,
+            allocate_refinement: None,
         };
         let grants = [grant];
         let mut catalogue = StaticCatalogue::empty();
