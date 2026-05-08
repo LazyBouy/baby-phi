@@ -586,6 +586,7 @@ fn build_shape_b_auth_request(
         active_window_days: 30,
         provenance_template: None,
         tags: domain::model::composites::auto_tags_for("auth_request", &id.to_string()).to_vec(),
+        descends_from_grant: None,
     }
 }
 

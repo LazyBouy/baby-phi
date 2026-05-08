@@ -19,6 +19,7 @@ pub mod crypto;
 pub mod migrations;
 pub mod repo_impl;
 pub mod repo_impl_m2;
+pub mod repo_impl_m5;
 
 pub use audit_emitter::SurrealAuditEmitter;
 

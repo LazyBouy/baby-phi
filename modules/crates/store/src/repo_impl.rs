@@ -99,6 +99,29 @@ fn parse_uuid(s: &str) -> RepositoryResult<Uuid> {
     Uuid::parse_str(s).map_err(|e| RepositoryError::Backend(format!("invalid uuid `{s}`: {e}")))
 }
 
+/// CH-14 / ADR-0053 §D53.4 — sibling helper for the `m5_*` cascade
+/// implementations in [`crate::repo_impl_m5`]. Mirrors the inline
+/// `GrantId::from_uuid(parse_str(...))` form used in `repo_impl_m2`'s
+/// existing single-hop revoke loop.
+pub(crate) fn parse_grant_id(id_str: &str) -> RepositoryResult<domain::model::ids::GrantId> {
+    Ok(domain::model::ids::GrantId::from_uuid(parse_uuid(id_str)?))
+}
+
+/// CH-14 / ADR-0053 §D53.3 — bridge for the `m5_*` walker in
+/// [`crate::repo_impl_m5`]. Translates a SurrealDB `auth_request` row
+/// (already projected via `SELECT * ... OMIT id`) into a domain
+/// [`AuthRequest`] using the existing
+/// [`AuthRequestRow::into_domain`] code path. Kept here (rather than
+/// in `repo_impl_m5`) so the row struct + `into_domain` body stays
+/// in one file.
+pub(crate) fn auth_request_row_into_domain_via(
+    row: serde_json::Value,
+    id: AuthRequestId,
+) -> RepositoryResult<AuthRequest> {
+    let arow: AuthRequestRow = serde_json::from_value(row).map_err(backend)?;
+    arow.into_domain(id)
+}
+
 // ============================================================================
 // JSON hydration — strip id on write, inject id on read
 // ============================================================================
@@ -293,6 +316,12 @@ struct AuthRequestRow {
     /// on first read.
     #[serde(default)]
     tags: Vec<String>,
+    /// CH-14 / ADR-0053 §D53.5 — the parent Grant id this AR descends
+    /// from. `#[serde(default)]` keeps pre-CH-14 rows readable
+    /// (`None` for the bootstrap node and for legacy rows). The store
+    /// column lands via migration 0014.
+    #[serde(default)]
+    descends_from_grant: Option<String>,
 }
 
 impl AuthRequestRow {
@@ -314,6 +343,7 @@ impl AuthRequestRow {
             active_window_days: r.active_window_days,
             provenance_template: r.provenance_template.map(|t| t.to_string()),
             tags: r.tags.clone(),
+            descends_from_grant: r.descends_from_grant.map(|g| g.to_string()),
         })
     }
 
@@ -336,6 +366,14 @@ impl AuthRequestRow {
         } else {
             domain::model::composites::auto_tags_for("auth_request", &id.to_string()).to_vec()
         };
+        // CH-14 / ADR-0053 §D53.5 — parse the parent-grant column.
+        // `None` for pre-CH-14 rows + bootstrap node.
+        let descends_from_grant = self
+            .descends_from_grant
+            .as_deref()
+            .map(parse_uuid)
+            .transpose()?
+            .map(domain::model::ids::GrantId::from_uuid);
         Ok(AuthRequest {
             id,
             requestor,
@@ -352,6 +390,7 @@ impl AuthRequestRow {
             active_window_days: self.active_window_days,
             provenance_template,
             tags,
+            descends_from_grant,
         })
     }
 }
@@ -1658,6 +1697,22 @@ impl Repository for SurrealStore {
         at: DateTime<Utc>,
     ) -> RepositoryResult<Vec<GrantId>> {
         self.m2_revoke_grants_by_descends_from(ar, at).await
+    }
+
+    async fn walk_provenance_chain(
+        &self,
+        grant: GrantId,
+    ) -> RepositoryResult<Vec<domain::model::nodes::AuthRequest>> {
+        self.m5_walk_provenance_chain(grant).await
+    }
+
+    async fn revoke_grants_by_descends_from_recursive(
+        &self,
+        ar: domain::model::ids::AuthRequestId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<domain::repository::CascadeResult> {
+        self.m5_revoke_grants_by_descends_from_recursive(ar, at)
+            .await
     }
 
     async fn seed_catalogue_entry_for_composite(

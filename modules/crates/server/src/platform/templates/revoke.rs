@@ -83,12 +83,57 @@ pub async fn revoke_template(
         .map_err(|e| TemplateError::StateTransitionFailed(e.to_string()))?;
     repo.update_auth_request(&next).await?;
 
-    // Forward-only grant cascade: every live grant whose
-    // `descends_from == ar.id` flips to `revoked_at = now`.
-    let grants_revoked = repo
-        .revoke_grants_by_descends_from(next.id, input.now)
+    // Forward-only tree-wide grant cascade: every live grant in the
+    // descend-tree rooted at `next.id` flips to `revoked_at = now`,
+    // including grandchildren minted under intermediate-AR authority
+    // (CH-14 / ADR-0053 §D53.4). The single-hop sibling
+    // `revoke_grants_by_descends_from` is preserved verbatim for the
+    // M2 `narrow_mcp_tenants` caller per ADR-0033 contract.
+    //
+    // The Repository returns a `CascadeResult` with both
+    // `revoked_grants` (for the `template.revoked` summary event's
+    // `grant_count`) and `cascaded_ars` (every level-≥1 AR in the
+    // descent tree, for per-AR `auth_request.revoked` emission per
+    // ADR-0053 §D53.7).
+    let cascade = repo
+        .revoke_grants_by_descends_from_recursive(next.id, input.now)
         .await?;
+    let grants_revoked = cascade.revoked_grants;
     let grant_count_revoked = grants_revoked.len() as u32;
+
+    // CH-14 / ADR-0053 §D53.7 — for each level-≥1 cascaded AR, mirror
+    // the level-0 flow: build the (next_ar, audit_event) pair via the
+    // domain helper, persist the AR-state-transition (Approved →
+    // Revoked) via `update_auth_request`, and emit the per-AR
+    // `auth_request.revoked` audit event. Ordering inside the loop
+    // preserves the BFS insertion order from the Repository so the
+    // audit chain hashes deterministically per cascade run. Already-
+    // closed-terminal ARs are skipped (idempotency) — the Repository
+    // surfaces them anyway when their parent grant flips during
+    // re-runs, so the handler must defend against double-revoke.
+    for cascaded_ar_id in cascade.cascaded_ars.iter().copied() {
+        let cascaded_ar = match repo.get_auth_request(cascaded_ar_id).await? {
+            Some(a) => a,
+            None => continue, // defensive: row absent → skip
+        };
+        if !matches!(
+            cascaded_ar.state,
+            AuthRequestState::Approved | AuthRequestState::Partial
+        ) {
+            // Already closed-terminal (e.g. previously cascaded
+            // through a prior revoke or manual revoke); skip to keep
+            // the cascade idempotent.
+            continue;
+        }
+        let (next_cascaded, cascaded_event) =
+            revoke_ar(&cascaded_ar, Some(input.actor), &input.reason, input.now)
+                .map_err(|e| TemplateError::StateTransitionFailed(e.to_string()))?;
+        repo.update_auth_request(&next_cascaded).await?;
+        audit
+            .emit(cascaded_event)
+            .await
+            .map_err(|e| TemplateError::AuditEmit(e.to_string()))?;
+    }
 
     // Emit the template.revoked audit event. `grant_count` makes
     // the revocation count visible in-line with the audit record

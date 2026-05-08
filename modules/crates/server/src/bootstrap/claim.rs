@@ -28,6 +28,7 @@ use domain::model::nodes::{
     ChannelKind, Grant, InboxObject, OutboxObject, PrincipalRef, ResourceRef, ResourceSlot,
     ResourceSlotState,
 };
+use domain::permissions::axioms::system_genesis_principal;
 use domain::repository::{BootstrapClaim, Repository, RepositoryError};
 
 use super::credential::verify_credential;
@@ -186,10 +187,13 @@ pub async fn execute_claim(
     };
 
     // Bootstrap Auth Request in Approved state — system:genesis both
-    // requests and approves (R-SYS-s01-1).
+    // requests and approves (R-SYS-s01-1). The `system_genesis_principal()`
+    // helper is the canonical constructor for the axiomatic principal
+    // (CH-14 / ADR-0053 §D53.1) — single source of truth for the
+    // `"system:genesis"` magic-string.
     let auth_request = AuthRequest {
         id: auth_request_id,
-        requestor: PrincipalRef::System("system:genesis".into()),
+        requestor: system_genesis_principal(),
         kinds: vec!["control_plane_object".into()],
         scope: vec!["allocate".into()],
         state: AuthRequestState::Approved,
@@ -200,7 +204,7 @@ pub async fn execute_claim(
                 uri: "system:root".into(),
             },
             approvers: vec![ApproverSlot {
-                approver: PrincipalRef::System("system:genesis".into()),
+                approver: system_genesis_principal(),
                 state: ApproverSlotState::Approved,
                 responded_at: Some(now),
                 reconsidered_at: None,
@@ -214,13 +218,17 @@ pub async fn execute_claim(
         active_window_days: 3650, // Retain the genesis record for ~10 yrs.
         // A stable, hardcoded Template id so future audit traversal can
         // terminate cleanly at the axiom. Uses the all-zero UUID to mark
-        // "the bootstrap template" unambiguously.
+        // "the bootstrap template" unambiguously (CH-14 / ADR-0053
+        // §D53.2 — `is_bootstrap_ar` two-witness predicate).
         provenance_template: Some(TemplateId::from_uuid(uuid::Uuid::nil())),
         tags: domain::model::composites::auto_tags_for(
             "auth_request",
             &auth_request_id.to_string(),
         )
         .to_vec(),
+        // Bootstrap AR is the chain root — no parent grant exists by
+        // definition (CH-14 / ADR-0053 §D53.5).
+        descends_from_grant: None,
     };
 
     // `[allocate]`-on-`system:root` Grant — underpins every delegation

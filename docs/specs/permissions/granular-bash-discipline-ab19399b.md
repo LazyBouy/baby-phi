@@ -99,6 +99,39 @@ The bash-check rule has now failed across 3 consecutive cycles despite repeated 
 
 **Validation signal (per CH-08 retro §5 row 7)**: when a hot-allow-rule signature persists across **≥ 2 cycles** post-standards-update, the `permissions-audit` skill escalates the finding to `matcher-semantics-investigation` priority — the next standards update MUST include an empirical test-harness step (run the candidate rule pattern against representative invocations + capture telemetry) before the rule is committed.
 
+### 2.6 — Bash-check cluster: 4-cycle pattern + matcher-bug-confirmed escalation (CH-14)
+
+CH-14 retro (cycle hex `5803bb94`, 2026-05-08) confirmed the regression EVEN AFTER the CH-08 user-led mid-cycle broadening.
+
+**4-cycle data series (PermissionRequest counts on the bash-check cluster):**
+
+| Cycle | Hex | Rules in effect | Cluster prompts | Notes |
+|---|---|---|---|---|
+| CH-13 | `d4fe1b7c` | 1 colon-form rule (`check-*.sh:*`) | **4** | rule added |
+| CH-07 | `cc912d07` | + paired space-form `*.sh *` + `2>&1*` | **3** | residual after refinement |
+| CH-08 | `7cbe74a4` | unchanged + mid-cycle user broadening to `*.sh *` (drop `check-` prefix) at 07:36 UTC 2026-05-08 | **15** | regression — broadening did not match |
+| CH-14 | `5803bb94` | unchanged from CH-08 close-time edit (`Bash(bash /root/projects/phi/baby-phi/scripts/*.sh *)` + `Bash(bash /root/projects/phi/baby-phi/scripts/*.sh 2>&1*)`) | **43** | no further mid-cycle edits; both broadened patterns failed to match |
+
+**Empirical conclusion**: rule-pattern iteration inside `Bash(prefix-expr *)` does NOT close the bash-check cluster. The matcher's `*.sh` glob — whether scoped (`check-*.sh`) or unscoped (`*.sh`) — does not bind to a wildcard script name at runtime in a way that allows-form patterns can express.
+
+**Escalation per CH-14 retro §5 row 7**: cluster classification flips from `matcher-semantics-investigation` to **`matcher-bug-confirmed`** (3+ cycles post-update is the threshold). The escalation rule **STOPS rule-pattern iteration** and mandates:
+
+1. **Capture an isolated reproducer**: a minimal `settings.json` carrying the candidate rule + a representative invocation that the rule should match. CH-14 reproducer: rule `Bash(bash /root/projects/phi/baby-phi/scripts/*.sh *)` + invocation `bash /root/projects/phi/baby-phi/scripts/check-doc-links.sh 2>&1 | tail -3` → expected match → observed PermissionRequest fires.
+2. **File an upstream Claude Code rule-matcher bug-report** with the reproducer.
+3. **Propose a behaviourally-equivalent literal-script-name workaround**:
+   ```jsonc
+   "Bash(bash /root/projects/phi/baby-phi/scripts/check-doc-links.sh*)",
+   "Bash(bash /root/projects/phi/baby-phi/scripts/check-ops-doc-headers.sh*)",
+   "Bash(bash /root/projects/phi/baby-phi/scripts/check-phi-core-reuse.sh*)",
+   "Bash(bash /root/projects/phi/baby-phi/scripts/check-spec-drift.sh*)",
+   "Bash(bash /root/projects/phi/baby-phi/scripts/audit-tmp-*.sh*)"
+   ```
+   Each rule names a single literal script (sidesteps the `*.sh` glob ambiguity entirely). The 5th rule covers the `audit-tmp-*.sh` family produced by orchestrator gate-4 cargo-test cardinality-extraction refactor (CH-14 retro Row 8).
+4. **Empirical test-harness validation BEFORE commit** (per CH-08 retro Row 7 + CH-14 retro escalation): apply the candidate rules to a test settings.json; run the 4 CI guards' canonical invocations + 1 representative `audit-tmp-*` invocation; observe `tool-use.log`; verify 0 PermissionRequest fires for the cluster. Only then commit.
+5. **Cross-cycle trend-analysis fairness**: once classified `matcher-bug-confirmed`, the next cycle's permissions-audit MUST mark the cluster as `external-bug-pending` and **subtract** it from the cross-cycle PermissionRequest count for trend reporting.
+
+**Why STOP iterating**: CH-13 → CH-07 → CH-08 → CH-14 burned 4 cycle slots on rule-pattern attempts that all failed in the same way. The variance between the 4 attempts is in the rule pattern; the constant is the matcher behaviour. Iterating the variable while the constant is bugged wastes cycles.
+
 ### 2.4 — Empirical observation from CH-07 (redirect+pipe combo defeats single-`*` glob)
 
 CH-07 telemetry (cycle hex `cc912d07`, 2026-05-07) surfaced a third matcher quirk:

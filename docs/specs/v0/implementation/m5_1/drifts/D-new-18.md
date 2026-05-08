@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-08 by Claude Code (CH-14 chunk-seal — Status flipped to remediated; closes via `Repository::revoke_grants_by_descends_from_recursive(ar, at) -> Vec<GrantId>` BFS algorithm with depth cap 32 + Template-revoke handler flip from single-hop to recursive; acceptance test `acceptance_authority_chain::revoke_cascades_to_grandchildren` asserts grandchild revocation; existing single-hop `revoke_grants_by_descends_from` preserved verbatim for M2 `narrow_mcp_tenants` per ADR-0033 contract; ADR-0053 §D53.4.) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-18 — Grant revocation cascade (walks grants by `provenance` to forward-only revoke descendants) not implemented
@@ -7,7 +8,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `revocation-cascade`, `provenance-walk`
@@ -45,3 +46,5 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 3 report)
+- 2026-05-08 — `in-chunk-plan` — CH-14 plan drafted at `docs/specs/plan/build/ch-14-system-genesis-authority-chain-revocation-cascade-5803bb94/plan.md`; ADR-0053 Proposed; F3.A user-locked — closes via `revoke_grants_by_descends_from_recursive(ar, at) -> Vec<GrantId>` BFS algorithm + Template-revoke handler flip + acceptance test asserting grandchild-grant revocation (existing single-hop preserved verbatim for M2 `narrow_mcp_tenants` per ADR-0033 contract).
+- 2026-05-08 — `remediated` — CH-14 chunk-seal — `Repository::revoke_grants_by_descends_from_recursive(ar, at) -> Vec<GrantId>` BFS algorithm shipped on both backends (`in_memory.rs` + `store/src/repo_impl_m5.rs`) with depth cap 32 + `RepositoryError::ProvenanceCycleDepthExceeded`; Template-revoke handler at `server/src/platform/templates/revoke.rs:90` flipped from `revoke_grants_by_descends_from` (single-hop) to `revoke_grants_by_descends_from_recursive` (recursive); single-hop sibling preserved verbatim for M2 `narrow_mcp_tenants` per ADR-0033; 5 acceptance tests at `acceptance_authority_chain.rs` (cascade + idempotency + depth-cap) + 8 unit tests at `authority_chain_walker.rs`; ADR-0053 §D53.4 Accepted.

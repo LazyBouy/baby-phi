@@ -131,6 +131,17 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "per_session_consent_gating",
         sql: include_str!("../migrations/0013_per_session_consent_gating.surql"),
     },
+    // CH-14 — Authority chain walker + recursive revocation cascade
+    // (ADR-0053 §D53.5). Adds the `descends_from_grant` column to the
+    // `auth_request` table so the walker can climb AR → Grant → AR →
+    // Grant ... up to the bootstrap node. Pre-CH-14 rows decode as
+    // `None` via the `#[serde(default)]` shield on
+    // `AuthRequest.descends_from_grant`.
+    Migration {
+        version: 14,
+        slug: "authority_chain",
+        sql: include_str!("../migrations/0014_authority_chain.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

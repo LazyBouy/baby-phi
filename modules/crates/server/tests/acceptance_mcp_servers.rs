@@ -385,6 +385,7 @@ async fn narrow_tenants_cascades_and_emits_summary_plus_auth_request_revoked() {
         active_window_days: 90,
         provenance_template: None,
         tags: Vec::new(),
+        descends_from_grant: None,
     };
     admin.acc.store.create_auth_request(&ar).await.unwrap();
 

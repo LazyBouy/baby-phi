@@ -128,9 +128,58 @@ pub enum RepositoryError {
         #[source]
         source: crate::permissions::manifest::validator::FrozenTagViolation,
     },
+    /// CH-14 / ADR-0053 §D53.3 / §D53.4 — defensive cycle / depth-cap
+    /// guard for the authority-chain walker + recursive revocation
+    /// cascade. Fires when a chain traversal exceeds [`MAX_PROVENANCE_DEPTH`]
+    /// (= 32) hops without reaching the bootstrap node OR a `None`
+    /// terminator. Indicates a schema-bug-introduced cycle (the
+    /// authority tree should never produce one in normal operation).
+    /// Maps to HTTP 500 at the handler layer.
+    #[error("provenance chain depth exceeded {depth_cap} hops — possible cycle")]
+    ProvenanceCycleDepthExceeded { depth_cap: u8 },
 }
 
+/// CH-14 / ADR-0053 §D53.3 — depth cap for `walk_provenance_chain` +
+/// `revoke_grants_by_descends_from_recursive`. Typical chain depth in
+/// production is 1–4 (bootstrap AR → admin grant → org adoption AR →
+/// template AR → fired-grant AR → fired grant); 32 is a generous
+/// upper bound that accommodates future M6+ delegation depth without
+/// ever firing on real data.
+pub const MAX_PROVENANCE_DEPTH: u8 = 32;
+
 pub type RepositoryResult<T> = Result<T, RepositoryError>;
+
+// ----------------------------------------------------------------------------
+// CascadeResult — returned by revoke_grants_by_descends_from_recursive.
+// ----------------------------------------------------------------------------
+
+/// CH-14 / ADR-0053 §D53.4 + §D53.7 — the typed return of
+/// [`Repository::revoke_grants_by_descends_from_recursive`].
+///
+/// Carries both axes of the cascade so the handler layer can:
+///   - report `revoked_grants.len()` as `grant_count_revoked` on the
+///     `template.revoked` summary event (existing behaviour), and
+///   - iterate `cascaded_ars` to transition each level-≥1 AR via
+///     [`crate::auth_requests::revoke`] + emit one
+///     `auth_request.revoked` audit event per cascaded AR (per
+///     ADR-0053 §D53.7's *N − 1 additional* clause).
+///
+/// `cascaded_ars` lists every level-≥1 AR discovered during the BFS
+/// in insertion order (level-0 → leaves). The level-0 AR is the
+/// input `ar` argument itself and is **not** included — its
+/// state-transition + audit emission stay on the existing single-AR
+/// path inside the Template-revoke handler.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct CascadeResult {
+    /// Every grant whose `revoked_at` was flipped during the cascade,
+    /// flat across all BFS levels (level-0 first). Already-revoked
+    /// grants are skipped (idempotency).
+    pub revoked_grants: Vec<GrantId>,
+    /// Every AR at level ≥ 1 in the descent tree (descendants of the
+    /// level-0 input AR). Ordered insertion-first; deduplicated. The
+    /// level-0 AR is the input — already handled by the caller.
+    pub cascaded_ars: Vec<AuthRequestId>,
+}
 
 // ----------------------------------------------------------------------------
 // ProjectShapeCounts — returned by count_projects_by_shape_in_org.
@@ -995,6 +1044,58 @@ pub trait Repository: Send + Sync + 'static {
         ar: AuthRequestId,
         at: DateTime<Utc>,
     ) -> RepositoryResult<Vec<GrantId>>;
+
+    /// CH-14 / ADR-0053 §D53.3 — walk the provenance chain root-to-leaf.
+    ///
+    /// Returns the chain of [`AuthRequest`](crate::model::nodes::AuthRequest)s
+    /// rooted at the bootstrap node (index 0) ending at the AR that
+    /// directly authorises `grant` (last index). Empty if `grant`'s
+    /// `descends_from` is `None` (legacy / pre-CH-14 grants). Returns
+    /// [`RepositoryError::ProvenanceCycleDepthExceeded`] if the chain
+    /// exceeds [`MAX_PROVENANCE_DEPTH`] hops (defensive cycle guard).
+    ///
+    /// The walker traverses via `Grant.descends_from -> AR` then
+    /// `AR.descends_from_grant -> Grant`, alternating until
+    /// [`crate::permissions::axioms::is_bootstrap_ar`] returns `true`
+    /// or a `None` terminator is reached. The bootstrap AR's
+    /// `descends_from_grant` is always `None` per concept doc 02
+    /// §"System Bootstrap Template" lines 478–486.
+    async fn walk_provenance_chain(&self, grant: GrantId) -> RepositoryResult<Vec<AuthRequest>>;
+
+    /// CH-14 / ADR-0053 §D53.4 + §D53.7 — forward-only tree-wide
+    /// revocation cascade.
+    ///
+    /// Starting from `ar`, BFS through the authority subtree:
+    ///   - level 0: revoke every live grant with `descends_from == ar`.
+    ///   - level N: for each AR whose `descends_from_grant` is one of
+    ///     the level-(N-1) grants, record it in `cascaded_ars` and
+    ///     revoke its descendant live grants.
+    ///   - terminate when no more live descendants OR depth cap 32
+    ///     ([`RepositoryError::ProvenanceCycleDepthExceeded`]).
+    ///
+    /// Returns a [`CascadeResult`] carrying:
+    ///   - `revoked_grants` — flat ordered list of every grant revoked
+    ///     across all levels (level-0 first, idempotent on already-
+    ///     revoked rows), and
+    ///   - `cascaded_ars` — every level-≥1 AR discovered during the
+    ///     BFS, deduplicated, insertion-ordered.
+    ///
+    /// The handler layer iterates `cascaded_ars` to transition each
+    /// AR to [`AuthRequestState::Revoked`] via
+    /// [`crate::auth_requests::revoke`] and emit one
+    /// `auth_request.revoked` audit event per AR per ADR-0053 §D53.7.
+    /// AR-state-transition + audit emission live in the handler, NOT
+    /// in this Repository method (single-writer pattern + the
+    /// Repository layer is intentionally audit-emitter-free).
+    ///
+    /// The single-hop sibling [`Self::revoke_grants_by_descends_from`]
+    /// is preserved verbatim for callers that explicitly want one-hop
+    /// semantics (see `narrow_mcp_tenants` / ADR-0033 contract).
+    async fn revoke_grants_by_descends_from_recursive(
+        &self,
+        ar: AuthRequestId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<CascadeResult>;
 
     // ---- Catalogue (M2 / P4 + P5 + P6) -----------------------------
 

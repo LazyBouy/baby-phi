@@ -333,6 +333,7 @@ fn auth_request_for_org(org: OrgId) -> AuthRequest {
         active_window_days: 30,
         provenance_template: None,
         tags: Vec::new(),
+        descends_from_grant: None,
     }
 }
 

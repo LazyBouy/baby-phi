@@ -1659,6 +1659,7 @@ mod tests {
             active_window_days: 365,
             provenance_template: None,
             tags: vec![],
+            descends_from_grant: None,
         };
         repo.create_auth_request(&ar).await.unwrap();
     }

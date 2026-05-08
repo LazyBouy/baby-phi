@@ -34,6 +34,7 @@
 pub mod action;
 pub mod allocate_refinement;
 pub mod audit_composition;
+pub mod axioms;
 pub mod catalogue;
 pub mod decision;
 pub mod engine;
@@ -46,6 +47,10 @@ pub use action::{Action, ActionCategory, ParseActionError};
 pub use allocate_refinement::AllocateRefinement;
 pub use audit_composition::{
     compose_audit_class, compose_audit_class_with_source, AuditClassSource,
+};
+pub use axioms::{
+    is_bootstrap_ar, system_bootstrap_template_id, system_genesis_principal,
+    SYSTEM_GENESIS_PRINCIPAL,
 };
 pub use catalogue::{CatalogueLookup, StaticCatalogue};
 pub use decision::{Decision, DeniedReason, FailedStep};

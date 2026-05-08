@@ -108,6 +108,7 @@ mod tests {
             active_window_days: days,
             provenance_template: None,
             tags: Vec::new(),
+            descends_from_grant: None,
         }
     }
 

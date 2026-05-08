@@ -127,6 +127,7 @@ pub fn build_auto_approved_request(args: BuildArgs) -> AuthRequest {
         active_window_days: DEFAULT_ACTIVE_WINDOW_DAYS,
         provenance_template: None,
         tags,
+        descends_from_grant: None,
     }
 }
 

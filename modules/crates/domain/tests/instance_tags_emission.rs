@@ -169,6 +169,7 @@ fn auth_request_emits_instance_tags() {
         active_window_days: 90,
         provenance_template: None,
         tags: auto_tags_for("auth_request", &id.to_string()).to_vec(),
+        descends_from_grant: None,
     };
     assert_instance_tags(&ar.tags, "auth_request", &id.to_string());
 }

@@ -834,6 +834,18 @@ pub struct AuthRequest {
     /// (`#kind:auth_request`, `auth_request:<id>`).
     #[serde(default)]
     pub tags: Vec<String>,
+    /// CH-14 / ADR-0053 §D53.5 — the `Grant` under whose authority this
+    /// AR was submitted. `None` for bootstrap ARs (the chain root) and
+    /// for legacy / pre-CH-14 rows (decoded as `None` via
+    /// `#[serde(default)]`). Forms the AR-to-Grant link of the
+    /// authority chain; the Grant-to-AR link continues to live on
+    /// [`Grant::descends_from`]. Adoption-AR-side wiring (Template
+    /// A/B/C/D/E adoption-AR builders setting `Some(firing_grant_id)`)
+    /// is deferred to a successor chunk per the ADR's §D53.5
+    /// scope-control decision; the field exists from CH-14 forward so
+    /// successor chunks need not migrate.
+    #[serde(default)]
+    pub descends_from_grant: Option<GrantId>,
 }
 
 /// One resource within an Auth Request, with its per-approver slots. P4 fills

@@ -32,8 +32,9 @@ use crate::model::{
     SystemAgentRuntimeStatus, TenantSet,
 };
 use crate::repository::{
-    BootstrapCredentialRow, OrgCreationPayload, OrgCreationReceipt, ProjectShapeCounts, Repository,
-    RepositoryError, RepositoryResult, SealedBlob, TenantRevocation,
+    BootstrapCredentialRow, CascadeResult, OrgCreationPayload, OrgCreationReceipt,
+    ProjectShapeCounts, Repository, RepositoryError, RepositoryResult, SealedBlob,
+    TenantRevocation, MAX_PROVENANCE_DEPTH,
 };
 
 #[derive(Default)]
@@ -1206,6 +1207,128 @@ impl Repository for InMemoryRepository {
             }
         }
         Ok(out)
+    }
+
+    // ---- Authority chain (CH-14 / ADR-0053) ------------------------
+
+    async fn walk_provenance_chain(&self, grant: GrantId) -> RepositoryResult<Vec<AuthRequest>> {
+        let state = self.lock()?;
+        // Walk leaf-to-root, then reverse.
+        let mut leaf_to_root: Vec<AuthRequest> = Vec::new();
+        // Step 0: grant -> direct AR id.
+        let g = match state.grants.get(&grant) {
+            Some(g) => g,
+            None => return Err(RepositoryError::NotFound),
+        };
+        let mut current_ar_id = match g.descends_from {
+            Some(ar) => ar,
+            None => return Ok(Vec::new()),
+        };
+        for _ in 0..MAX_PROVENANCE_DEPTH {
+            let ar = match state.auth_requests.get(&current_ar_id) {
+                Some(ar) => ar.clone(),
+                None => return Err(RepositoryError::NotFound),
+            };
+            let parent_grant_id = ar.descends_from_grant;
+            let is_bootstrap = crate::permissions::axioms::is_bootstrap_ar(&ar);
+            leaf_to_root.push(ar);
+            if is_bootstrap {
+                leaf_to_root.reverse();
+                return Ok(leaf_to_root);
+            }
+            // Step up: AR.descends_from_grant -> Grant -> Grant.descends_from -> next AR.
+            let parent_grant_id = match parent_grant_id {
+                Some(g) => g,
+                None => {
+                    // Chain ends without reaching the bootstrap node
+                    // (legacy / pre-CH-14 ARs whose descends_from_grant
+                    // is None). Return what we have, root-to-leaf.
+                    leaf_to_root.reverse();
+                    return Ok(leaf_to_root);
+                }
+            };
+            let parent_grant = match state.grants.get(&parent_grant_id) {
+                Some(g) => g,
+                None => return Err(RepositoryError::NotFound),
+            };
+            current_ar_id = match parent_grant.descends_from {
+                Some(ar) => ar,
+                None => {
+                    // The parent grant has no AR ancestor (shouldn't
+                    // happen in well-formed data, but a defensive
+                    // termination matches the `None` terminator path
+                    // above).
+                    leaf_to_root.reverse();
+                    return Ok(leaf_to_root);
+                }
+            };
+        }
+        Err(RepositoryError::ProvenanceCycleDepthExceeded {
+            depth_cap: MAX_PROVENANCE_DEPTH,
+        })
+    }
+
+    async fn revoke_grants_by_descends_from_recursive(
+        &self,
+        ar: AuthRequestId,
+        at: DateTime<Utc>,
+    ) -> RepositoryResult<CascadeResult> {
+        let mut state = self.lock()?;
+        let mut revoked_grants: Vec<GrantId> = Vec::new();
+        let mut cascaded_ars: Vec<AuthRequestId> = Vec::new();
+        // BFS frontier: ARs whose descendant grants we still need to
+        // revoke. Initially just `ar`; each level extends with the
+        // child ARs of the just-revoked grants.
+        let mut frontier_ars: Vec<AuthRequestId> = vec![ar];
+        for _ in 0..MAX_PROVENANCE_DEPTH {
+            if frontier_ars.is_empty() {
+                return Ok(CascadeResult {
+                    revoked_grants,
+                    cascaded_ars,
+                });
+            }
+            // Step A: revoke every live grant whose descends_from
+            // is in the current frontier.
+            let mut newly_revoked: Vec<GrantId> = Vec::new();
+            for g in state.grants.values_mut() {
+                if let Some(parent_ar) = g.descends_from {
+                    if frontier_ars.contains(&parent_ar) && g.revoked_at.is_none() {
+                        g.revoked_at = Some(at);
+                        newly_revoked.push(g.id);
+                    }
+                }
+            }
+            revoked_grants.extend(newly_revoked.iter().copied());
+            if newly_revoked.is_empty() {
+                return Ok(CascadeResult {
+                    revoked_grants,
+                    cascaded_ars,
+                });
+            }
+            // Step B: gather the next-level ARs whose
+            // descends_from_grant is one of the just-revoked grants.
+            // Every AR collected here is a level-≥1 cascaded AR per
+            // ADR-0053 §D53.7 — record it so the handler can transition
+            // it + emit one `auth_request.revoked` audit event per AR.
+            let mut next_frontier: Vec<AuthRequestId> = Vec::new();
+            for ar_node in state.auth_requests.values() {
+                if let Some(parent_grant) = ar_node.descends_from_grant {
+                    if newly_revoked.contains(&parent_grant) && !next_frontier.contains(&ar_node.id)
+                    {
+                        next_frontier.push(ar_node.id);
+                    }
+                }
+            }
+            for ar_id in &next_frontier {
+                if !cascaded_ars.contains(ar_id) {
+                    cascaded_ars.push(*ar_id);
+                }
+            }
+            frontier_ars = next_frontier;
+        }
+        Err(RepositoryError::ProvenanceCycleDepthExceeded {
+            depth_cap: MAX_PROVENANCE_DEPTH,
+        })
     }
 
     // ---- Catalogue -------------------------------------------------

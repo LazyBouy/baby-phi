@@ -18,13 +18,14 @@ use domain::model::ids::{AgentId, OrgId};
 use domain::model::nodes::{
     ApproverSlotState, AuthRequestState, PrincipalRef, ResourceRef, ResourceSlotState,
 };
+use domain::permissions::axioms::system_genesis_principal;
 use domain::templates::e::{build_auto_approved_request, BuildArgs};
 
 fn arb_principal() -> impl Strategy<Value = PrincipalRef> {
     prop_oneof![
         Just(PrincipalRef::Agent(AgentId::new())),
         Just(PrincipalRef::Organization(OrgId::new())),
-        Just(PrincipalRef::System("system:genesis".to_string())),
+        Just(system_genesis_principal()),
     ]
 }
 

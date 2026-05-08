@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 13, "every embedded migration recorded");
+    assert_eq!(rows.len(), 14, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -94,6 +94,13 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[12].get("slug").and_then(|v| v.as_str()),
         Some("per_session_consent_gating")
+    );
+    // CH-14 — Authority chain walker + recursive revocation cascade
+    // (ADR-0053 §D53.5).
+    assert_eq!(rows[13].get("version").and_then(|v| v.as_i64()), Some(14));
+    assert_eq!(
+        rows[13].get("slug").and_then(|v| v.as_str()),
+        Some("authority_chain")
     );
 
     // A sample table from the initial migration exists and accepts a row

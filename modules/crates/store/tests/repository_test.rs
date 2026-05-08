@@ -18,6 +18,7 @@ use domain::model::nodes::{
     Organization, OutboxObject, PrincipalRef, ResourceRef, ResourceSlot, ResourceSlotState,
     Template, ToolAuthorityManifest, User,
 };
+use domain::permissions::axioms::system_genesis_principal;
 use domain::repository::{self, Repository};
 use store::SurrealStore;
 use tempfile::TempDir;
@@ -623,7 +624,7 @@ async fn get_grant_returns_none_when_absent() {
 fn sample_auth_request(resource_uri: &str) -> AuthRequest {
     AuthRequest {
         id: AuthRequestId::new(),
-        requestor: PrincipalRef::System("system:genesis".into()),
+        requestor: system_genesis_principal(),
         kinds: vec!["auth_request_object".into()],
         scope: vec!["allocate".into()],
         state: AuthRequestState::Pending,
@@ -634,7 +635,7 @@ fn sample_auth_request(resource_uri: &str) -> AuthRequest {
                 uri: resource_uri.into(),
             },
             approvers: vec![ApproverSlot {
-                approver: PrincipalRef::System("system:genesis".into()),
+                approver: system_genesis_principal(),
                 state: ApproverSlotState::Unfilled,
                 responded_at: None,
                 reconsidered_at: None,
@@ -648,6 +649,7 @@ fn sample_auth_request(resource_uri: &str) -> AuthRequest {
         active_window_days: 90,
         provenance_template: None,
         tags: Vec::new(),
+        descends_from_grant: None,
     }
 }
 
@@ -1623,7 +1625,7 @@ fn bootstrap_claim_for(
         },
         auth_request: AuthRequest {
             id: auth_request_id,
-            requestor: PrincipalRef::System("system:genesis".into()),
+            requestor: system_genesis_principal(),
             kinds: vec!["control_plane_object".into()],
             scope: vec!["allocate".into()],
             state: AuthRequestState::Approved,
@@ -1634,7 +1636,7 @@ fn bootstrap_claim_for(
                     uri: "system:root".into(),
                 },
                 approvers: vec![ApproverSlot {
-                    approver: PrincipalRef::System("system:genesis".into()),
+                    approver: system_genesis_principal(),
                     state: ApproverSlotState::Approved,
                     responded_at: Some(now),
                     reconsidered_at: None,
@@ -1648,6 +1650,7 @@ fn bootstrap_claim_for(
             active_window_days: 3650,
             provenance_template: Some(TemplateId::from_uuid(Uuid::nil())),
             tags: Vec::new(),
+            descends_from_grant: None,
         },
         grant: Grant {
             id: grant_id,

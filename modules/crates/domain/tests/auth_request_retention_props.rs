@@ -44,6 +44,7 @@ fn base_terminal(state: AuthRequestState, terminal_at: DateTime<Utc>, days: u32)
         active_window_days: days,
         provenance_template: None,
         tags: Vec::new(),
+        descends_from_grant: None,
     }
 }
 

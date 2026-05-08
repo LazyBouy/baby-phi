@@ -1,0 +1,34 @@
+-- ============================================================================
+-- 0014_authority_chain.surql
+--
+-- Schema evolution for CH-14 / ADR-0053 §D53.5 — adds the
+-- `descends_from_grant` column to the `auth_request` table so the
+-- authority-chain walker can climb AR → Grant → AR → Grant ... up to
+-- the bootstrap node.
+--
+-- Concept doc: `permissions/04-manifest-and-resolution.md` §"The
+-- Authority Chain" lines 510–547 — every Grant points at an AR via
+-- `descends_from`, and every AR (except the bootstrap) descends from
+-- the grant under whose authority it was submitted. CH-14 closes the
+-- AR-to-Grant link (the Grant-to-AR link already exists via the
+-- `grant.descends_from` column from migration 0001).
+--
+-- The field is `option<string>` because:
+--   - Legacy rows (pre-CH-14) carry no parent grant; serde decodes the
+--     missing field as `None` via the `#[serde(default)]` shield on
+--     `AuthRequest.descends_from_grant`.
+--   - The bootstrap AR (minted at first claim per ADR-0053 §D53.6) has
+--     no parent grant by definition — `descends_from_grant` stays
+--     `None` for it. `is_bootstrap_ar(ar)` is the canonical
+--     termination predicate, not the absence of `descends_from_grant`.
+--   - Adoption-AR-side wiring (Template A/B/C/D/E adoption AR builders
+--     setting `Some(firing_grant_id)`) is deferred to a successor
+--     chunk per ADR-0053 §D53.5 scope-control decision; the column
+--     exists from CH-14 forward so successor chunks need no migration.
+--
+-- Forward-only per ADR-0012; no down script. Idempotent under
+-- repeated runs of the migration runner per ADR-0042 §D42.3 #5
+-- (`DEFINE FIELD OVERWRITE` is the explicit idempotent form).
+-- ============================================================================
+
+DEFINE FIELD OVERWRITE descends_from_grant ON auth_request TYPE option<string>;

@@ -124,6 +124,7 @@ fn make_auth_request(org: OrgId, kind: TemplateKind, state: AuthRequestState) ->
         active_window_days: 7,
         provenance_template: None,
         tags: Vec::new(),
+        descends_from_grant: None,
     }
 }
 
