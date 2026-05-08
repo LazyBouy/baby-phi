@@ -33,6 +33,7 @@ use chrono::{DateTime, Utc};
 use crate::audit::AuditClass;
 use crate::model::ids::{AgentId, AuthRequestId, GrantId, ProjectId};
 use crate::model::nodes::{AuthRequest, Grant, PrincipalRef, ResourceRef, TemplateKind};
+use crate::model::Fundamental;
 
 pub use super::adoption::AdoptionArgs;
 
@@ -77,30 +78,54 @@ pub struct FireArgs {
     pub audit_class: AuditClass,
 }
 
-/// Build the `[read, inspect, list]` Grant for the lead on
-/// `project:<id>`. Pure — no I/O, no Repository. Callers persist via
-/// [`crate::Repository::create_grant`] + emit the companion audit
-/// event.
+/// Build the paired Grants for the lead at lead-assignment time.
+/// Pure — no I/O, no Repository. Callers persist via
+/// [`crate::Repository::create_grant`] + emit one companion audit
+/// event per Grant.
 ///
-/// Grant shape (invariants pinned by the
-/// `template_a_fire_grant_shape_props` proptest at 50 cases):
-/// - `holder == PrincipalRef::Agent(args.lead)`.
-/// - `action == ["read", "inspect", "list"]` (stable order — the
-///   engine's grant-resolution path is order-insensitive but tests
-///   + audit diffs assert on the fixed ordering).
-/// - `resource.uri == "project:<uuid>"` with the project's UUID
-///   fully expanded (no `project_id` placeholder).
-/// - `descends_from == Some(args.adoption_auth_request_id)` — the
-///   adoption AR provenance that authorises the fire.
-/// - `delegable == false` — the lead cannot hand off the baton
-///   transitively; leadership is renewed per-assignment (the edge
-///   drives the grant, so delegation would decouple from edge
-///   state).
-/// - `fundamentals == [Tag]` — the resource URI is an instance URI
-///   under the `#kind:project` tag; explicit fundamentals lets the
-///   engine resolve the grant without relying on URI-derivation.
-/// - `revoked_at == None` — a fresh grant.
-pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
+/// **CH-15 / ADR-0054 §D54.3** — the return type is now
+/// [`Vec<Grant>`] (CascadeResult-style typed-multi-value precedent
+/// per CH-14 retro v7). Two grants are minted per `HAS_LEAD` edge:
+///
+/// 1. `grants[0]` — the **project-resource grant** (preserved
+///    verbatim from pre-CH-15 shape; `[read, inspect, list]` on
+///    `project:<uuid>` with `fundamentals = [Tag]`).
+/// 2. `grants[1]` — the NEW **session-object grant** covering session
+///    instances tagged `project:<uuid>` (`[read, inspect, list]` on
+///    `session_object/project:<uuid>` selector form with
+///    `fundamentals = [DataObject, Tag]` per concept doc 01 §"Composite
+///    Classes" — `SessionObject` expands to `[DataObject, Tag]`).
+///
+/// Both grants carry the same `holder`, `action` ordering,
+/// `descends_from` (the adoption AR), `delegable = false`,
+/// `issued_at`, `revoked_at = None`, `approval_mode`, `audit_class`,
+/// and `allocate_refinement = None`. They differ only in
+/// `resource.uri` + `fundamentals`. The `id` is freshly minted for
+/// each grant.
+///
+/// Grant-shape invariants pinned by the
+/// `template_a_fire_grant_shape_props` proptest at 50 cases (now
+/// asserting `grants.len() == 2` + per-grant invariants):
+/// - `grants[0].holder == grants[1].holder == PrincipalRef::Agent(args.lead)`.
+/// - Both grants' `action == [Read, Inspect, List]` (stable order).
+/// - `grants[0].resource.uri == "project:<uuid>"`.
+/// - `grants[1].resource.uri == "session_object/project:<uuid>"` —
+///   the selector-form URI matches concept doc 07 §"Template A —
+///   Project Lead Authority" verbatim ("every session tagged
+///   `project:P`"). The engine reads `tags contains project:<uuid>`
+///   on the resolution path; the URI carries the same predicate as
+///   a literal so `expansion::resolve_grant` can match instance URIs
+///   carrying that tag.
+/// - Both `descends_from == Some(args.adoption_auth_request_id)` —
+///   shared provenance; the Authority Chain (concept doc 04
+///   §"The Authority Chain") is preserved.
+/// - Both `delegable == false`.
+/// - `grants[0].fundamentals == [Tag]` (matches pre-CH-15 shape).
+/// - `grants[1].fundamentals == [DataObject, Tag]` (matches
+///   `SessionObject` composite expansion per concept doc 01).
+/// - Both `revoked_at == None`.
+/// - `grants[0].id != grants[1].id` — fresh GrantId per grant.
+pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Vec<Grant> {
     let FireArgs {
         project,
         lead,
@@ -108,7 +133,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         now,
         audit_class,
     } = args;
-    Grant {
+    let project_grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(lead),
         action: vec![
@@ -119,7 +144,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         resource: ResourceRef {
             uri: format!("project:{project}"),
         },
-        fundamentals: vec![crate::model::Fundamental::Tag],
+        fundamentals: vec![Fundamental::Tag],
         descends_from: Some(adoption_auth_request_id),
         delegable: false,
         issued_at: now,
@@ -127,7 +152,44 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Grant {
         approval_mode: crate::model::ApprovalMode::Implicit,
         audit_class,
         allocate_refinement: None,
-    }
+    };
+    // CH-15 / ADR-0054 §D54.3 — paired session_object grant covering
+    // session instances tagged `project:<uuid>`. Concept doc 07
+    // §"Template A — Project Lead Authority" specifies the lead has
+    // [read, inspect, list] on every session tagged `project:P`; this
+    // grant materialises that on the wire as a selector-grammar
+    // predicate (`tags contains "project:<uuid>"` AND `tags contains
+    // #kind:session`). The project-tag predicate uses the
+    // string-literal form because the grammar's `namespace_tag`
+    // identifier requires `[A-Za-z_][A-Za-z0-9_-]*` and UUIDs that
+    // start with a digit fail to parse (concept-09 §"Tag Forms"). The
+    // selector parser at
+    // [`crate::permissions::selector::parse_selector`] resolves the
+    // expression to a `Selector::Bool` that the engine evaluates
+    // against the synthetic launch ToolCall's `target_tags` set
+    // (which the launch handler populates with `project:<uuid>` +
+    // `org:<uuid>` + `#kind:session` per ADR-0054 §D54.1).
+    let session_grant = Grant {
+        id: GrantId::new(),
+        holder: PrincipalRef::Agent(lead),
+        action: vec![
+            crate::permissions::action::Action::Read,
+            crate::permissions::action::Action::Inspect,
+            crate::permissions::action::Action::List,
+        ],
+        resource: ResourceRef {
+            uri: format!(r#"tags contains "project:{project}" AND tags contains #kind:session"#),
+        },
+        fundamentals: vec![Fundamental::DataObject, Fundamental::Tag],
+        descends_from: Some(adoption_auth_request_id),
+        delegable: false,
+        issued_at: now,
+        revoked_at: None,
+        approval_mode: crate::model::ApprovalMode::Implicit,
+        audit_class,
+        allocate_refinement: None,
+    };
+    vec![project_grant, session_grant]
 }
 
 #[cfg(test)]
@@ -176,47 +238,58 @@ mod tests {
     fn fire_grant_holder_is_the_lead_agent() {
         let a = fire_args();
         let expected_lead = a.lead;
-        let g = fire_grant_on_lead_assignment(a);
-        match g.holder {
-            PrincipalRef::Agent(id) => assert_eq!(id, expected_lead),
-            other => panic!("expected Agent holder, got {other:?}"),
+        let grants = fire_grant_on_lead_assignment(a);
+        for g in &grants {
+            match g.holder {
+                PrincipalRef::Agent(id) => assert_eq!(id, expected_lead),
+                ref other => panic!("expected Agent holder, got {other:?}"),
+            }
         }
     }
 
     #[test]
     fn fire_grant_action_is_read_inspect_list_in_stable_order() {
-        let g = fire_grant_on_lead_assignment(fire_args());
-        assert_eq!(
-            g.action,
-            vec![
-                crate::permissions::action::Action::Read,
-                crate::permissions::action::Action::Inspect,
-                crate::permissions::action::Action::List,
-            ]
-        );
+        let grants = fire_grant_on_lead_assignment(fire_args());
+        for g in &grants {
+            assert_eq!(
+                g.action,
+                vec![
+                    crate::permissions::action::Action::Read,
+                    crate::permissions::action::Action::Inspect,
+                    crate::permissions::action::Action::List,
+                ]
+            );
+        }
     }
 
     #[test]
     fn fire_grant_resource_uri_names_the_project_uuid() {
         let a = fire_args();
         let expected_uri = format!("project:{}", a.project);
-        let g = fire_grant_on_lead_assignment(a);
-        assert_eq!(g.resource.uri, expected_uri);
+        let grants = fire_grant_on_lead_assignment(a);
+        // grants[0] is the project-resource grant (CH-15 / ADR-0054
+        // §D54.3 — first is the project grant, second is the
+        // session_object grant).
+        assert_eq!(grants[0].resource.uri, expected_uri);
     }
 
     #[test]
     fn fire_grant_descends_from_the_adoption_ar() {
         let a = fire_args();
         let expected_ar = a.adoption_auth_request_id;
-        let g = fire_grant_on_lead_assignment(a);
-        assert_eq!(g.descends_from, Some(expected_ar));
+        let grants = fire_grant_on_lead_assignment(a);
+        for g in &grants {
+            assert_eq!(g.descends_from, Some(expected_ar));
+        }
     }
 
     #[test]
     fn fire_grant_is_non_delegable_and_unrevoked() {
-        let g = fire_grant_on_lead_assignment(fire_args());
-        assert!(!g.delegable, "lead grants are non-delegable by design");
-        assert!(g.revoked_at.is_none());
+        let grants = fire_grant_on_lead_assignment(fire_args());
+        for g in &grants {
+            assert!(!g.delegable, "lead grants are non-delegable by design");
+            assert!(g.revoked_at.is_none());
+        }
     }
 
     #[test]
@@ -224,14 +297,123 @@ mod tests {
         // Instance URIs (e.g. `project:<uuid>`) need explicit
         // fundamentals for the resolver; see
         // `crate::permissions::expansion::resolve_grant` + ADR-0018.
-        let g = fire_grant_on_lead_assignment(fire_args());
-        assert_eq!(g.fundamentals, vec![crate::model::Fundamental::Tag]);
+        let grants = fire_grant_on_lead_assignment(fire_args());
+        // grants[0] is the project-resource grant; pre-CH-15 shape
+        // pinned `fundamentals == [Tag]`.
+        assert_eq!(grants[0].fundamentals, vec![Fundamental::Tag]);
     }
 
     #[test]
     fn fire_grant_ids_are_distinct_across_calls() {
         let a = fire_grant_on_lead_assignment(fire_args());
         let b = fire_grant_on_lead_assignment(fire_args());
-        assert_ne!(a.id, b.id, "every fire must mint a fresh GrantId");
+        assert_ne!(a[0].id, b[0].id, "every fire must mint a fresh GrantId");
+        assert_ne!(a[1].id, b[1].id, "every fire must mint a fresh GrantId");
+    }
+
+    // ---- CH-15 / ADR-0054 §D54.3 — Vec<Grant> + paired session grant ----
+
+    /// CH-15 invariant: every fire mints exactly TWO grants.
+    #[test]
+    fn fire_grant_returns_two_grants_per_call() {
+        let grants = fire_grant_on_lead_assignment(fire_args());
+        assert_eq!(
+            grants.len(),
+            2,
+            "CH-15: each fire mints (project_grant, session_grant) pair"
+        );
+    }
+
+    /// CH-15 back-compat: the first grant's shape matches the
+    /// pre-CH-15 single-grant shape exactly.
+    #[test]
+    fn fire_grant_first_grant_unchanged_from_pre_ch15_shape() {
+        let a = fire_args();
+        let expected_uri = format!("project:{}", a.project);
+        let grants = fire_grant_on_lead_assignment(a.clone());
+        let g0 = &grants[0];
+        assert_eq!(g0.resource.uri, expected_uri);
+        assert_eq!(g0.fundamentals, vec![Fundamental::Tag]);
+        assert_eq!(
+            g0.action,
+            vec![
+                crate::permissions::action::Action::Read,
+                crate::permissions::action::Action::Inspect,
+                crate::permissions::action::Action::List,
+            ]
+        );
+        match g0.holder {
+            PrincipalRef::Agent(id) => assert_eq!(id, a.lead),
+            ref other => panic!("expected Agent holder, got {other:?}"),
+        }
+    }
+
+    /// CH-15: the second grant's URI is a selector-grammar predicate
+    /// targeting sessions tagged `project:<id>` AND `#kind:session`.
+    /// The project-tag predicate uses the string-literal form so
+    /// UUIDs starting with a digit parse cleanly.
+    #[test]
+    fn fire_grant_second_grant_targets_session_object() {
+        let a = fire_args();
+        let expected_uri = format!(
+            r#"tags contains "project:{}" AND tags contains #kind:session"#,
+            a.project
+        );
+        let grants = fire_grant_on_lead_assignment(a);
+        assert_eq!(grants[1].resource.uri, expected_uri);
+    }
+
+    /// CH-15: the second grant's selector targets sessions filtered
+    /// by `project:<id>` tag. The URI is a selector-grammar predicate
+    /// the engine parses into `Selector::Bool(...)` at Step 3.
+    #[test]
+    fn fire_grant_second_grant_selector_filters_by_project_tag() {
+        let a = fire_args();
+        let project_tag = format!("project:{}", a.project);
+        let grants = fire_grant_on_lead_assignment(a);
+        assert!(
+            grants[1].resource.uri.contains(&project_tag),
+            "session-object grant URI must carry project:<id>; got {:?}",
+            grants[1].resource.uri
+        );
+        assert!(
+            grants[1].resource.uri.contains("tags contains"),
+            "session-object grant URI must use selector-grammar form; got {:?}",
+            grants[1].resource.uri
+        );
+        assert!(
+            grants[1].resource.uri.contains("#kind:session"),
+            "session-object grant URI must constrain on #kind:session; got {:?}",
+            grants[1].resource.uri
+        );
+        // Composite SessionObject expands to [DataObject, Tag] per
+        // concept doc 01.
+        assert_eq!(
+            grants[1].fundamentals,
+            vec![Fundamental::DataObject, Fundamental::Tag]
+        );
+    }
+
+    /// CH-15: both grants share the same adoption AR provenance.
+    /// `walk_provenance_chain` traverses both transparently.
+    #[test]
+    fn fire_grant_both_grants_descend_from_same_ar() {
+        let a = fire_args();
+        let expected_ar = a.adoption_auth_request_id;
+        let grants = fire_grant_on_lead_assignment(a);
+        assert_eq!(grants[0].descends_from, Some(expected_ar));
+        assert_eq!(grants[1].descends_from, Some(expected_ar));
+    }
+
+    /// CH-15: the two grants always have distinct ids — they are
+    /// independent records on the wire even though they share a
+    /// provenance.
+    #[test]
+    fn fire_grant_both_grants_have_distinct_ids() {
+        let grants = fire_grant_on_lead_assignment(fire_args());
+        assert_ne!(
+            grants[0].id, grants[1].id,
+            "paired grants must carry distinct GrantIds"
+        );
     }
 }

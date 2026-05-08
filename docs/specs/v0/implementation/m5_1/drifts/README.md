@@ -80,7 +80,7 @@ fixed.
 | D3.2 | Listener wiring via `build_event_bus_with_m5_listeners` free fn | LOW | C | coordination | N/A | discovered | TBD | [D3.2.md](D3.2.md) |
 | D3.3 | `BabyPhiSessionRecorder` uses `Arc<Mutex<_>>` inner | LOW | C | phi-core-mapping | wrap | discovered | TBD | [D3.3.md](D3.3.md) |
 | D3.4 | Template C org-scoped / Template D project-scoped resolvers | LOW | C | permissions/07 | N/A | discovered | TBD | [D3.4.md](D3.4.md) |
-| D4.1 | Permission Check advisory-only (only Step 0 gates) | **HIGH** | **A** | permissions/03, 04, 07 | N/A | discovered | TBD | [D4.1.md](D4.1.md) |
+| D4.1 | Permission Check advisory-only (only Step 0 gates) | **HIGH** | **A** | permissions/03, 04, 07 | N/A | **remediated** (CH-15 / ADR-0054) | CH-15 ✓ | [D4.1.md](D4.1.md) |
 | D4.2 | Real `phi_core::agent_loop` (was synthetic replay feeder) | **HIGH** | **A** | phi-core-mapping; permissions/05; agent; system-agents | direct-reuse | **remediated** (CH-02 / ADR-0032) | CH-02 | [D4.2.md](D4.2.md) |
 | D4.3 | `resolve_agent_tools` returns `Vec<ToolSummary>` | LOW | B | permissions/07; phi-core-mapping | wrap | discovered | TBD | [D4.3.md](D4.3.md) |
 | D4.4 | `upsert_agent_profile` no-op on fresh rows; branch to create | LOW | C | agent | wrap | discovered | TBD | [D4.4.md](D4.4.md) |

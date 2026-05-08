@@ -526,3 +526,83 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         template_a_grant_id: None,
     }
 }
+
+/// CH-15 / ADR-0054 §D54.3 — synthetic Template A grant seeder for
+/// acceptance tests that need a happy-path launch.
+///
+/// Tests that POST `/sessions` (or call `launch_session` directly)
+/// against a lead/CEO post-CH-15 must satisfy the Step 1–5 gates the
+/// hard-deny flip enforces. The launch handler reads the agent's
+/// grants against the synthetic launch manifest
+/// (`[Read, Inspect, List]` on `session_object`); without a matching
+/// grant the launch returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_3`
+/// (NoGrantsHeld / NoMatchingGrant).
+///
+/// Production wiring mints these grants automatically via the
+/// `TemplateAFireListener` on `HasLeadEdgeCreated`; the legacy
+/// fixture path (`apply_project_creation` without an event emit)
+/// does NOT trigger the listener. This helper materialises the
+/// equivalent two-grant pair manually so the fixture-driven tests
+/// continue to exercise the happy path.
+///
+/// The two grants: (1) `project:<id>` `[Read, Inspect, List]` on
+/// `[Tag]` (the pre-CH-15 shape preserved by §D54.3); (2)
+/// `session_object/project:<id>` `[Read, Inspect, List]` on
+/// `[DataObject, Tag]` (the new paired session-object grant). Both
+/// `descends_from = None` (the legacy synthetic; no adoption AR
+/// linkage in the fixture).
+pub async fn seed_template_a_grants_for_lead(project: &ClaimedProject) {
+    use chrono::Utc;
+    use domain::audit::AuditClass;
+    use domain::model::ids::GrantId;
+    use domain::model::nodes::{ApprovalMode, Grant, PrincipalRef, ResourceRef};
+    use domain::model::Fundamental;
+    use domain::permissions::Action;
+    use domain::Repository;
+
+    let now = Utc::now();
+    let repo = project.claimed_org.admin.acc.store.clone();
+
+    let project_grant = Grant {
+        id: GrantId::new(),
+        holder: PrincipalRef::Agent(project.project_lead),
+        action: vec![Action::Read, Action::Inspect, Action::List],
+        resource: ResourceRef {
+            uri: format!("project:{}", project.project_id),
+        },
+        fundamentals: vec![Fundamental::Tag],
+        descends_from: None,
+        delegable: false,
+        issued_at: now,
+        revoked_at: None,
+        approval_mode: ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
+        allocate_refinement: None,
+    };
+    repo.create_grant(&project_grant)
+        .await
+        .expect("seed Template A project grant for lead");
+
+    let session_grant = Grant {
+        id: GrantId::new(),
+        holder: PrincipalRef::Agent(project.project_lead),
+        action: vec![Action::Read, Action::Inspect, Action::List],
+        resource: ResourceRef {
+            uri: format!(
+                r#"tags contains "project:{}" AND tags contains #kind:session"#,
+                project.project_id
+            ),
+        },
+        fundamentals: vec![Fundamental::DataObject, Fundamental::Tag],
+        descends_from: None,
+        delegable: false,
+        issued_at: now,
+        revoked_at: None,
+        approval_mode: ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
+        allocate_refinement: None,
+    };
+    repo.create_grant(&session_grant)
+        .await
+        .expect("seed Template A session-object grant for lead");
+}

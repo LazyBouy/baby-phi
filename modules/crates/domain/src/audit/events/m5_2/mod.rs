@@ -10,4 +10,5 @@
 
 pub mod identity;
 pub mod memory;
+pub mod session_launch;
 pub mod tool_authority;

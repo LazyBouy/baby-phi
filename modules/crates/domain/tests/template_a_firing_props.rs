@@ -8,7 +8,16 @@
 //! §Template A firing (s05) — if any of them drifts, the proptest
 //! trips in < 50 cases.
 //!
-//! Invariants pinned (50 proptest cases):
+//! **CH-15 / ADR-0054 §D54.3 amendment**: the pure-fn now returns
+//! `Vec<Grant>` of length 2 — the project-resource grant at index 0
+//! (pre-CH-15 shape, preserved verbatim) + a session-object grant at
+//! index 1. Each proptest below asserts `grants.len() == 2` and
+//! per-grant invariants on `grants[0]` (the project grant). Index-1
+//! invariants live in the unit-test suite at `templates/a.rs` mod
+//! tests rather than here to keep the proptest case count bounded.
+//!
+//! Invariants pinned (50 proptest cases) — `grants[0]` is the
+//! project-resource grant:
 //! 1. `holder == Agent(args.lead)`.
 //! 2. `action == ["read", "inspect", "list"]` (stable order).
 //! 3. `resource.uri == "project:<project-uuid>"`.
@@ -17,6 +26,7 @@
 //! 6. `fundamentals == [Tag]`.
 //! 7. `revoked_at.is_none()`.
 //! 8. Distinct `GrantId` across independent calls.
+//! 9. `grants.len() == 2` (CH-15 cardinality invariant).
 
 use chrono::{DateTime, TimeZone, Utc};
 use domain::audit::AuditClass;
@@ -55,10 +65,11 @@ proptest! {
     #[test]
     fn holder_is_the_supplied_lead(args in arb_args()) {
         let expected = args.lead;
-        let g = fire_grant_on_lead_assignment(args);
-        match g.holder {
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        match grants[0].holder {
             PrincipalRef::Agent(a) => prop_assert_eq!(a, expected),
-            other => prop_assert!(
+            ref other => prop_assert!(
                 false,
                 "expected Agent holder, got {:?}",
                 other
@@ -68,9 +79,10 @@ proptest! {
 
     #[test]
     fn action_is_read_inspect_list_in_stable_order(args in arb_args()) {
-        let g = fire_grant_on_lead_assignment(args);
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
         prop_assert_eq!(
-            g.action,
+            grants[0].action.clone(),
             vec![
                 domain::permissions::Action::Read,
                 domain::permissions::Action::Inspect,
@@ -82,41 +94,48 @@ proptest! {
     #[test]
     fn resource_uri_names_the_project_uuid(args in arb_args()) {
         let expected = format!("project:{}", args.project);
-        let g = fire_grant_on_lead_assignment(args);
-        prop_assert_eq!(g.resource.uri, expected);
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        prop_assert_eq!(grants[0].resource.uri.clone(), expected);
     }
 
     #[test]
     fn descends_from_supplied_adoption_ar(args in arb_args()) {
         let expected = args.adoption_auth_request_id;
-        let g = fire_grant_on_lead_assignment(args);
-        prop_assert_eq!(g.descends_from, Some(expected));
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        prop_assert_eq!(grants[0].descends_from, Some(expected));
     }
 
     #[test]
     fn grant_is_non_delegable_and_unrevoked(args in arb_args()) {
-        let g = fire_grant_on_lead_assignment(args);
-        prop_assert!(!g.delegable);
-        prop_assert!(g.revoked_at.is_none());
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        prop_assert!(!grants[0].delegable);
+        prop_assert!(grants[0].revoked_at.is_none());
     }
 
     #[test]
     fn fundamentals_list_is_exactly_tag(args in arb_args()) {
-        let g = fire_grant_on_lead_assignment(args);
-        prop_assert_eq!(g.fundamentals, vec![Fundamental::Tag]);
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        prop_assert_eq!(grants[0].fundamentals.clone(), vec![Fundamental::Tag]);
     }
 
     #[test]
     fn issued_at_matches_supplied_now(args in arb_args()) {
         let expected = args.now;
-        let g = fire_grant_on_lead_assignment(args);
-        prop_assert_eq!(g.issued_at, expected);
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        prop_assert_eq!(grants[0].issued_at, expected);
     }
 
     #[test]
     fn independent_calls_produce_distinct_grant_ids(a in arb_args(), b in arb_args()) {
         let ga = fire_grant_on_lead_assignment(a);
         let gb = fire_grant_on_lead_assignment(b);
-        prop_assert_ne!(ga.id, gb.id);
+        prop_assert_eq!(ga.len(), 2);
+        prop_assert_eq!(gb.len(), 2);
+        prop_assert_ne!(ga[0].id, gb[0].id);
     }
 }

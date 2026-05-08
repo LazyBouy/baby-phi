@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: error-code reference table now reflects hard-deny at every step 0–6 per ADR-0054 §D54.6; Permission Check denial playbook updated to point at the m5_2 detailed runbook + Template A backfill migration; D4.1 advisory-mention removed.) -->
 <!-- CH-02 amendment (2026-04-24): synthetic feeder replaced with real `agent_loop()` + MockProvider; "Terminate-mid-turn not reflecting" playbook updated; new "MockProvider deterministic output" caveat. See §"CH-02 amendment" below. -->
 
 # Operations — Page 14 first session launch
@@ -25,7 +25,7 @@ full mapping lives in
 | 400 | `TERMINATE_REASON_REQUIRED` | `reason` field empty | Supply non-empty reason |
 | 403 | `FORBIDDEN` | Viewer not session's starter + not org-member | Use a CEO / member session |
 | 403 | `AGENT_NOT_MEMBER_OF_PROJECT` | Agent's `owning_org` mismatch | Create agent in the project's org |
-| 403 | `PERMISSION_CHECK_FAILED` | Step 0 Catalogue miss (only gating step at M5 — see D4.1) | Seed catalogue entry for `session` under the owning org |
+| 403 | `PERMISSION_CHECK_FAILED` | `PERMISSION_CHECK_FAILED_AT_STEP_<N>` (N = 0..6 per FailedStep variant) — every Decision::Denied at the engine returns 403 (CH-15 / [ADR-0054](../../m5_2/decisions/0054-session-launch-manifest-and-hard-deny-flip.md) closes drift D4.1). Wire message body embeds the step number + DeniedReason variant tag. | Seed Template A grants for the lead (paired `[Read, Inspect, List]` on `project:<id>` + `tags contains "project:<id>" AND #kind:session`) OR seed catalogue entry per [step-N detail in operations doc](../../m5_2/operations/session-launch-permission-gate-operations.md). |
 | 403 | `TERMINATE_FORBIDDEN` | Caller not the session starter + not an org Human | Terminate from an authorised session |
 | 404 | `AGENT_NOT_FOUND` / `PROJECT_NOT_FOUND` / `SESSION_NOT_FOUND` / `MODEL_RUNTIME_NOT_FOUND` | Id unknown | Verify ids |
 | 409 | `PARALLELIZE_CAP_REACHED` | Agent is running `profile.parallelize` sessions | Wait for an active session to end OR tune cap |
@@ -60,12 +60,19 @@ full mapping lives in
   Note: C-M5-5 blocks the change with 409
   `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` if the agent has live
   sessions — terminate those first.
-- **Permission Check denial** — at M5, Step 0 (Catalogue) is the
-  only blocking step; steps 1–6 are advisory. If a launch
-  unexpectedly returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_0`,
-  seed the resources_catalogue with an entry for `session` scoped
-  to the owning org. The Permission Check preview endpoint
-  returns the full 0–6 trace.
+- **Permission Check denial** — CH-15 (drift D4.1 closure):
+  every `Decision::Denied` at any step 0–6 returns 403
+  `PERMISSION_CHECK_FAILED_AT_STEP_<N>`. The most common deny
+  shape post-CH-15 is Step 2 `NoGrantsHeld` — the lead has no
+  Template A grants on `session_object`. Fix by triggering
+  `HasLeadEdgeCreated` (production wiring) OR running migration
+  `0015_template_a_session_object_grant` to backfill legacy
+  grants. The Permission Check preview endpoint returns the full
+  0–6 trace; the deny path emits a
+  `platform.session.launch_denied` audit event (Alerted) with
+  `failed_step` + `reason_kind` for dashboard correlation.
+  Detailed step-by-step playbook lives at
+  [`m5_2/operations/session-launch-permission-gate-operations.md`](../../m5_2/operations/session-launch-permission-gate-operations.md).
 
 ## Metrics (M7 observability extensions)
 

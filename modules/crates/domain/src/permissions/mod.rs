@@ -35,6 +35,7 @@ pub mod action;
 pub mod allocate_refinement;
 pub mod audit_composition;
 pub mod axioms;
+pub mod builders;
 pub mod catalogue;
 pub mod decision;
 pub mod engine;
@@ -52,6 +53,7 @@ pub use axioms::{
     is_bootstrap_ar, system_bootstrap_template_id, system_genesis_principal,
     SYSTEM_GENESIS_PRINCIPAL,
 };
+pub use builders::session_launch::build_session_launch_manifest;
 pub use catalogue::{CatalogueLookup, StaticCatalogue};
 pub use decision::{Decision, DeniedReason, FailedStep};
 pub use engine::check;

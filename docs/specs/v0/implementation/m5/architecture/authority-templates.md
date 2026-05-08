@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-08 by Claude Code (CH-15-c3f46f17 chunk-seal trivial-multi inline patch — §"P5 advisory — D4.1 carry-forward" replaced with §"Permission Check at session launch (CH-15 hard-deny)" because pre-CH-15 narrative falsely claimed launch chain gates on Step 0 only with steps 1–6 advisory; D4.1 closed at CH-15 chunk-seal; cross-refs ADR-0054 + `m5_2/architecture/session-launch-permission-gate.md` + migration 0015. Doc-sync sweep gap caught at Audit B iter 1 — file lived outside CH-15 plan §3.C doc-impact map; gate-2 sweep should extend to authority-templates.md going forward — codify in CH-15 retro standards updates.) -->
 <!-- Last verified: 2026-04-23 by Claude Code -->
 
 # Page 12 — Authority Template Adoption architecture
@@ -86,9 +87,9 @@ At M5, the passive-fire listeners for A + C + D are wired in
 [`state::build_event_bus_with_m5_listeners`](../../../../../../modules/crates/server/src/state.rs).
 Page 12 controls WHETHER those listeners actually fire by transitioning the adoption AR — a Revoked adoption AR means future trigger-edge events don't mint grants (the fire-listeners check AR state via `find_adoption_ar`).
 
-## P5 advisory — D4.1 carry-forward
+## Permission Check at session launch (CH-15 hard-deny)
 
-Adopted templates mint grants at fire time, which become Permission-Check inputs at session-launch time. At M5, the launch chain gates on Step 0 (Catalogue) only; steps 1-6 are advisory ([D4.1 drift](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md#p4-drift-addenda)). So even a fully adopted Template A/C/D won't refuse a launch at M5 — it populates the Decision trace that surfaces on the preview endpoint + LaunchReceipt. M6+ tightens the gate when the per-action manifest catalogue lands.
+Adopted templates mint grants at fire time, which become Permission-Check inputs at session-launch time. **As of CH-15 (closes drift D4.1)**, the launch chain runs the full `Decision::Allowed | Pending | Denied` engine; every `Decision::Denied` at steps 0–6 returns `403 PERMISSION_CHECK_FAILED_AT_STEP_<N>` and emits a `platform.session.launch_denied` audit event (`Alerted` class). Template A's `fire_grant_on_lead_assignment` mints a paired `[Read, Inspect, List]` grant on `session_object` (per `m5_2/architecture/session-launch-permission-gate.md`); migration `0015_template_a_session_object_grant.surql` backfills legacy lead-grants. So a fully adopted Template A/C/D now hard-gates the launch — preview + LaunchReceipt surface the same `Decision`, and absent or revoked grants block the session.
 
 ## phi-core leverage
 

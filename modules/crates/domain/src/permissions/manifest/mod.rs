@@ -35,7 +35,13 @@ pub mod validator;
 /// The engine's view of a tool authority manifest. This is a projection of
 /// the persisted [`ToolAuthorityManifest`] graph node onto the fields the
 /// engine actually reads.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// **CH-15 / ADR-0054 §D54.1** — `PartialEq` derived (Eq omitted
+/// because `serde_json::Value` may carry `f64` via Number; `Eq` is
+/// unsound there). The builder's tests use `assert_eq!` against
+/// hand-built reference manifests — every other field is
+/// well-behaved under `PartialEq`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Manifest {
     /// Actions the tool performs (`execute`, `read`, `modify`, …).
     pub actions: Vec<Action>,
@@ -400,6 +406,27 @@ mod tests {
             ..Default::default()
         };
         assert!(!m.is_empty());
+    }
+
+    /// CH-15 / ADR-0054 §D54.1 — `PartialEq` derive lets the builder
+    /// + downstream tests assert byte-identical manifest construction.
+    #[test]
+    fn manifest_partialeq_derive_compiles_and_round_trips() {
+        let a = Manifest {
+            actions: vec![Action::Read, Action::Inspect, Action::List],
+            resource: vec!["session_object".to_string()],
+            transitive: vec![],
+            constraints: vec![],
+            constraint_requirements: HashMap::new(),
+            kinds: vec![],
+        };
+        let b = a.clone();
+        assert_eq!(a, b);
+        let c = Manifest {
+            actions: vec![Action::Read],
+            ..a.clone()
+        };
+        assert_ne!(a, c);
     }
 
     #[test]

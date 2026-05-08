@@ -302,51 +302,62 @@ impl EventHandler for TemplateAFireListener {
                 let (resolved_class, audit_class_source) =
                     resolve_composed_audit_class(self.repo.as_ref(), org, adoption_ar).await;
 
-                let grant = fire_grant_on_lead_assignment(FireArgs {
+                // CH-15 / ADR-0054 §D54.3 — `fire_grant_on_lead_assignment`
+                // returns Vec<Grant> (project-resource grant + paired
+                // session-object grant). Each grant persists via its
+                // own `repo.create_grant` call; one
+                // `template.a.grant_fired` audit event fires per
+                // persisted grant so operators see the full pair in
+                // the audit log.
+                let grants = fire_grant_on_lead_assignment(FireArgs {
                     project: *project,
                     lead: *lead,
                     adoption_auth_request_id: adoption_ar,
                     now,
                     audit_class: resolved_class,
                 });
-                let grant_id = grant.id;
 
                 // Fail-safe semantics (ADR-0028): listener errors are
                 // logged + dropped, not propagated. The compound tx is
                 // already durable; a grant miss means the operator
                 // must manually replay via M7b's retry machinery
                 // (lands later). Re-entry on restart is safe because
-                // `fire_grant_on_lead_assignment` mints a fresh
-                // `GrantId` and the duplicate is easily detected.
-                if let Err(e) = self.repo.create_grant(&grant).await {
-                    tracing::error!(
-                        project = %project,
-                        event_id = %event_id,
-                        error = %e,
-                        "TemplateAFireListener: create_grant failed — operator must replay",
-                    );
-                    return;
-                }
+                // `fire_grant_on_lead_assignment` mints fresh
+                // `GrantId`s on each call and the duplicate is easily
+                // detected.
+                for grant in &grants {
+                    if let Err(e) = self.repo.create_grant(grant).await {
+                        tracing::error!(
+                            project = %project,
+                            event_id = %event_id,
+                            grant_id = %grant.id,
+                            error = %e,
+                            "TemplateAFireListener: create_grant failed — operator must replay",
+                        );
+                        return;
+                    }
 
-                let audit_event = crate::audit::events::m4::templates::template_a_grant_fired(
-                    actor,
-                    org,
-                    *project,
-                    *lead,
-                    grant_id,
-                    adoption_ar,
-                    resolved_class,
-                    audit_class_source,
-                    now,
-                );
-                if let Err(e) = self.audit.emit(audit_event).await {
-                    tracing::error!(
-                        project = %project,
-                        event_id = %event_id,
-                        error = %e,
-                        "TemplateAFireListener: audit emit failed after grant persisted — \
-                         grant is durable but audit trail has a gap",
+                    let audit_event = crate::audit::events::m4::templates::template_a_grant_fired(
+                        actor,
+                        org,
+                        *project,
+                        *lead,
+                        grant.id,
+                        adoption_ar,
+                        resolved_class,
+                        audit_class_source,
+                        now,
                     );
+                    if let Err(e) = self.audit.emit(audit_event).await {
+                        tracing::error!(
+                            project = %project,
+                            event_id = %event_id,
+                            grant_id = %grant.id,
+                            error = %e,
+                            "TemplateAFireListener: audit emit failed after grant persisted — \
+                             grant is durable but audit trail has a gap",
+                        );
+                    }
                 }
             }
             _ => {
@@ -1315,27 +1326,105 @@ mod tests {
         bus.subscribe(listener);
         bus.emit(sample_event(project, lead)).await;
 
-        // Grant persisted.
+        // CH-15 / ADR-0054 §D54.3 — two grants persist per fire:
+        // grants[0] = project-resource grant, grants[1] = paired
+        // session-object grant.
         let grants = repo
             .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
             .await
             .unwrap();
-        assert_eq!(grants.len(), 1, "exactly one lead grant persisted");
         assert_eq!(
-            grants[0].action,
-            vec![
-                crate::permissions::action::Action::Read,
-                crate::permissions::action::Action::Inspect,
-                crate::permissions::action::Action::List,
-            ]
+            grants.len(),
+            2,
+            "CH-15: paired (project_grant, session_grant) lead grants persisted"
         );
+        for g in &grants {
+            assert_eq!(
+                g.action,
+                vec![
+                    crate::permissions::action::Action::Read,
+                    crate::permissions::action::Action::Inspect,
+                    crate::permissions::action::Action::List,
+                ]
+            );
+        }
 
-        // Audit event captured.
+        // CH-15: one `template.a.grant_fired` audit event per
+        // persisted grant (2 events total).
         let events = audit.events.lock().unwrap().clone();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].event_type, "template.a.grant_fired");
-        assert_eq!(events[0].org_scope, Some(org));
-        assert_eq!(events[0].provenance_auth_request_id, Some(adoption_ar));
+        assert_eq!(events.len(), 2);
+        for e in &events {
+            assert_eq!(e.event_type, "template.a.grant_fired");
+            assert_eq!(e.org_scope, Some(org));
+            assert_eq!(e.provenance_auth_request_id, Some(adoption_ar));
+        }
+    }
+
+    /// CH-15: explicit per-grant resource-URI assertion — pinning the
+    /// (project_grant, session_grant) order on the wire.
+    #[tokio::test]
+    async fn template_a_listener_persists_paired_session_object_grant() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let org = OrgId::new();
+        let adoption_ar = AuthRequestId::new();
+        let actor = AgentId::new();
+        let project = ProjectId::new();
+        let lead = AgentId::new();
+
+        let listener = Arc::new(TemplateAFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticAdoption(Some((org, adoption_ar)))),
+            Arc::new(StaticActor(Some(actor))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(sample_event(project, lead)).await;
+
+        let grants = repo
+            .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
+            .await
+            .unwrap();
+        assert_eq!(grants.len(), 2);
+        let project_uri = format!("project:{project}");
+        let project_grant_count = grants
+            .iter()
+            .filter(|g| g.resource.uri == project_uri)
+            .count();
+        let session_grant_count = grants
+            .iter()
+            .filter(|g| {
+                g.resource.uri.contains("tags contains")
+                    && g.resource.uri.contains(&format!("project:{project}"))
+                    && g.resource.uri.contains("#kind:session")
+            })
+            .count();
+        assert_eq!(project_grant_count, 1, "exactly one project-resource grant");
+        assert_eq!(session_grant_count, 1, "exactly one session-object grant");
+    }
+
+    /// CH-15: the listener emits two audit events (one per grant).
+    #[tokio::test]
+    async fn template_a_listener_emits_two_audit_events_per_lead_assignment() {
+        let repo: Arc<dyn Repository> = Arc::new(InMemoryRepository::new());
+        let audit = Arc::new(CapturingAudit::default());
+        let listener = Arc::new(TemplateAFireListener::new(
+            repo.clone(),
+            audit.clone() as Arc<dyn AuditEmitter>,
+            Arc::new(StaticAdoption(Some((OrgId::new(), AuthRequestId::new())))),
+            Arc::new(StaticActor(Some(AgentId::new()))),
+        ));
+        let bus = InProcessEventBus::new();
+        bus.subscribe(listener);
+        bus.emit(sample_event(ProjectId::new(), AgentId::new()))
+            .await;
+
+        let events = audit.events.lock().unwrap().clone();
+        assert_eq!(events.len(), 2, "CH-15: two audit events per fire");
+        for e in &events {
+            assert_eq!(e.event_type, "template.a.grant_fired");
+        }
     }
 
     #[tokio::test]
@@ -1691,19 +1780,23 @@ mod tests {
         bus.subscribe(listener);
         bus.emit(sample_event(project, lead)).await;
 
-        // Grant carries the resolved class.
+        // CH-15: paired grants both carry the resolved class.
         let grants = repo
             .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
             .await
             .unwrap();
-        assert_eq!(grants.len(), 1);
-        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+        assert_eq!(grants.len(), 2);
+        for g in &grants {
+            assert_eq!(g.audit_class, AuditClass::Alerted);
+        }
 
-        // Audit event carries class + source.
+        // CH-15: paired audit events both carry class + source.
         let events = audit.events.lock().unwrap().clone();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].audit_class, AuditClass::Alerted);
-        assert_eq!(events[0].diff["after"]["audit_class_source"], "org_default");
+        assert_eq!(events.len(), 2);
+        for e in &events {
+            assert_eq!(e.audit_class, AuditClass::Alerted);
+            assert_eq!(e.diff["after"]["audit_class_source"], "org_default");
+        }
     }
 
     /// CH-13 / concept-doc-07 line 67 — TemplateC: same shape on the
@@ -1816,13 +1909,17 @@ mod tests {
             .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
             .await
             .unwrap();
-        assert_eq!(grants.len(), 1);
-        assert_eq!(grants[0].audit_class, AuditClass::Alerted);
+        assert_eq!(grants.len(), 2);
+        for g in &grants {
+            assert_eq!(g.audit_class, AuditClass::Alerted);
+        }
 
         let events = audit.events.lock().unwrap().clone();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].audit_class, AuditClass::Alerted);
-        assert_eq!(events[0].diff["after"]["audit_class_source"], "template_ar");
+        assert_eq!(events.len(), 2);
+        for e in &events {
+            assert_eq!(e.audit_class, AuditClass::Alerted);
+            assert_eq!(e.diff["after"]["audit_class_source"], "template_ar");
+        }
     }
 
     /// CH-13 / concept-doc-07 line 67 — TemplateC: template_ar wins.
@@ -1935,19 +2032,24 @@ mod tests {
             .list_grants_for_principal(&crate::model::nodes::PrincipalRef::Agent(lead))
             .await
             .unwrap();
-        assert_eq!(grants.len(), 1);
-        assert_eq!(
-            grants[0].audit_class,
-            AuditClass::Alerted,
-            "concept-doc-07 line 71: org default Alerted MUST flow through to Grant"
-        );
+        assert_eq!(grants.len(), 2);
+        for g in &grants {
+            assert_eq!(
+                g.audit_class,
+                AuditClass::Alerted,
+                "concept-doc-07 line 71: org default Alerted MUST flow through to Grant"
+            );
+        }
 
         let events = audit.events.lock().unwrap().clone();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].audit_class, AuditClass::Alerted);
-        // Tie-breaker: org and template_ar both Alerted; more-specific
-        // source (template_ar) wins per ADR-0050 §D50.3.
-        assert_eq!(events[0].diff["after"]["audit_class_source"], "template_ar");
+        assert_eq!(events.len(), 2);
+        for e in &events {
+            assert_eq!(e.audit_class, AuditClass::Alerted);
+            // Tie-breaker: org and template_ar both Alerted;
+            // more-specific source (template_ar) wins per ADR-0050
+            // §D50.3.
+            assert_eq!(e.diff["after"]["audit_class_source"], "template_ar");
+        }
     }
 
     // ========================================================================

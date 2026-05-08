@@ -6,18 +6,20 @@
 //! Keeping this server-side single-sources the permission algorithm
 //! + lets the CLI reuse the endpoint verbatim.
 //!
-//! ## Synthetic manifest
+//! ## Synthetic manifest (CH-15 / ADR-0054 §D54.1 + §D54.7)
 //!
-//! A session launch doesn't have a concrete `ToolCall` at preview
-//! time, so we build a minimal synthetic manifest declaring:
-//! - `actions = [Action::Invoke]` (canonical Execution-category verb;
-//!   replaces the earlier non-vocabulary `"launch_session"` synthetic
-//!   action per CH-04 / ADR-0043 §D43.6)
-//! - `resource = ["session"]`
-//! - `transitive = []`
+//! Both preview + launch call
+//! [`domain::permissions::build_session_launch_manifest`] for the
+//! synthetic launch manifest:
+//! - `actions = [Action::Read, Action::Inspect, Action::List]` —
+//!   matches Template A's `[Read, Inspect, List]` issuance shape
+//!   exactly.
+//! - `resource = ["session_object"]` — the composite expanding to
+//!   `[DataObject, Tag]` per concept doc 01.
 //!
-//! M6+ phases that introduce finer-grained launch policies refine
-//! this. At M5 the endpoint proves the engine is wired end-to-end.
+//! Pre-CH-15 preview used `actions = [Action::Invoke]`, `resource =
+//! ["session"]`; CH-15 unifies on the typed builder so preview's
+//! Decision matches launch's Decision when grants are stable.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -25,8 +27,8 @@ use std::sync::Arc;
 use domain::model::ids::{AgentId, OrgId, ProjectId};
 use domain::model::nodes::PrincipalRef;
 use domain::permissions::{
-    check, Action, CheckContext, ConsentIndex, Decision, Manifest, NoopMetrics, StaticCatalogue,
-    ToolCall,
+    build_session_launch_manifest, check, CheckContext, ConsentIndex, Decision, NoopMetrics,
+    StaticCatalogue, ToolCall,
 };
 use domain::Repository;
 use serde::{Deserialize, Serialize};
@@ -83,22 +85,18 @@ pub async fn preview_session(
     // ceiling hierarchy lands at M7+.
     let ceiling_grants: Vec<_> = org_grants.clone();
 
-    // Build synthetic launch manifest. `session` is a composite in
-    // the M2 ontology + the resource catalogue carries it per org.
-    let manifest = Manifest {
-        actions: vec![Action::Invoke],
-        resource: vec!["session".to_string()],
-        transitive: vec![],
-        constraints: vec![],
-        constraint_requirements: std::collections::HashMap::new(),
-        kinds: vec![],
-    };
+    // CH-15 / ADR-0054 §D54.1 + §D54.7 — synthetic launch manifest
+    // from the typed builder. Preview + launch share identical
+    // manifest shape so preview's Decision matches launch's Decision
+    // when grants are stable.
+    let manifest = build_session_launch_manifest(input.project_id);
 
     // Preview is stateless — no consents recorded in-band.
     let consents = ConsentIndex::empty();
-    // Seed the catalogue with the session resource so Step 0
+    // Seed the catalogue with the session_object resource so Step 0
     // doesn't mis-miss on the synthetic URI.
-    let catalogue = StaticCatalogue::with_entries([(Some(input.org_id), "session".to_string())]);
+    let catalogue =
+        StaticCatalogue::with_entries([(Some(input.org_id), "session_object".to_string())]);
     let template_gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
 
     let ctx = CheckContext {
@@ -129,7 +127,23 @@ pub async fn preview_session(
         // preview support lands with CH-15.
         session_org_tags: &[],
         session_project_tags: &[],
-        call: ToolCall::default(),
+        // CH-15 / ADR-0054 §D54.1 — synthetic ToolCall is class-level
+        // (`target_uri = ""` skips Step 0 catalogue) but carries the
+        // would-be session's tags so the engine's
+        // [`expansion::resolve_grant`] kind_refinement
+        // (`#kind:session`) on the `session_object` composite matches
+        // at Step 3 + Step 5's scope cascade has the `project:<id>`
+        // predicate to bind the lead's session-object grant against.
+        call: ToolCall {
+            target_uri: String::new(),
+            target_tags: vec![
+                "#kind:session".to_string(),
+                format!("project:{}", input.project_id),
+                format!("org:{}", input.org_id),
+            ],
+            target_agent: None,
+            constraint_context: std::collections::HashMap::new(),
+        },
     };
 
     let decision = check(&ctx, &manifest, &NoopMetrics);

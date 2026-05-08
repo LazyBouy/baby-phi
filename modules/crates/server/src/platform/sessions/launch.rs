@@ -82,8 +82,8 @@ use domain::model::ids::{AgentId, AuditEventId, LoopId, OrgId, ProjectId, Sessio
 use domain::model::nodes::{AgentProfile, PrincipalRef, Session, SessionGovernanceState};
 use domain::model::{ApprovalTimeout, ConsentPolicy};
 use domain::permissions::{
-    check, Action, CheckContext, ConsentIndex, Decision, DeniedReason, FailedStep, Manifest,
-    NoopMetrics, StaticCatalogue, ToolCall,
+    build_session_launch_manifest, check, CheckContext, ConsentIndex, Decision, DeniedReason,
+    FailedStep, NoopMetrics, StaticCatalogue, ToolCall,
 };
 use domain::session_recorder::{BabyPhiSessionRecorder, SessionLaunchContext};
 use domain::Repository;
@@ -117,6 +117,30 @@ fn _is_phi_core_agent_loop_free_fn() {
     let _: fn() = _keep_agent_loop_live;
 }
 fn _keep_agent_loop_live() {}
+
+/// CH-15 / ADR-0054 §D54.5 — extract the `kind` snake_case tag from a
+/// [`DeniedReason`] for the `platform.session.launch_denied` audit
+/// event's `reason_kind` field. The enum derives
+/// `#[serde(tag = "kind", rename_all = "snake_case")]` so
+/// `serde_json::to_value(...)` produces an object whose top-level
+/// `kind` field is the variant name in snake_case.
+fn denied_reason_kind(reason: &DeniedReason) -> &'static str {
+    match reason {
+        DeniedReason::CatalogueMiss { .. } => "catalogue_miss",
+        DeniedReason::ManifestEmpty => "manifest_empty",
+        DeniedReason::NoGrantsHeld => "no_grants_held",
+        DeniedReason::CeilingEmptied => "ceiling_emptied",
+        DeniedReason::NoMatchingGrant { .. } => "no_matching_grant",
+        DeniedReason::ConstraintViolation { .. } => "constraint_violation",
+        DeniedReason::ScopeUnresolvable { .. } => "scope_unresolvable",
+        DeniedReason::ConsentTimedOutDeny { .. } => "consent_timed_out_deny",
+        DeniedReason::ConsentDeclined { .. } => "consent_declined",
+        DeniedReason::ConsentRevoked { .. } => "consent_revoked",
+        DeniedReason::ConsentExpired { .. } => "consent_expired",
+        DeniedReason::NoSessionContext { .. } => "no_session_context",
+        DeniedReason::IntersectionEmpty { .. } => "intersection_empty",
+    }
+}
 
 /// Input for [`launch_session`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,28 +216,25 @@ pub async fn launch_session(
         return Err(SessionError::ModelRuntimeArchived(runtime.id));
     }
 
-    // Step 3 — Permission Check preview (same surface as
-    // `/sessions/preview`).
+    // Step 3 — Permission Check (CH-15 / ADR-0054 — hard-deny on every
+    // Decision::Denied; closes drift D4.1).
     //
-    // ## M5/P4 advisory-only note (drift D4.1)
+    // Pre-CH-15 (M5/P4): the synthetic launch manifest didn't match
+    // any grant Template A actually issued; advisory-logging steps 1–6
+    // was the least-bad stopgap. At CH-15 (this chunk) Template A is
+    // extended to mint a paired `session_object/project:<id>` grant
+    // (ADR-0054 §D54.3), the synthetic manifest is rebuilt via
+    // `build_session_launch_manifest` (§D54.1), and every step-1-to-6
+    // denial returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_<N>` (§D54.6).
+    // Step 6 (Consent) deny remains routed through
+    // `gate_session_launch_consent` per CH-11 + ADR-0048 — the engine's
+    // Consent step is unchanged by CH-15.
     //
-    // At M5 the synthetic launch manifest (actions=[Action::Invoke],
-    // resource=["session"]) does not yet correspond to a real
-    // per-action grant shape on the baby-phi agent. Real grant
-    // minting at project-creation time (Template A) covers
-    // `[Read, Inspect, List]` on `project:<id>` — not
-    // `Invoke` on `session`. Strictly gating the launch on
-    // the Decision would reject every M5 launch of a lead agent
-    // into their own project. (Pre-CH-04 the synthetic action was
-    // a non-vocabulary `"launch_session"` string; CH-04 / ADR-0043
-    // §D43.6 conformed it to canonical `Action::Invoke`.)
-    //
-    // Resolution: the Decision is surfaced on the receipt
-    // (advisory + visible to the operator via the preview
-    // endpoint), but the launch does NOT fail hard at step 3 at
-    // M5. Step 0 (Catalogue) DOES gate — an unknown resource URI
-    // still trips 403 PERMISSION_CHECK_FAILED. M6+ tightens the
-    // gate once the per-action manifest catalogue is real.
+    // Pre-allocate `session_id` BEFORE the engine call so the
+    // `platform.session.launch_denied` audit event (§D54.5) can
+    // reference it on the deny path; the same id is reused on the
+    // happy path for the compound tx.
+    let session_id = SessionId::new();
     let preview = preview_session(
         repo.clone(),
         PreviewInput {
@@ -228,28 +249,57 @@ pub async fn launch_session(
         ref reason,
     } = preview.decision
     {
-        // Only Step 0 (Catalogue) gates at M5. Every other
-        // failure is advisory.
-        if matches!(failed_step, domain::permissions::FailedStep::Catalogue) {
-            return Err(SessionError::PermissionCheckFailed {
-                step: 0,
-                reason: format!("{reason:?}"),
-            });
-        }
-        tracing::info!(
-            agent = %input.agent_id,
-            project = %input.project_id,
-            failed_step = ?failed_step,
-            reason = ?reason,
-            "sessions::launch: Permission Check denied (advisory at M5; not blocking)",
+        // CH-15 / ADR-0054 §D54.6 — hard-deny on every step. Map the
+        // FailedStep variant to u8 for the wire payload + the audit
+        // event. `Ceiling` is a sub-step of Resolution; surface it as
+        // 2 on the wire (the metric label `"2a"` is preserved on the
+        // denied receipt's reason text).
+        let step: u8 = match failed_step {
+            FailedStep::Catalogue => 0,
+            FailedStep::Expansion => 1,
+            FailedStep::Resolution => 2,
+            FailedStep::Ceiling => 2,
+            FailedStep::Match => 3,
+            FailedStep::Constraint => 4,
+            FailedStep::Scope => 5,
+            FailedStep::Consent => 6,
+        };
+        let reason_kind = denied_reason_kind(reason);
+        let denied_event = domain::audit::events::m5_2::session_launch::session_launch_denied(
+            input.actor,
+            session_id,
+            input.agent_id,
+            input.project_id,
+            input.org_id,
+            step,
+            reason_kind,
+            None,
+            input.now,
         );
+        // CH-15 / ADR-0054 §D54.5 — emit `platform.session.launch_denied`
+        // BEFORE returning the error so the audit row lands even if
+        // the response writer fails downstream. Audit-emit failures
+        // do NOT block the deny path; the launch is rejected
+        // regardless.
+        if let Err(e) = audit.emit(denied_event).await {
+            tracing::warn!(
+                agent = %input.agent_id,
+                project = %input.project_id,
+                failed_step = ?failed_step,
+                error = %e,
+                "sessions::launch: launch_denied audit emit failed (deny still enforced)",
+            );
+        }
+        return Err(SessionError::PermissionCheckFailed {
+            step,
+            reason: format!("{reason:?}"),
+        });
     }
 
     // Step 3.5 — CH-11 / ADR-0048 §D48.5+ — session-launch consent
-    // gating. Allocate the session id now so PerSession-policy mints
-    // can scope themselves to it. The id is also used at Step 6 for
-    // the persisted compound tx.
-    let session_id = SessionId::new();
+    // gating. The `session_id` was pre-allocated at Step 3 so the
+    // launch_denied audit event can reference it; the same id is
+    // reused at the compound tx + per-session consent mint.
     if let Some(err) =
         gate_session_launch_consent(repo.clone(), &input, session_id, input.now).await?
     {
@@ -540,10 +590,14 @@ pub async fn await_finalised_detail(
 ///   anything. The deny path covers `Declined / Revoked / Expired /
 ///   TimedOutDeny`.
 ///
-/// The engine returns `None` (i.e., not Pending and not consent
-/// Denied) for paths the launch handler doesn't gate on (ManifestEmpty,
-/// NoGrantsHeld, etc.) — those are advisory at M5 (drift D4.1) and
-/// surface only via the `preview_session` decision on the receipt.
+/// At CH-15 / ADR-0054, every non-Consent denial (ManifestEmpty,
+/// NoGrantsHeld, NoMatchingGrant, ConstraintViolation, etc.) hard-
+/// denies at Step 3 BEFORE this consent-gate runs (drift D4.1
+/// closed). The function returns `None` only when the engine returns
+/// `Allowed` or when a non-Consent denial reaches this layer (which
+/// should be unreachable post-CH-15 because Step 3 catches every
+/// non-Consent denial first; the `_ => Ok(None)` arm below is a
+/// belt-and-braces fallback).
 ///
 /// `now` is `input.now`; it threads through to the deadline
 /// computation per `Org.approval_timeout` (§D48.5 + concept doc 06
@@ -583,28 +637,34 @@ async fn gate_session_launch_consent(
         },
     )?;
 
-    // Build synthetic launch manifest. CH-11 widens the resource from
-    // the preview's `"session"` (operator-readable label) to the
-    // canonical fundamental `"identity_principal"` so the engine's
-    // Step 1 expansion produces a non-empty fundamental set + Step 5
-    // can pick a winner. The launching agent's identity is the
-    // fundamental being touched at session-launch time. With
-    // `target_agent` set to the subordinate, Step 6's consent gate
-    // fires when a winning grant carries `SubordinateRequired`.
-    let manifest = Manifest {
-        actions: vec![Action::Invoke],
-        resource: vec!["identity_principal".to_string()],
-        transitive: vec![],
-        constraints: vec![],
-        constraint_requirements: std::collections::HashMap::new(),
-        kinds: vec![],
-    };
+    // CH-15 / ADR-0054 §D54.1 + §D54.7 — synthetic launch manifest
+    // from the typed builder. Preview + launch + consent-gate share
+    // identical manifest shape so divergence at this layer cannot
+    // re-open D4.1's "advisory layer" pattern at the consent boundary.
+    // With `target_agent` set to the subordinate, Step 6's consent
+    // gate still fires when a winning grant carries
+    // `SubordinateRequired`.
+    let manifest = build_session_launch_manifest(input.project_id);
     let catalogue =
-        StaticCatalogue::with_entries([(Some(input.org_id), "identity_principal".to_string())]);
+        StaticCatalogue::with_entries([(Some(input.org_id), "session_object".to_string())]);
     let template_gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    // CH-15 / ADR-0054 §D54.1 — synthetic ToolCall is class-level
+    // (`target_uri = ""` skips Step 0 catalogue) but carries the
+    // would-be session's tags so the engine's
+    // [`expansion::resolve_grant`] kind_refinement (`#kind:session`)
+    // on the `session_object` composite matches at Step 3 + Step 5's
+    // scope cascade has the `project:<id>` predicate to bind the
+    // lead's session-object grant against. `target_agent` stays set
+    // to the subordinate so Step 6's consent gate routes correctly.
     let call = ToolCall {
+        target_uri: String::new(),
+        target_tags: vec![
+            "#kind:session".to_string(),
+            format!("project:{}", input.project_id),
+            format!("org:{}", input.org_id),
+        ],
         target_agent: Some(input.agent_id),
-        ..Default::default()
+        constraint_context: std::collections::HashMap::new(),
     };
 
     // CH-07 / ADR-0051 §D51.4 — multi-scope cascade reads from
@@ -705,14 +765,20 @@ async fn gate_session_launch_consent(
                     reason: format!("{reason:?}"),
                 }))
             }
-            // Any other DeniedReason flagged at FailedStep::Consent is
-            // an engine-shape bug, not a launch-time gate. Pass through
-            // as advisory denial — the M5 advisory-only policy at the
-            // preview layer covers this case for now.
+            // CH-15 / ADR-0054: any other DeniedReason flagged at
+            // FailedStep::Consent is an engine-shape bug; Step 3's
+            // hard-deny path catches every non-Consent denial before
+            // this gate runs. Returning Ok(None) here is a
+            // belt-and-braces fallback that defers to the Allowed
+            // path below.
             _ => Ok(None),
         },
-        // M5 advisory: every other denial path is logged at the
-        // preview layer (drift D4.1) — not enforced at launch time.
+        // CH-15 / ADR-0054 §D54.6: non-Consent Decision::Denied is
+        // hard-denied at Step 3 before this gate runs; reaching the
+        // arm here would be an engine-shape bug. `Decision::Allowed`
+        // falls through to the launch happy path. The Ok(None)
+        // unification preserves the function's "consent-gate-only
+        // surface" type signature.
         Decision::Denied { .. } | Decision::Allowed { .. } => Ok(None),
     }
 }

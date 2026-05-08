@@ -142,6 +142,20 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "authority_chain",
         sql: include_str!("../migrations/0014_authority_chain.surql"),
     },
+    // CH-15 — Template A session-object grant backfill (ADR-0054
+    // §D54.4). Walks every active legacy Template A grant
+    // (resource_uri STARTS_WITH "project:" + descends_from points at
+    // an auth_request with kinds CONTAINS "#template:a") and inserts
+    // a paired `session_object/project:<uuid>` grant. The paired
+    // grant carries the same holder + action + provenance + audit
+    // class as the legacy grant; differs only in `resource_uri` +
+    // `fundamentals = ["data_object", "tag"]`. Idempotent on re-run
+    // via the migration-runner ledger + the inline NOT-EXISTS guard.
+    Migration {
+        version: 15,
+        slug: "template_a_session_object_grant",
+        sql: include_str!("../migrations/0015_template_a_session_object_grant.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

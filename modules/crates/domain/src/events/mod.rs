@@ -77,8 +77,10 @@ pub use listeners::{
 pub enum DomainEvent {
     /// Emitted after `apply_project_creation` commits a `HAS_LEAD` edge.
     /// The Template A fire-listener subscribes and calls
-    /// `fire_grant_on_lead_assignment` (M4/P2) → persists the Grant →
-    /// emits `TemplateAAdoptionFired` audit.
+    /// `fire_grant_on_lead_assignment` (M4/P2; CH-15 / ADR-0054 §D54.3
+    /// extends the return type to `Vec<Grant>` of length 2) →
+    /// persists each Grant → emits one `template.a.grant_fired`
+    /// audit per Grant.
     HasLeadEdgeCreated {
         project: ProjectId,
         lead: AgentId,

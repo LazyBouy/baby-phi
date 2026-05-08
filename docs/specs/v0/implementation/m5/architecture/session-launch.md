@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: Step 3 advisory→hard-deny flipped per ADR-0054 §D54.6; synthetic launch manifest now built via `domain::permissions::build_session_launch_manifest`; new `platform.session.launch_denied` audit event emitted on every step-1-to-6 deny; drift D4.1 closed.) -->
 <!-- CH-02 amendment (2026-04-24): synthetic 4-event feeder replaced with real `phi_core::agent_loop()` driven by `MockProvider` (deterministic, no network). Drift D4.2 closed at CH-02 chunk-seal. See §"CH-02 amendment" below + ADR-0032. -->
 
 # Page 14 — First Session Launch architecture
@@ -36,11 +36,18 @@ Flow owner: [`platform::sessions::launch::launch_session`](../../../../../../mod
    `profile.model_config_id` against the `ModelRuntime` catalogue.
    Returns `MODEL_RUNTIME_UNRESOLVED` / `MODEL_RUNTIME_NOT_FOUND` /
    `MODEL_RUNTIME_ARCHIVED` / `AGENT_PROFILE_MISSING`.
-3. **Permission Check preview** via the M1 engine. Advisory-only
-   at M5 (drift **D4.1**): Step 0 (Catalogue) still gates; steps
-   1–6 surface on the receipt for operator visibility but do NOT
-   refuse the launch. M6+ tightens the gate once the per-action
-   manifest catalogue ships.
+3. **Permission Check** via the M1 engine using the synthetic
+   launch manifest from
+   [`domain::permissions::build_session_launch_manifest`](../../../../../../modules/crates/domain/src/permissions/builders/session_launch.rs)
+   (CH-15 / [ADR-0054](../../m5_2/decisions/0054-session-launch-manifest-and-hard-deny-flip.md)).
+   Manifest shape: `actions = [Read, Inspect, List]` on `resource =
+   ["session_object"]`. Every `Decision::Denied { failed_step,
+   reason }` returns 403
+   `PERMISSION_CHECK_FAILED_AT_STEP_<N>` where `<N>` is the
+   FailedStep variant's numeric label (0..6). The launch handler
+   emits a `platform.session.launch_denied` audit event (Alerted)
+   on every step-1-to-6 deny BEFORE returning the 403. Drift
+   **D4.1** closed at CH-15.
 4. **W2 — per-agent parallelize gate**:
    `count_active_sessions_for_agent < profile.parallelize`. Returns
    `PARALLELIZE_CAP_REACHED` (409).

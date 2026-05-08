@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-28 by Claude Code -->
+<!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: new troubleshooting section for hard-deny launch gate post-ADR-0054 §D54.6 — common 403 cause is Step 2 NoGrantsHeld; remediation via Template A grant seeding or migration `0015` backfill.) -->
 <!-- CH-01 + CH-22 amendments (2026-04-27): durable disable/archive semantics + agent-catalog audit-mode + new "catalog row stale" symptom. See §"CH-01 + CH-22 amendments" below. Full M5/P9 stable-code table still deferred to M5-tag-close. -->
 <!-- CH-06 amendment (2026-04-28): selector parse-error troubleshooting. See §"CH-06 amendment — selector parse errors" below. -->
 
@@ -89,6 +89,19 @@ CH-21 ships the heuristic memory-extraction listener body (concept-`system-agent
 | Identity counter is stale relative to the Memory rows that exist | `Repository::upsert_identity` errored after `create_memory` succeeded — fail-safe semantics (ADR-0028) leave the Memory durable while the Identity counter has a 1-event gap. | The next successful extraction self-heals (the counter is incremental, not derived). To force-resync, an operator-driven recompute path is M6 / future-CH work (see successor M6-DEFERRED-04). Forensic context: structured logs carry the `event_id` of the failing fire. |
 
 For full operational guidance see [m5_2/operations/memory-extraction-operations.md](../../m5_2/operations/memory-extraction-operations.md). For the v0 heuristic body + what M6 LLM upgrade adds, see [m5_2/user-guide/memory-extraction-overview.md](../../m5_2/user-guide/memory-extraction-overview.md).
+
+## CH-15 amendment — session launch hard-deny (2026-05-08)
+
+CH-15 (drift D4.1 closure) flips Permission Check at session launch from advisory-only to hard-deny on every step 0–6.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `POST /sessions` returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_2: NoGrantsHeld` for the project lead | Pre-CH-15 single-grant Template A holders need the paired `session_object` grant (per ADR-0054 §D54.3) | Run migration `0015_template_a_session_object_grant.surql` to backfill, OR re-emit `HasLeadEdgeCreated` for the project so the listener mints both grants. |
+| `POST /sessions` returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_0: CatalogueMiss` | Resource URI not declared in owning org's `resources_catalogue` | Seed the catalogue entry. The launch builder uses class-level reach (target_uri = "") so Step 0 should not fire post-CH-15 — catalogue misses now indicate a deeper issue. |
+| `POST /sessions/preview` returns `decision.outcome = denied` but the operator wants the launch to succeed | The lead is missing the paired `session_object` grant | Check the Permission Check trace on the receipt — `failed_step` + `reason` identify the missing reach. Mint the Template A grants OR run migration `0015`. |
+| `platform.session.launch_denied` audit events spike post-deploy | Expected — every previously-advisory deny now hard-denies + emits an audit event. | Verify Template A grants are seeded for active leads. `failed_step` + `reason_kind` on each event identify which gate is firing. |
+
+For the per-step deny playbook + audit-event dictionary entry see [m5_2/operations/session-launch-permission-gate-operations.md](../../m5_2/operations/session-launch-permission-gate-operations.md).
 
 ## Cross-references
 

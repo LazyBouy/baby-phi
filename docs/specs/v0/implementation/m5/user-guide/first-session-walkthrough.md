@@ -1,6 +1,7 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: hard-deny launch gate post-CH-15 + Template A grant-seeding requirement for happy-path launches; D4.1 closed.) -->
 <!-- CH-02 amendment (2026-04-24): real `agent_loop()` + MockProvider expectations + `mock_response` operator field. Full prose tour deferred to M5-tag-close. -->
 <!-- CH-22 amendment (2026-04-27): note that catalog row gets seeded on first agent creation — visible side-effect users can verify post-launch. -->
+<!-- CH-15 amendment (2026-05-08): every Decision::Denied at the engine returns 403 (drift D4.1 closed). Template A grants on `session_object` are required for the lead agent to launch. -->
 
 # First session launch — walkthrough
 
@@ -39,6 +40,19 @@ The `mock_response` field lives on the baby-phi `AgentProfile` (NOT on the phi-c
 ### Cancellation behaviour
 
 `POST /api/v0/sessions/:id/terminate` cancels the loop in flight. Pre-CH-02 the synthetic feeder always finished before terminate could race; post-CH-02 the loop honours the cancellation token and the resulting `AgentEnd { rejection: Some("cancelled") }` is mapped to `governance_state = Aborted`.
+
+## CH-15 amendment — Permission Check is real at session launch (2026-05-08)
+
+Pre-CH-15, the launch handler advisory-logged every `Decision::Denied` from steps 1–6 and proceeded to spawn the agent task regardless. CH-15 closes that gap:
+
+- Every `Decision::Denied` now returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_<N>` where `<N>` is the FailedStep variant's numeric label (0..6).
+- The lead agent must hold a Template A grant on `session_object` (selector form `tags contains "project:<id>" AND tags contains #kind:session`). Production wiring mints this automatically on `HasLeadEdgeCreated`.
+- Migration `0015_template_a_session_object_grant.surql` backfills legacy single-grant Template A holders so pre-CH-15 sessions continue to work after the deploy.
+- Every step-1-to-6 deny emits a `platform.session.launch_denied` audit event (Alerted) with `failed_step` + `reason_kind` for dashboard correlation.
+
+If a launch unexpectedly returns 403 with a `PERMISSION_CHECK_FAILED_AT_STEP_2: NoGrantsHeld` body, the lead is missing the paired `session_object` grant — verify Template A's adoption AR is approved and `HasLeadEdgeCreated` was emitted at project creation.
+
+See [`session-launch.md`](../architecture/session-launch.md) Step 3 + [ADR-0054](../../m5_2/decisions/0054-session-launch-manifest-and-hard-deny-flip.md).
 
 ## CH-22 amendment — verifying catalog side-effects (2026-04-27)
 

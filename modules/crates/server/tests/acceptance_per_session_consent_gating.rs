@@ -167,20 +167,25 @@ async fn build_fixture(
         .await
         .expect("create profile");
 
-    // Grant on `identity_principal` (canonical fundamental name; URI
-    // resolves to `Selector::Any` per `resolve_grant` Case A) for the
-    // SUBORDINATE — at the launch gate we evaluate the launch agent's
-    // grants (the subordinate is the launch principal whose grants the
-    // engine reads), with `target_agent = subordinate` for
-    // self-targeting Step 6 lookup.
+    // CH-15 / ADR-0054 §D54.1 — grant on `session_object` matching
+    // the new launch manifest's reach (`[Read, Inspect, List]` on
+    // `session_object` per `build_session_launch_manifest`). Pre-CH-15
+    // this test seeded `[Invoke]` on `identity_principal`; CH-15
+    // unifies the launch manifest on the session-object reach so the
+    // grant must match. The `approval_mode` carries the
+    // SubordinateRequired payload that drives Step 6 consent gating —
+    // unchanged from CH-11.
     let grant = Grant {
         id: domain::model::ids::GrantId::new(),
         holder: PrincipalRef::Agent(subordinate_id),
-        action: vec![Action::Invoke],
+        action: vec![Action::Read, Action::Inspect, Action::List],
         resource: ResourceRef {
-            uri: "identity_principal".into(),
+            uri: "session_object".into(),
         },
-        fundamentals: vec![domain::model::Fundamental::IdentityPrincipal],
+        fundamentals: vec![
+            domain::model::Fundamental::DataObject,
+            domain::model::Fundamental::Tag,
+        ],
         descends_from: None,
         delegable: false,
         issued_at: now,

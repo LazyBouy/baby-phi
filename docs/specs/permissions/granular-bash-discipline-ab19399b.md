@@ -132,6 +132,24 @@ CH-14 retro (cycle hex `5803bb94`, 2026-05-08) confirmed the regression EVEN AFT
 
 **Why STOP iterating**: CH-13 → CH-07 → CH-08 → CH-14 burned 4 cycle slots on rule-pattern attempts that all failed in the same way. The variance between the 4 attempts is in the rule pattern; the constant is the matcher behaviour. Iterating the variable while the constant is bugged wastes cycles.
 
+### 2.7 — CH-15 5th-cycle validation: literal-script-name workaround empirically PASSES; cluster downgrades to `resolved-via-workaround`
+
+CH-15 retro (cycle hex `c3f46f17`, 2026-05-08) is the first cycle to run under the 5 literal-script-name rules added at CH-14 close-time (per §2.6 above). Empirical result:
+
+| Cycle | Hex | Rules in effect | Cluster prompts | Notes |
+|---|---|---|---|---|
+| CH-13 | `d4fe1b7c` | 1 colon-form rule (`check-*.sh:*`) | **4** | rule added |
+| CH-07 | `cc912d07` | + paired space-form `*.sh *` + `2>&1*` | **3** | residual after refinement |
+| CH-08 | `7cbe74a4` | unchanged + mid-cycle user broadening to `*.sh *` (drop `check-` prefix) | **15** | regression — broadening did not match |
+| CH-14 | `5803bb94` | unchanged from CH-08 close-time edit | **43** | confirmed-bug; rules iteration-failed |
+| **CH-15** | **`c3f46f17`** | **5 literal-script-name rules** (`check-doc-links.sh*`, `check-ops-doc-headers.sh*`, `check-phi-core-reuse.sh*`, `check-spec-drift.sh*`, `audit-tmp-*.sh*`) | **0** | **VALIDATION PASSED — cluster fully closed** |
+
+**Lifecycle conclusion**: the bash-check cluster downgrades from `matcher-bug-confirmed` → **`resolved-via-workaround`**. The literal-script-name workaround empirically replaces the failed glob-form patterns. **No upstream Claude Code rule-matcher bug-report needed.**
+
+**Permissions-audit skill v3 protocol** (added per CH-15 retro Row 8): when a cluster's PermissionRequest count drops to 0 for ≥ 1 cycle post-`matcher-bug-confirmed` workaround, mark it `resolved-via-workaround` and **drop** the cluster from cross-cycle trend tracking (it is no longer noise). If a regression appears in a future cycle (count > 0 post-workaround), re-elevate to `matcher-bug-confirmed` and file the upstream bug-report at that point.
+
+**Validation footnote**: CH-15 also validated the new `Bash(bash /root/projects/phi/baby-phi/scripts/audit-tmp-*.sh*)` rule paired with the gate-4 `audit-tmp-cargo-counts.sh` script refactor (CH-14 retro Row 8). The CH-14 4-stage `cargo test | grep | sed | awk` pipeline cluster (14 prompts) is also at 0 prompts in CH-15 — both clusters resolved by the same literal-script-name approach.
+
 ### 2.4 — Empirical observation from CH-07 (redirect+pipe combo defeats single-`*` glob)
 
 CH-07 telemetry (cycle hex `cc912d07`, 2026-05-07) surfaced a third matcher quirk:
