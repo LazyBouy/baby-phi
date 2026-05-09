@@ -1,4 +1,4 @@
-<!-- Last verified: 2026-04-27 by Claude Code -->
+<!-- Last verified: 2026-05-09 by Claude Code (CH-17 chunk-seal — appended `CHK8S-D-10` entry under §3 + §2 Index; status totals bumped from 9 to 10. Origin: CH-17 P-1 trait-shape `SessionLiveStreamRegistry` at `server/src/state.rs:134–208`; M7b deliverable: NEW `RedisSessionLiveStreamRegistry` impl behind the same trait, swap-only refactor.) -->
 
 # Deferred-from-CH-K8S-PREP — M7b items registry
 
@@ -28,8 +28,9 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 | [CHK8S-D-07](#chk8s-d-07--durable-replay-queue-for-events-emitted-during-shutdown-window) | Durable replay queue for events emitted during shutdown window | MEDIUM | P-4 (EventBus drain semantics) | M7b "audit-durability + orphan reconciliation" | shares scope with D-01; readiness doc §B5 |
 | [CHK8S-D-08](#chk8s-d-08--audit-emitter-shutdowndrain-symmetry-with-eventbus) | `AuditEmitter` shutdown/drain symmetry with `EventBus` | MEDIUM | P-4 (EventBus drain semantics) | M7b "audit-durability + orphan reconciliation" | shares scope with D-01, D-07; readiness doc §B5 |
 | [CHK8S-D-09](#chk8s-d-09--consent-sweeper-leader-election-for-multi-pod-deployments) | Consent sweeper leader-election for multi-pod deployments | MEDIUM | CH-10 (consent state machine + sweeper) | M7b "leader-election + cross-pod schedulers" | ADR-0047 §D47.7 |
+| [CHK8S-D-10](#chk8s-d-10--cross-pod-live-event-fan-out-via-redis-pubsub-backed-sessionlivestreamregistry) | Cross-pod live-event fan-out via Redis pub/sub-backed `SessionLiveStreamRegistry` | HIGH | CH-17 P-1 (trait-shape `SessionLiveStreamRegistry`) | M7b "externalize SessionLiveStreamRegistry" | ADR-0055 §D55.8; ADR-0033 §D33.1 precedent; readiness doc §B1, §B2 |
 
-**Status totals (as of last verified):** 9 captured
+**Status totals (as of last verified):** 10 captured
 
 ## 3. Items (detail)
 
@@ -200,11 +201,34 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 
 ---
 
+### CHK8S-D-10 — Cross-pod live-event fan-out via Redis pub/sub-backed `SessionLiveStreamRegistry`
+
+- **Severity:** HIGH
+- **Source prep refactor:** CH-17 P-1 (trait-shape `SessionLiveStreamRegistry`), shipped 2026-05-09. Cycle hex `40c4d759`.
+- **Originating chunk:** [CH-17 plan](../../../../plan/build/ch-17-live-sse-tail-endpoint-40c4d759/plan.md).
+- **Where the deferral is recorded in code:**
+  - [`server/src/state.rs`](../../../../../../modules/crates/server/src/state.rs) — `SessionLiveStreamRegistry` trait doc-comment names *"Single-pod-only at v0. Live events produced on pod A are not visible to SSE clients connected to pod B without Redis pub/sub fan-out — see CHK8S-D-10 in `m7b/architecture/deferred-from-ch-k8s-prep.md`"*.
+  - [`server/src/platform/sessions/events.rs`](../../../../../../modules/crates/server/src/platform/sessions/events.rs) — module doc names the cross-pod boundary.
+- **Description:** CH-17 ships a `tokio::sync::broadcast::Sender<phi_core::AgentEvent>` per session held in a pod-local `DashMap<SessionId, broadcast::Sender>` ([`InProcessSessionLiveStreamRegistry`](../../../../../../modules/crates/server/src/state.rs)). The session-launch handler creates the channel and registers the Sender immediately before spawning the agent task. The recorder's `on_phi_core_event` funnel publishes every event onto the channel. SSE handlers `subscribe()` on a clone of the Sender and stream events out as `data:` JSON lines.
+  - **Pre-CH-17 state:** no live SSE endpoint → no cross-pod concern (drift D7.1 documented the absent surface).
+  - **Post-CH-17 state:** pod-local `tokio::broadcast` channel; SSE clients connected to pod A see only events that pod A's recorder produces. An SSE consumer connected to pod A who wants to tail a session hosted on pod B sees nothing — the fan-out does not cross the pod boundary.
+  - **Why deferred:** trait-shaping the registry is the M5-affordable abstraction; building the cross-pod broker is M7b scope (multi-pod is the K8s-deployment target). The trait shape ensures the M7b swap is a new impl, not a refactor — every callsite (launch handler, SSE handler, recorder construction) consumes `Arc<dyn SessionLiveStreamRegistry>` and is impl-agnostic.
+- **What needs to be added at M7b:**
+  - A `RedisSessionLiveStreamRegistry` impl behind the same `SessionLiveStreamRegistry` trait. `insert(session_id, tx)` registers the Sender locally **and** opens a Redis pub/sub channel (`baby-phi:live-stream:<session_id>`) over which other pods' Senders publish; the local Sender's task `XADD`s incoming pub/sub messages so local SSE consumers see the merged stream.
+  - Alternatively, a `RedisStreamSessionLiveStreamRegistry` using Redis Streams (`XADD` + `XREAD` BLOCKING) for durable replay if SSE clients reconnect after a brief drop.
+  - Configurable channel-key prefix (`[session_live_stream] redis_channel_prefix = "baby-phi:live-stream"`) so multi-tenant K8s deployments can isolate.
+  - Acceptance test: simulate two pods (process A + process B), launch a session on A, subscribe to `/events` on B, observe that B's stream contains A's events.
+  - **Swap-only refactor:** no callsite changes — the boot site at `server/src/main.rs` chooses between `new_session_live_stream_registry()` (in-process default) and `new_redis_session_live_stream_registry(config)` (M7b cross-pod). Every other call to `Arc<dyn SessionLiveStreamRegistry>` is impl-agnostic.
+- **M7b sub-task owner:** "Externalize SessionLiveStreamRegistry". Pairs with [CHK8S-D-04](#chk8s-d-04--redis-backed-sessionregistry-impl-the-cross-pod-swap) (Redis-backed SessionRegistry) and [CHK8S-D-06](#chk8s-d-06--broker-backed-eventbus-impl-the-cross-pod-pubsub) — sharing the Redis infra primitive.
+- **Cross-refs:** [ADR-0055 §D55.8](../../m5_2/decisions/0055-sse-broadcast-fanout-and-keepalive.md); [ADR-0033 §D33.1 precedent](../../m5_2/decisions/0033-k8s-prep-refactors.md); [readiness doc §B1, §B2](./k8s-microservices-readiness.md); [CH-17 plan §3.B](../../../../plan/build/ch-17-live-sse-tail-endpoint-40c4d759/plan.md).
+
+---
+
 ## 4. Adding new entries (CH-01+)
 
 **Codified by CH-01 / forward-scope §7 Q8 (2026-04-27).** From CH-01 onward, the per-chunk-planning-template's [§3.B "K8s microservice readiness check"](../../m5_1/process/per-chunk-planning-template.md) is the canonical source of new entries to this ledger. When a chunk's §3.B 7-axis evaluation surfaces a new K8s blocker the chunk does not address, a new `CHK8S-D-NN` entry MUST be added here before the chunk seals.
 
-**Numbering.** Pick the next free number after the current highest in §3 (current high: `CHK8S-D-08`). Numbering is monotonic; no gaps.
+**Numbering.** Pick the next free number after the current highest in §3 (current high: `CHK8S-D-10`). Numbering is monotonic; no gaps.
 
 **Required fields per entry** (mirror the existing CHK8S-D-01 through CHK8S-D-08 shape):
 - **Item title** — one line, summarising the deferral.
@@ -219,10 +243,10 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
 **Index update.** Add the new entry to §2 Index alongside the existing rows. Keep the index sorted by entry number (ascending).
 
 **Example workflow.** A future chunk's §3.B 7-axis table identifies a new in-process `OnceCell` cache that becomes pod-local. The chunk author cannot trait-shape it within the chunk's scope. They:
-1. Pick `CHK8S-D-09` (next free).
+1. Pick `CHK8S-D-11` (next free).
 2. Write the entry with provenance citing the chunk plan §3.B row + the file:line of the new `OnceCell`.
 3. Add a row to §2 Index.
-4. Reference `CHK8S-D-09` from the chunk plan's §3.B conclusion paragraph ("Chunk introduces 1 new K8s blocker; filed as CHK8S-D-09").
+4. Reference `CHK8S-D-11` from the chunk plan's §3.B conclusion paragraph ("Chunk introduces 1 new K8s blocker; filed as CHK8S-D-11").
 5. Chunk seals as K8s-negative (one new blocker), with the ledger entry the durable record.
 
 ## 5. Closing scope fence reminder

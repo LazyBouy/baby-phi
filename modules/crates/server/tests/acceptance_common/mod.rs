@@ -48,6 +48,11 @@ pub struct Acceptance {
     /// link the harness without using this field.
     #[allow(dead_code)]
     pub session_registry: Arc<dyn server::state::SessionRegistry>,
+    /// The same `Arc<dyn SessionLiveStreamRegistry>` the live server's
+    /// `AppState` holds — exposed so CH-17 SSE tail tests can observe
+    /// the per-session broadcast registration / cleanup lifecycle.
+    #[allow(dead_code)]
+    pub session_live_stream_registry: Arc<dyn server::state::SessionLiveStreamRegistry>,
     /// The same `Arc<dyn EventBus>` the live server's `AppState`
     /// holds. Tests that need to observe listener side effects
     /// (CH-22 — agent-catalog listener subscribes here) can call
@@ -88,6 +93,7 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
     let store = Arc::new(store);
     let repo: Arc<dyn domain::Repository> = store.clone();
     let session_registry = server::state::new_session_registry();
+    let session_live_stream_registry = server::state::new_session_live_stream_registry();
     let event_bus: Arc<dyn EventBus> = Arc::new(domain::events::InProcessEventBus::new());
     let state = AppState {
         repo: repo.clone(),
@@ -96,10 +102,12 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::clone(&event_bus),
         session_registry: Arc::clone(&session_registry),
+        session_live_stream_registry: Arc::clone(&session_live_stream_registry),
         // Test default matches `config/default.toml`. Acceptance
         // tests rarely exercise the saturation cap; launch-suite
         // tests that DO need it build their own AppState inline.
         session_max_concurrent: 16,
+        session_live_stream_buffer: 64,
     };
 
     let app: Router = if with_metrics {
@@ -121,6 +129,7 @@ pub async fn spawn(with_metrics: bool) -> Acceptance {
         base_url,
         store,
         session_registry,
+        session_live_stream_registry,
         event_bus,
         _tmp: tmp,
         _join: join,

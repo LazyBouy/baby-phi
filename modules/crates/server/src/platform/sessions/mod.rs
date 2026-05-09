@@ -30,6 +30,7 @@
 use domain::model::ids::{AgentId, ConsentId, ModelProviderId, ProjectId, SessionId};
 use domain::repository::RepositoryError;
 
+pub mod events;
 pub mod launch;
 pub mod list;
 pub mod preview;
@@ -138,6 +139,20 @@ pub enum SessionError {
         reason: String,
     },
 
+    // ---- CH-17 / ADR-0055 §D55.1 — SSE live-event tail (410 GONE) --
+    /// The session row exists + permission check Allowed, but the
+    /// per-session broadcast Sender is no longer in the live-stream
+    /// registry. Two reasons in v0:
+    ///   1. The session has finalised; the launch task removed the
+    ///      registry entry on its way out. Subsequent SSE connections
+    ///      see GONE rather than NOT_FOUND because the session row
+    ///      itself is still readable via `GET /sessions/:id`.
+    ///   2. The K8s single-pod assumption (CHK8S-D-10): the SSE
+    ///      client is connected to pod A but the session is hosted on
+    ///      pod B. M7+ Redis-pub/sub fan-out closes this gap.
+    #[error("SESSION_LIVE_STREAM_UNAVAILABLE: session {0} has no live broadcast Sender")]
+    SessionLiveStreamUnavailable(SessionId),
+
     // ---- Pass-throughs ---------------------------------------------
     #[error("repository error: {0}")]
     Repository(String),
@@ -172,6 +187,12 @@ pub fn http_status_for(err: &SessionError) -> u16 {
         | SessionError::SessionAlreadyTerminal(_)
         | SessionError::ConsentPending { .. }
         | SessionError::ConsentDenied { .. } => 409,
+        // CH-17 / ADR-0055 §D55.1 — session was launched + the row
+        // still exists; the broadcast registry has dropped the
+        // per-session Sender (session finalised, or pod-affinity
+        // miss under multi-pod deploy). 410 GONE is the canonical
+        // "the resource was here but is no longer available".
+        SessionError::SessionLiveStreamUnavailable(_) => 410,
         SessionError::SessionWorkerSaturated { .. } => 503,
         SessionError::RecorderFailure(_)
         | SessionError::SessionReplayPanic(_)
@@ -210,5 +231,6 @@ pub fn wire_code_for(err: &SessionError) -> &'static str {
         SessionError::AuditEmit(_) => "AUDIT_EMIT_ERROR",
         SessionError::ConsentPending { .. } => "CONSENT_PENDING",
         SessionError::ConsentDenied { .. } => "CONSENT_DENIED",
+        SessionError::SessionLiveStreamUnavailable(_) => "SESSION_LIVE_STREAM_UNAVAILABLE",
     }
 }

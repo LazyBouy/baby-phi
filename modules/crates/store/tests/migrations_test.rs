@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 15, "every embedded migration recorded");
+    assert_eq!(rows.len(), 16, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -108,6 +108,13 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[14].get("slug").and_then(|v| v.as_str()),
         Some("template_a_session_object_grant")
+    );
+    // CH-17 — Append `Action::Observe` to every legacy Template A
+    // grant (ADR-0055 §D55.9).
+    assert_eq!(rows[15].get("version").and_then(|v| v.as_i64()), Some(16));
+    assert_eq!(
+        rows[15].get("slug").and_then(|v| v.as_str()),
+        Some("template_a_session_object_grant_add_observe")
     );
 
     // A sample table from the initial migration exists and accepts a row

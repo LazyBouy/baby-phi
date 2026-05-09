@@ -11,4 +11,5 @@
 pub mod identity;
 pub mod memory;
 pub mod session_launch;
+pub mod session_live_stream;
 pub mod tool_authority;

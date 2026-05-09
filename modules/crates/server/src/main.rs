@@ -141,6 +141,11 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         repo.clone(),
         std::time::Duration::from_secs(cfg.consent.sweeper_interval_secs),
     );
+    // CH-17 / ADR-0055 §D55.1 — per-session live-event broadcast
+    // registry; the recorder publishes into the per-session Sender +
+    // the SSE handler subscribes from it.
+    let session_live_stream_registry = server::state::new_session_live_stream_registry();
+    let session_live_stream_buffer = cfg.session_live_stream.buffer;
     let state = AppState {
         repo,
         session,
@@ -148,7 +153,9 @@ async fn run_server(cfg: ServerConfig) -> anyhow::Result<()> {
         master_key,
         event_bus,
         session_registry,
+        session_live_stream_registry,
         session_max_concurrent,
+        session_live_stream_buffer,
     };
     let app = with_prometheus(build_router(state));
 

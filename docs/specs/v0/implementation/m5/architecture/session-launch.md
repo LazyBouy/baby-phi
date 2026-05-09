@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: live SSE tail companion endpoint at `GET /api/v0/sessions/:id/events` ships per ADR-0055 — sibling permission-builder `build_session_observe_manifest` returns `[Observe]` on `session_object` (NOT the launch builder's `[Read, Inspect, List]`); broadcast tap on `BabyPhiSessionRecorder.broadcast_tx`; per-session `tokio::broadcast` registered into `AppState.session_live_stream_registry: Arc<dyn SessionLiveStreamRegistry>` immediately before `tokio::spawn` of the agent task; SSE handler subscribes via `sender.subscribe()` and serialises `phi_core::AgentEvent` JSON onto the wire; 30s keep-alive; lagged consumers receive a typed `event: lagged` SSE error then close. The launch path itself is UNCHANGED. Drift D7.1 closed.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: Step 3 advisory→hard-deny flipped per ADR-0054 §D54.6; synthetic launch manifest now built via `domain::permissions::build_session_launch_manifest`; new `platform.session.launch_denied` audit event emitted on every step-1-to-6 deny; drift D4.1 closed.) -->
 <!-- CH-02 amendment (2026-04-24): synthetic 4-event feeder replaced with real `phi_core::agent_loop()` driven by `MockProvider` (deterministic, no network). Drift D4.2 closed at CH-02 chunk-seal. See §"CH-02 amendment" below + ADR-0032. -->
 
@@ -13,7 +14,7 @@ deliverable list.
 
 ## HTTP surface
 
-Six routes registered in
+Seven routes registered in
 [`router.rs`](../../../../../../modules/crates/server/src/router.rs):
 
 | Method | Path | Handler | Purpose |
@@ -24,6 +25,11 @@ Six routes registered in
 | POST | `/api/v0/sessions/:id/terminate` | `sessions::terminate` | Operator-initiated abort (cancel token fire + `SessionAborted` emit) |
 | GET  | `/api/v0/projects/:project/sessions` | `sessions::list_in_project` | Header strip (no phi-core `inner` leak) |
 | GET  | `/api/v0/sessions/:id/tools` | `sessions::tools` | C-M5-4 tool summaries (wire shape) |
+| GET  | `/api/v0/sessions/:id/events` | `sessions::events` | **CH-17** — live SSE tail (operator observability surface; gated by `Action::Observe` on `session_object` per [ADR-0055](../../m5_2/decisions/0055-sse-broadcast-fanout-and-keepalive.md) §D55.5) |
+
+### CH-17 — SSE companion endpoint
+
+`GET /api/v0/sessions/:id/events` ships at CH-17 as the live-tail companion to the launch endpoint. It uses the **sibling** permission builder `domain::permissions::builders::build_session_observe_manifest` (returns `[Observe]` on `session_object`) rather than the launch builder's `[Read, Inspect, List]` — see [ADR-0055 §D55.5](../../m5_2/decisions/0055-sse-broadcast-fanout-and-keepalive.md). Both builders feed the same `engine::check()` engine surface; the SSE path runs Steps 0–5 + skips Step 6 (consent is launch-time, not stream-time per ADR-0048 §D48.5). Pod-local `tokio::sync::broadcast::Sender<phi_core::AgentEvent>` is registered into `AppState.session_live_stream_registry` (trait `SessionLiveStreamRegistry`, default impl `InProcessSessionLiveStreamRegistry { inner: DashMap<SessionId, broadcast::Sender<AgentEvent>> }`) immediately before the agent task `tokio::spawn`. SSE consumers subscribe via `sender.subscribe()`. Cross-pod fan-out deferred via [CHK8S-D-10](../../m7b/architecture/deferred-from-ch-k8s-prep.md). For full ops detail (lagged-receiver semantics, reconnect playbook, audit-event emission), see [`m5_2/operations/session-live-stream-operations.md`](../../m5_2/operations/session-live-stream-operations.md). For the architectural design page, see [`m5_2/architecture/session-live-stream.md`](../../m5_2/architecture/session-live-stream.md).
 
 ## 9-step launch flow
 

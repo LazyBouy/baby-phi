@@ -48,6 +48,11 @@ dashmap     = { workspace = true }
 tokio-util  = { workspace = true }
 futures     = { workspace = true }
 
+# CH-17 / ADR-0055 — SSE live-event tail. `tokio-stream`'s
+# `BroadcastStream` adapter wraps a `tokio::sync::broadcast::Receiver`
+# in a `Stream` that axum's SSE response can consume.
+tokio-stream = { version = "0.1", features = ["sync"] }
+
 [dev-dependencies]
 domain      = { workspace = true, features = ["in-memory-repo"] }
 tokio       = { workspace = true }
@@ -55,7 +60,7 @@ tower       = { workspace = true }
 axum        = { workspace = true }
 axum-server = { workspace = true }
 async-trait = { workspace = true }
-reqwest     = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "charset"] }
+reqwest     = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "charset", "stream"] }
 rcgen       = "0.13"
 rustls      = { version = "0.23", default-features = false, features = ["ring"] }
 tempfile    = "3"

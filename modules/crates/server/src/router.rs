@@ -146,6 +146,8 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::sessions::terminate),
         )
         .route("/sessions/:id/tools", get(handlers::sessions::tools))
+        // CH-17 / ADR-0055 — SSE live-event tail.
+        .route("/sessions/:id/events", get(handlers::sessions::events))
         // M5/P5 — authority-template surface (5 routes).
         .route(
             "/orgs/:org_id/authority-templates",

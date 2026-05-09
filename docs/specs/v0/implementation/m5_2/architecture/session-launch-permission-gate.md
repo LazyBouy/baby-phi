@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: SSE companion endpoint at GET /api/v0/sessions/:id/events introduces a SIBLING manifest-builder `build_session_observe_manifest` returning `[Observe]` on `session_object` — distinct from this page's launch builder which keeps `[Read, Inspect, List]`. Both builders feed the same `engine::check()` engine surface; preview/launch parity preserved at the launch builder's manifest shape. See ADR-0055 §D55.5.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 P3 — new architecture page for ADR-0054: session-launch manifest builder + hard-deny flip + Template A double-grant + migration 0015 backfill + launch_denied audit event.) -->
 
 # Session-launch permission gate — design page
@@ -202,6 +203,29 @@ Both `preview.rs::preview_session` and `launch.rs::gate_session_launch_consent` 
 - `target_agent` — `Some(input.agent_id)` in launch (so Step 6 consent gate routes correctly); `None` in preview (preview is stateless).
 
 Preview-launch parity is exercised by the `preview_decision_matches_launch_decision_on_grants_stable` acceptance test.
+
+---
+
+## CH-17 sibling builder — `build_session_observe_manifest` for SSE
+
+CH-17 introduces a SIBLING manifest-builder for the live SSE tail endpoint at `GET /api/v0/sessions/:id/events`:
+
+- File: [`domain/src/permissions/builders/session_observe.rs`](../../../../../../modules/crates/domain/src/permissions/builders/session_observe.rs).
+- Signature: `pub fn build_session_observe_manifest(_project_id: ProjectId) -> Manifest`.
+- Body: `Manifest { actions: vec![Action::Observe], resource: vec!["session_object".to_string()], ... }`.
+
+The two builders are **siblings, not replacements**:
+
+| Builder | Action set | Used by | Step coverage |
+|---|---|---|---|
+| `build_session_launch_manifest` | `[Read, Inspect, List]` | `preview.rs` + `launch.rs::gate_session_launch_consent` | Steps 0–6 (consent gated) |
+| `build_session_observe_manifest` | `[Observe]` | `events.rs::open_live_stream` (SSE handler) | Steps 0–5 (consent skipped — observability of an already-launched session is not a fresh consent action; ADR-0048 §D48.5) |
+
+Both builders feed the same `engine::check()` surface — only the manifest action set + which steps run differ. Preview-launch parity at the LAUNCH manifest layer is preserved (the launch builder is unchanged at `[Read, Inspect, List]`).
+
+**Why `Action::Observe`, not `Action::Read`** (per [ADR-0055 §D55.5](../decisions/0055-sse-broadcast-fanout-and-keepalive.md)): live-event tailing IS an observability operation per concept-doc 03 line 22 (Observability vocabulary: `observe, log, attest`). Concept-doc 05 line 242 names `read = "Retrieve a Session and its contents"` (full content fetch via `GET /api/v0/sessions/:id`); SSE serves an orthogonal observability surface. `Action::Observe` is canonical pre-CH-17 (action.rs:73,282,322 — introduced at CH-04 / ADR-0043); `Action::CANONICAL.len() == 34` invariant preserved.
+
+Template A's `fire_grant_on_lead_assignment` extends to mint `[Read, Inspect, List, Observe]` post-CH-17 (migration `0016_template_a_session_object_grant_add_observe.surql` backfills legacy holders). See [`session-live-stream.md`](./session-live-stream.md) for the full SSE design page.
 
 ---
 

@@ -41,7 +41,9 @@ async fn cookie_on_success_is_signed_with_app_secret() {
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
         session_registry: server::state::new_session_registry(),
+        session_live_stream_registry: server::state::new_session_live_stream_registry(),
         session_max_concurrent: 16,
+        session_live_stream_buffer: 64,
     });
 
     let body = serde_json::json!({
@@ -103,7 +105,9 @@ async fn cookie_from_a_different_secret_does_not_verify() {
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
         session_registry: server::state::new_session_registry(),
+        session_live_stream_registry: server::state::new_session_live_stream_registry(),
         session_max_concurrent: 16,
+        session_live_stream_buffer: 64,
     });
 
     let body = serde_json::json!({
@@ -148,7 +152,9 @@ async fn status_endpoint_does_not_set_cookie() {
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
         session_registry: server::state::new_session_registry(),
+        session_live_stream_registry: server::state::new_session_live_stream_registry(),
         session_max_concurrent: 16,
+        session_live_stream_buffer: 64,
     });
     let res = app
         .oneshot(

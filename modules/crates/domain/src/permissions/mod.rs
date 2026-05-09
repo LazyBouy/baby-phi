@@ -54,6 +54,7 @@ pub use axioms::{
     SYSTEM_GENESIS_PRINCIPAL,
 };
 pub use builders::session_launch::build_session_launch_manifest;
+pub use builders::session_observe::build_session_observe_manifest;
 pub use catalogue::{CatalogueLookup, StaticCatalogue};
 pub use decision::{Decision, DeniedReason, FailedStep};
 pub use engine::check;

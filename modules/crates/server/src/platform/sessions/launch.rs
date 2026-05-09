@@ -103,8 +103,9 @@ use tokio_util::sync::CancellationToken;
 
 use super::preview::{preview_session, PreviewInput};
 use super::SessionError;
-use crate::state::SessionRegistry;
+use crate::state::{SessionLiveStreamRegistry, SessionRegistry};
 type SharedSessionRegistry = Arc<dyn SessionRegistry>;
+type SharedSessionLiveStreamRegistry = Arc<dyn SessionLiveStreamRegistry>;
 
 // phi-core witness — `agent_loop` is now runtime-exercised in
 // `spawn_agent_task` via MockProvider (CH-02). The compile-time
@@ -170,12 +171,15 @@ pub struct LaunchReceipt {
 }
 
 /// Run the 9-step launch flow.
+#[allow(clippy::too_many_arguments)]
 pub async fn launch_session(
     repo: Arc<dyn Repository>,
     audit: Arc<dyn AuditEmitter>,
     event_bus: Arc<dyn EventBus>,
     registry: SharedSessionRegistry,
+    live_stream_registry: SharedSessionLiveStreamRegistry,
     max_concurrent: u32,
+    live_stream_buffer: usize,
     input: LaunchInput,
 ) -> Result<LaunchReceipt, SessionError> {
     // Step 1 — validate existence.
@@ -424,11 +428,21 @@ pub async fn launch_session(
     // Step 7 — register + spawn the agent task (CH-02).
     let cancel_token = CancellationToken::new();
     registry.insert(session_id, cancel_token.clone());
+    // CH-17 / ADR-0055 §D55.1 — pre-allocate the per-session
+    // broadcast Sender BEFORE the agent task spawns so an SSE client
+    // that connects between this insert and the first AgentStart
+    // event sees a live entry in the registry. The `_rx` is dropped
+    // immediately; subscribers call `.subscribe()` on the registered
+    // Sender clone.
+    let (broadcast_tx, _rx) =
+        tokio::sync::broadcast::channel::<PhiCoreAgentEvent>(live_stream_buffer.max(1));
+    live_stream_registry.insert(session_id, broadcast_tx.clone());
     spawn_agent_task(
         repo.clone(),
         audit,
         event_bus,
         registry.clone(),
+        live_stream_registry.clone(),
         profile,
         runtime.clone(),
         SessionLaunchContext {
@@ -442,6 +456,7 @@ pub async fn launch_session(
         },
         input.prompt,
         cancel_token,
+        broadcast_tx,
     );
 
     Ok(LaunchReceipt {
@@ -488,16 +503,23 @@ pub(super) fn spawn_agent_task(
     audit: Arc<dyn AuditEmitter>,
     event_bus: Arc<dyn EventBus>,
     registry: SharedSessionRegistry,
+    live_stream_registry: SharedSessionLiveStreamRegistry,
     profile: AgentProfile,
     runtime: ModelRuntime,
     ctx: SessionLaunchContext,
     prompt: String,
     cancel_token: CancellationToken,
+    broadcast_tx: tokio::sync::broadcast::Sender<PhiCoreAgentEvent>,
 ) {
     use super::provider::{build_agent_context, provider_for};
 
     tokio::spawn(async move {
-        let recorder = BabyPhiSessionRecorder::new(repo.clone(), audit, event_bus, ctx.clone());
+        // CH-17 / ADR-0055 §D55.1 — attach the per-session broadcast
+        // Sender to the recorder so every event the recorder funnels
+        // is also published onto the broadcast channel for the SSE
+        // handler to fan out.
+        let recorder = BabyPhiSessionRecorder::new(repo.clone(), audit, event_bus, ctx.clone())
+            .with_broadcast(broadcast_tx);
 
         let (tx, mut rx) = mpsc::unbounded_channel::<PhiCoreAgentEvent>();
         let mut agent_ctx = build_agent_context(&ctx, &profile);
@@ -554,6 +576,12 @@ pub(super) fn spawn_agent_task(
         // Drop the registry entry whether or not finalise
         // succeeded — the launch task is done either way.
         registry.remove(&ctx.session_id);
+        // CH-17 / ADR-0055 §D55.1 — drop the per-session broadcast
+        // Sender from the live-stream registry so subsequent SSE
+        // connections for this finalised session see the registry
+        // entry as gone (handler returns 410 GONE
+        // SESSION_LIVE_STREAM_UNAVAILABLE per ADR-0055 §D55.1).
+        live_stream_registry.remove(&ctx.session_id);
     });
 }
 

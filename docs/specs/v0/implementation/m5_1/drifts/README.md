@@ -94,7 +94,7 @@ fixed.
 | D6.3 | System-agent bucketing needs 3-way union filter | MEDIUM | B | system-agents | N/A | discovered | TBD | [D6.3.md](D6.3.md) |
 | D6.4 | System-agent audit events at `server::platform::system_agents::audit_events` | LOW | C | system-agents | N/A | discovered | TBD | [D6.4.md](D6.4.md) |
 | D6.5 | disable/archive don't flip durable `active`/`archived_at` | **HIGH** | **A** | agent; system-agents | N/A | remediated | CH-01 ✓ | [D6.5.md](D6.5.md) |
-| D7.1 | Live SSE tail deferred to M7 | **HIGH** | **A** | permissions/05 | direct-reuse (planned) | discovered | TBD | [D7.1.md](D7.1.md) |
+| D7.1 | Live SSE tail deferred to M7 | **HIGH** | **A** | permissions/05 | direct-reuse | **remediated** | CH-17 ✓ | [D7.1.md](D7.1.md) |
 | D7.2 | `--model-config-id` additive (alongside `--patch-json`) | LOW | B | agent | N/A | discovered | TBD | [D7.2.md](D7.2.md) |
 | D7.3 | `phi session preview` as 5th subcommand | LOW | C | permissions/04 | N/A | discovered | TBD | [D7.3.md](D7.3.md) |
 | D7.4 | Page 11 recent-sessions retrofit is web-side | LOW | B | project | N/A | discovered | TBD | [D7.4.md](D7.4.md) |

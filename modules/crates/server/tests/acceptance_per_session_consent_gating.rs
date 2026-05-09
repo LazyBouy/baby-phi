@@ -41,7 +41,7 @@ use domain::model::{ApprovalTimeout, ConsentPolicy};
 use domain::permissions::Action;
 use domain::Repository;
 use server::platform::sessions::{launch_session, LaunchInput, SessionError};
-use server::state::new_session_registry;
+use server::state::{new_session_live_stream_registry, new_session_registry};
 
 #[derive(Clone)]
 struct Fixture {
@@ -227,7 +227,9 @@ async fn run_launch(
         f.audit.clone(),
         f.event_bus.clone(),
         new_session_registry(),
+        new_session_live_stream_registry(),
         16,
+        64,
         launch_input(f, now),
     )
     .await

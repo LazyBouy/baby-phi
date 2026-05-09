@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: live SSE tail at GET /api/v0/sessions/:id/events — operators now see events as they happen rather than only at session-end; CLI default-tail flips to real stream consumption; new --no-tail flag preserves the prior detach-equivalent behaviour. Drift D7.1 closed via ADR-0055; cycle hex 40c4d759.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: hard-deny launch gate post-CH-15 + Template A grant-seeding requirement for happy-path launches; D4.1 closed.) -->
 <!-- CH-02 amendment (2026-04-24): real `agent_loop()` + MockProvider expectations + `mock_response` operator field. Full prose tour deferred to M5-tag-close. -->
 <!-- CH-22 amendment (2026-04-27): note that catalog row gets seeded on first agent creation — visible side-effect users can verify post-launch. -->
@@ -53,6 +54,33 @@ Pre-CH-15, the launch handler advisory-logged every `Decision::Denied` from step
 If a launch unexpectedly returns 403 with a `PERMISSION_CHECK_FAILED_AT_STEP_2: NoGrantsHeld` body, the lead is missing the paired `session_object` grant — verify Template A's adoption AR is approved and `HasLeadEdgeCreated` was emitted at project creation.
 
 See [`session-launch.md`](../architecture/session-launch.md) Step 3 + [ADR-0054](../../m5_2/decisions/0054-session-launch-manifest-and-hard-deny-flip.md).
+
+## CH-17 amendment — live SSE tail (2026-05-09)
+
+Pre-CH-17, `phi session launch` printed `(live tail deferred to M7 — phi session show --id <id> inspects terminal state)` at line 228 of `cli/src/commands/session.rs` and operators only saw events post-finalisation via the `show` subcommand. CH-17 closes drift D7.1: a live SSE tail ships at `GET /api/v0/sessions/:id/events`.
+
+What changed in the operator workflow:
+
+- `phi session launch ...` (default) — events stream live as the agent_loop runs. The CLI subscribes to `/events`, prints each `AgentEvent` as it arrives (TurnStart, MessageUpdate, ContentBlock, TurnEnd, AgentEnd...), and exits when the SSE stream closes (session finalises) or you Ctrl-C.
+- `phi session launch --no-tail ...` — NEW flag. Returns the JSON receipt only; no live tail. Parallel to `--detach` (preserved for wire stability).
+- Direct `curl` works too:
+
+```bash
+curl -N http://localhost:8080/api/v0/sessions/<session-uuid>/events \
+  -H "Cookie: <your session cookie>"
+# event: agent_event
+# data: {"kind":"TurnStart",...}
+# event: agent_event
+# data: {"kind":"MessageUpdate",...}
+# (...)
+# : keep-alive   # every 30s when no events flow
+```
+
+The SSE gate uses `Action::Observe` on `session_object` (NOT the launch's `[Read, Inspect, List]`). Project leads automatically have observe-grants because Template A's mint extends to `[Read, Inspect, List, Observe]` post-CH-17 (migration `0016` backfills legacy holders). Other actors who need to tail sessions need an explicit observe-grant — debug 403s by checking the `permission_check.decision` body in the audit-event row `platform.session.live_stream_denied` (Alerted-class).
+
+Lagged consumers (slow client / LB hiccup) receive a typed `event: lagged` SSE event with the missed count, then the stream closes — reconnect to resume. See [`m5_2/operations/session-live-stream-operations.md`](../../m5_2/operations/session-live-stream-operations.md) for the full reconnect playbook + 410-on-finalised semantics.
+
+See [ADR-0055](../../m5_2/decisions/0055-sse-broadcast-fanout-and-keepalive.md) for the full design rationale (broadcast buffer = 64; 30s keep-alive; F5.B `Action::Observe` lock; F5.B.subfork.a migration 0016).
 
 ## CH-22 amendment — verifying catalog side-effects (2026-04-27)
 

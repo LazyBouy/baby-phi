@@ -8,22 +8,32 @@
 //! - `GET  /api/v0/projects/:project_id/sessions` — session header list.
 //! - `GET  /api/v0/sessions/:id/tools` — C-M5-4 tools resolver.
 
+use std::convert::Infallible;
+use std::time::Duration;
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::Utc;
 use domain::model::composites_m5::SessionDetail;
 use domain::model::ids::{AgentId, OrgId, ProjectId, SessionId};
+use futures::stream::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
 use tracing::error;
 
 use crate::handler_support::errors::ApiError;
 use crate::handler_support::session::AuthenticatedSession;
 use crate::platform::sessions::{
-    http_status_for, launch_session, list::list_sessions_in_project, preview_session, show_session,
-    terminate_session, tools::resolve_tools_for_session, wire_code_for, LaunchInput, LaunchReceipt,
-    PreviewInput, PreviewOutcome, SessionError, TerminateInput, TerminateOutcome, ToolSummary,
+    events::{open_live_stream, LiveStreamInput},
+    http_status_for, launch_session,
+    list::list_sessions_in_project,
+    preview_session, show_session, terminate_session,
+    tools::resolve_tools_for_session,
+    wire_code_for, LaunchInput, LaunchReceipt, PreviewInput, PreviewOutcome, SessionError,
+    TerminateInput, TerminateOutcome, ToolSummary,
 };
 use crate::state::AppState;
 
@@ -56,7 +66,9 @@ pub async fn launch(
         state.audit.clone(),
         state.event_bus.clone(),
         state.session_registry.clone(),
+        state.session_live_stream_registry.clone(),
         state.session_max_concurrent,
+        state.session_live_stream_buffer,
         LaunchInput {
             org_id,
             project_id,
@@ -184,6 +196,73 @@ pub async fn tools(
             .await
             .map_err(session_error_to_api)?;
     Ok((StatusCode::OK, Json(list)).into_response())
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/v0/sessions/:id/events — SSE live-event tail (CH-17)
+// ---------------------------------------------------------------------------
+
+/// CH-17 / ADR-0055 — operator-facing live transcript surface.
+///
+/// Subscribes to the per-session
+/// `tokio::sync::broadcast::Sender<phi_core::AgentEvent>` populated by
+/// the recorder's broadcast tap. Every event becomes an SSE `data:`
+/// JSON line on the wire.
+///
+/// 30-second keep-alive per ADR-0055 §D55.4. Lagging consumers
+/// receive a typed `lagged` SSE error event then the stream closes
+/// (ADR-0055 §D55.3).
+pub async fn events(
+    State(state): State<AppState>,
+    session: AuthenticatedSession,
+    Path(session_id): Path<SessionId>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    let subscription = open_live_stream(
+        state.repo.clone(),
+        state.audit.clone(),
+        state.session_live_stream_registry.clone(),
+        LiveStreamInput {
+            session_id,
+            actor: session.agent_id,
+            now: Utc::now(),
+        },
+    )
+    .await
+    .map_err(session_error_to_api)?;
+
+    let stream = BroadcastStream::new(subscription.receiver).map(
+        |result: Result<phi_core::types::event::AgentEvent, BroadcastStreamRecvError>| match result
+        {
+            Ok(event) => {
+                // Serialise the AgentEvent JSON and surface it as the
+                // SSE `data:` line. Failure to serialise is converted
+                // into a typed SSE error event so observers see the
+                // error rather than a silent close.
+                match serde_json::to_string(&event) {
+                    Ok(payload) => Ok(Event::default().event("agent_event").data(payload)),
+                    Err(e) => Ok(Event::default()
+                        .event("serialize_error")
+                        .data(format!("{{\"error\":\"{e}\"}}"))),
+                }
+            }
+            Err(BroadcastStreamRecvError::Lagged(missed)) => {
+                // CH-17 / ADR-0055 §D55.3 — slow consumer fell behind
+                // the broadcast buffer. Emit a typed `lagged` SSE
+                // error event then let the stream close (the
+                // BroadcastStream returns `None` on the next poll
+                // after a Lagged error).
+                Ok(Event::default()
+                    .event("lagged")
+                    .data(format!("{{\"missed\":{missed}}}")))
+            }
+        },
+    );
+
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(30))
+            .text(": keep-alive"),
+    ))
 }
 
 // ---------------------------------------------------------------------------

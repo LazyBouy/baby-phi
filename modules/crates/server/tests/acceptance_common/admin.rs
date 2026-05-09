@@ -566,7 +566,12 @@ pub async fn seed_template_a_grants_for_lead(project: &ClaimedProject) {
     let project_grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(project.project_lead),
-        action: vec![Action::Read, Action::Inspect, Action::List],
+        // CH-17 / ADR-0055 §D55.9 — Template A grants now mint
+        // `[Read, Inspect, List, Observe]` so the live-SSE gate at
+        // `GET /api/v0/sessions/:id/events` resolves at Step 3
+        // against the same paired session-object grant that the
+        // launch builder uses for `[Read, Inspect, List]`.
+        action: vec![Action::Read, Action::Inspect, Action::List, Action::Observe],
         resource: ResourceRef {
             uri: format!("project:{}", project.project_id),
         },
@@ -586,7 +591,8 @@ pub async fn seed_template_a_grants_for_lead(project: &ClaimedProject) {
     let session_grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(project.project_lead),
-        action: vec![Action::Read, Action::Inspect, Action::List],
+        // CH-17 / ADR-0055 §D55.9 — see project_grant comment above.
+        action: vec![Action::Read, Action::Inspect, Action::List, Action::Observe],
         resource: ResourceRef {
             uri: format!(
                 r#"tags contains "project:{}" AND tags contains #kind:session"#,

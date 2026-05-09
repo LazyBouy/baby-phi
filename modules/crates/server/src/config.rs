@@ -34,6 +34,11 @@ pub struct ServerConfig {
     /// is omitted.
     #[serde(default)]
     pub consent: ConsentConfig,
+    /// Per-session live-event broadcast tuning (CH-17 / ADR-0055
+    /// §D55.2). Defaults preserve the 64-event buffer if the
+    /// `[session_live_stream]` block is omitted.
+    #[serde(default)]
+    pub session_live_stream: SessionLiveStreamConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -244,6 +249,34 @@ impl Default for ConsentConfig {
 
 fn default_consent_sweeper_interval_secs() -> u64 {
     60
+}
+
+/// Per-session live-event broadcast tuning (CH-17 / ADR-0055 §D55.2).
+/// The recorder publishes every `phi_core::AgentEvent` it sees onto a
+/// `tokio::sync::broadcast::Sender<AgentEvent>` whose buffer this
+/// config sizes. Lagging consumers receive a typed `Lagged` SSE error
+/// event then close per ADR-0055 §D55.3.
+///
+/// Default 64 covers a single-machine dev-box with one or two slow
+/// SSE consumers per session. Tunable via
+/// `PHI_SESSION_LIVE_STREAM__BUFFER`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SessionLiveStreamConfig {
+    /// Broadcast channel buffer size. Default 64.
+    #[serde(default = "default_session_live_stream_buffer")]
+    pub buffer: usize,
+}
+
+impl Default for SessionLiveStreamConfig {
+    fn default() -> Self {
+        Self {
+            buffer: default_session_live_stream_buffer(),
+        }
+    }
+}
+
+fn default_session_live_stream_buffer() -> usize {
+    64
 }
 
 impl ServerConfig {

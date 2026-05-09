@@ -1339,12 +1339,17 @@ mod tests {
             "CH-15: paired (project_grant, session_grant) lead grants persisted"
         );
         for g in &grants {
+            // CH-17 / ADR-0055 §D55.9 — the lead grants now mint
+            // [Read, Inspect, List, Observe] (Observe appended at the
+            // tail) so the SSE gate's `[Observe]` manifest covers at
+            // Step 3 against this same grant pair.
             assert_eq!(
                 g.action,
                 vec![
                     crate::permissions::action::Action::Read,
                     crate::permissions::action::Action::Inspect,
                     crate::permissions::action::Action::List,
+                    crate::permissions::action::Action::Observe,
                 ]
             );
         }

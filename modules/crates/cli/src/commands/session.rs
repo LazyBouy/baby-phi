@@ -1,13 +1,15 @@
 //! `phi session` — first-session-launch subcommands (M5).
 //!
-//! **Shape at M5/P7:**
+//! **Shape at CH-17 (post-M5/P7):**
 //!
 //! - `phi session launch` — POST
 //!   `/api/v0/orgs/:org_id/projects/:project_id/sessions`; returns
-//!   immediately (server spawns the replay). `--detach` returns the
-//!   JSON receipt; the default shows human-friendly receipt lines.
-//!   (ADR-0031 live-tail is not wired — see drift D4.2 + D7 live tail
-//!   deferral; `phi session show` surfaces terminal state.)
+//!   the launch receipt then SUBSCRIBES to the live SSE tail at
+//!   `GET /api/v0/sessions/:id/events` (ADR-0055) by default. Each
+//!   `phi_core::AgentEvent` is rendered as a `>>` line. The stream
+//!   ends when the session finalises or the consumer Ctrl-Cs. Use
+//!   `--detach` (or `--no-tail`) to skip the tail and just print
+//!   the JSON receipt.
 //! - `phi session show` — GET `/api/v0/sessions/:id`; drills the
 //!   full `SessionDetail` down to loops / turns.
 //! - `phi session terminate` — POST
@@ -20,13 +22,12 @@
 //!
 //! ## phi-core leverage
 //!
-//! Q1 at M5/P7: **none**. The plan's Part 1.5 prediction of an
-//! `AgentEvent` import for SSE tail rendering did not land — the
-//! live-tail SSE endpoint is itself deferred (plan drift D4.2
-//! already documents that the real `agent_loop` call is M7+).
-//! Revisit at M7 when SSE lands; at that point a single
-//! `use phi_core::types::event::AgentEvent;` will deserialise the
-//! tail payload.
+//! Q1 at CH-17: **none in the CLI binary itself**. The SSE wire
+//! decoder works against the JSON shape verbatim (the server
+//! serialises `phi_core::types::event::AgentEvent` per ADR-0055
+//! §D55.6; the CLI consumes the JSON directly via a hand-rolled
+//! 30-line parser, no `phi_core` dependency added to the CLI
+//! crate's `[dependencies]`).
 
 use std::time::Duration;
 
@@ -43,13 +44,14 @@ use crate::session_store;
 /// Clap subcommand surface for `phi session`.
 #[derive(Debug, clap::Subcommand)]
 pub enum SessionCommand {
-    /// Launch a first session. **[M5/P7]**
+    /// Launch a first session. **[CH-17 — live SSE tail by default]**
     ///
-    /// Submits the launch request and surfaces the receipt. The
-    /// live-tail SSE path is deferred to M7 alongside the real
-    /// `agent_loop` invocation (plan drift D4.2). Use `phi session
-    /// show --id <id>` to inspect terminal state once the synthetic
-    /// replay completes.
+    /// Submits the launch request, prints the receipt, then
+    /// SUBSCRIBES to the live SSE tail at `GET
+    /// /api/v0/sessions/:id/events` (per ADR-0055). Each
+    /// `AgentEvent` is rendered as a `>>` line until the session
+    /// finalises or the consumer Ctrl-Cs. Use `--detach` (or
+    /// `--no-tail`) to skip the tail and just print the receipt.
     Launch {
         #[arg(long = "org-id")]
         org_id: String,
@@ -60,12 +62,16 @@ pub enum SessionCommand {
         /// Initial prompt the session runs against.
         #[arg(long)]
         prompt: String,
-        /// Return the JSON receipt without any human-readable
-        /// rendering. At M5/P7 every launch is effectively
-        /// detached (no live tail yet); the flag persists so the
-        /// wire is stable for M7 SSE integration.
+        /// Return the JSON receipt without subscribing to the live
+        /// SSE tail. Equivalent to the legacy "no live tail"
+        /// behaviour pre-CH-17; preserved for wire stability.
         #[arg(long)]
         detach: bool,
+        /// CH-17 — alias for `--detach`. Skip the live SSE tail.
+        /// Useful when chaining the launch into a downstream tool
+        /// that consumes the JSON receipt only.
+        #[arg(long = "no-tail")]
+        no_tail: bool,
         #[arg(long)]
         json: bool,
     },
@@ -118,6 +124,7 @@ pub async fn run(server_url_override: Option<String>, cmd: SessionCommand) -> i3
             agent_id,
             prompt,
             detach,
+            no_tail,
             json,
         } => {
             launch_impl(
@@ -126,7 +133,7 @@ pub async fn run(server_url_override: Option<String>, cmd: SessionCommand) -> i3
                 &project_id,
                 &agent_id,
                 &prompt,
-                detach,
+                detach || no_tail,
                 json,
             )
             .await
@@ -205,28 +212,106 @@ async fn launch_impl(
     };
     if json || detach {
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
-    } else {
-        println!("session launched");
-        if let Some(sid) = out["session_id"].as_str() {
-            println!("  id:              {sid}");
+        return EXIT_OK;
+    }
+    println!("session launched");
+    if let Some(sid) = out["session_id"].as_str() {
+        println!("  id:              {sid}");
+    }
+    if let Some(loop_id) = out["first_loop_id"].as_str() {
+        println!("  first loop:      {loop_id}");
+    }
+    if let Some(event_id) = out["session_started_event_id"].as_str() {
+        println!("  audit event:     {event_id}");
+    }
+    if let Some(decision) = out["permission_check"].as_object() {
+        let outcome = decision
+            .get("decision")
+            .and_then(|v| v.as_str())
+            .or_else(|| decision.get("outcome").and_then(|v| v.as_str()))
+            .unwrap_or("unknown");
+        println!("  permission:      {outcome}");
+    }
+    // CH-17 / ADR-0055 — subscribe to the live SSE tail. The stream
+    // ends when the session finalises (the broadcast Sender's
+    // receiver count drops to zero post-finalise) or the consumer
+    // disconnects (Ctrl-C / process exit). 410
+    // SESSION_LIVE_STREAM_UNAVAILABLE on a finalised session is
+    // surfaced as a one-line print + EXIT_OK (the receipt was
+    // delivered; the tail just races against finalisation).
+    let session_id = match out["session_id"].as_str() {
+        Some(s) => s,
+        None => return EXIT_OK,
+    };
+    println!("  -- live tail (Ctrl-C to detach; --no-tail to skip):");
+    let events_url = format!("{base}/api/v0/sessions/{}/events", urlencode(session_id));
+    consume_sse_tail(&client, &events_url).await
+}
+
+/// CH-17 / ADR-0055 — minimal SSE consumer.
+///
+/// Hand-rolled 30-line parser per plan §7 P3 (no `eventsource-stream`
+/// dep added to the CLI crate). Reads `data:` lines and prints the
+/// payload prefixed with `>>`. Quietly skips comment-keep-alive
+/// lines (`:` + 30s heartbeat per ADR-0055 §D55.4) and stream-end
+/// `event: lagged` typed errors with their missed-count payload.
+async fn consume_sse_tail(client: &reqwest::Client, url: &str) -> i32 {
+    let res = match client.get(url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("phi: SSE GET {url} failed: {e}");
+            return EXIT_TRANSPORT;
         }
-        if let Some(loop_id) = out["first_loop_id"].as_str() {
-            println!("  first loop:      {loop_id}");
+    };
+    let status = res.status();
+    if !status.is_success() {
+        // 403 / 404 / 410 surface as a one-line print + EXIT_OK if
+        // 410 (session finalised — receipt is still good); other
+        // statuses propagate as EXIT_REJECTED.
+        if status.as_u16() == 410 {
+            println!("  -- live tail unavailable (session finalised before subscribe)");
+            return EXIT_OK;
         }
-        if let Some(event_id) = out["session_started_event_id"].as_str() {
-            println!("  audit event:     {event_id}");
-        }
-        if let Some(decision) = out["permission_check"].as_object() {
-            let outcome = decision
-                .get("decision")
-                .and_then(|v| v.as_str())
-                .or_else(|| decision.get("outcome").and_then(|v| v.as_str()))
-                .unwrap_or("unknown");
-            println!("  permission:      {outcome}");
-        }
-        println!(
-            "  (live tail deferred to M7 — `phi session show --id <id>` inspects terminal state)",
+        eprintln!(
+            "  -- live tail returned HTTP {} ({})",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("")
         );
+        return EXIT_REJECTED;
+    }
+    use futures::StreamExt;
+    let mut bytes_stream = res.bytes_stream();
+    let mut buf = String::new();
+    while let Some(chunk) = bytes_stream.next().await {
+        let chunk = match chunk {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("  -- live tail stream error: {e}");
+                return EXIT_TRANSPORT;
+            }
+        };
+        let s = String::from_utf8_lossy(&chunk);
+        buf.push_str(&s);
+        // SSE frames end with a blank line (`\n\n`). Drain whole
+        // frames as they arrive.
+        while let Some(idx) = buf.find("\n\n") {
+            let frame = buf[..idx].to_string();
+            buf.drain(..idx + 2);
+            for line in frame.lines() {
+                if let Some(rest) = line.strip_prefix("data:") {
+                    println!(">> {}", rest.trim_start());
+                } else if let Some(rest) = line.strip_prefix("event:") {
+                    let kind = rest.trim();
+                    if kind == "lagged" {
+                        // Body of next data: line carries the
+                        // missed count; the println loop above
+                        // surfaces it. The stream closes on the
+                        // next poll per ADR-0055 §D55.3.
+                        println!("  -- live tail lagged (consumer fell behind buffer 64 — reconnect to resume)");
+                    }
+                }
+            }
+        }
     }
     EXIT_OK
 }

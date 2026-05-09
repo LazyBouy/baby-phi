@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: live SSE tail at `GET /api/v0/sessions/:id/events` shipped per ADR-0055; the `Default launch tails events live via SSE …` paragraph at lines 21–23 transitions from PLANNED to EXISTS; `--no-tail` flag added to `phi session launch` for operators who want the JSON receipt without the live tail (parallel to `--detach`). Drift D7.1 closed. Doc body is concept-aligned; the CLI binary now matches.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- CH-02 amendment (2026-04-24): `phi agent update --mock-response <str>` flag added (per-profile MockProvider override). -->
 <!-- CH-22 amendment (2026-04-27): catalog listener body shipped — `audit_mode` is server-side config (not a CLI flag), see `[listeners.catalog]` in config/default.toml. No new CLI surface. -->

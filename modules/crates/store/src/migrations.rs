@@ -156,6 +156,18 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "template_a_session_object_grant",
         sql: include_str!("../migrations/0015_template_a_session_object_grant.surql"),
     },
+    // CH-17 — Append `Action::Observe` to every legacy Template A
+    // grant (ADR-0055 §D55.9). Pre-CH-17 grants carried
+    // [read, inspect, list]; CH-17 extends `fire_grant_on_lead_assignment`
+    // to mint [read, inspect, list, observe] so the SSE live-event
+    // tail handler's `[Observe]`-only manifest covers at Step 3.
+    // Idempotent on re-run via the migration-runner ledger + the
+    // inline `array::find_index(action, "observe") = NONE` guard.
+    Migration {
+        version: 16,
+        slug: "template_a_session_object_grant_add_observe",
+        sql: include_str!("../migrations/0016_template_a_session_object_grant_add_observe.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

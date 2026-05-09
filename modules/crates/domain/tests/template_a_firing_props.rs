@@ -19,7 +19,8 @@
 //! Invariants pinned (50 proptest cases) — `grants[0]` is the
 //! project-resource grant:
 //! 1. `holder == Agent(args.lead)`.
-//! 2. `action == ["read", "inspect", "list"]` (stable order).
+//! 2. `action == ["read", "inspect", "list", "observe"]` (stable
+//!    order; `observe` appended at CH-17 / ADR-0055 §D55.9).
 //! 3. `resource.uri == "project:<project-uuid>"`.
 //! 4. `descends_from == Some(args.adoption_auth_request_id)`.
 //! 5. `delegable == false`.
@@ -27,6 +28,8 @@
 //! 7. `revoked_at.is_none()`.
 //! 8. Distinct `GrantId` across independent calls.
 //! 9. `grants.len() == 2` (CH-15 cardinality invariant).
+//! 10. CH-17 / ADR-0055 §D55.9 — both grants mint with `Action::Observe`
+//!     so the SSE `[Observe]` manifest covers at Step 3.
 
 use chrono::{DateTime, TimeZone, Utc};
 use domain::audit::AuditClass;
@@ -78,7 +81,8 @@ proptest! {
     }
 
     #[test]
-    fn action_is_read_inspect_list_in_stable_order(args in arb_args()) {
+    fn action_is_read_inspect_list_observe_in_stable_order(args in arb_args()) {
+        // CH-17 / ADR-0055 §D55.9 — Observe appended at the tail.
         let grants = fire_grant_on_lead_assignment(args);
         prop_assert_eq!(grants.len(), 2);
         prop_assert_eq!(
@@ -87,7 +91,26 @@ proptest! {
                 domain::permissions::Action::Read,
                 domain::permissions::Action::Inspect,
                 domain::permissions::Action::List,
+                domain::permissions::Action::Observe,
             ]
+        );
+    }
+
+    /// CH-17 / ADR-0055 §D55.9 — both grants (project + session-object)
+    /// mint with `Action::Observe` so the SSE handler's
+    /// `build_session_observe_manifest` (`[Observe]` on
+    /// `session_object`) covers at Step 3 against the second grant.
+    #[test]
+    fn mints_observe_action_in_both_grants(args in arb_args()) {
+        let grants = fire_grant_on_lead_assignment(args);
+        prop_assert_eq!(grants.len(), 2);
+        prop_assert!(
+            grants[0].action.contains(&domain::permissions::Action::Observe),
+            "project grant must include Observe per CH-17"
+        );
+        prop_assert!(
+            grants[1].action.contains(&domain::permissions::Action::Observe),
+            "session-object grant must include Observe per CH-17"
         );
     }
 

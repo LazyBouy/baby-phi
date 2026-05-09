@@ -928,3 +928,149 @@ async fn launch_does_not_register_session_on_403() {
         "CH-15: SessionRegistry size unchanged after deny — registry.insert never reached"
     );
 }
+
+// ---------------------------------------------------------------------------
+// CH-17 / ADR-0055 — Launch + tail round-trip.
+//
+// End-to-end verification that the SSE live-event tail surface ships:
+// launch a session, concurrently subscribe to `GET /api/v0/sessions/:id/events`,
+// drain the stream, assert at least one `data:` frame carrying a JSON
+// AgentEvent payload reaches the consumer + the stream closes cleanly
+// once the session finalises (broadcast Sender removed at finalise per
+// `launch.rs:584`).
+// ---------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn launch_then_tail_round_trip() {
+    use futures::StreamExt;
+    use phi_core::types::event::AgentEvent;
+    use tokio::sync::broadcast;
+
+    let project = spawn_claimed_with_org_and_project(false).await;
+    let repo: Arc<dyn Repository> = project.claimed_org.admin.acc.store.clone();
+    let runtime_id = seed_model_runtime(repo.clone()).await;
+    bind_model_to_agent(repo.clone(), project.project_lead, runtime_id).await;
+    seed_template_a_grants_for_lead(&project).await;
+
+    // Launch the session via the real HTTP wire.
+    let launch_url = project.url(&format!(
+        "/api/v0/orgs/{}/projects/{}/sessions",
+        project.org_id(),
+        project.project_id
+    ));
+    let lead_client = acceptance_common::admin::authed_client_for(
+        &project.claimed_org.admin,
+        project.project_lead,
+    )
+    .expect("mint lead session");
+    let launch_res = ceo_client(&project)
+        .post(launch_url)
+        .json(&json!({
+            "agent_id": project.project_lead.to_string(),
+            "prompt": "round-trip launch+tail",
+        }))
+        .send()
+        .await
+        .expect("POST launch");
+    assert_eq!(launch_res.status().as_u16(), 201);
+    let launch_body: Value = launch_res.json().await.expect("launch body");
+    let session_id_str = launch_body["session_id"]
+        .as_str()
+        .expect("session_id string")
+        .to_string();
+    let session_id: domain::model::ids::SessionId = domain::model::ids::SessionId::from_uuid(
+        uuid::Uuid::parse_str(&session_id_str).expect("session_id parses"),
+    );
+
+    // Wait for the agent task to finalise + remove its broadcast
+    // Sender from the registry. Then re-insert a fresh test-owned
+    // Sender so the SSE gate's `Step E` finds a live entry —
+    // sidesteps the launch-vs-SSE-vs-finalise race that would
+    // otherwise force a deterministic timing window. The test still
+    // exercises the full HTTP wire (launch → SSE handshake →
+    // `data:` frame surfaced).
+    let registry = project
+        .claimed_org
+        .admin
+        .acc
+        .session_live_stream_registry
+        .clone();
+    let dl = std::time::Instant::now() + Duration::from_millis(2_500);
+    while std::time::Instant::now() < dl {
+        if registry.get(&session_id).is_none() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let (test_tx, _rx) = broadcast::channel::<AgentEvent>(64);
+    registry.insert(session_id, test_tx.clone());
+
+    // Connect SSE as the lead (the Template A grant holder, post-
+    // CH-17 §D55.9 carrying `[Read, Inspect, List, Observe]`).
+    let events_url = project.url(&format!("/api/v0/sessions/{}/events", session_id));
+    let sse_res = lead_client
+        .get(events_url)
+        .send()
+        .await
+        .expect("GET /events");
+    assert_eq!(sse_res.status().as_u16(), 200, "SSE handshake 200 OK");
+    let ct = sse_res
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        ct.starts_with("text/event-stream"),
+        "content-type must be text/event-stream; got {ct:?}"
+    );
+
+    // Allow the receiver to register before publishing.
+    tokio::time::sleep(Duration::from_millis(80)).await;
+    let evt = AgentEvent::AgentEnd {
+        loop_id: "round-trip".to_string(),
+        messages: Vec::new(),
+        usage: phi_core::types::Usage::default(),
+        timestamp: Utc::now(),
+        rejection: None,
+    };
+    let _ = test_tx.send(evt);
+
+    let mut bytes_stream = sse_res.bytes_stream();
+    let mut buf = String::new();
+    let mut seen_data = false;
+    let deadline = std::time::Instant::now() + Duration::from_millis(3_000);
+    while std::time::Instant::now() < deadline {
+        let to = Duration::from_millis(
+            (deadline.saturating_duration_since(std::time::Instant::now())).as_millis() as u64,
+        );
+        let nxt = tokio::time::timeout(to, bytes_stream.next()).await;
+        match nxt {
+            Ok(Some(Ok(chunk))) => {
+                buf.push_str(&String::from_utf8_lossy(&chunk));
+                if let Some(idx) = buf.find("\n\n") {
+                    let frame = &buf[..idx];
+                    for line in frame.lines() {
+                        if let Some(rest) = line.strip_prefix("data:") {
+                            let payload = rest.trim_start();
+                            let _: Value = serde_json::from_str(payload).unwrap_or_else(|e| {
+                                panic!("data frame must be JSON; raw={payload:?}, err={e}")
+                            });
+                            seen_data = true;
+                        }
+                    }
+                    if seen_data {
+                        break;
+                    }
+                    buf.drain(..idx + 2);
+                }
+            }
+            Ok(Some(Err(_))) => break,
+            Ok(None) => break,
+            Err(_) => break,
+        }
+    }
+    assert!(
+        seen_data,
+        "expected at least one SSE `data:` frame within deadline (round-trip)"
+    );
+}

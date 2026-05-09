@@ -1046,6 +1046,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "domain",
+ "futures",
  "phi-core",
  "reqwest",
  "serde",
@@ -4606,6 +4607,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "tower 0.5.3",
  "tower-cookies",
@@ -5351,6 +5353,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

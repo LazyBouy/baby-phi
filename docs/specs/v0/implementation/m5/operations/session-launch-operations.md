@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: live SSE tail endpoint `GET /api/v0/sessions/:id/events` ships per ADR-0055 — operator-facing live transcript surface gated by `Action::Observe` on `session_object`; the wire returns 403 `PERMISSION_CHECK_FAILED_AT_STEP_<N>` on Decision::Denied (parallel to launch hard-deny) + emits the new `platform.session.live_stream_denied` (Alerted-class) audit event before returning Err; on success returns SSE with 30s keep-alive (`: keep-alive` text), broadcast buffer 64, lagged consumers receive a typed `event: lagged` SSE error then close. New 410 `SESSION_LIVE_STREAM_UNAVAILABLE` error for already-finalised sessions. New ops doc at `m5_2/operations/session-live-stream-operations.md` carries the full reconnect + lagged-receiver runbook.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: error-code reference table now reflects hard-deny at every step 0–6 per ADR-0054 §D54.6; Permission Check denial playbook updated to point at the m5_2 detailed runbook + Template A backfill migration; D4.1 advisory-mention removed.) -->
 <!-- CH-02 amendment (2026-04-24): synthetic feeder replaced with real `agent_loop()` + MockProvider; "Terminate-mid-turn not reflecting" playbook updated; new "MockProvider deterministic output" caveat. See §"CH-02 amendment" below. -->
 
@@ -33,8 +34,23 @@ full mapping lives in
 | 409 | `MODEL_RUNTIME_ARCHIVED` | Bound runtime row is archived | Re-bind to an active runtime |
 | 409 | `AGENT_PROFILE_MISSING` | Agent has no profile row yet | Create profile via update-agent path |
 | 409 | `SESSION_ALREADY_TERMINAL` | Session already Completed / Aborted / FailedLaunch | No action — terminal state is idempotent |
+| 410 | `SESSION_LIVE_STREAM_UNAVAILABLE` | SSE handler called but the session has already finalised — broadcast Sender already removed from `SessionLiveStreamRegistry`. Emitted by `GET /api/v0/sessions/:id/events`. | Re-fetch the terminal `SessionDetail` via `GET /api/v0/sessions/:id` instead of tailing live. Race-prone only if terminate beat the SSE connect; correct response for a finished session. |
 | 503 | `SESSION_WORKER_SATURATED` | Per-worker registry full | Tune `config.session.max_concurrent` |
 | 500 | `RECORDER_FAILURE` / `COMPOUND_TX_FAILURE` / `REPOSITORY_ERROR` / `AUDIT_EMIT_ERROR` / `SESSION_REPLAY_PANIC` | Internal failure | Check server logs + audit chain for replay |
+
+### CH-17 amendment — live SSE tail endpoint
+
+`GET /api/v0/sessions/:id/events` is a new SSE endpoint shipped at CH-17 (cycle hex `40c4d759`). It streams `phi_core::AgentEvent`s as `data:` JSON lines for the duration of the live session.
+
+| HTTP | Code / Header | Meaning | Fix |
+|---|---|---|---|
+| 200 | `Content-Type: text/event-stream` | Live tail subscribed; events flow until session finalises (Sender removed from registry → BroadcastStream ends) or the consumer disconnects. 30s keep-alive ping (`: keep-alive`). | — |
+| 403 | `PERMISSION_CHECK_FAILED_AT_STEP_<N>` | `Action::Observe` not granted on `session_object` for this actor; emits `platform.session.live_stream_denied` (Alerted) BEFORE returning. Most common reason on a CH-15-era DB: legacy Template A grants don't yet contain `"observe"` in their action arrays. | Run migration `0016_template_a_session_object_grant_add_observe.surql` (the migration runner applies it on next boot per ADR-0033 §D33.2 ledger pattern). For agents that need observability without Template A, mint an explicit grant via `POST /api/v0/grants` (M6+) or via an authority template that includes `observe`. |
+| 404 | `SESSION_NOT_FOUND` | Session id unknown to the repository | Verify the session id is correct |
+| 410 | `SESSION_LIVE_STREAM_UNAVAILABLE` | Session has finalised — broadcast registry has no Sender | Use `GET /api/v0/sessions/:id` for the terminal `SessionDetail` |
+| SSE event `lagged` | `data: {"missed": <count>}` | Consumer fell behind the broadcast buffer (size 64). The stream closes immediately after this event. | Reconnect; consider a lower-latency consumer or a longer in-flight buffer in your client |
+
+**Audit-event impact:** denials emit `platform.session.live_stream_denied` (parallel to `platform.session.launch_denied` at CH-15). Successes emit ZERO audit events (read-only stream). Builder at `domain/src/audit/events/m5_2/session_live_stream.rs::session_live_stream_denied`.
 
 ## Incident playbooks
 

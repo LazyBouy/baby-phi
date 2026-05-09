@@ -46,7 +46,9 @@ fn app_with(repo: Arc<InMemoryRepository>) -> Router {
         master_key: Arc::new(store::crypto::MasterKey::from_bytes([7u8; 32])),
         event_bus: Arc::new(domain::events::InProcessEventBus::new()),
         session_registry: server::state::new_session_registry(),
+        session_live_stream_registry: server::state::new_session_live_stream_registry(),
         session_max_concurrent: 16,
+        session_live_stream_buffer: 64,
     })
 }
 

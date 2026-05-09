@@ -8,7 +8,9 @@ use domain::events::{
 };
 use domain::model::ids::SessionId;
 use domain::Repository;
+use phi_core::types::event::AgentEvent;
 use store::crypto::MasterKey;
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::platform::projects::{
@@ -113,6 +115,98 @@ pub fn new_session_registry() -> Arc<dyn SessionRegistry> {
     Arc::new(InProcessSessionRegistry::new())
 }
 
+/// Per-session live-event broadcast registry — the substrate the
+/// CH-17 SSE tail endpoint reads from to fan out
+/// `phi_core::AgentEvent`s to one-to-many connected clients.
+///
+/// Trait-shaped per CH-K8S-PREP §D33.1's precedent so the M7b
+/// Redis-pub/sub-backed cross-pod fan-out (`CHK8S-D-10`) can swap a
+/// new impl in rather than refactor the SSE handler. The default
+/// impl [`InProcessSessionLiveStreamRegistry`] wraps a `DashMap`
+/// keyed on `SessionId`; each value is a
+/// `tokio::sync::broadcast::Sender<AgentEvent>` (cloning the Sender
+/// is cheap; subscribers call `.subscribe()` on the clone).
+///
+/// **Single-pod-only at v0.** Live events produced on pod A are not
+/// visible to SSE clients connected to pod B without Redis pub/sub
+/// fan-out — see CHK8S-D-10 in
+/// `m7b/architecture/deferred-from-ch-k8s-prep.md`.
+pub trait SessionLiveStreamRegistry: Send + Sync {
+    /// Register the broadcast Sender for a live session. Called by
+    /// the launch handler immediately before spawning the agent task
+    /// so the SSE handler can `.get()` and `.subscribe()` once the
+    /// session is in flight.
+    fn insert(&self, session_id: SessionId, tx: broadcast::Sender<AgentEvent>);
+
+    /// Return a clone of the registered Sender, if any. Callers
+    /// invoke `.subscribe()` on the returned Sender to obtain a fresh
+    /// `Receiver`. Returns `None` when no session is live for the id
+    /// (already finalised, or never launched).
+    fn get(&self, session_id: &SessionId) -> Option<broadcast::Sender<AgentEvent>>;
+
+    /// Atomically remove the registered Sender. The launch handler
+    /// invokes this after `recorder.finalise_and_persist()` so
+    /// subsequent SSE connections see the session as already
+    /// terminated.
+    fn remove(&self, session_id: &SessionId) -> Option<broadcast::Sender<AgentEvent>>;
+
+    /// Current count of live sessions tracked by this registry.
+    fn len(&self) -> usize;
+
+    /// `true` when no sessions are tracked.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// In-process [`SessionLiveStreamRegistry`] impl backed by `DashMap`
+/// for lock-free per-key access. The single-pod default.
+pub struct InProcessSessionLiveStreamRegistry {
+    inner: DashMap<SessionId, broadcast::Sender<AgentEvent>>,
+}
+
+impl InProcessSessionLiveStreamRegistry {
+    pub fn new() -> Self {
+        Self {
+            inner: DashMap::new(),
+        }
+    }
+}
+
+impl Default for InProcessSessionLiveStreamRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SessionLiveStreamRegistry for InProcessSessionLiveStreamRegistry {
+    fn insert(&self, session_id: SessionId, tx: broadcast::Sender<AgentEvent>) {
+        self.inner.insert(session_id, tx);
+    }
+
+    fn get(&self, session_id: &SessionId) -> Option<broadcast::Sender<AgentEvent>> {
+        self.inner
+            .get(session_id)
+            .map(|entry| entry.value().clone())
+    }
+
+    fn remove(&self, session_id: &SessionId) -> Option<broadcast::Sender<AgentEvent>> {
+        self.inner.remove(session_id).map(|(_k, v)| v)
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+/// Construct an empty in-process [`SessionLiveStreamRegistry`].
+/// Callers (boot site, acceptance tests) use this rather than
+/// importing `dashmap` directly so the dependency is confined to the
+/// server crate's `[dependencies]` block.
+pub fn new_session_live_stream_registry() -> Arc<dyn SessionLiveStreamRegistry> {
+    Arc::new(InProcessSessionLiveStreamRegistry::new())
+}
+
 /// Shared application state injected into every axum handler via
 /// `State<AppState>`.
 ///
@@ -137,6 +231,12 @@ pub fn new_session_registry() -> Arc<dyn SessionRegistry> {
 ///   inserts; `sessions::terminate` calls `cancel()` + removes. The
 ///   map's size is the platform-wide concurrency count for
 ///   ADR-0031's `SESSION_WORKER_SATURATED` gate.
+/// - `session_live_stream_registry` (CH-17 / ADR-0055 §D55.1) tracks
+///   the per-session `tokio::sync::broadcast::Sender<AgentEvent>` the
+///   recorder publishes into and the SSE handler subscribes from.
+///   Trait-shaped per CH-K8S-PREP §D33.1's precedent so the M7b
+///   Redis-pub/sub-backed cross-pod fan-out (CHK8S-D-10) can swap an
+///   impl in rather than refactor.
 #[derive(Clone)]
 pub struct AppState {
     pub repo: Arc<dyn Repository>,
@@ -145,11 +245,18 @@ pub struct AppState {
     pub master_key: Arc<MasterKey>,
     pub event_bus: Arc<dyn EventBus>,
     pub session_registry: Arc<dyn SessionRegistry>,
+    pub session_live_stream_registry: Arc<dyn SessionLiveStreamRegistry>,
     /// Platform-wide concurrency ceiling. When
     /// `session_registry.len() >= max_concurrent`, a new launch is
     /// refused with 503 `SESSION_WORKER_SATURATED`. Default 16
     /// (config/default.toml `[session] max_concurrent = 16`).
     pub session_max_concurrent: u32,
+    /// Per-session broadcast channel buffer size (CH-17 / ADR-0055
+    /// §D55.2). Default 64 (config/default.toml
+    /// `[session_live_stream] buffer = 64`). Lagging consumers receive
+    /// a typed `Lagged` SSE error event then close per ADR-0055
+    /// §D55.3.
+    pub session_live_stream_buffer: usize,
 }
 
 /// Build an [`InProcessEventBus`] with every M5-era listener
@@ -308,6 +415,60 @@ mod tests {
             token.is_cancelled(),
             "the original token sees the cancellation through the Arc"
         );
+
+        // Removing an unknown id is a no-op.
+        assert!(
+            registry.remove(&SessionId::new()).is_none(),
+            "remove on an unknown session_id yields None"
+        );
+    }
+
+    #[test]
+    fn in_process_session_live_stream_registry_round_trips_through_trait_object() {
+        // CH-17 / ADR-0055 §D55.1 — confirms trait-object dispatch
+        // preserves DashMap insert/get/remove/len semantics so the M7b
+        // Redis-pub/sub-backed swap (CHK8S-D-10) is a new impl, not a
+        // refactor. Mirrors the SessionRegistry trait-object test
+        // above (CH-K8S-PREP §D33.1 precedent).
+        let registry: Arc<dyn SessionLiveStreamRegistry> = new_session_live_stream_registry();
+        assert_eq!(registry.len(), 0, "fresh registry is empty");
+        assert!(registry.is_empty(), "fresh registry is_empty");
+
+        let session_id = SessionId::new();
+        let (tx, rx) = broadcast::channel::<AgentEvent>(64);
+        // Drop the launch-side initial receiver so the only receiver
+        // count comes from a downstream `.subscribe()` call below.
+        drop(rx);
+        assert_eq!(
+            tx.receiver_count(),
+            0,
+            "Sender starts with no live receivers after dropping the launch-side rx"
+        );
+        registry.insert(session_id, tx.clone());
+        assert_eq!(registry.len(), 1, "len reflects the inserted entry");
+
+        // get returns a clone of the registered Sender; subscribers
+        // call .subscribe() on the returned clone.
+        let cloned = registry.get(&session_id).expect("registered Sender");
+        let _rx2 = cloned.subscribe();
+        assert_eq!(
+            tx.receiver_count(),
+            1,
+            "subscribe via get() clone bumps the original's receiver count"
+        );
+
+        // get on an unknown id returns None.
+        assert!(
+            registry.get(&SessionId::new()).is_none(),
+            "get on unknown session_id yields None"
+        );
+
+        // remove yields the original Sender + drops the registry entry.
+        let removed = registry
+            .remove(&session_id)
+            .expect("remove returns the inserted Sender");
+        let _ = removed; // discard
+        assert_eq!(registry.len(), 0, "len drops back to zero after remove");
 
         // Removing an unknown id is a no-op.
         assert!(

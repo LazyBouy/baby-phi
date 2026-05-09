@@ -33,6 +33,20 @@
 //! materialise). P3 ships the terminal-state-only sink, which is the
 //! piece the governance event bus + memory-extraction listener
 //! need to function end-to-end.
+//!
+//! ## CH-17 / ADR-0055 §D55.1 broadcast tap
+//!
+//! `BabyPhiSessionRecorder.broadcast_tx` is an optional
+//! `tokio::sync::broadcast::Sender<phi_core::AgentEvent>` the launch
+//! handler attaches via [`BabyPhiSessionRecorder::with_broadcast`].
+//! When present, every `on_phi_core_event` call publishes the same
+//! `AgentEvent` onto the channel after the inner recorder has
+//! consumed it; the SSE handler at
+//! `server::platform::sessions::events` subscribes from this Sender
+//! to fan out events to one-to-many connected clients. Send failures
+//! (no live receivers) are silently ignored — the recorder's
+//! persistence path is the source-of-truth for terminal session state
+//! and never blocks on stream consumers.
 
 use std::sync::{Arc, Mutex};
 
@@ -40,6 +54,7 @@ use chrono::{DateTime, Utc};
 
 use phi_core::session::recorder::SessionRecorder as PhiCoreSessionRecorder;
 use phi_core::types::event::AgentEvent as PhiCoreAgentEvent;
+use tokio::sync::broadcast;
 
 use crate::audit::AuditEmitter;
 use crate::events::{DomainEvent, EventBus};
@@ -98,6 +113,12 @@ pub struct BabyPhiSessionRecorder {
     /// guards against double-emission on restarts / mid-stream
     /// re-entry.
     started_emitted: Arc<Mutex<bool>>,
+    /// CH-17 / ADR-0055 §D55.1 — optional broadcast tap. When `Some`,
+    /// every `on_phi_core_event` call publishes the same event onto
+    /// this Sender so the SSE handler can fan out a clone of the
+    /// stream to connected clients. `None` preserves pre-CH-17
+    /// behaviour exactly (no broadcast attempt).
+    broadcast_tx: Option<broadcast::Sender<PhiCoreAgentEvent>>,
 }
 
 impl BabyPhiSessionRecorder {
@@ -114,7 +135,19 @@ impl BabyPhiSessionRecorder {
             event_bus,
             ctx,
             started_emitted: Arc::new(Mutex::new(false)),
+            broadcast_tx: None,
         }
+    }
+
+    /// CH-17 / ADR-0055 §D55.1 — attach a broadcast Sender so the SSE
+    /// handler can fan out the per-session event stream. Builder
+    /// pattern preserves the existing `new` signature; pre-CH-17
+    /// callsites that don't need the tap continue to compile
+    /// untouched.
+    #[must_use]
+    pub fn with_broadcast(mut self, tx: broadcast::Sender<PhiCoreAgentEvent>) -> Self {
+        self.broadcast_tx = Some(tx);
+        self
     }
 
     /// Accept a single phi-core event.
@@ -123,6 +156,12 @@ impl BabyPhiSessionRecorder {
     ///   owns state-machine semantics).
     /// - On the first `AgentStart` for this context's session, emits
     ///   `DomainEvent::SessionStarted`.
+    /// - When a CH-17 / ADR-0055 §D55.1 broadcast tap is attached,
+    ///   publishes a clone of the event onto the per-session
+    ///   `tokio::sync::broadcast::Sender`. Send failures (no live
+    ///   receivers) are silently ignored — the recorder's persistence
+    ///   path is the source-of-truth for terminal session state and
+    ///   never blocks on stream consumers.
     pub async fn on_phi_core_event(&self, event: PhiCoreAgentEvent) {
         let is_agent_start_for_ctx = matches!(
             &event,
@@ -132,7 +171,19 @@ impl BabyPhiSessionRecorder {
 
         {
             let mut rec = self.inner.lock().expect("recorder lock poisoned");
-            rec.on_event(event);
+            rec.on_event(event.clone());
+        }
+
+        // CH-17 / ADR-0055 §D55.1 — broadcast tap publish (after the
+        // inner recorder consumed the event). When no tap is
+        // attached, this is a zero-overhead `is_some` check.
+        if let Some(tx) = &self.broadcast_tx {
+            // `send` returns `Err(SendError)` only when there are
+            // zero live receivers; that's expected at session-start
+            // before any SSE client has connected, and at session-end
+            // after the last client disconnects. Drop the error
+            // silently — the persistence path is unaffected.
+            let _ = tx.send(event);
         }
 
         if is_agent_start_for_ctx {
@@ -583,6 +634,98 @@ mod tests {
             .filter(|e| matches!(e, DomainEvent::SessionStarted { .. }))
             .count();
         assert_eq!(started_count, 1, "session_started de-duplicated");
+    }
+
+    /// CH-17 / ADR-0055 §D55.1 — when a broadcast tap is attached,
+    /// `on_phi_core_event` publishes every event onto the Sender so
+    /// the SSE handler can fan it out. Subscribers receive a clone of
+    /// the same `AgentEvent` the inner recorder consumed.
+    #[tokio::test]
+    async fn broadcast_tap_emits_events_when_sender_attached() {
+        let (repo, _capture, bus, ctx) = fixture();
+        let audit: Arc<dyn AuditEmitter> = Arc::new(NoopAudit);
+        let (tx, mut rx) = broadcast::channel::<PhiCoreAgentEvent>(16);
+        let recorder =
+            BabyPhiSessionRecorder::new(repo, audit, bus, ctx.clone()).with_broadcast(tx);
+
+        let now = Utc::now();
+        let loop_id = format!("{}.cfg.0", ctx.phi_core_session_id);
+        recorder
+            .on_phi_core_event(PhiCoreAgentEvent::AgentStart {
+                agent_id: "agent-broadcast".to_string(),
+                session_id: ctx.phi_core_session_id.clone(),
+                loop_id: loop_id.clone(),
+                parent_loop_id: None,
+                continuation_kind: ContinuationKind::Initial,
+                timestamp: now,
+                metadata: None,
+                config_snapshot: None,
+            })
+            .await;
+        recorder
+            .on_phi_core_event(PhiCoreAgentEvent::TurnStart {
+                loop_id: loop_id.clone(),
+                turn_index: 0,
+                timestamp: now,
+                triggered_by: TurnTrigger::User,
+            })
+            .await;
+
+        let evt1 = rx.try_recv().expect("first event delivered to subscriber");
+        match evt1 {
+            PhiCoreAgentEvent::AgentStart { session_id, .. } => {
+                assert_eq!(session_id, ctx.phi_core_session_id);
+            }
+            other => panic!("expected AgentStart broadcast, got {other:?}"),
+        }
+        let evt2 = rx.try_recv().expect("second event delivered to subscriber");
+        match evt2 {
+            PhiCoreAgentEvent::TurnStart {
+                loop_id: lid,
+                turn_index,
+                ..
+            } => {
+                assert_eq!(lid, loop_id);
+                assert_eq!(turn_index, 0);
+            }
+            other => panic!("expected TurnStart broadcast, got {other:?}"),
+        }
+    }
+
+    /// CH-17 / ADR-0055 §D55.1 — when no broadcast tap is attached
+    /// (the default `BabyPhiSessionRecorder::new` path), the recorder
+    /// behaves exactly as pre-CH-17. No external observable
+    /// side-effects beyond the inner recorder + governance bus emit.
+    #[tokio::test]
+    async fn broadcast_tap_is_zero_overhead_when_sender_absent() {
+        let (repo, capture, bus, ctx) = fixture();
+        let audit: Arc<dyn AuditEmitter> = Arc::new(NoopAudit);
+        let recorder = BabyPhiSessionRecorder::new(repo, audit, bus, ctx.clone());
+
+        let now = Utc::now();
+        let loop_id = format!("{}.cfg.0", ctx.phi_core_session_id);
+        recorder
+            .on_phi_core_event(PhiCoreAgentEvent::AgentStart {
+                agent_id: "agent-no-broadcast".to_string(),
+                session_id: ctx.phi_core_session_id.clone(),
+                loop_id,
+                parent_loop_id: None,
+                continuation_kind: ContinuationKind::Initial,
+                timestamp: now,
+                metadata: None,
+                config_snapshot: None,
+            })
+            .await;
+
+        // The governance bus saw exactly one SessionStarted (pre-CH-17
+        // invariant); no other side-effects beyond the inner recorder.
+        let captured = capture.events.lock().unwrap().clone();
+        assert_eq!(
+            captured.len(),
+            1,
+            "absent broadcast tap preserves pre-CH-17 governance-bus shape"
+        );
+        assert!(matches!(&captured[0], DomainEvent::SessionStarted { .. }));
     }
 
     #[tokio::test]

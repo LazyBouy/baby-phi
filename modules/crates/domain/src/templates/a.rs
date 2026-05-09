@@ -88,11 +88,12 @@ pub struct FireArgs {
 /// per CH-14 retro v7). Two grants are minted per `HAS_LEAD` edge:
 ///
 /// 1. `grants[0]` — the **project-resource grant** (preserved
-///    verbatim from pre-CH-15 shape; `[read, inspect, list]` on
-///    `project:<uuid>` with `fundamentals = [Tag]`).
-/// 2. `grants[1]` — the NEW **session-object grant** covering session
-///    instances tagged `project:<uuid>` (`[read, inspect, list]` on
-///    `session_object/project:<uuid>` selector form with
+///    verbatim from pre-CH-15 shape; `[read, inspect, list, observe]`
+///    on `project:<uuid>` with `fundamentals = [Tag]` —
+///    `Action::Observe` appended at CH-17 / ADR-0055 §D55.9).
+/// 2. `grants[1]` — the **session-object grant** covering session
+///    instances tagged `project:<uuid>` (`[read, inspect, list,
+///    observe]` on `session_object/project:<uuid>` selector form with
 ///    `fundamentals = [DataObject, Tag]` per concept doc 01 §"Composite
 ///    Classes" — `SessionObject` expands to `[DataObject, Tag]`).
 ///
@@ -103,11 +104,22 @@ pub struct FireArgs {
 /// `resource.uri` + `fundamentals`. The `id` is freshly minted for
 /// each grant.
 ///
+/// **CH-17 / ADR-0055 §D55.9** — `Action::Observe` was appended at
+/// CH-17 to cover the SSE live-event tail manifest
+/// `[Observe]` on `session_object`. Concept doc 03 §"Action ×
+/// Fundamental Applicability Matrix" line 44 makes Observability
+/// universal across every fundamental; the lead's "live-watch"
+/// authority over project sessions follows naturally. Migration 0016
+/// backfills the same `"observe"` action onto every legacy Template A
+/// grant (idempotent, forward-only) so pre-CH-17 grants honour the
+/// SSE manifest after upgrade.
+///
 /// Grant-shape invariants pinned by the
 /// `template_a_fire_grant_shape_props` proptest at 50 cases (now
 /// asserting `grants.len() == 2` + per-grant invariants):
 /// - `grants[0].holder == grants[1].holder == PrincipalRef::Agent(args.lead)`.
-/// - Both grants' `action == [Read, Inspect, List]` (stable order).
+/// - Both grants' `action == [Read, Inspect, List, Observe]` (stable
+///   order; CH-17 appends Observe at the tail).
 /// - `grants[0].resource.uri == "project:<uuid>"`.
 /// - `grants[1].resource.uri == "session_object/project:<uuid>"` —
 ///   the selector-form URI matches concept doc 07 §"Template A —
@@ -140,6 +152,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Vec<Grant> {
             crate::permissions::action::Action::Read,
             crate::permissions::action::Action::Inspect,
             crate::permissions::action::Action::List,
+            crate::permissions::action::Action::Observe,
         ],
         resource: ResourceRef {
             uri: format!("project:{project}"),
@@ -169,6 +182,9 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Vec<Grant> {
     // against the synthetic launch ToolCall's `target_tags` set
     // (which the launch handler populates with `project:<uuid>` +
     // `org:<uuid>` + `#kind:session` per ADR-0054 §D54.1).
+    //
+    // CH-17 / ADR-0055 §D55.9 — `Action::Observe` appended so the SSE
+    // gate's `[Observe]` manifest covers at Step 3.
     let session_grant = Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(lead),
@@ -176,6 +192,7 @@ pub fn fire_grant_on_lead_assignment(args: FireArgs) -> Vec<Grant> {
             crate::permissions::action::Action::Read,
             crate::permissions::action::Action::Inspect,
             crate::permissions::action::Action::List,
+            crate::permissions::action::Action::Observe,
         ],
         resource: ResourceRef {
             uri: format!(r#"tags contains "project:{project}" AND tags contains #kind:session"#),
@@ -248,7 +265,10 @@ mod tests {
     }
 
     #[test]
-    fn fire_grant_action_is_read_inspect_list_in_stable_order() {
+    fn fire_grant_action_is_read_inspect_list_observe_in_stable_order() {
+        // CH-17 / ADR-0055 §D55.9 — `Action::Observe` appended at the
+        // tail. Stable order pins the wire-shape Migration 0016
+        // backfills onto legacy grants.
         let grants = fire_grant_on_lead_assignment(fire_args());
         for g in &grants {
             assert_eq!(
@@ -257,6 +277,7 @@ mod tests {
                     crate::permissions::action::Action::Read,
                     crate::permissions::action::Action::Inspect,
                     crate::permissions::action::Action::List,
+                    crate::permissions::action::Action::Observe,
                 ]
             );
         }
@@ -324,8 +345,12 @@ mod tests {
         );
     }
 
-    /// CH-15 back-compat: the first grant's shape matches the
-    /// pre-CH-15 single-grant shape exactly.
+    /// CH-15 back-compat → CH-17 extension: the first grant's
+    /// resource + fundamentals + holder match pre-CH-15 shape exactly;
+    /// the action set extends with `Action::Observe` at the tail per
+    /// CH-17 / ADR-0055 §D55.9. Migration 0016 backfills the same
+    /// `"observe"` onto every legacy Template A grant so the wire
+    /// shape converges across fresh and upgraded DBs.
     #[test]
     fn fire_grant_first_grant_unchanged_from_pre_ch15_shape() {
         let a = fire_args();
@@ -340,6 +365,7 @@ mod tests {
                 crate::permissions::action::Action::Read,
                 crate::permissions::action::Action::Inspect,
                 crate::permissions::action::Action::List,
+                crate::permissions::action::Action::Observe,
             ]
         );
         match g0.holder {
