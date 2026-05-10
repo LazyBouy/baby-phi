@@ -8,6 +8,7 @@
 //! overlap the M5 session-end + agent-creation txs but were not in
 //! M5's original scope.
 
+pub mod auth_request_access;
 pub mod identity;
 pub mod memory;
 pub mod session_launch;

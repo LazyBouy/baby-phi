@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-18 P3 amendment — auth_request.access_denied troubleshooting (2026-05-09): new subsection `## CH-18 amendment — auth_request.access_denied troubleshooting (2026-05-09)` documenting the Alerted-class `auth_request.access_denied` audit-event introduced by ADR-0056 §D56.6. The amendment covers (a) the 4xx `ACCESS_DENIED` symptom-class for AR-mutation rejections at `templates/{approve,deny,revoke}.rs` + `projects/create.rs` slot-fill mutation, (b) the silent-list-filter behaviour at the 5 read-side callsites per F3.B.list-filter.a (operator sees fewer ARs than DB rows for non-admin viewers — intentional, no audit-event), (c) the 5 typed-error variants of `AuthRequestAccessError` mapping to operator narratives, (d) the admin/auditor read-bypass deferral via `D-CH18-FOLLOWUP-01` (M6+). Pairs with `m5_2/operations/auth-request-access-acl-operations.md` (full operator runbook) + `m5_2/architecture/auth-request-access-acl.md` (design page) + ADR-0056. Cycle hex c77937bc.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: new troubleshooting section for hard-deny launch gate post-ADR-0054 §D54.6 — common 403 cause is Step 2 NoGrantsHeld; remediation via Template A grant seeding or migration `0015` backfill.) -->
 <!-- CH-01 + CH-22 amendments (2026-04-27): durable disable/archive semantics + agent-catalog audit-mode + new "catalog row stale" symptom. See §"CH-01 + CH-22 amendments" below. Full M5/P9 stable-code table still deferred to M5-tag-close. -->
 <!-- CH-06 amendment (2026-04-28): selector parse-error troubleshooting. See §"CH-06 amendment — selector parse errors" below. -->
@@ -103,6 +104,20 @@ CH-15 (drift D4.1 closure) flips Permission Check at session launch from advisor
 
 For the per-step deny playbook + audit-event dictionary entry see [m5_2/operations/session-launch-permission-gate-operations.md](../../m5_2/operations/session-launch-permission-gate-operations.md).
 
+## CH-18 amendment — auth_request.access_denied troubleshooting (2026-05-09)
+
+CH-18 (drift D-new-12 closure, ADR-0056) lands the AuthRequest per-state ACL enforcement: the typed predicate `domain::auth_requests::access::check_auth_request_access` gates 17 production callsites (4 mutation + 5 read + 8 submit). Mutation callsites that reject the principal emit a new Alerted-class `auth_request.access_denied` audit-event.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `POST /v0/templates/.../{approve,deny,revoke}` returns 4xx `ACCESS_DENIED` | Principal X is not authorised for the AR's current state × intended op cell of concept doc 02's per-state matrix. Most common: X is not a slot-approver and not the AR's requestor. | Verify principal is in `ar.resource_slots[*].approvers[*]` for slot ops or is `ar.requestor` for owner ops. The `auth_request.access_denied` audit-event's `error_kind` field tells you which deny class fired (`not_authorised_for_modify` / `unfilled_approver_slot_only` / `requestor_only_operation` / `operation_forbidden_in_state` / `not_authorised_for_read`). |
+| Slot-approver who has already filled their slot gets `ACCESS_DENIED` on retry | `error_kind == unfilled_approver_slot_only` — once a slot is filled, the matrix's legal op for the slot-holder is `Reconsider` (re-edit own slot until closed-terminal), not `Approve` / `Deny` again. | Use the Reconsider endpoint, not Approve / Deny. |
+| Dashboard shows fewer ARs than the DB has for a non-admin viewer | **Intentional behaviour** per F3.B.list-filter.a (silent post-filter at `dashboard.rs:273,293` + `show.rs:63`). Non-requestor / non-slot-approver / non-bootstrap viewers see strictly fewer ARs. | If the viewer should see all ARs (compliance-audit use case), this is the `D-CH18-FOLLOWUP-01` deferral — admin/auditor read-bypass tracked at M6+ admin-classifier wiring. |
+| Admin (org CEO) gets denied reading another agent's AR | `error_kind == not_authorised_for_read` — CH-18 classifies all non-requestor / non-slot-approver / non-bootstrap principals as "Other Agent" → DENY. Admin/auditor classification is deferred to M6+ via `D-CH18-FOLLOWUP-01`. | M6+ admin-classifier wiring will add an `Agent.role` lookup OR Permission Check delegation. At v2 the deny is intentional. |
+| `auth_request.access_denied` audit-event volume spikes post-deploy | UI bug allowing the "approve" / "deny" / "revoke" button to render for non-slot-approvers (the silent list-filter should have hidden the AR before the click). OR a bot invoking AR mutations with the wrong principal. | Verify the dashboard list-filter is wired (`viewer_agent_id` plumbed through `dashboard.rs::compute_dashboard_summary` to the post-filter). Audit `actor_agent_id` distribution in the audit events. |
+
+For the full operator runbook + 5-variant typed-error reference + audit-event dictionary entry see [m5_2/operations/auth-request-access-acl-operations.md](../../m5_2/operations/auth-request-access-acl-operations.md).
+
 ## Cross-references
 
 - [Top-level runbook §M5](../../../../../../docs/ops/runbook.md) — operator-facing aggregated index (appended at P9).
@@ -111,3 +126,4 @@ For the per-step deny playbook + audit-event dictionary entry see [m5_2/operatio
 - [M5.2 selector-grammar-operations](../../m5_2/operations/selector-grammar-operations.md) — CH-06 selector parse error runbook.
 - [M5.2 identity-operations](../../m5_2/operations/identity-operations.md) — CH-16 Identity row runbook.
 - [M5.2 memory-extraction-operations](../../m5_2/operations/memory-extraction-operations.md) — CH-21 memory-extraction listener runbook.
+- [M5.2 auth-request-access-acl-operations](../../m5_2/operations/auth-request-access-acl-operations.md) — CH-18 AuthRequest per-state ACL operator runbook + 5-variant typed-error reference + `auth_request.access_denied` audit-event dictionary.

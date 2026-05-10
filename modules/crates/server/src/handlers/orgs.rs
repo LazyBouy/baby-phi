@@ -213,10 +213,10 @@ pub async fn dashboard(
 
 pub async fn show(
     State(state): State<AppState>,
-    _session: AuthenticatedSession,
+    session: AuthenticatedSession,
     Path(id): Path<OrgId>,
 ) -> Result<Response, ApiError> {
-    let maybe = show_organization(state.repo.clone(), id)
+    let maybe = show_organization(state.repo.clone(), id, session.agent_id)
         .await
         .map_err(error_to_api_error)?;
     match maybe {

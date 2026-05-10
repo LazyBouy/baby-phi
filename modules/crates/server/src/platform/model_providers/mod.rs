@@ -68,6 +68,13 @@ pub enum ProviderError {
     SecretRefNotFound(String),
     /// No provider matches the supplied id.
     NotFound(ModelProviderId),
+    /// HTTP 403 — caller is not authorised for the (state, intended_op)
+    /// cell of the AR per-state access matrix per CH-18 / ADR-0056
+    /// §D56.5 (F3.B.create-side.a defence-in-depth check). Currently
+    /// unreachable in production code; future refactors that source
+    /// `ar.requestor` from a different field than `input.actor` would
+    /// surface here.
+    AccessDenied(domain::auth_requests::access::AuthRequestAccessError),
     /// Repository returned an error.
     Repository(String),
     /// Audit emitter returned an error.
@@ -88,6 +95,7 @@ impl std::fmt::Display for ProviderError {
                 write!(f, "secret_ref `{s}` not found in vault")
             }
             ProviderError::NotFound(id) => write!(f, "no model provider with id `{id}`"),
+            ProviderError::AccessDenied(e) => write!(f, "AR access denied: {e}"),
             ProviderError::Repository(m) => write!(f, "repository: {m}"),
             ProviderError::AuditEmit(m) => write!(f, "audit emit: {m}"),
         }
@@ -99,6 +107,12 @@ impl std::error::Error for ProviderError {}
 impl From<domain::repository::RepositoryError> for ProviderError {
     fn from(e: domain::repository::RepositoryError) -> Self {
         ProviderError::Repository(e.to_string())
+    }
+}
+
+impl From<domain::auth_requests::access::AuthRequestAccessError> for ProviderError {
+    fn from(e: domain::auth_requests::access::AuthRequestAccessError) -> Self {
+        ProviderError::AccessDenied(e)
     }
 }
 

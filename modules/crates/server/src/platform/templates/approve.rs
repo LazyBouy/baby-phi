@@ -10,10 +10,12 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use domain::audit::events::m5_2::auth_request_access::auth_request_access_denied;
 use domain::audit::AuditEmitter;
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::auth_requests::transition_slot;
 use domain::model::ids::{AgentId, AuditEventId, OrgId};
-use domain::model::nodes::{ApproverSlotState, AuthRequestState, TemplateKind};
+use domain::model::nodes::{ApproverSlotState, AuthRequestState, PrincipalRef, TemplateKind};
 use domain::Repository;
 use serde::{Deserialize, Serialize};
 
@@ -70,6 +72,28 @@ pub async fn approve_adoption_ar(
         | AuthRequestState::Pending
         | AuthRequestState::InProgress
         | AuthRequestState::Partial => {}
+    }
+
+    // CH-18 / ADR-0056 §D56.6 — gate the mutation on the per-state
+    // access matrix. On Err, emit the Alerted-class
+    // `auth_request.access_denied` audit event, then surface the typed
+    // error to the caller.
+    if let Err(access_err) =
+        check_auth_request_access(&ar, &PrincipalRef::Agent(input.actor), IntendedOp::Approve)
+    {
+        let event = auth_request_access_denied(
+            input.actor,
+            ar.id,
+            input.org_id,
+            &access_err,
+            IntendedOp::Approve,
+            input.now,
+        );
+        audit
+            .emit(event)
+            .await
+            .map_err(|e| TemplateError::AuditEmit(e.to_string()))?;
+        return Err(TemplateError::AccessDenied(access_err));
     }
 
     // Adoption ARs have a single resource slot + a single

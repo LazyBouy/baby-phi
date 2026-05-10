@@ -23,8 +23,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use domain::audit::events::m2::mcp as mcp_events;
 use domain::audit::{AuditClass, AuditEmitter};
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::model::ids::{AgentId, GrantId, McpServerId};
-use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
+use domain::model::nodes::{AuthRequest, AuthRequestState, Grant, PrincipalRef, ResourceRef};
 use domain::model::{
     Composite, ExternalService, ExternalServiceKind, Fundamental, RuntimeStatus, SecretRef,
     TenantSet,
@@ -87,6 +88,18 @@ pub async fn register_mcp_server(
         now: input.now,
     });
     let auth_request_id = ar.id;
+
+    // CH-18 / ADR-0056 §D56.5 + F3.B.create-side.a — defence-in-depth
+    // Submit gate (synthetic-Draft probe — see `defaults/put.rs`).
+    let probe = AuthRequest {
+        state: AuthRequestState::Draft,
+        ..ar.clone()
+    };
+    check_auth_request_access(
+        &probe,
+        &PrincipalRef::Agent(input.actor),
+        IntendedOp::Submit,
+    )?;
 
     // 4. Persist sequentially.
     repo.create_auth_request(&ar).await?;

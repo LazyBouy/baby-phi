@@ -38,7 +38,9 @@ use chrono::{DateTime, Utc};
 use domain::audit::events::m4::projects::{
     project_created, project_creation_denied, project_creation_pending,
 };
+use domain::audit::events::m5_2::auth_request_access::auth_request_access_denied;
 use domain::audit::{AuditClass, AuditEmitter};
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::auth_requests::transitions::transition_slot;
 use domain::events::{DomainEvent, EventBus};
 use domain::model::composites_m4::{KeyResult, Objective, ResourceBoundaries};
@@ -467,6 +469,27 @@ async fn submit_shape_b(
     let ar =
         build_shape_b_auth_request(&input, [approver_a, approver_b], [org_a, org_b], input.now);
     let ar_id = ar.id;
+
+    // CH-18 / ADR-0056 §D56.5 + F3.B.create-side.a — defence-in-depth
+    // Submit gate. Shape B ARs are constructed in `Pending` state; the
+    // matrix's Submit cell is in the Draft row, so we probe a
+    // synthetic-Draft view of the AR (the AR's `requestor` field is
+    // `PrincipalRef::Agent(input.actor)` by construction at
+    // `build_shape_b_auth_request`, so the check returns Ok via the
+    // Requestor classification). A future refactor sourcing
+    // `requestor` from a different field would surface as
+    // `RequestorOnlyOperation`. No audit-event emission per F5.B
+    // (submit-side is silent defence-in-depth).
+    let probe = AuthRequest {
+        state: AuthRequestState::Draft,
+        ..ar.clone()
+    };
+    check_auth_request_access(
+        &probe,
+        &PrincipalRef::Agent(input.actor),
+        IntendedOp::Submit,
+    )?;
+
     repo.create_auth_request(&ar)
         .await
         .map_err(|e| ProjectError::Repository(e.to_string()))?;
@@ -637,6 +660,41 @@ pub async fn approve_pending_shape_b(
         .await
         .map_err(|e| ProjectError::Repository(e.to_string()))?
         .ok_or(ProjectError::PendingArNotFound(input.ar_id))?;
+
+    // CH-18 / ADR-0056 §D56.5 — slot-fill read access gate. The
+    // approve_pending_shape_b handler is an explicit-action path:
+    // emit `auth_request.access_denied` per F5.B on Err so an
+    // unauthorised actor's attempt to read the AR shape via this
+    // endpoint is auditable. Per F3.B-list-filter.a's spirit, the
+    // 403 returned here divulges that an AR exists but does not
+    // divulge its state (the state-check at `is_terminal` below
+    // runs only on Ok).
+    if let Err(access_err) = check_auth_request_access(
+        &ar,
+        &PrincipalRef::Agent(input.approver_id),
+        IntendedOp::Read,
+    ) {
+        let primary_org = ar
+            .scope
+            .iter()
+            .find_map(|s| s.strip_prefix("org:"))
+            .and_then(|s| uuid::Uuid::parse_str(s).ok().map(OrgId::from_uuid))
+            .unwrap_or_else(OrgId::new);
+        let event = auth_request_access_denied(
+            input.actor,
+            ar.id,
+            primary_org,
+            &access_err,
+            IntendedOp::Read,
+            input.now,
+        );
+        audit
+            .emit(event)
+            .await
+            .map_err(|e| ProjectError::AuditEmit(e.to_string()))?;
+        return Err(ProjectError::AccessDenied(access_err));
+    }
+
     if !ar.kinds.iter().any(|k| k == SHAPE_B_AR_KIND) {
         return Err(ProjectError::PendingArNotShapeB);
     }
@@ -652,6 +710,45 @@ pub async fn approve_pending_shape_b(
     } else {
         ApproverSlotState::Denied
     };
+    let intended_op = if input.approve {
+        IntendedOp::Approve
+    } else {
+        IntendedOp::Deny
+    };
+
+    // CH-18 / ADR-0056 §D56.6 — gate the mutation on the per-state
+    // access matrix. On Err, emit the Alerted-class
+    // `auth_request.access_denied` audit event, then surface the typed
+    // error to the caller. The slot-approver gate above (locate_slot)
+    // already filters non-slot agents; the per-state matrix adds the
+    // unfilled-slot requirement (a slot approver who already filled
+    // their slot hits `UnfilledApproverSlotOnly`).
+    if let Err(access_err) =
+        check_auth_request_access(&ar, &PrincipalRef::Agent(input.approver_id), intended_op)
+    {
+        // Recover the AR's primary owning org from `scope` (set at
+        // submit time as `org:<uuid>`). Same shape used by
+        // `emit_terminal_audit` below.
+        let primary_org = ar
+            .scope
+            .iter()
+            .find_map(|s| s.strip_prefix("org:"))
+            .and_then(|s| uuid::Uuid::parse_str(s).ok().map(OrgId::from_uuid))
+            .unwrap_or_else(OrgId::new);
+        let event = auth_request_access_denied(
+            input.actor,
+            ar.id,
+            primary_org,
+            &access_err,
+            intended_op,
+            input.now,
+        );
+        audit
+            .emit(event)
+            .await
+            .map_err(|e| ProjectError::AuditEmit(e.to_string()))?;
+        return Err(ProjectError::AccessDenied(access_err));
+    }
 
     let next = transition_slot(&ar, resource_idx, slot_idx, new_state, input.now)
         .map_err(|e| ProjectError::Transition(e.to_string()))?;

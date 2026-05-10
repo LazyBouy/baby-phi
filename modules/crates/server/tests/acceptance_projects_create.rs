@@ -362,6 +362,15 @@ async fn shape_b_approve_by_non_slot_agent_is_403() {
     let ar_id = submit["pending_ar_id"].as_str().unwrap();
     // The lead-llm is an LLM agent, not a slot approver; the AR was
     // minted with the two CEO Human agents. Approval attempt must 403.
+    //
+    // CH-18 behavioural shift: prior to CH-18 the approval handler
+    // returned `APPROVER_NOT_AUTHORIZED` (the legacy `locate_slot`
+    // gate). After CH-18 the new READ gate at `projects/create.rs:638`
+    // (per ADR-0056 §D56.5) fires upstream of `locate_slot` for the
+    // non-slot non-requestor lead-llm agent → response code becomes
+    // `AR_ACCESS_DENIED`. Both codes are 403 + distinct from
+    // `is_terminal` 409. The Artifact-C plan-§3 cascade predicted
+    // 0–4 such fixture updates.
     let res = post_approve(
         &org,
         ar_id,
@@ -372,5 +381,5 @@ async fn shape_b_approve_by_non_slot_agent_is_403() {
     .unwrap();
     assert_eq!(res.status().as_u16(), 403);
     let err: Value = res.json().await.unwrap();
-    assert_eq!(err["code"].as_str(), Some("APPROVER_NOT_AUTHORIZED"));
+    assert_eq!(err["code"].as_str(), Some("AR_ACCESS_DENIED"));
 }

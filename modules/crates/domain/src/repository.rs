@@ -790,9 +790,22 @@ pub trait Repository: Send + Sync + 'static {
     // ---- Auth Requests ----------------------------------------------------
 
     async fn create_auth_request(&self, req: &AuthRequest) -> RepositoryResult<()>;
+    /// Read an AuthRequest by id.
+    ///
+    /// Callers in handler-layer surfaces MUST pair their consumption with
+    /// [`crate::auth_requests::access::check_auth_request_access`] per
+    /// ADR-0056 §D56.5 future-callsite contract; system-internal kernel
+    /// paths (event-bus listeners, AR resolvers, cascade-revoke loops)
+    /// are explicit fast-path skips per ADR-0056 §D56.8.
     async fn get_auth_request(&self, id: AuthRequestId) -> RepositoryResult<Option<AuthRequest>>;
     /// Full-replace update — P4 will build finer-grained helpers for slot
     /// transitions on top of this.
+    ///
+    /// Callers in handler-layer surfaces MUST pair their consumption with
+    /// [`crate::auth_requests::access::check_auth_request_access`] per
+    /// ADR-0056 §D56.5 future-callsite contract; system-internal kernel
+    /// paths (event-bus listeners, AR resolvers, cascade-revoke loops)
+    /// are explicit fast-path skips per ADR-0056 §D56.8.
     async fn update_auth_request(&self, req: &AuthRequest) -> RepositoryResult<()>;
     async fn list_active_auth_requests_for_resource(
         &self,

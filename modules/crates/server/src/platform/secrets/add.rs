@@ -33,8 +33,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use domain::audit::events::m2::secrets as secret_events;
 use domain::audit::{AuditClass, AuditEmitter};
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::model::ids::{AgentId, GrantId, SecretId};
-use domain::model::nodes::{Grant, PrincipalRef, ResourceRef};
+use domain::model::nodes::{AuthRequest, AuthRequestState, Grant, PrincipalRef, ResourceRef};
 use domain::model::{Fundamental, SecretCredential, SecretRef};
 use domain::repository::{Repository, SealedBlob};
 use domain::templates::e::{build_auto_approved_request, BuildArgs};
@@ -102,6 +103,20 @@ pub async fn add_secret(
         now: input.now,
     });
     let auth_request_id = ar.id;
+
+    // CH-18 / ADR-0056 §D56.5 + F3.B.create-side.a — defence-in-depth
+    // Submit gate. See `defaults/put.rs` for the full rationale; the
+    // synthetic-Draft probe lets us check the matrix's
+    // `Draft × Submit by requestor` cell against the AR built above.
+    let probe = AuthRequest {
+        state: AuthRequestState::Draft,
+        ..ar.clone()
+    };
+    check_auth_request_access(
+        &probe,
+        &PrincipalRef::Agent(input.actor),
+        IntendedOp::Submit,
+    )?;
 
     // Persist AR, then the vault row, then the catalogue seed.
     repo.create_auth_request(&ar).await?;

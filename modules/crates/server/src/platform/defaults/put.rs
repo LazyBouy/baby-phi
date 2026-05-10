@@ -23,8 +23,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use domain::audit::events::m2::defaults as defaults_events;
 use domain::audit::{AuditClass, AuditEmitter};
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::model::ids::AgentId;
-use domain::model::nodes::{PrincipalRef, ResourceRef};
+use domain::model::nodes::{AuthRequest, AuthRequestState, PrincipalRef, ResourceRef};
 use domain::model::{Composite, PlatformDefaults};
 use domain::repository::Repository;
 use domain::templates::e::{build_auto_approved_request, BuildArgs};
@@ -85,6 +86,27 @@ pub async fn put_platform_defaults(
         now: input.now,
     });
     let auth_request_id = ar.id;
+
+    // CH-18 / ADR-0056 §D56.5 + F3.B.create-side.a — defence-in-depth
+    // Submit gate. The matrix's `Draft × Submit by requestor` cell is
+    // the conceptual gate at AR-construction; baby-phi's create flow
+    // builds the AR Approved-on-construction (Template-E shape), so
+    // we probe a synthetic-Draft view of the AR. The check returns Ok
+    // via the Requestor classification (`ar.requestor == input.actor`
+    // by construction); a future refactor sourcing `ar.requestor` from
+    // a different field would surface as `RequestorOnlyOperation`. No
+    // audit-event emission per F5.B (audit-event reserved for the 4
+    // mutation callsites only; submit-side is silent defence-in-depth).
+    let probe = AuthRequest {
+        state: AuthRequestState::Draft,
+        ..ar.clone()
+    };
+    check_auth_request_access(
+        &probe,
+        &PrincipalRef::Agent(input.actor),
+        IntendedOp::Submit,
+    )?;
+
     repo.create_auth_request(&ar).await?;
 
     // 5. Catalogue seed — idempotent. ControlPlaneObject is the

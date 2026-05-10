@@ -315,6 +315,9 @@ fn error_to_api_error(err: McpError) -> ApiError {
             "MCP_SERVER_NOT_FOUND",
             format!("no MCP server with id `{id}`"),
         ),
+        McpError::AccessDenied(e) => {
+            ApiError::new(StatusCode::FORBIDDEN, "AR_ACCESS_DENIED", e.to_string())
+        }
         McpError::Repository(m) => {
             error!(error = %m, "mcp_server: repository error");
             ApiError::internal()

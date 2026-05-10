@@ -356,6 +356,9 @@ fn error_to_api_error(err: SecretError) -> ApiError {
             "AWAITING_CONSENT",
             "subordinate consent required before reveal",
         ),
+        SecretError::AccessDenied(e) => {
+            ApiError::new(StatusCode::FORBIDDEN, "AR_ACCESS_DENIED", e.to_string())
+        }
         SecretError::Crypto(m) => {
             error!(error = %m, "vault: crypto error");
             ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "VAULT_CRYPTO_FAILED", m)

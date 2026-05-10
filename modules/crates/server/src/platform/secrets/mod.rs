@@ -112,6 +112,15 @@ pub enum SecretError {
     /// Permission Check returned `Pending` — subordinate consent is
     /// required. Surfaces as 202 AWAITING_CONSENT per D10.
     RevealPending,
+    /// HTTP 403 — caller is not authorised for the (state, intended_op)
+    /// cell of the AR per-state access matrix per CH-18 / ADR-0056
+    /// §D56.5 (F3.B.create-side.a defence-in-depth check). Carries the
+    /// typed
+    /// [`domain::auth_requests::access::AuthRequestAccessError`]
+    /// variant. Currently unreachable in production code; future
+    /// refactors that source `ar.requestor` from a different field than
+    /// `input.actor` would surface here.
+    AccessDenied(domain::auth_requests::access::AuthRequestAccessError),
     /// Sealing / unsealing the material failed. Maps to 500.
     Crypto(String),
     /// Repository returned an error. Maps to 500.
@@ -130,6 +139,7 @@ impl std::fmt::Display for SecretError {
                 slug, failed_step, ..
             } => write!(f, "reveal denied for `{slug}` at step {failed_step}"),
             SecretError::RevealPending => write!(f, "subordinate consent required"),
+            SecretError::AccessDenied(e) => write!(f, "AR access denied: {e}"),
             SecretError::Crypto(m) => write!(f, "crypto: {m}"),
             SecretError::Repository(m) => write!(f, "repository: {m}"),
             SecretError::AuditEmit(m) => write!(f, "audit emit: {m}"),
@@ -142,6 +152,12 @@ impl std::error::Error for SecretError {}
 impl From<domain::repository::RepositoryError> for SecretError {
     fn from(e: domain::repository::RepositoryError) -> Self {
         SecretError::Repository(e.to_string())
+    }
+}
+
+impl From<domain::auth_requests::access::AuthRequestAccessError> for SecretError {
+    fn from(e: domain::auth_requests::access::AuthRequestAccessError) -> Self {
+        SecretError::AccessDenied(e)
     }
 }
 

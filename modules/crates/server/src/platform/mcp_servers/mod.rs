@@ -91,6 +91,13 @@ pub enum McpError {
     SecretRefNotFound(String),
     /// No MCP server matches the supplied id.
     NotFound(McpServerId),
+    /// HTTP 403 — caller is not authorised for the (state, intended_op)
+    /// cell of the AR per-state access matrix per CH-18 / ADR-0056
+    /// §D56.5 (F3.B.create-side.a defence-in-depth check). Currently
+    /// unreachable in production code; future refactors that source
+    /// `ar.requestor` from a different field than `input.actor` would
+    /// surface here.
+    AccessDenied(domain::auth_requests::access::AuthRequestAccessError),
     /// Repository returned an error.
     Repository(String),
     /// Audit emitter returned an error.
@@ -103,6 +110,7 @@ impl std::fmt::Display for McpError {
             McpError::Validation(m) => write!(f, "validation failed: {m}"),
             McpError::SecretRefNotFound(s) => write!(f, "secret_ref `{s}` not found in vault"),
             McpError::NotFound(id) => write!(f, "no MCP server with id `{id}`"),
+            McpError::AccessDenied(e) => write!(f, "AR access denied: {e}"),
             McpError::Repository(m) => write!(f, "repository: {m}"),
             McpError::AuditEmit(m) => write!(f, "audit emit: {m}"),
         }
@@ -114,6 +122,12 @@ impl std::error::Error for McpError {}
 impl From<domain::repository::RepositoryError> for McpError {
     fn from(e: domain::repository::RepositoryError) -> Self {
         McpError::Repository(e.to_string())
+    }
+}
+
+impl From<domain::auth_requests::access::AuthRequestAccessError> for McpError {
+    fn from(e: domain::auth_requests::access::AuthRequestAccessError) -> Self {
+        McpError::AccessDenied(e)
     }
 }
 

@@ -140,6 +140,9 @@ fn error_to_api_error(err: DefaultsError) -> ApiError {
                 "stale if_version; current server-side version is {current_version} — re-read and retry"
             ),
         ),
+        DefaultsError::AccessDenied(e) => {
+            ApiError::new(StatusCode::FORBIDDEN, "AR_ACCESS_DENIED", e.to_string())
+        }
         DefaultsError::Repository(m) => {
             error!(error = %m, "platform_defaults: repository error");
             ApiError::internal()

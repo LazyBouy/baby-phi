@@ -39,6 +39,7 @@ pub use resolvers::{
     RepoTemplateDAdoptionArResolver,
 };
 
+use domain::auth_requests::access::AuthRequestAccessError;
 use domain::model::ids::{AgentId, AuthRequestId, OrgId, ProjectId};
 
 /// Stable error codes returned by the project-creation handlers. Every
@@ -82,6 +83,11 @@ pub enum ProjectError {
     /// `403` — caller approving a Shape B AR is not listed as one of
     /// the two approver slots.
     ApproverNotAuthorized,
+    /// `403` — caller is not authorised for the (state × intended_op)
+    /// cell of the AR per-state access matrix (CH-18 / ADR-0056 §D56.6).
+    /// Carries the typed [`AuthRequestAccessError`] variant for handler-
+    /// side error mapping.
+    AccessDenied(AuthRequestAccessError),
     /// Repository returned an error.
     Repository(String),
     /// Audit emitter returned an error.
@@ -123,6 +129,7 @@ impl std::fmt::Display for ProjectError {
             ProjectError::ApproverNotAuthorized => {
                 write!(f, "caller is not a designated approver for this AR")
             }
+            ProjectError::AccessDenied(e) => write!(f, "AR access denied: {e}"),
             ProjectError::Repository(m) => write!(f, "repository: {m}"),
             ProjectError::AuditEmit(m) => write!(f, "audit emit: {m}"),
             ProjectError::Transition(m) => write!(f, "state transition: {m}"),
@@ -142,5 +149,11 @@ impl From<domain::repository::RepositoryError> for ProjectError {
             E::InvalidArgument(m) => ProjectError::Validation(m),
             other => ProjectError::Repository(other.to_string()),
         }
+    }
+}
+
+impl From<AuthRequestAccessError> for ProjectError {
+    fn from(e: AuthRequestAccessError) -> Self {
+        ProjectError::AccessDenied(e)
     }
 }

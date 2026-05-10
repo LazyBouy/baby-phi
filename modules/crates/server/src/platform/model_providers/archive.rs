@@ -16,8 +16,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use domain::audit::events::m2::providers as provider_events;
 use domain::audit::{AuditClass, AuditEmitter};
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::model::ids::{AgentId, ModelProviderId};
-use domain::model::nodes::{PrincipalRef, ResourceRef};
+use domain::model::nodes::{AuthRequest, AuthRequestState, PrincipalRef, ResourceRef};
 use domain::repository::Repository;
 use domain::templates::e::{build_auto_approved_request, BuildArgs};
 
@@ -57,6 +58,19 @@ pub async fn archive_provider(
         now: input.now,
     });
     let auth_request_id = ar.id;
+
+    // CH-18 / ADR-0056 §D56.5 + F3.B.create-side.a — defence-in-depth
+    // Submit gate (synthetic-Draft probe — see `defaults/put.rs`).
+    let probe = AuthRequest {
+        state: AuthRequestState::Draft,
+        ..ar.clone()
+    };
+    check_auth_request_access(
+        &probe,
+        &PrincipalRef::Agent(input.actor),
+        IntendedOp::Submit,
+    )?;
+
     repo.create_auth_request(&ar).await?;
 
     // Flip the row.

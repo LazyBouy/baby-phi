@@ -242,6 +242,9 @@ fn error_to_api_error(err: ProviderError) -> ApiError {
             "MODEL_PROVIDER_NOT_FOUND",
             format!("no model provider with id `{id}`"),
         ),
+        ProviderError::AccessDenied(e) => {
+            ApiError::new(StatusCode::FORBIDDEN, "AR_ACCESS_DENIED", e.to_string())
+        }
         ProviderError::Repository(m) => {
             error!(error = %m, "model_provider: repository error");
             ApiError::internal()

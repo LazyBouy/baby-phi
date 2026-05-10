@@ -98,6 +98,16 @@ pub enum DefaultsError {
     /// date. Carries the current server-side version so the client
     /// can re-read + retry.
     StaleWrite { current_version: u64 },
+    /// HTTP 403 — caller is not authorised for the (state, intended_op)
+    /// cell of the AR per-state access matrix per CH-18 / ADR-0056
+    /// §D56.5 (F3.B.create-side.a defence-in-depth check). Carries the
+    /// typed
+    /// [`domain::auth_requests::access::AuthRequestAccessError`]
+    /// variant for handler-side error mapping. Currently unreachable in
+    /// production code (the AR is constructed with
+    /// `requestor: input.actor`); a future refactor that sources
+    /// `requestor` from a different field would surface here.
+    AccessDenied(domain::auth_requests::access::AuthRequestAccessError),
     /// Repository returned an error.
     Repository(String),
     /// Audit emitter returned an error.
@@ -112,6 +122,7 @@ impl std::fmt::Display for DefaultsError {
                 f,
                 "stale write: client if_version out of date; current is {current_version}"
             ),
+            DefaultsError::AccessDenied(e) => write!(f, "AR access denied: {e}"),
             DefaultsError::Repository(m) => write!(f, "repository: {m}"),
             DefaultsError::AuditEmit(m) => write!(f, "audit emit: {m}"),
         }
@@ -123,6 +134,12 @@ impl std::error::Error for DefaultsError {}
 impl From<domain::repository::RepositoryError> for DefaultsError {
     fn from(e: domain::repository::RepositoryError) -> Self {
         DefaultsError::Repository(e.to_string())
+    }
+}
+
+impl From<domain::auth_requests::access::AuthRequestAccessError> for DefaultsError {
+    fn from(e: domain::auth_requests::access::AuthRequestAccessError) -> Self {
+        DefaultsError::AccessDenied(e)
     }
 }
 

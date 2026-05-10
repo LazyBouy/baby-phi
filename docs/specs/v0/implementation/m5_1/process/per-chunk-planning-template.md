@@ -261,14 +261,20 @@ Composite 4-aspect + 2 confidence % ritual. **Source of truth: concept docs.** N
 
 **P-seal cycle-index row (added 2026-05-09 per CH-17 retro Row 4, cycle hex `40c4d759`):** chunk-implementer's chunk-seal paperwork explicitly includes inserting a row for this cycle into `/root/projects/phi/baby-phi/docs/specs/plan/build/_cycle-index.md` "Active cycles" table. Verification: `grep -n <cycle-hex> /root/projects/phi/baby-phi/docs/specs/plan/build/_cycle-index.md` must return ≥ 1 hit at chunk-seal. NOT an implicit follow-on of P4 — explicit MANDATORY paperwork item. Failure-mode CH-17 hit: implementer-spawn forks attention to mid-cycle scope expansion + drops the cycle-index row; orchestrator-applied Trivial-1L closed inline.
 
-**Gate-5-close disk-reclamation step (added 2026-05-09 per CH-17 retro Row 1, cycle hex `40c4d759`, USER REQUESTED; placement corrected post-CH-17 close):** the **orchestrator** runs `cargo clean` as the **last action of gate-5 close**, AFTER standards updates landed + cycle-index row flipped to `retro-complete`, just before reporting cycle-complete to user. NOT the chunk-implementer's responsibility (chunk-seal happens before gate-4 MUST-RUN + gate-5 retro, both of which rebuild target/). Trigger sequence:
+**Cargo-clean discipline operates at TWO placements** (refined 2026-05-10 per CH-18 retro Row 1, cycle hex `c77937bc`, USER DIRECTIVE: *"tests should be cleaned up immediately after the run as it may block future tests"*; supersedes the previous gate-5-close-only placement from CH-17 retro Row 1):
+
+**(1) Immediate-post-test cleanup (NEW per CH-18)**: AFTER each `cargo test --workspace` invocation across the cycle (sub-agent audits A + B per chunk-auditor v7; orchestrator gate-4 final test; retrospector permissions-audit script per chunk-retrospector v4), the invoker MUST run `cargo clean --manifest-path /root/projects/phi/baby-phi/Cargo.toml` BEFORE issuing the next cargo invocation. Per-invocation cleanup ensures the next invocation starts from clean target/ and prevents accumulation across multiple test runs within a single cycle. CH-18 evidence: 2 duplicate cargo-test workspace background runs accumulated target/ to 146 GB → 100% disk → 1h24m hung. Capture disk-reclaim metric per invocation in cycle-audit §7 metrics row "Disk reclaimed per cargo-clean invocation".
+
+**(2) Gate-5-close final cleanup (CH-17 retro Row 1, USER REQUESTED 2026-05-09, cycle hex `40c4d759`)**: the **orchestrator** runs `cargo clean` as the **last action of gate-5 close**, AFTER standards updates landed + cycle-index row flipped to `retro-complete`, just before reporting cycle-complete to user. Trigger sequence:
 
 1. Capture `du -sh /root/projects/phi/baby-phi/target` BEFORE clean.
 2. Run `/root/rust-env/cargo/bin/cargo clean --manifest-path /root/projects/phi/baby-phi/Cargo.toml`.
 3. Capture `df -h /root | head -3` AFTER clean.
 4. Log disk reclaimed in the cycle-audit's §7 metrics row "Disk reclaimed at gate-5 close".
 
-Rationale: CH-17 hit a mid-cycle Bash sandbox failure when compiled test binaries consumed >160 GB on root disk; every cargo/clippy/test/grep returned Exit 1 silently. Why gate-5 close (not chunk-implementer chunk-seal): gate-4 MUST-RUN (clippy + cargo test) and the retrospector's permissions-audit scripts both rebuild target/, so any earlier cargo-clean is wasted. CH-17 reclaimed 107 GB at chunk-seal (per the original mis-placed codification) but rebuilds to 67 GB by gate-5 close; orchestrator-applied final cargo-clean reclaimed another 68.7 GB to truly close at 154 GB free.
+**Rationale for TWO placements (not just one)**: CH-17 retro Row 1's gate-5-close-only placement was insufficient because target/ can balloon DURING gate-4 if multiple test invocations run concurrently or sequentially without cleanup (CH-18 evidence). Per-invocation cleanup at placement (1) prevents within-cycle disk-pressure incidents; gate-5 final close at placement (2) ensures clean state at chunk release. Both are now mandatory.
+
+NOT the chunk-implementer's responsibility for placement (2) — chunk-seal happens before gate-4 MUST-RUN + gate-5 retro, both of which rebuild target/. Placement (1) IS chunk-implementer's responsibility per chunk-implementer v8 (added 2026-05-10 per CH-18 retro Row 1). chunk-auditor v7 + chunk-retrospector v4 both apply placement (1).
 
 ### §11 — Post-chunk independent audit plan
 

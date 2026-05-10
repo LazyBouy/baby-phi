@@ -48,11 +48,13 @@
 //! Each invariant is exercised by a proptest file under
 //! `modules/crates/domain/tests/auth_request_*_props.rs`.
 
+pub mod access;
 pub mod retention;
 pub mod revocation;
 pub mod state;
 pub mod transitions;
 
+pub use access::{check_auth_request_access, AuthRequestAccessError, IntendedOp};
 pub use retention::{active_until, is_archive_eligible, ActiveWindow};
 pub use revocation::{revoke, RevocationError};
 pub use state::{

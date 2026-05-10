@@ -68,6 +68,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
 use domain::audit::AuditEvent;
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
 use domain::model::composites_m3::ConsentPolicy;
 use domain::model::ids::{AgentId, AuditEventId, NodeId, OrgId};
 use domain::model::nodes::{
@@ -270,7 +271,21 @@ pub async fn dashboard_summary(
 
     let projects = repo.list_projects_in_org(org_id).await?;
     let shape_counts = repo.count_projects_by_shape_in_org(org_id).await?;
-    let active_ars = repo.list_active_auth_requests_for_org(org_id).await?;
+    // CH-18 / ADR-0056 §D56.5 + F3.B.list-filter.a — silent post-filter
+    // on the per-state access matrix. Retain only ARs the viewer is
+    // authorised to read; no audit-event emission per filtered entry
+    // (list-side reads are passive observation; emitting an
+    // access-denied event per filtered AR would multiply audit-event
+    // volume by ~10× per non-admin dashboard render).
+    let active_ars: Vec<AuthRequest> = repo
+        .list_active_auth_requests_for_org(org_id)
+        .await?
+        .into_iter()
+        .filter(|ar| {
+            check_auth_request_access(ar, &PrincipalRef::Agent(viewer_agent_id), IntendedOp::Read)
+                .is_ok()
+        })
+        .collect();
     let pending_for_viewer = count_pending_with_slot_for(&active_ars, viewer_agent_id);
 
     let recent_events_raw = repo
@@ -290,7 +305,17 @@ pub async fn dashboard_summary(
         }
     };
 
-    let adoption_ars = repo.list_adoption_auth_requests_for_org(org_id).await?;
+    // CH-18 / ADR-0056 §D56.5 + F3.B.list-filter.a — silent post-filter
+    // on adoption ARs (same rationale as the active-AR filter above).
+    let adoption_ars: Vec<AuthRequest> = repo
+        .list_adoption_auth_requests_for_org(org_id)
+        .await?
+        .into_iter()
+        .filter(|ar| {
+            check_auth_request_access(ar, &PrincipalRef::Agent(viewer_agent_id), IntendedOp::Read)
+                .is_ok()
+        })
+        .collect();
     let templates_adopted = templates_from_adoption_uris(&adoption_ars, org_id);
 
     let agents_summary = count_agents(&agents);

@@ -794,7 +794,7 @@ pub enum TimeoutResponse {
 /// `#[serde(tag = ...)]`. The wire format is `{"agent": "<uuid>"}` /
 /// `{"system": "system:genesis"}`, which round-trips cleanly through JSON
 /// and through SurrealDB's `object` storage.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PrincipalRef {
     Agent(AgentId),
@@ -2115,5 +2115,43 @@ mod tests {
         });
         let g: Grant = serde_json::from_value(legacy_grant).expect("decode legacy grant");
         assert_eq!(g.approval_mode, ApprovalMode::Implicit);
+    }
+
+    #[test]
+    fn principal_ref_partial_eq_round_trips() {
+        // CH-18 / ADR-0056 §D56.4 — `PrincipalRef` derives `PartialEq` so
+        // `classify_principal` can compare against `ar.requestor` and
+        // `slot.approver` via `==` rather than via destructure-match.
+        // Each of the 5 variants must be `==` to a freshly-constructed
+        // copy carrying the same payload.
+        let agent_id = AgentId::new();
+        assert_eq!(PrincipalRef::Agent(agent_id), PrincipalRef::Agent(agent_id),);
+
+        let user_id = UserId::new();
+        assert_eq!(PrincipalRef::User(user_id), PrincipalRef::User(user_id));
+
+        let org_id = OrgId::new();
+        assert_eq!(
+            PrincipalRef::Organization(org_id),
+            PrincipalRef::Organization(org_id),
+        );
+
+        let project_id = ProjectId::new();
+        assert_eq!(
+            PrincipalRef::Project(project_id),
+            PrincipalRef::Project(project_id),
+        );
+
+        assert_eq!(
+            PrincipalRef::System("system:genesis".into()),
+            PrincipalRef::System("system:genesis".into()),
+        );
+
+        // Sanity: distinct payloads are NOT equal.
+        let other_agent = AgentId::new();
+        assert_ne!(
+            PrincipalRef::Agent(agent_id),
+            PrincipalRef::Agent(other_agent),
+        );
     }
 }

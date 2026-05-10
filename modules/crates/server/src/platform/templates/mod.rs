@@ -34,6 +34,7 @@
 //! adopted Template C / D won't change the *launch* outcome at
 //! M5 — it changes the *trace*. M6+ tightens the gate.
 
+use domain::auth_requests::access::AuthRequestAccessError;
 use domain::model::ids::{AuthRequestId, OrgId};
 use domain::model::nodes::TemplateKind;
 use domain::repository::RepositoryError;
@@ -109,6 +110,13 @@ pub enum TemplateError {
     #[error("AR_STATE_TRANSITION_FAILED: {0}")]
     StateTransitionFailed(String),
 
+    /// Caller is not authorised for the (state × intended_op) cell of the
+    /// AR per-state access matrix (CH-18 / ADR-0056 §D56.6). Carries the
+    /// typed [`AuthRequestAccessError`] variant for handler-side error
+    /// mapping.
+    #[error("AR access denied: {0}")]
+    AccessDenied(AuthRequestAccessError),
+
     /// Pass-throughs.
     #[error("repository error: {0}")]
     Repository(String),
@@ -125,7 +133,7 @@ impl From<RepositoryError> for TemplateError {
 pub fn http_status_for(err: &TemplateError) -> u16 {
     match err {
         TemplateError::InputInvalid(_) | TemplateError::TemplateEAlwaysAvailable => 400,
-        TemplateError::Forbidden(_) => 403,
+        TemplateError::Forbidden(_) | TemplateError::AccessDenied(_) => 403,
         TemplateError::OrgNotFound(_) | TemplateError::AdoptionNotFound { .. } => 404,
         TemplateError::KindNotAdoptable(_)
         | TemplateError::AdoptionAlreadyPending(_)
@@ -148,6 +156,7 @@ pub fn wire_code_for(err: &TemplateError) -> &'static str {
         TemplateError::Forbidden(_) => "TEMPLATE_ADOPT_FORBIDDEN",
         TemplateError::OrgNotFound(_) => "ORG_NOT_FOUND",
         TemplateError::StateTransitionFailed(_) => "AR_STATE_TRANSITION_FAILED",
+        TemplateError::AccessDenied(_) => "AR_ACCESS_DENIED",
         TemplateError::Repository(_) => "REPOSITORY_ERROR",
         TemplateError::AuditEmit(_) => "AUDIT_EMIT_ERROR",
     }

@@ -93,6 +93,22 @@ pub async fn adopt_template_inline(
     );
     let ar_id = ar.id;
     let ar_state = ar.state;
+
+    // CH-18 / ADR-0056 §D56.5 + §D56.8 + F3.B.create-side.a — kernel-
+    // skip-equivalent for the submit-side defence-in-depth check.
+    // Rationale: the AR's `requestor` is intentionally `ceo` (set at
+    // `build_adoption_request` line 90 above), NOT `input.actor` (the
+    // platform-admin invoking the adopt endpoint). Running the
+    // synthetic-Draft Submit check with `&PrincipalRef::Agent(input.actor)`
+    // would return `RequestorOnlyOperation` because admin != ceo, which
+    // does not capture the F3.B.create-side.a defence-in-depth INTENT
+    // for an admin-on-behalf-of-CEO flow. The handler's existing
+    // first-Human-in-org gate at line 79-83 fills the equivalent role
+    // (admin must be in org with a Human CEO present). Documented as
+    // a structural mismatch between concept doc 02's "Draft × Submit
+    // by requestor" cell and baby-phi's admin-on-behalf-of-CEO Template-
+    // adoption flow; a successor chunk may revisit via
+    // `D-CH18-FOLLOWUP-02`.
     repo.create_auth_request(&ar).await?;
 
     let event = super::audit_events::template_adopted_inline(

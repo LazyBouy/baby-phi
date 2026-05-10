@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-09 by Claude Code (CH-18 P3: Status flipped `discovered` → `remediated` with CH-18 ✓ marker; cycle hex `c77937bc`. ADR-0056 §D56.1–§D56.10 ships typed `check_auth_request_access` predicate + 17 production callsite wiring + 7 kernel-internal fast-path skip-list + Alerted-class `auth_request.access_denied` audit-event + Repository trait docstring contract. Two follow-up drifts filed: D-CH18-FOLLOWUP-01 (admin/auditor role-discrimination deferred to M6+ per F3.B.role.b) + D-CH18-FOLLOWUP-02 (adopt.rs submit-side wiring deferred — admin-on-behalf-of-CEO structural mismatch).) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-12 — AuthRequest per-state Access Control Matrix not enforced at persistence layer
@@ -7,7 +8,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: B — underspecified shape choice
 - **Severity**: MEDIUM
 - **Tags**: `auth-request-acl`, `security-boundary`
@@ -45,3 +46,4 @@
 
 ## Lifecycle history
 - 2026-04-24 — `discovered` — M5.1/P2 concept-code audit (Agent 2 report)
+- 2026-05-09 — `remediated` — CH-18 ✓ (cycle hex `c77937bc`; ADR-0056 Accepted). Typed pure-function predicate `domain::auth_requests::access::check_auth_request_access(&AuthRequest, &PrincipalRef, IntendedOp) -> Result<(), AuthRequestAccessError>` at `domain/src/auth_requests/access.rs` captures concept doc 02 §"Per-State Access Matrix" lines 130–144 verbatim; 17 production callsites consult the predicate (4 mutation handlers at `templates/{approve,deny,revoke}.rs` + `projects/create.rs` slot-fill mutation; 5 read-side handlers at `dashboard.rs:273,293`, `show.rs:63`, `projects/create.rs:636` slot-fill read, plus the slot-fill principal assertion; 8 submit-side defence-in-depth synthetic-Draft probe sites at `projects/create.rs:470`, `defaults/put.rs`, `secrets/add.rs`, `mcp_servers/{register,patch_tenants,archive}.rs`, `model_providers/{register,archive}.rs`); 7 kernel-internal callsites documented as fast-path skips per ADR-0056 §D56.8 (events listener + cascade-revoke loop + bootstrap claim + find_adoption_ar helper + 3 Template A/C/D AR resolvers). New Alerted-class `auth_request.access_denied` audit-event builder at `domain/src/audit/events/m5_2/auth_request_access.rs` emits at the 4 mutation callsites only (per F3.B.list-filter.a — silent post-filter rule for list-side reads). Repository trait docstring contract on `get_auth_request` + `update_auth_request` documents the future-callsite invocation requirement per §D56.7. Two follow-up drifts filed: `D-CH18-FOLLOWUP-01` (admin/auditor role-discrimination deferred to M6+ per F3.B.role.b — concept doc 02 line 134 "Observer (admin/auditor) — read at every state" column partial-honoured) + `D-CH18-FOLLOWUP-02` (adopt.rs submit-side wiring deferred — admin-on-behalf-of-CEO structural mismatch with F3.B.create-side.a's `requestor == input.actor` precondition; 14-line kernel-skip-equivalent comment shipped at `adopt.rs:111`).

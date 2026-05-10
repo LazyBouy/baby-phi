@@ -371,6 +371,9 @@ fn error_to_api_error(err: ProjectError) -> ApiError {
             "APPROVER_NOT_AUTHORIZED",
             "caller is not a designated approver for this auth request",
         ),
+        ProjectError::AccessDenied(e) => {
+            ApiError::new(StatusCode::FORBIDDEN, "AR_ACCESS_DENIED", e.to_string())
+        }
         ProjectError::Repository(m) => {
             error!(error = %m, "projects: repository error");
             ApiError::internal()

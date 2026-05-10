@@ -23,8 +23,9 @@
 
 use std::sync::Arc;
 
-use domain::model::ids::OrgId;
-use domain::model::nodes::Organization;
+use domain::auth_requests::access::{check_auth_request_access, IntendedOp};
+use domain::model::ids::{AgentId, OrgId};
+use domain::model::nodes::{Organization, PrincipalRef};
 use domain::repository::Repository;
 
 use super::OrgError;
@@ -39,9 +40,17 @@ pub struct OrganizationDetail {
 
 /// Returns `Ok(None)` when the org is not found — the HTTP layer
 /// maps that to 404.
+///
+/// `viewer` is used to apply the per-state access matrix (CH-18 /
+/// ADR-0056 §D56.5 / F3.B.list-filter.a) to the adoption-AR list:
+/// `adopted_template_count` reflects only the ARs the viewer is
+/// authorised to read. List-side reads are passive observation; no
+/// audit-event is emitted per filtered AR (silent post-filter — same
+/// UX as `archived_at IS NOT NULL` filtering).
 pub async fn show_organization(
     repo: Arc<dyn Repository>,
     id: OrgId,
+    viewer: AgentId,
 ) -> Result<Option<OrganizationDetail>, OrgError> {
     let org = match repo
         .get_organization(id)
@@ -59,10 +68,17 @@ pub async fn show_organization(
         .list_projects_in_org(id)
         .await
         .map_err(|e| OrgError::Repository(e.to_string()))?;
-    let adoptions = repo
+    // CH-18 / ADR-0056 §D56.5 + F3.B.list-filter.a — silent post-filter
+    // on adoption ARs (same rationale as dashboard.rs:273,293).
+    let adoptions: Vec<_> = repo
         .list_adoption_auth_requests_for_org(id)
         .await
-        .map_err(|e| OrgError::Repository(e.to_string()))?;
+        .map_err(|e| OrgError::Repository(e.to_string()))?
+        .into_iter()
+        .filter(|ar| {
+            check_auth_request_access(ar, &PrincipalRef::Agent(viewer), IntendedOp::Read).is_ok()
+        })
+        .collect();
     Ok(Some(OrganizationDetail {
         organization: org,
         member_count: members.len(),
