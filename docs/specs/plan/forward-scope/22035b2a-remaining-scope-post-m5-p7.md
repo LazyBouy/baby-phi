@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-10 by Claude Code (CH-20 P3 chunk-seal — line 185 parenthetical amended `(existing 14 items)` → `(existing 16 items)` per ADR-0058 §D58.10 reconciliation; the forward-scope row's "14" was a counting error in M5.1/P3 authoring (2026-04-24); the explicit drift list at line 186 enumerates 16 IDs (D1.1, D1.2, D1.3, D2.1, D2.2, D3.1, D3.2, D3.3, D3.4, D4.3, D4.4, D4.5, D4.6, D6.4, D7.3, D7.6) — empirically verified via `ls v0/implementation/m5_1/drifts/` showing all 16 files exist with Status `discovered` at chunk-open. Categorised as housekeeping per CH-19/ADR-0057 §D57.7 edge-count reconcile precedent — no new drift file filed. cycle hex `240616a4`.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 
 # Forward-scope inventory — remaining work from M5/P7 close to baby-phi concept-aligned target
@@ -182,7 +183,7 @@
 - Prerequisites: none.
 - Deliverables: 1 consolidated ADR covering audit-event placement + bucketing convention + retrofit location + test-strategy; targeted concept-doc refreshes per drift; no code change.
 
-**CH-20 — Bucket C convention confirm-in-place (existing 14 items)** · ~1 day · doc-only
+**CH-20 — Bucket C convention confirm-in-place (existing 16 items)** · ~1 day · doc-only
 - Drifts closed: **D1.1, D1.2, D1.3, D2.1, D2.2, D3.1, D3.2, D3.3, D3.4, D4.3, D4.4, D4.5, D4.6, D6.4, D7.3, D7.6** — all pattern/convention decisions, all honored in shipped code.
 - Deliverables: 1 consolidated convention doc at `v0/conventions/*.md` covering persistence idioms (CREATE-not-UPDATE, LET-first RELATE, wrap-inner nested not flatten), event-bus wiring, serde-rename rationale, audit-event placement (cross-ref CH-19), Next.js inline server actions. Status of each drift flips `discovered → accepted-as-is`.
 
