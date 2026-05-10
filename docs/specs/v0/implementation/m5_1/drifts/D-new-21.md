@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P2: Status flipped `discovered` → `accepted-as-is`; ratified via CH-19 / ADR-0057 §D57.7; cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-21 — Edge-count documentation mismatch (docstring claims 69, actual count ambiguous)
@@ -7,7 +8,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `accepted-as-is`
 - **Bucket**: B — underspecified shape choice (doc/code count drift)
 - **Severity**: LOW
 - **Tags**: `documentation-counting`, `ontology-headcount`
@@ -31,3 +32,4 @@
 
 ## Lifecycle
 - 2026-04-24 — `discovered`
+- 2026-05-10 — `accepted-as-is` — ratified via CH-19 (cycle hex `2c520ba7`) / ADR-0057 §D57.7; review trigger: no near-term (canonical count locked to 71 via test-asserted invariant `EDGE_KIND_NAMES.len() == 71` at `edges.rs:661`); concept doc + edges.rs docstring reconciled to 71.

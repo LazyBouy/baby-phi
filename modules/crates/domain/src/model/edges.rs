@@ -1,6 +1,7 @@
-//! The 69 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
+//! The 71 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
 //! `HAS_SUBPROJECT` + `HAS_CONFIG` per the project-node edge table in
-//! `concepts/project.md §Project Edges`).
+//! `concepts/project.md §Project Edges`; CH-23 adds `MANAGES` +
+//! `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges).
 //!
 //! Edges are modelled as a single tagged enum [`Edge`]. Each variant's payload
 //! carries the edge's ID and the IDs of its `from` and `to` nodes. Where the
@@ -9,7 +10,7 @@
 //! target; `HOLDS_GRANT` from Agent/Project/Org; `PROVIDES_TOOL` from
 //! McpServer/OpenApiSpec; `OWNED_BY` both as Agent→User and generic
 //! Resource→Principal), we model each source/target type pair as a distinct
-//! variant — this is what gets the count to 69.
+//! variant — this is what gets the count to 71.
 //!
 //! Source of truth: `docs/specs/v0/concepts/ontology.md` §Edge Types.
 
@@ -22,7 +23,7 @@ use super::ids::{
 
 /// Every edge type in the v0 ontology.
 ///
-/// Count: **69** (invariant asserted in [`tests`]).
+/// Count: **71** (invariant asserted in [`tests`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "edge")]
 pub enum Edge {

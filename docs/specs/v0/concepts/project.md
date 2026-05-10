@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Project (Node Type)" gains NEW sub-§ "Recent sessions UI surface (web-side at v0.1)" documenting the page-11 retrofit location convention: web-side parallel-fetch (Next.js `page.tsx` calls `listSessionsInProjectApi`); server-side `ProjectDetail.recent_sessions` stays empty at M5; M7 project-detail hardening may promote to server-side. Ratified at ADR-0057 §D57.5 (closes drift D7.4). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-15 by Claude Code -->
 
 # Project, Task, Bid, Rating
@@ -53,6 +54,10 @@ All status transitions carry a reason. OnHold captures ALL suspension scenarios 
 | Project | `HAS_CONFIG` | AgentConfig | 1:1 | project-level config |
 | Project | `HAS_SUBPROJECT` | Project | 1:N | — |
 | Project | `BELONGS_TO` | Organization | N:N | role: primary/secondary |
+
+### Recent sessions UI surface (web-side at v0.1)
+
+> **Convention note (CH-19 / drift D7.4, 2026-05-10).** The project-detail UI exposes a "Recent sessions" panel listing the last N sessions belonging to the project. At M5/P7 this panel is implemented **web-side** (not via server-detail mutation): the Next.js page component at [`modules/web/app/(admin)/organizations/[id]/projects/[project_id]/page.tsx`](../../../modules/web/app/(admin)/organizations/[id]/projects/[project_id]/page.tsx) fires a parallel fetch against `GET /api/v0/projects/:id/sessions` (via `listSessionsInProjectApi`) alongside the project-detail fetch and renders the rows. The server-side `ProjectDetail.recent_sessions` field at [`server/src/platform/projects/detail.rs`](../../../modules/crates/server/src/platform/projects/detail.rs) intentionally stays `Vec::new()` at M5 — keeps the M4 wire contract frozen and minimizes blast radius for the retrofit. Both paths render the same UI. **Review trigger: M7 project-detail hardening** may promote the field server-side and strip the web-side parallel fetch. Ratified at ADR-0057 §D57.5.
 
 ### Objectives and Key Results (OKRs)
 

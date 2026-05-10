@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P2: Status flipped `discovered` → `accepted-as-is`; ratified via CH-19 / ADR-0057 §D57.10; cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-24 by Claude Code -->
 
 # D-new-30 — Org / Project templates as embedded config objects not materialized (tools_allowlist, resource_catalogue, execution_limits, grants schemas)
@@ -7,7 +8,7 @@
 - **Phase of origin**: concept-audit (M5.1/P2)
 - **Discovery source**: `concept-code-audit`
 - **Date discovered**: 2026-04-24
-- **Status**: `discovered`
+- **Status**: `accepted-as-is`
 - **Bucket**: C — convention/pattern decision (template-as-config vs template-as-AR)
 - **Severity**: LOW
 - **Tags**: `template-shape`, `config-objects`
@@ -25,3 +26,4 @@
 
 ## Lifecycle
 - 2026-04-24 — `discovered`
+- 2026-05-10 — `accepted-as-is` — ratified via CH-19 (cycle hex `2c520ba7`) / ADR-0057 §D57.10; review trigger: no near-term; shipped pattern (adoption ARs + listener-fired Grants) is functionally equivalent to the YAML config-object framing in concept-doc 07; concept-doc refresh in `permissions/07-templates-and-tools.md` documents the YAML-as-conceptual-contract / AR-as-implementation-surface mapping at §"Standard Organization Template" + §"Standard Project Template" preambles.

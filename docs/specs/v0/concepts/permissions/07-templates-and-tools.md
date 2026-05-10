@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Templates Are Pre-Authorized Allocations" tail gains 1-paragraph cross-ref to ADR-0057 §D57.2 multi-adoption-AR history (D5.3); §"Standard Organization Template" + §"Standard Project Template" preambles each gain 1-paragraph framing note documenting that the YAML config above is the **conceptual contract**, the v0.1 implementation surface is **adoption-AR + listener-fired Grants** (D-new-30 ratified at ADR-0057 §D57.10). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-13 amendment: §"audit_class Composition Through Templates" lines 64–72 lifted into typed Rust at `domain::permissions::audit_composition::{compose_audit_class, compose_audit_class_with_source, AuditClassSource}` + `Grant.audit_class: AuditClass` field + 3 production fire listeners (Template A/C/D) wire the composer via `resolve_composed_audit_class` helper; audit-event diff carries `audit_class_source` attribution per ADR-0050 §D50.6. Doc body UNCHANGED.) -->
 <!-- Last verified: 2026-04-30 by Claude Code (CH-23: §"Template C / D" now have production HTTP triggers at `POST /api/v0/orgs/:org/agents/:agent/manager` + `POST /api/v0/projects/:project/agents/:agent/supervisor`. The MANAGES + HAS_AGENT_SUPERVISOR edges are first-class `Edge` variants writing to migration-0011 SurrealDB tables; `TemplateCFireListener` + `TemplateDFireListener` (M5/P3) now fire from real production paths. ADR-0046 ratifies. Doc body UNCHANGED.) -->
 <!-- Last verified: 2026-04-29 by Claude Code (CH-05: §"What v0 Validates vs Future Enhancements" lines 803–814 are now executable code at `domain::permissions::manifest::validator`. The 4 hard rules + 3 advisory warnings ship as `ValidationError` / `ValidationWarning` enums; the Constraint × Fundamental matrix from §03 lives at `constraint_applies_to`. ADR-0044 ratifies. Doc body UNCHANGED.) -->
@@ -38,6 +39,8 @@ This has three important consequences:
 
 **Default Grants** (those issued to every new agent at creation) are a special case of this: they are pre-authorized at platform setup time, via an adoption Auth Request for the "Default Grants template" held by the platform admin.
 
+> **Adoption-AR history convention (CH-19 cross-ref / drift D5.3, 2026-05-10).** An org's adoption of a given template kind is NOT immutable — an org may adopt, later revoke, and re-adopt the same template kind, producing multiple adoption-AR rows in history for the same `(org_id, template_kind)`. The "current adoption state" is the most-recent AR; the audit-history is the full list. See [`02-auth-request.md` §"Interaction with Authority Templates"](02-auth-request.md#interaction-with-authority-templates) for the resolution semantics; ratified at ADR-0057 §D57.2.
+
 **Example — Standard Organization Template adoption:**
 
 ```yaml
@@ -74,6 +77,8 @@ This mirrors the ceiling-intersection rule used elsewhere in the model: an org t
 ### Standard Organization Template
 
 A baseline set of org-level grants and ceilings that most orgs can start from.
+
+> **Implementation-surface framing (CH-19 / drift D-new-30, 2026-05-10).** The YAML below describes the **conceptual contract** of what a Standard Organization Template grants — its tools allowlist, resource catalogue, system agents, authority templates, consent policy, execution limits, and rating window. The v0.1 implementation does NOT materialize this YAML as a single embedded config object on the `Organization` row. Instead, the same semantic content ships through **adoption Auth Requests + listener-fired Grants**: when an org adopts the standard template, an adoption-AR is created (per the §"Templates Are Pre-Authorized Allocations" pattern above), and platform listeners fire the corresponding Grants/edges (`HOLDS_GRANT`, `HAS_AGENT` for the system agents, etc.). The two framings are functionally equivalent; the YAML is the **specification**, the AR-and-listener pattern is the **mechanism**. Ratified at ADR-0057 §D57.10.
 
 ```yaml
 organization_template:
@@ -274,6 +279,8 @@ When to adopt Template E: every org. It's the escape hatch for cases the standin
 ### Standard Project Template
 
 A baseline set of project-level grants for a typical project.
+
+> **Implementation-surface framing (CH-19 / drift D-new-30, 2026-05-10).** As with the Standard Organization Template above, the YAML below is the **conceptual contract** for project-level grants; the v0.1 implementation surface is **adoption-AR + listener-fired Grants**. When a project adopts the template, an adoption-AR is created and project-scoped Grants fire automatically (workspace grant, session grants, supervisor edge for the lead, etc.). The YAML is the spec; the AR-and-listener flow is the mechanism. Ratified at ADR-0057 §D57.10.
 
 ```yaml
 project_template:

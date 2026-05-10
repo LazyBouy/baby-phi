@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Worth" preamble gains 1-line deferred-state footnote pointing at M6-or-M7-DEFERRED token-economy chunk; the `rating_window`/`total_tokens_earned`/`total_tokens_consumed`/Worth fields are NOT on the `Agent` struct at v0 — concept doc framing is aspirational pending the contracts/bidding milestone. Ratified at ADR-0057 §D57.9 (closes drift D-new-27). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-09 by Claude Code -->
 
 # Token Economy
@@ -36,6 +37,8 @@ Sponsor / Human Agent
 ---
 
 ## Worth (Backward-Looking Reputation)
+
+> **Deferred-state footnote (CH-19 / drift D-new-27, 2026-05-10).** The fields this section names — `rating_window`, `total_tokens_earned`, `total_tokens_consumed`, and the derived Worth — are NOT present on the v0 `Agent` struct at [`domain/src/model/nodes.rs`](../../../../modules/crates/domain/src/model/nodes.rs). They are aspirational pending **M6-or-M7-DEFERRED token-economy chunk** (contracts + bidding scope). Concept body below is the long-term shape; the v0 Agent record is the minimal-scaffold subset. Ratified at ADR-0057 §D57.9.
 
 Worth measures **rating-weighted profitability per unit of work** — how efficiently an agent delivers quality output.
 

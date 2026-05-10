@@ -1,4 +1,5 @@
 <!-- Status: § "Node Types — Core Identity" [EXISTS] as of CH-16 (M5.2 / 2026-04-28); MANAGES + HAS_AGENT_SUPERVISOR edges [EXISTS] as of CH-23 (M5.2 / 2026-04-30); other sections still CONCEPTUAL -->
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Edge Types" header reconciled 66 → 71 (D-new-21 ratified at ADR-0057 §D57.7); §"Node Types — Social Structure" InboxObject/OutboxObject row gains 1-line deferred-state footnote pointing at M6-DEFERRED-02 (D-new-25 ratified at ADR-0057 §D57.8). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-30 by Claude Code (CH-23: MANAGES + HAS_AGENT_SUPERVISOR edges land as first-class `Edge` variants with `org` / `project` carriers; migration 0011 adds `manages` + `has_agent_supervisor` SurrealDB tables; production HTTP writers + acceptance suite ship per ADR-0046. Doc body UNCHANGED.) -->
 <!-- Last verified: 2026-04-28 by Claude Code (CH-16: Identity row now materialized with 4-field shape — `self_description` / `lived` / `witnessed` / `embedding` — per ADR-0038; § "Node Types — Core Identity" flips from contradicted to honored.) -->
 
@@ -82,9 +83,13 @@ This is a graph-first model (think ontology, not relational tables), even if the
 | **InboxObject** | `agent_id` | An agent's received-messages queue. One per Agent; composite `inbox_object` per [permissions/01 § Composites](permissions/01-resource-ontology.md#composite-classes-8). Messages are `AgentMessage` value objects embedded on it. Separate from task queue. |
 | **OutboxObject** | `agent_id` | An agent's sent-messages log. One per Agent; composite `outbox_object`. Parallel to InboxObject. |
 
+> **Deferred-state footnote (CH-19 / drift D-new-25, 2026-05-10).** v0 InboxObject + OutboxObject scaffolds at [`domain/src/model/nodes.rs:772-784`](../../../../modules/crates/domain/src/model/nodes.rs#L772-L784) carry only `id`, `agent_id`, `created_at`; the embedded `messages: Vec<AgentMessage>` field is deferred to **M6-DEFERRED-02 (inter-agent messaging)** chunk. Concept body above is the long-term shape; current code is the minimal-scaffold subset. Ratified at ADR-0057 §D57.8.
+
 ---
 
-## Edge Types (66 total)
+## Edge Types (71 total)
+
+> **Edge-count history (CH-19 reconcile, 2026-05-10).** 67 edges at M3 close; M4/P1 adds `HAS_SUBPROJECT` + `HAS_CONFIG` (+2 → 69); CH-23 adds `MANAGES` + `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges (+2 → 71). Canonical count is the test-asserted invariant `EDGE_KIND_NAMES.len() == 71` at [`domain/src/model/edges.rs`](../../../../modules/crates/domain/src/model/edges.rs); ratified at ADR-0057 §D57.7. Closes drift D-new-21.
 
 ### Agent-Centric (first-order)
 

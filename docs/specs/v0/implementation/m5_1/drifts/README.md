@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-10 by Claude Code (CH-19 P2 chunk-progress: 10 Bucket B drift rows Status flipped `discovered` → **accepted-as-is** with "Impl. chunk" set to CH-19 ✓ — D5.2 (§D57.1), D5.3 (§D57.2), D6.3 (§D57.3), D7.2 (§D57.4), D7.4 (§D57.5), D7.5 (§D57.6 — deferral to CH-24 Playwright), D-new-21 (§D57.7), D-new-25 (§D57.8 — deferral to M6-DEFERRED-02), D-new-27 (§D57.9 — deferral to M6-or-M7-DEFERRED), D-new-30 (§D57.10) — all ratified via CH-19 / ADR-0057 (10 sub-decisions covering audit-event placement + AR-resolution semantics + system-agent bucketing + CLI flag shape + web retrofit location + test-strategy + edge-count + M6 deferrals + template-as-config framing). Cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-05-09 by Claude Code (CH-18 P3: D-new-12 row Status flipped `discovered` → **remediated** with "Impl. chunk" set to CH-18 ✓ — per-state ACL captured as typed predicate `check_auth_request_access`; 17 production callsites + 7 documented kernel-skip callsites consult/skip the predicate per ADR-0056 §D56.5/§D56.8; new Alerted-class `auth_request.access_denied` audit-event builder + Repository trait docstring contract per §D56.7. New row appended for `D-CH18-FOLLOWUP-02` — MEDIUM/B drift filed at P3 documenting the `templates/adopt.rs` admin-on-behalf-of-CEO structural mismatch with F3.B.create-side.a's `requestor == input.actor` precondition (kernel-skip-equivalent comment at `adopt.rs:111`); tracks deferral of typed admin-on-behalf-of-CEO authorisation to M6+. Cycle hex `c77937bc`.) -->
 <!-- Last verified: 2026-05-09 by Claude Code (CH-18 P0 scaffold: new row appended for `D-CH18-FOLLOWUP-01` — MEDIUM/B drift filed at chunk-open per F3.B.role.b auto-resolution under user-locked F3.B path; tracks deferral of admin/auditor role-discrimination to M6+; cycle hex `c77937bc`; D-new-12 row stays `discovered` and will flip to `remediated` at CH-18 P4 chunk-seal.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-14 chunk-seal gate-2 inline correction: D-CH14-FOLLOWUP-02 row Status flipped `discovered` → **remediated** with "Impl. chunk" set to CH-14 ✓ at line 138 — per-cascaded-AR `auth_request.revoked` audit-event emission + AR-state-transitions shipped per plan §3.B A7 + §7 P3 + ADR-0053 §D53.7 via new `domain::repository::CascadeResult` typed return + handler iteration over `cascaded_ars`. D-CH14-FOLLOWUP-01 stays `discovered` (adoption-AR-side `descends_from_grant` wiring still deferred — separate axis).) -->
@@ -89,18 +90,18 @@ fixed.
 | D4.5 | `write_uses_model_edge` first-class typed method | LOW | C | ontology | N/A | discovered | TBD | [D4.5.md](D4.5.md) |
 | D4.6 | `SessionLaunchContext.first_loop_id` avoids double-persist | LOW | C | permissions/05 | wrap | discovered | TBD | [D4.6.md](D4.6.md) |
 | D5.1 | CLI + Web for page 12 deferred from P5 to P7 | MEDIUM | A | permissions/07 | N/A | **remediated** | P7 (historical) | [D5.1.md](D5.1.md) |
-| D5.2 | Template audit events at `server::platform::templates::audit_events` | MEDIUM | B | permissions/02, 07 | N/A | discovered | TBD | [D5.2.md](D5.2.md) |
-| D5.3 | `find_adoption_ar` returns most-recent (not unique) | MEDIUM | B | permissions/02, 07 | N/A | discovered | TBD | [D5.3.md](D5.3.md) |
+| D5.2 | Template audit events at `server::platform::templates::audit_events` | MEDIUM | B | permissions/02, 07 | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.1) | CH-19 ✓ | [D5.2.md](D5.2.md) |
+| D5.3 | `find_adoption_ar` returns most-recent (not unique) | MEDIUM | B | permissions/02, 07 | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.2) | CH-19 ✓ | [D5.3.md](D5.3.md) |
 | D6.1 | `record_system_agent_fire` helper has zero call sites | **HIGH** | **A** | system-agents; coordination | N/A | **remediated** (CH-21 ✓ + CH-22 ✓) | CH-21 + CH-22 | [D6.1.md](D6.1.md) |
 | D6.2 | CLI + Web for page 13 deferred from P6 to P7 | MEDIUM | A | system-agents | N/A | **remediated** | P7 (historical) | [D6.2.md](D6.2.md) |
-| D6.3 | System-agent bucketing needs 3-way union filter | MEDIUM | B | system-agents | N/A | discovered | TBD | [D6.3.md](D6.3.md) |
+| D6.3 | System-agent bucketing needs 3-way union filter | MEDIUM | B | system-agents | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.3) | CH-19 ✓ | [D6.3.md](D6.3.md) |
 | D6.4 | System-agent audit events at `server::platform::system_agents::audit_events` | LOW | C | system-agents | N/A | discovered | TBD | [D6.4.md](D6.4.md) |
 | D6.5 | disable/archive don't flip durable `active`/`archived_at` | **HIGH** | **A** | agent; system-agents | N/A | remediated | CH-01 ✓ | [D6.5.md](D6.5.md) |
 | D7.1 | Live SSE tail deferred to M7 | **HIGH** | **A** | permissions/05 | direct-reuse | **remediated** | CH-17 ✓ | [D7.1.md](D7.1.md) |
-| D7.2 | `--model-config-id` additive (alongside `--patch-json`) | LOW | B | agent | N/A | discovered | TBD | [D7.2.md](D7.2.md) |
+| D7.2 | `--model-config-id` additive (alongside `--patch-json`) | LOW | B | agent | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.4) | CH-19 ✓ | [D7.2.md](D7.2.md) |
 | D7.3 | `phi session preview` as 5th subcommand | LOW | C | permissions/04 | N/A | discovered | TBD | [D7.3.md](D7.3.md) |
-| D7.4 | Page 11 recent-sessions retrofit is web-side | LOW | B | project | N/A | discovered | TBD | [D7.4.md](D7.4.md) |
-| D7.5 | Web test count unchanged at P7 (no page-component tests) | MEDIUM | B | (test-strategy) | N/A | discovered | M5.2/P9 | [D7.5.md](D7.5.md) |
+| D7.4 | Page 11 recent-sessions retrofit is web-side | LOW | B | project | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.5) | CH-19 ✓ | [D7.4.md](D7.4.md) |
+| D7.5 | Web test count unchanged at P7 (no page-component tests) | MEDIUM | B | (test-strategy) | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.6) | CH-19 ✓ (deferral ratified; coverage at CH-24 Playwright) | [D7.5.md](D7.5.md) |
 | D7.6 | Web pages use hybrid inline `"use server"` pattern | LOW | C | (web-convention) | N/A | discovered | TBD | [D7.6.md](D7.6.md) |
 | D-new-01 | Identity node scaffolded; 4-field shape not materialized | **HIGH** | **A** | agent; ontology | N/A | remediated | CH-16 | [D-new-01.md](D-new-01.md) |
 | D-new-02 | Storage backend is SurrealDB (not SQLite per concept) | **HIGH** | **A** | coordination | N/A | **remediated** | CH-03 ✓ | [D-new-02.md](D-new-02.md) |
@@ -122,16 +123,16 @@ fixed.
 | D-new-18 | Grant revocation cascade full-tree walk needs verification | **HIGH** | **A** | permissions/08; README | N/A | **remediated** | CH-14 ✓ | [D-new-18.md](D-new-18.md) |
 | D-new-19 | audit_class composition (strictest wins) not enforced | MEDIUM | B | permissions/07 | N/A | **remediated** | CH-13 ✓ | [D-new-19.md](D-new-19.md) |
 | D-new-20 | Contractor-model logic (base_org ceiling bound) missing | MEDIUM | B | permissions/06, 08 | N/A | **remediated** | CH-07 ✓ | [D-new-20.md](D-new-20.md) |
-| D-new-21 | Edge-count documentation mismatch | LOW | B | ontology | N/A | discovered | TBD | [D-new-21.md](D-new-21.md) |
+| D-new-21 | Edge-count documentation mismatch | LOW | B | ontology | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.7) | CH-19 ✓ | [D-new-21.md](D-new-21.md) |
 | D-new-22 | Agent role immutability post-creation not enforced | MEDIUM | B | agent | N/A | remediated | CH-01 ✓ | [D-new-22.md](D-new-22.md) |
 | D-new-23 | Human Agents lack Identity-assignment guard | LOW | C | human-agent | N/A | remediated | CH-16 | [D-new-23.md](D-new-23.md) |
 | D-new-24 | Channel node schema incomplete | LOW | B | human-agent; ontology | N/A | discovered | M7 | [D-new-24.md](D-new-24.md) |
-| D-new-25 | InboxObject/OutboxObject missing AgentMessage embedding | MEDIUM | B | ontology | N/A | discovered | M6+ | [D-new-25.md](D-new-25.md) |
+| D-new-25 | InboxObject/OutboxObject missing AgentMessage embedding | MEDIUM | B | ontology | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.8) | CH-19 ✓ (deferral ratified; impl at M6-DEFERRED-02) | [D-new-25.md](D-new-25.md) |
 | D-new-26 | Task node fully scaffolded | LOW | C | project | N/A | discovered | later | [D-new-26.md](D-new-26.md) |
-| D-new-27 | Token-economy fields missing on Agent | MEDIUM | C | token-economy | N/A | discovered | later | [D-new-27.md](D-new-27.md) |
+| D-new-27 | Token-economy fields missing on Agent | MEDIUM | C | token-economy | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.9) | CH-19 ✓ (deferral ratified; impl at M6-or-M7-DEFERRED) | [D-new-27.md](D-new-27.md) |
 | D-new-28 | Memory memory_type enum missing | LOW | B | coordination | N/A | discovered | M6 C-M6-1 | [D-new-28.md](D-new-28.md) |
 | D-new-29 | allocate refinement constraints (no_further_delegation) missing | LOW | B | permissions/03 | N/A | **remediated** | CH-08 ✓ | [D-new-29.md](D-new-29.md) |
-| D-new-30 | Org/Project template as config object (vs adoption AR) not materialized | LOW | C | permissions/07 | N/A | discovered | TBD (doc refresh) | [D-new-30.md](D-new-30.md) |
+| D-new-30 | Org/Project template as config object (vs adoption AR) not materialized | LOW | C | permissions/07 | N/A | **accepted-as-is** (CH-19 / ADR-0057 §D57.10) | CH-19 ✓ | [D-new-30.md](D-new-30.md) |
 | D-new-31 | Reserved-namespace write rejection at publish time missing | LOW | C | permissions/09 | N/A | **remediated** | CH-05 ✓ | [D-new-31.md](D-new-31.md) |
 | D-CH11-FOLLOWUP-01 | `Project.deadline_at` missing; CH-11 falls back to `now+24h` for `ApprovalTimeout::ProjectDuration` | LOW | B | permissions/06 | N/A | discovered | M6+ Project enrichment | [D-CH11-FOLLOWUP-01.md](D-CH11-FOLLOWUP-01.md) |
 | D-CH12-FOLLOWUP-01 | Session structural-tag emission gap (6 M6+ categories not yet auto-emitted on Session creation) | LOW | B | permissions/05 | N/A | discovered | M6+ Session structural-tag emission | [D-CH12-FOLLOWUP-01.md](D-CH12-FOLLOWUP-01.md) |
