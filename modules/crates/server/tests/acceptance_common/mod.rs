@@ -13,6 +13,7 @@
 //! pattern is documented in the Cargo book under "Integration tests".
 
 pub mod admin;
+pub mod m5_bootstrap;
 
 use std::net::{SocketAddr, TcpListener};
 use std::sync::{Arc, OnceLock};

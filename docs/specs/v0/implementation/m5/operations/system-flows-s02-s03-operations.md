@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS — verified-header re-stamp per plan §3.C; body content unchanged from CH-22 close. CH-24 milestone-seal cycle — s02/s03 ops surface re-verified PASS against current HEAD; s02 memory-extraction listener body PASS via CH-21; s03 agent-catalog listener body PASS via CH-22. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- CH-22 amendment (2026-04-27): s03 (agent-catalog) listener body shipped — no longer P8-stub. See §"CH-22 amendment — s03 status update" below. CH-21 (s02 memory-extraction) still pending. -->
 

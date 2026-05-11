@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS amendment — recent_sessions panel API-surface flip (2026-05-11): new subsection `## CH-24 amendment — page-11 recent_sessions panel + M5 stable-code table (2026-05-11)` documenting (a) the resolution of D-CH24-recent-sessions-api-flip via the new dedicated repo method `list_recent_sessions_for_project` + `RecentSessionEntry` view-shape struct per ADR-0059 §D59.1–§D59.3, (b) the full M5 stable-code table aggregating pages 12/13/14 + cross-cutting codes, (c) CLI exit-code mapping, (d) cross-org isolation invariants for the M5 milestone seal. Pairs with `m5/operations/m5-ops-runbook.md` (NEW per F5.A lock) + ADR-0059. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-05-09 by Claude Code (CH-18 P3 amendment — auth_request.access_denied troubleshooting (2026-05-09): new subsection `## CH-18 amendment — auth_request.access_denied troubleshooting (2026-05-09)` documenting the Alerted-class `auth_request.access_denied` audit-event introduced by ADR-0056 §D56.6. The amendment covers (a) the 4xx `ACCESS_DENIED` symptom-class for AR-mutation rejections at `templates/{approve,deny,revoke}.rs` + `projects/create.rs` slot-fill mutation, (b) the silent-list-filter behaviour at the 5 read-side callsites per F3.B.list-filter.a (operator sees fewer ARs than DB rows for non-admin viewers — intentional, no audit-event), (c) the 5 typed-error variants of `AuthRequestAccessError` mapping to operator narratives, (d) the admin/auditor read-bypass deferral via `D-CH18-FOLLOWUP-01` (M6+). Pairs with `m5_2/operations/auth-request-access-acl-operations.md` (full operator runbook) + `m5_2/architecture/auth-request-access-acl.md` (design page) + ADR-0056. Cycle hex c77937bc.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: new troubleshooting section for hard-deny launch gate post-ADR-0054 §D54.6 — common 403 cause is Step 2 NoGrantsHeld; remediation via Template A grant seeding or migration `0015` backfill.) -->
 <!-- CH-01 + CH-22 amendments (2026-04-27): durable disable/archive semantics + agent-catalog audit-mode + new "catalog row stale" symptom. See §"CH-01 + CH-22 amendments" below. Full M5/P9 stable-code table still deferred to M5-tag-close. -->
@@ -5,9 +6,12 @@
 
 # User guide — Troubleshooting (M5)
 
-**Status**: [PLANNED M5/P9] — stub seeded at M5/P0; full stable-code
-table + CLI exit codes + cross-org isolation invariants land at
-P9 close, mirroring the M4/P8 troubleshooting pattern.
+**Status**: `[EXISTS]` as of M5/P9 / CH-24 close — full stable-code table
++ CLI exit codes + cross-org isolation invariants now extant under
+"CH-24 amendment" subsection below. The amendment subsections
+(CH-01/06/15/17/18/21/22/24) carry per-chunk symptoms layered on top of
+the inherited M4 base; the CH-24 amendment subsection is the
+milestone-rollup full table.
 
 Every M5 HTTP error carries a JSON body `{ "code": "<STABLE_CODE>",
 "message": "..." }`. The CLI surfaces the `code` verbatim via
@@ -118,12 +122,96 @@ CH-18 (drift D-new-12 closure, ADR-0056) lands the AuthRequest per-state ACL enf
 
 For the full operator runbook + 5-variant typed-error reference + audit-event dictionary entry see [m5_2/operations/auth-request-access-acl-operations.md](../../m5_2/operations/auth-request-access-acl-operations.md).
 
+## CH-24 amendment — page-11 recent_sessions panel + M5 stable-code table (2026-05-11)
+
+CH-24 (M5 milestone seal; cycle hex `5778bb77`) flips the page-11 `recent_sessions` panel from M4 placeholder (`Vec::new()` hardcoded since M4) to a real query via the dedicated Repository method `list_recent_sessions_for_project(project_id, limit)` per ADR-0059 §D59.1–§D59.3. The placeholder’s inline doc-comment at `server/src/platform/projects/detail.rs:33` promised the flip during M5/P4 but the deliverable never landed; CH-24 closes the gap in-chunk via the new phase **P-FLIP-RECENT-SESSIONS** (mid-cycle scope expansion approved at gate-2 user-lock).
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Page-11 `recent_sessions` panel shows empty for a project with known launches | (Most common post-CH-24): project genuinely has no live or recent sessions. | Launch a session and re-check. Verify via `GET /api/v0/orgs/:org/projects/:proj/sessions` (unbounded live-list endpoint). |
+| Same symptom on a pre-CH-24 binary | Pre-CH-24 server has the M4 placeholder `recent_sessions: Vec::new()` hardcoded at `detail.rs:229`. | Redeploy from a post-CH-24 binary. Verify via `grep -n "list_recent_sessions_for_project" $(which phi-server)` or git SHA. |
+| Page-11 panel shows only 10 rows for a project with > 10 sessions | **Intentional** per ADR-0059 §D59.1 — `RECENT_SESSIONS_LIMIT = 10` query-side cap. | For full history use the unbounded live-list endpoint `GET /api/v0/orgs/:org/projects/:proj/sessions`. |
+| Page-11 panel sends an extra request per row to resolve agent display names | **Intentional** at v0 — `RecentSessionEntry` ships with 6 fields (id, project_id, agent_id, started_at, ended_at, status); `started_by_display_name` is deferred to a follow-up M6 chunk pending Agent-table-join design (per ADR-0059 §D59.3-FOLLOWUP). | The renderer resolves display names via secondary `GET /api/v0/agents/:id` until the follow-up chunk lands. |
+| Page-11 panel for Org-B project is visible to an Org-A viewer | **Bug** — cross-org isolation violation. Acceptance test `m5_cross_org_isolation_at_session_surface` should catch this; if it surfaces in production, file a HIGH-severity drift. | Hard-deny / silent-list-filter is the expected behaviour. Verify `viewer_agent_id` plumbed through the project-detail handler. |
+
+For the full operational guidance see [m5/operations/m5-ops-runbook.md](../operations/m5-ops-runbook.md) §"IP-4 Page-11 recent_sessions panel empty after launches".
+
+### Full M5 stable-code reference table
+
+Aggregated from pages 12 + 13 + 14 + cross-cutting M4 inheritance. Each row maps `HTTP status × stable code × CLI exit code × symptom → remediation pointer`.
+
+**Session surface (page 14)**
+
+| HTTP | Stable code | CLI exit | Symptom | Remediation |
+|---|---|---|---|---|
+| 400 | `SESSION_INPUT_INVALID` | 2 | Request body failed shape validation | Re-submit with valid shape per [session-launch-operations.md](../operations/session-launch-operations.md) |
+| 400 | `TERMINATE_REASON_REQUIRED` | 2 | `reason` field empty | Supply non-empty `reason` |
+| 401 | `UNAUTHENTICATED` | 1 | No session cookie / expired token | Re-authenticate |
+| 403 | `FORBIDDEN` | 1 | Viewer not session starter + not org-member | Use a session belonging to the org/agent |
+| 403 | `AGENT_NOT_MEMBER_OF_PROJECT` | 1 | Agent's `owning_org` mismatches project's org | Create agent in correct org |
+| 403 | `PERMISSION_CHECK_FAILED_AT_STEP_<N>` | 1 | Hard-deny at engine step N (0–6) | See [session-launch-permission-gate-operations.md](../../m5_2/operations/session-launch-permission-gate-operations.md) §"Step N detail" |
+| 403 | `TERMINATE_FORBIDDEN` | 1 | Caller not starter + not org Human | Terminate from authorised session |
+| 404 | `AGENT_NOT_FOUND` / `PROJECT_NOT_FOUND` / `SESSION_NOT_FOUND` / `MODEL_RUNTIME_NOT_FOUND` | 1 | Id unknown | Verify ids |
+| 409 | `PARALLELIZE_CAP_REACHED` | 1 | Agent at `profile.parallelize` limit | Wait or tune `parallelize` |
+| 409 | `MODEL_RUNTIME_UNRESOLVED` | 1 | No `model_config_id` bound | Bind via `PATCH /agents/:id/profile` |
+| 409 | `MODEL_RUNTIME_ARCHIVED` | 1 | Bound runtime archived | Re-bind to active runtime |
+| 409 | `AGENT_PROFILE_MISSING` | 1 | No profile row | Create profile |
+| 409 | `SESSION_ALREADY_TERMINAL` | 0 | Already Completed/Aborted/FailedLaunch | No action — idempotent |
+| 409 | `ACTIVE_SESSIONS_BLOCK_MODEL_CHANGE` | 1 | Agent has live sessions; `model_config_id` change refused (C-M5-5) | End active sessions first |
+| 410 | `SESSION_LIVE_STREAM_UNAVAILABLE` | 1 | SSE on a finalised session | Use `GET /api/v0/sessions/:id` for terminal detail |
+| 503 | `SESSION_WORKER_SATURATED` | 1 | Per-worker registry full | Tune `config.session.max_concurrent` |
+
+**Authority templates surface (page 12)**
+
+| HTTP | Stable code | CLI exit | Symptom | Remediation |
+|---|---|---|---|---|
+| 400 | `VALIDATION_FAILED` | 2 | Manifest / selector / payload invalid | Re-validate per [authority-templates-operations.md](../operations/authority-templates-operations.md) |
+| 403 | `ACCESS_DENIED` | 1 | AR-mutation rejected per per-state ACL (4 mutation callsites) | See [auth-request-access-acl-operations.md](../../m5_2/operations/auth-request-access-acl-operations.md) |
+| 404 | `TEMPLATE_NOT_FOUND` / `AUTH_REQUEST_NOT_FOUND` | 1 | Id unknown | Verify ids |
+| 409 | `TEMPLATE_ALREADY_ADOPTED` | 1 | Org already has active adoption AR | Revoke or re-adopt |
+
+**System agents surface (page 13)**
+
+| HTTP | Stable code | CLI exit | Symptom | Remediation |
+|---|---|---|---|---|
+| 403 | `FORBIDDEN_NON_ADMIN_TUNE` | 1 | Non-admin tried to tune standard system agent | Use admin-class principal |
+| 404 | `SYSTEM_AGENT_NOT_FOUND` | 1 | System agent id unknown / not bucketed | Verify id + bucketing per [system-agents-operations.md](../operations/system-agents-operations.md) |
+| 409 | `SYSTEM_AGENT_ALREADY_DISABLED` / `..._ARCHIVED` | 0 | Lifecycle terminal | No action — idempotent |
+
+**Cross-cutting (inherited M4 / s02/s03 / panels)**
+
+| HTTP | Stable code | CLI exit | Symptom | Remediation |
+|---|---|---|---|---|
+| 400 | `VALIDATION_FAILED` | 2 | Shape mismatch | Re-submit |
+| 500 | `AUDIT_EMIT_FAILED` | 1 | Audit-emit failed AFTER durable write | Replay audit chain |
+| 500 | `RECORDER_FAILURE` / `COMPOUND_TX_FAILURE` / `REPOSITORY_ERROR` / `AUDIT_EMIT_ERROR` / `SESSION_REPLAY_PANIC` | 1 | Internal failure | Check logs + audit chain |
+| 500 | `INTERNAL` | 1 | Unexpected | Check logs |
+
+### CLI exit-code mapping
+
+| Exit | Meaning |
+|---|---|
+| 0 | Success (incl. idempotent no-op) |
+| 1 | Server returned 4xx/5xx with a stable code (operator-actionable) |
+| 2 | Local input validation failure (CLI flag combinations / file parse) |
+
+Per-subcommand details in [`cli-reference-m5.md`](cli-reference-m5.md).
+
+### Cross-org isolation invariants
+
+1. **Org-membership boundary** — a viewer from Org-A reading a resource owned by Org-B receives 403 / 404 (silent-list-filter or hard-deny per the F3.B.list-filter.a policy).
+2. **Page-11 `recent_sessions` panel** for an Org-B project is NOT visible to Org-A viewers (verified by `acceptance_m5_sessions.rs::m5_cross_org_isolation_at_session_surface`).
+3. **AuthRequest mutations** gated by per-state ACL (CH-18 / ADR-0056 §D56.5); 17 production callsites consult `check_auth_request_access`.
+4. **Live SSE tail** at `GET /sessions/:id/events` gated by `Action::Observe` on `session_object` (CH-17 / ADR-0055); legacy Template A grants need migration `0016` to render the SSE field.
+
 ## Cross-references
 
-- [Top-level runbook §M5](../../../../../../docs/ops/runbook.md) — operator-facing aggregated index (appended at P9).
+- [Top-level runbook §M5](../../../../../../docs/ops/runbook.md) — operator-facing aggregated index.
+- [M5 ops runbook (aggregate index)](../operations/m5-ops-runbook.md) — **NEW at CH-24** per F5.A lock; cross-page runbook.
 - [M4 troubleshooting](../../m4/user-guide/troubleshooting.md) — inherited codes + cross-org isolation invariants.
 - [M5 plan §P9 deliverables](../../../../plan/build/m5-templates-system-agents-sessions-01710c13.md).
 - [M5.2 selector-grammar-operations](../../m5_2/operations/selector-grammar-operations.md) — CH-06 selector parse error runbook.
 - [M5.2 identity-operations](../../m5_2/operations/identity-operations.md) — CH-16 Identity row runbook.
 - [M5.2 memory-extraction-operations](../../m5_2/operations/memory-extraction-operations.md) — CH-21 memory-extraction listener runbook.
 - [M5.2 auth-request-access-acl-operations](../../m5_2/operations/auth-request-access-acl-operations.md) — CH-18 AuthRequest per-state ACL operator runbook + 5-variant typed-error reference + `auth_request.access_denied` audit-event dictionary.
+- [ADR-0059 — recent-sessions API-surface flip](../../m5_2/decisions/0059-recent-sessions-api-surface-flip.md) — CH-24 panel flip with 4 sub-decisions.

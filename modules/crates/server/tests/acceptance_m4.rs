@@ -10,7 +10,9 @@
 //! 4. Edit the Intern's profile (bump `temperature`) on page 09.
 //! 5. Create a Shape A project on page 10 with the Intern as lead.
 //! 6. Read the project detail on page 11 as the CEO — roster carries
-//!    the lead, `recent_sessions: []` (M4 placeholder; M5/C-M5-3).
+//!    the lead, `recent_sessions: []` (the project has not launched
+//!    any sessions in this fixture; CH-24 wires the real query so an
+//!    empty array now means "no sessions exist" not "placeholder").
 //! 7. Apply an OKR patch on page 11 (create one objective + one KR).
 //! 8. Re-fetch the dashboard → `agents_summary` + `projects_summary`
 //!    reflect the new agent, new role, and the Shape A project.
@@ -250,7 +252,9 @@ async fn full_m4_happy_path_bootstrap_to_dashboard() {
     );
     assert!(
         detail["recent_sessions"].as_array().unwrap().is_empty(),
-        "recent_sessions is the M4 C-M5-3 placeholder — must stay empty"
+        "this fixture does not launch any sessions; the page-11 panel \
+         (wired to Repository::list_recent_sessions_for_project at CH-24 \
+         per ADR-0059) returns an empty array for projects with no sessions"
     );
 
     // --- Apply an OKR patch on page 11 --------------------------------------

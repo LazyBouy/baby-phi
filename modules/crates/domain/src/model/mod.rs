@@ -34,7 +34,8 @@ pub use composites_m4::{
     ObjectiveStatus, OkrValue, ResourceBoundaries,
 };
 pub use composites_m5::{
-    AgentCatalogEntry, SessionDetail, ShapeBPendingProject, SystemAgentRuntimeStatus,
+    AgentCatalogEntry, RecentSessionEntry, SessionDetail, ShapeBPendingProject,
+    SystemAgentRuntimeStatus,
 };
 pub use edges::{Edge, EDGE_KIND_NAMES};
 pub use fundamentals::Fundamental;

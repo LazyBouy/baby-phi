@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-SEAL chunk-seal — line 211 amended: "Drifts closed: none new" → "Drifts closed: 1 (D-CH24-recent-sessions-api-flip — mid-cycle scope expansion approved at gate-2.5)" per CH-24 plan §13 retrospective routing item 2 (forward-scope row drift-count amendment at P-SEAL); mid-cycle scope expansion closed C-M5-3 API-surface flip via P-FLIP-RECENT-SESSIONS + ADR-0059 (LIMIT 10 / dedicated repo method / RecentSessionEntry 6-field shape; 7th field started_by_display_name deferred to follow-up chunk pending Agent-table-join design); first cycle to scope-expand mid-flight via P-NEW-TESTS authoring finding; gate-2.5 user-lock 2-of-3 DIVERGENT from planner-recommendations (F-D59.2.b dedicated method + F-D59.3.b richer struct); cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-05-10 by Claude Code (CH-20 P3 chunk-seal — line 185 parenthetical amended `(existing 14 items)` → `(existing 16 items)` per ADR-0058 §D58.10 reconciliation; the forward-scope row's "14" was a counting error in M5.1/P3 authoring (2026-04-24); the explicit drift list at line 186 enumerates 16 IDs (D1.1, D1.2, D1.3, D2.1, D2.2, D3.1, D3.2, D3.3, D3.4, D4.3, D4.4, D4.5, D4.6, D6.4, D7.3, D7.6) — empirically verified via `ls v0/implementation/m5_1/drifts/` showing all 16 files exist with Status `discovered` at chunk-open. Categorised as housekeeping per CH-19/ADR-0057 §D57.7 edge-count reconcile precedent — no new drift file filed. cycle hex `240616a4`.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 
@@ -207,9 +208,10 @@
 - Prerequisites: **CH-21**, **CH-22**.
 - Deliverables: `acceptance_system_flows_s05.rs` — 4 scenarios: Template C fires on MANAGES / Template D fires on HAS_AGENT_SUPERVISOR / A+C+D simultaneous / cross-listener ordering.
 
-**CH-24 — Carryover re-verification + M5 final seal (original M5/P8d + P9)** · ~2 days
-- Drifts closed: none new; re-verifies all 5 M4→M5 carryovers (C-M5-2/3/4/5/6) against real `agent_loop` output, confirming they're not hollow.
-- Deliverables: re-run acceptance suite with real-loop output; `acceptance_m5.rs` cross-page e2e; `e2e_first_session.rs` subprocess fixture; CI extensions; ops runbook M5 section; M5.2 troubleshooting doc; phi-core reuse map; independent 3-agent re-audit targeting ≥99% composite; milestone tag `v0.1-m5` (user-managed).
+**CH-24 — Carryover re-verification + M5 final seal (original M5/P8d + P9)** · ~2 days (shipped ~2.4 days w/ scope expansion)
+- Drifts closed: **1 (D-CH24-recent-sessions-api-flip — mid-cycle scope expansion approved at gate-2.5)** (originally planned: none new; re-verifies all 5 M4→M5 carryovers (C-M5-2/3/4/5/6) against real `agent_loop` output, confirming they're not hollow).
+- Deliverables: re-run acceptance suite with real-loop output; 5 per-page acceptance files (`acceptance_m5_orgs/projects/agents/sessions/memory.rs` per F1.B user-lock — re-interprets the forward-scope `acceptance_m5.rs` literal as a 5-file split for finer-grained CI failure isolation) cross-page e2e; `e2e_first_session.rs` subprocess fixture (lives in `cli/tests/` because `CARGO_BIN_EXE_phi` is package-scoped to the `cli` package per P-NEW-TESTS deviation #5); CI extensions; ops runbook M5 section; M5.2 troubleshooting doc; phi-core reuse map; independent 3-agent re-audit targeting ≥99% composite; milestone tag `v0.1-m5` (user-managed).
+- **Mid-cycle scope expansion**: C-M5-3 API-surface flip closed via P-FLIP-RECENT-SESSIONS + ADR-0059 (LIMIT 10 / dedicated repo method `list_recent_sessions_for_project` / `RecentSessionEntry` 6-field shape; 7th field `started_by_display_name` deferred to follow-up chunk pending Agent-table-join design). User-locked at gate-2 to close in-chunk rather than defer; gate-2.5 forks F-D59.2 + F-D59.3 user-locked DIVERGENT from planner-recommendations (richer + more-defensive options chosen).
 
 ---
 
@@ -249,6 +251,7 @@ No M5 P8/P9 commitments orphaned.
   - Acceptance: owner-Agent can disable a child Agent without an explicit grant.
   - New ADR (next-free at chunk-open; likely **ADR-0042**).
 - **Estimated effort**: ~3 engineer-days.
+- **Carry-forward investigation from CH-24 retro R5 (deferred 2026-05-11)**: at CH-25 chunk-open or first retrospective, investigate the `permissions-audit` skill's window-filter logic. CH-24 retrospective reported `Total tool calls observed: 0` for the cycle window `2026-05-11T12:48:36Z → 2026-05-11T19:36:05Z` but the actual `.claude/tool-use.log` carried 1290 entries within that window (orchestrator spot-check). Likely a `jq` window-predicate bug, file-path resolution issue, or stdin-vs-file read mismatch in the skill. **Not a hook-daemon outage**; the telemetry pipeline is healthy. Goal: surface the skill's actual query mechanism, identify why it returned 0, fix the predicate, validate against CH-25 cycle window. CH-25 retrospector should run the skill manually + sanity-check against `grep -c "<cycle-date>" tool-use.log` before publishing §3.5 numbers.
 
 ### CH-26 — Org/Project as Composite resources (philosophy §4.2)
 

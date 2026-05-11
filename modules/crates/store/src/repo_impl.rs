@@ -33,8 +33,8 @@ use domain::model::nodes::{
     ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest, TurnNode, User,
 };
 use domain::model::{
-    AgentCatalogEntry, AgentExecutionLimitsOverride, SessionDetail, ShapeBPendingProject,
-    SystemAgentRuntimeStatus,
+    AgentCatalogEntry, AgentExecutionLimitsOverride, RecentSessionEntry, SessionDetail,
+    ShapeBPendingProject, SystemAgentRuntimeStatus,
 };
 use domain::repository::{
     AgentCreationPayload, AgentCreationReceipt, BootstrapClaim, BootstrapCredentialRow,
@@ -3339,6 +3339,48 @@ impl Repository for SurrealStore {
             let sid = SessionId::from_uuid(parse_uuid(&rid)?);
             let hydrated = inject_id(row, sid)?;
             out.push(serde_json::from_value(hydrated).map_err(backend)?);
+        }
+        Ok(out)
+    }
+
+    async fn list_recent_sessions_for_project(
+        &self,
+        project: ProjectId,
+        limit: u32,
+    ) -> RepositoryResult<Vec<RecentSessionEntry>> {
+        // CH-24 / ADR-0059 §D59.2: cardinality bound pushed into the
+        // SurrealQL `LIMIT $limit` clause — scale-resilient for
+        // projects with thousands of sessions (no full-list
+        // materialisation in-process). Cap is `u32` typed on the
+        // trait but SurrealDB's parameter binding accepts it as an
+        // integer; we cast to `i64` because the SurrealDB driver
+        // emits `<int>` parameters for unsigned input which the
+        // SurrealQL `LIMIT` operator does not accept directly on
+        // every version. Rehydrate each row into the wrap-typed
+        // `Session` (so the mapping into `RecentSessionEntry` reuses
+        // the canonical `from_session` projection).
+        let mut resp = self
+            .client()
+            .query(
+                "SELECT *, record::id(id) AS _rid OMIT id FROM session \
+                 WHERE owning_project = $pid ORDER BY started_at DESC LIMIT $limit",
+            )
+            .bind(("pid", project.to_string()))
+            .bind(("limit", limit as i64))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+        let mut out: Vec<RecentSessionEntry> = Vec::with_capacity(rows.len());
+        for mut row in rows {
+            let rid = row
+                .as_object_mut()
+                .and_then(|m| m.remove("_rid"))
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| RepositoryError::Backend("session missing _rid".into()))?;
+            let sid = SessionId::from_uuid(parse_uuid(&rid)?);
+            let hydrated = inject_id(row, sid)?;
+            let session: Session = serde_json::from_value(hydrated).map_err(backend)?;
+            out.push(RecentSessionEntry::from_session(&session));
         }
         Ok(out)
     }

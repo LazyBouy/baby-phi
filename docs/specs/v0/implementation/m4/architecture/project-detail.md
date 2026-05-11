@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS doc-sync sweep — this is M4-tier archival doc; the "deferred to M5 per D11" + "M4 placeholder Vec::new()" wording reflects M4-state-at-time-of-writing and stays as historical record. The M5 flip is documented at `m5/architecture/overview.md` §"Page-11 recent_sessions panel semantics" + ADR-0059 §D59.1–§D59.4 + drift `D-CH24-recent-sessions-api-flip`. The M4 phi-core-reuse-map archival entry at `m4/architecture/phi-core-reuse-map.md:88` similarly preserves the `RecentSessionStub` placeholder mention as historical record only. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-04-23 by Claude Code -->
 
 # Architecture — Project Detail (page 11) — M4/P7

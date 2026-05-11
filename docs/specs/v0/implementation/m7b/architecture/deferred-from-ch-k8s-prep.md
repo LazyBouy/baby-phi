@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-SEAL — CHK8S-D-02 cross-reference note refined: `e2e_first_session.rs` IS extant at `modules/crates/cli/tests/e2e_first_session.rs` (relocated from `server/tests/` per P-NEW-TESTS deviation #5 because `CARGO_BIN_EXE_phi` is package-scoped to the `cli` package that owns the `phi` binary); covers the non-SIGTERM end-to-end branch. SIGTERM branch remains M7b-deferred per CHK8S-D-02 scope. Status totals unchanged at 10. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-05-09 by Claude Code (CH-17 chunk-seal — appended `CHK8S-D-10` entry under §3 + §2 Index; status totals bumped from 9 to 10. Origin: CH-17 P-1 trait-shape `SessionLiveStreamRegistry` at `server/src/state.rs:134–208`; M7b deliverable: NEW `RedisSessionLiveStreamRegistry` impl behind the same trait, swap-only refactor.) -->
 
 # Deferred-from-CH-K8S-PREP — M7b items registry
@@ -70,6 +71,12 @@ Why a separate file (not a §10 in the readiness doc): the readiness doc is the 
   - Bonus: a slower MockProvider variant (e.g., `MockProvider::text_after_delay`) that gives the test a deterministic mid-flight window without depending on real network.
 - **M7b sub-task owner:** "Operator runbook + acceptance hardening". Pairs with the M7b runbook write-up that documents the actual K8s pod-termination contract.
 - **Cross-refs:** [ADR-0031 §D31.5](../../m5/decisions/0031-session-cancellation-and-concurrency.md), [readiness doc §B4](./k8s-microservices-readiness.md).
+
+#### CH-24 cross-reference note (2026-05-11)
+
+The CH-24 plan §7 enumerated `e2e_first_session.rs` as a P-NEW-TESTS deliverable for the **non-SIGTERM** subprocess-fixture branch (a complementary side of the SIGTERM-branch scope documented above). The non-SIGTERM branch covers the happy-path round-trip: start `phi-server` as a child process, launch a session via HTTP, wait for natural completion, reopen the DB, assert terminal state — exercising the same subprocess-spawning + tempdir-DB infrastructure that the SIGTERM branch requires.
+
+**Status at CH-24 P-SEAL**: the `e2e_first_session.rs` file is extant at `modules/crates/cli/tests/e2e_first_session.rs` (relocated from `server/tests/` per P-NEW-TESTS deviation #5 because `CARGO_BIN_EXE_phi` is package-scoped to the `cli` package — the package that owns the `phi` binary); the file covers the non-SIGTERM end-to-end branch as planned. The SIGTERM branch (real-SIGTERM-with-real-launch acceptance test) remains M7b-deferred per the CHK8S-D-02 scope documented above. No CHK8S-D ledger numbering change is required; status totals remain at 10.
 
 ---
 

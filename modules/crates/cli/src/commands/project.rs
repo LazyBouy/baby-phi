@@ -588,7 +588,7 @@ async fn show_impl(server_url_override: Option<String>, project_id: &str, json: 
             .map(|v| v.len())
             .unwrap_or(0);
         if sessions == 0 {
-            println!("  recent sessions: (none — session persistence ships at M5; C-M5-3)");
+            println!("  recent sessions: (none — project has not launched any sessions)");
         } else {
             println!("  recent sessions: {sessions}");
         }

@@ -7,7 +7,8 @@
 //! Reader path:
 //!  1. Happy read — bootstrap-admin viewer fetches a fixture project
 //!     and sees the header + roster (lead only at M4) +
-//!     `recent_sessions: []` (C-M5-3 placeholder).
+//!     `recent_sessions: []` (the fixture does not launch sessions;
+//!     CH-24 wired the real query so empty == "no sessions exist").
 //!  2. 404 — unknown project id.
 //!  3. 403 — viewer with no relation to any owning org is denied.
 //!
@@ -86,11 +87,13 @@ async fn show_happy_path() {
                 && m["agent_id"] == project.project_lead.to_string()),
         "roster must contain the lead agent"
     );
-    // M4 placeholder: recent sessions always empty.
+    // The fixture does not launch any sessions; the page-11 panel
+    // (wired to Repository::list_recent_sessions_for_project at CH-24
+    // per ADR-0059) returns an empty array when no sessions exist.
     let sessions = body["recent_sessions"].as_array().unwrap();
     assert!(
         sessions.is_empty(),
-        "recent_sessions MUST be empty at M4 — C-M5-3 flips this at M5"
+        "fixture launches no sessions; recent_sessions panel must be empty"
     );
     // phi-core strip invariant — no blueprint / execution_limits leaked.
     let raw = serde_json::to_string(&body).unwrap();

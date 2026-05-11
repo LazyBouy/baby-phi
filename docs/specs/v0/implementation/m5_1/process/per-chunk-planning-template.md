@@ -146,6 +146,23 @@ The mandate applies because the milestone-era pattern was three peer doc trees p
 
 **Mid-flight discovery.** If a phase makes a doc stale that wasn't anticipated in §3.C, pause via `AskUserQuestion` and add a row to the table before the phase closes — same pattern as §2 concept-contradiction discovery and §3.B K8s-blocker discovery.
 
+### §3.E — Anticipated gate-2.5 candidates (added 2026-05-11 per CH-24 retro Row 6, cycle hex `5778bb77`; chunk-planner v13)
+
+**Optional planner-led section** (planner inserts when chunk-shape suggests gate-2.5 candidates; orchestrator MAY add at gate-1 review if planner missed any).
+
+CH-24 demonstrated mid-cycle architectural scope expansion as a viable workflow: P-NEW-TESTS authoring surfaced `recent_sessions: Vec::new()` hardcoded placeholder at `detail.rs:229`; user locked close-in-chunk at gate-2.5; new phase `P-FLIP-RECENT-SESSIONS` inserted; ADR-0059 ratified + drift remediated in-cycle. The pattern is first-of-kind across all chunks.
+
+**Surfaces likely to be touched by P-NEW-TESTS / P-DOCS authoring that may surface mid-flight discoveries** (planner enumerates per chunk):
+
+- Doc-comments referencing deferred-but-shipping behaviour (e.g., "deferred to M5 per Dxx" — likely flips during authoring).
+- Placeholder `Vec::new()` / `Default::default()` returns with an inline "ships at M5+" comment.
+- Stale transitional struct shapes (e.g., `RecentSessionStub` style placeholders awaiting C-Mn flip).
+- ADR sub-decisions marked Proposed at chunk-open that may be ratified/rejected mid-cycle.
+
+**Per candidate**: surface a "if discovered at gate-2.5, route to <option-A close-in-chunk via P-FLIP-<X> phase> OR <option-B file follow-up drift + retrospective routing>" recommendation. This pre-loads the gate-2.5 fork rather than synthesising it at-discovery.
+
+**Default rule**: no candidates → write "(none anticipated)" + proceed. The section is empty for ratification chunks (no code surface), small for medium chunks (1-2 candidates), large for milestone-seal chunks (3-5 candidates).
+
 ### §4 — Drifts closed
 
 List every drift file in [`../drifts/`](../drifts/) this chunk transitions to `remediated` / `renegotiated` / `accepted-as-is`:
@@ -158,6 +175,7 @@ Rules:
 - Every drift in the forward-scope inventory's `CH-NN` chunk MUST appear here.
 - If the chunk discovers new drifts mid-flight (see §6 *mid-flight pause*), the new drifts are added to this table before chunk seal.
 - Drift status transitions happen at chunk seal, not earlier. The lifecycle rules in [`drift-lifecycle.md`](./drift-lifecycle.md) govern permitted transitions.
+- **Non-terminal drifts MUST cite explicit `M*-DEFERRED-NN` allocation** (added 2026-05-11 per CH-24 retro Row 4, cycle hex `5778bb77`; chunk-planner v13). Drifts left at `Status: discovered` / `scoped` whose `Impl chunk` field reads `TBD` / `TBD — likely M6+` / `TBD pending design` are non-compliant. At plan-draft time, the planner inspects every drift file the plan touches; any `TBD` marker triggers a P-DOCS or P-SEAL deliverable to promote it to an explicit `M<N>-DEFERRED-<NN>` allocation (cross-referencing the relevant forward-scope §M6+/M7+/M7b section). For NEW drift files filed by the chunk (mid-flight discovery), the planner MUST populate `Impl chunk` with an explicit allocation at file-creation time. Never write `TBD`. CH-24 retro housekeeping precedent: 1-line patch to `D-new-28`'s stale `CH-19 (+ M6 review)` → `M6-DEFERRED-01`.
 
 ### §5 — ADRs drafted
 

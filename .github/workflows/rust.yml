@@ -116,6 +116,21 @@ jobs:
             --test acceptance_projects_detail \
             --test acceptance_m4 \
             --test acceptance_metrics \
+            --test acceptance_m5_orgs \
+            --test acceptance_m5_projects \
+            --test acceptance_m5_agents \
+            --test acceptance_m5_sessions \
+            --test acceptance_m5_memory \
+            -- --test-threads 1
+      # `e2e_first_session` is a cli-tier end-to-end test that spawns the
+      # `phi` binary as a subprocess via `assert_cmd::Command::cargo_bin("phi")`;
+      # `CARGO_BIN_EXE_phi` is package-scoped to the `cli` package (the
+      # package that owns the `phi` binary), so it ships in cli/tests/ and
+      # runs under `-p cli` rather than `-p server`. See CH-24 plan
+      # P-NEW-TESTS deviation #5 + the file's module docstring.
+      - run: |
+          cargo test -p cli --release \
+            --test e2e_first_session \
             -- --test-threads 1
 
   phi-core-reuse:

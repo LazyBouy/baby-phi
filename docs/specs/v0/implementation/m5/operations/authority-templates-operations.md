@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS — verified-header re-stamp per plan §3.C; body content unchanged from M5/P5 close. CH-24 milestone-seal cycle — page 12 ops surface re-verified PASS against current HEAD; symptoms + remediations still correct; cross-refs to ADR-0046 / ADR-0053 / ADR-0056 / ADR-0058 intact. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-04-23 by Claude Code -->
 
 # Operations — Page 12 authority template adoption

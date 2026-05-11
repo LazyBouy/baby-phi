@@ -28,7 +28,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use super::ids::{
-    AgentCatalogEntryId, AgentId, AuthRequestId, LoopId, OrgId, SystemAgentRuntimeStatusId,
+    AgentCatalogEntryId, AgentId, AuthRequestId, LoopId, OrgId, ProjectId, SessionId,
+    SystemAgentRuntimeStatusId,
 };
 use super::nodes::{AgentKind, LoopRecordNode, Session, TurnNode};
 
@@ -191,6 +192,72 @@ pub struct SystemAgentRuntimeStatus {
     /// `system_agent_runtime_status:<id>`).
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+// ============================================================================
+// RecentSessionEntry — page-11 `recent_sessions` panel view-shape (CH-24 / ADR-0059).
+// ============================================================================
+
+/// View-shape row for the page-11 "recent sessions" panel. Returned by
+/// [`crate::repository::Repository::list_recent_sessions_for_project`].
+///
+/// Replaces the M4 placeholder shape (CH-24 / ADR-0059 §D59.3): the
+/// old 3-field stub (`session_id: String`, `started_at`, `summary:
+/// String`) is retired in favor of this richer 6-field shape with
+/// explicit, strongly-typed fields. The originally-planned 7th field
+/// (`started_by_display_name: String`) is deferred to a follow-up
+/// chunk per the chunk-implementer's pre-shipping evaluation that the
+/// Agent-table join would complicate the SurrealQL `LIMIT $limit`
+/// query; the renderer can resolve display names from `agent_id` until
+/// the field lands.
+///
+/// Cardinality bound is enforced at the query layer (LIMIT pushed into
+/// SurrealQL) per ADR-0059 §D59.1 + §D59.2 — not caller-side. Ordering
+/// is newest-first by `started_at` (mirroring the predecessor
+/// [`crate::repository::Repository::list_sessions_in_project`]).
+///
+/// The struct lives in the domain composites tier (alongside
+/// [`SessionDetail`]) so the [`crate::repository::Repository`] trait
+/// can name it directly; baby-phi's server crate consumes it via its
+/// [`crate::repository::Repository`] dependency. See ADR-0059
+/// §D59.2–§D59.3 for the placement rationale.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecentSessionEntry {
+    /// Strongly-typed session identifier — serializes to a plain UUID
+    /// string per the `#[serde(transparent)]` newtype.
+    pub id: SessionId,
+    /// Project the session belongs to. Denormalised onto the row so
+    /// multi-project panels can filter client-side without re-querying.
+    pub project_id: ProjectId,
+    /// Governance principal that launched the session (maps from
+    /// `Session.started_by`).
+    pub agent_id: AgentId,
+    /// Wall-clock at session launch.
+    pub started_at: DateTime<Utc>,
+    /// Wall-clock at session finalisation; `None` while the session is
+    /// still running.
+    #[serde(default)]
+    pub ended_at: Option<DateTime<Utc>>,
+    /// Lifecycle state rendered as a stable string — one of
+    /// `"running" | "completed" | "aborted" | "failed_launch"` per
+    /// [`crate::model::nodes::SessionGovernanceState::as_str`].
+    pub status: String,
+}
+
+impl RecentSessionEntry {
+    /// Project a full [`Session`] into the panel view-shape. Centralised
+    /// here so both the in-memory and SurrealDB repository impls produce
+    /// identical wire bytes.
+    pub fn from_session(session: &Session) -> Self {
+        Self {
+            id: session.id,
+            project_id: session.owning_project,
+            agent_id: session.started_by,
+            started_at: session.started_at,
+            ended_at: session.ended_at,
+            status: session.governance_state.as_str().to_string(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -20,7 +20,7 @@
 
 ## Remediation
 - **Approach**: Design decision: keep tag-based classification OR add enum. If enum, part of Memory contract C-M6-1 work. ~1 day.
-- **Impl chunk**: CH-19 (+ M6 review)
+- **Impl chunk**: M6-DEFERRED-01 (CH-19 closed the bucket-classification ratification per ADR-0057; the `memory_type` enum-vs-tag decision lands at M6 plan-open per forward-scope §M6-DEFERRED-01) — pointer refreshed at CH-24 retro R4 housekeeping (was: `CH-19 (+ M6 review)`)
 - **Risk**: LOW.
 
 ## Lifecycle

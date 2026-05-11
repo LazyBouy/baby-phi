@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS — verified-header re-stamp per plan §3.C; body content unchanged from CH-22 close. CH-24 milestone-seal cycle — system-agents walkthrough re-verified PASS against current HEAD; durable-state + audit-mode amendments still correct. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- CH-01 + CH-22 amendments (2026-04-27): operator-visible disable/archive durable-state semantics + agent-catalog audit-mode flag. Full P6 walkthrough prose still deferred to M5-tag-close. -->
 

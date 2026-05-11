@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS — verified-header re-stamp per plan §3.C; body content unchanged from CH-17 close. CH-24 milestone-seal cycle — CLI reference re-verified PASS against current HEAD; all subcommand exit-code maps + CH-17 SSE-tail amendment still correct. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: live SSE tail at `GET /api/v0/sessions/:id/events` shipped per ADR-0055; the `Default launch tails events live via SSE …` paragraph at lines 21–23 transitions from PLANNED to EXISTS; `--no-tail` flag added to `phi session launch` for operators who want the JSON receipt without the live tail (parallel to `--detach`). Drift D7.1 closed. Doc body is concept-aligned; the CLI binary now matches.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- CH-02 amendment (2026-04-24): `phi agent update --mock-response <str>` flag added (per-profile MockProvider override). -->

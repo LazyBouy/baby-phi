@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS doc-sync sweep — this is M4-tier archival doc; the line 88 entry `| RecentSessionStub placeholder | — | build-native (M4 always empty; M5/C-M5-3 flips to real rows of baby-phi's governance Session — NOT phi_core::Session per D11) |` is **historical record only** — `RecentSessionStub` was deleted at CH-24 P-FLIP-RECENT-SESSIONS and replaced with `RecentSessionEntry` at the domain composites tier per ADR-0059 §D59.3 (mid-cycle scope expansion). Current M5 reuse map is at `m5/architecture/phi-core-reuse-map.md` with the CH-24 close note. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-04-23 by Claude Code -->
 
 # Architecture — M4 phi-core reuse map

@@ -63,8 +63,8 @@ use crate::model::nodes::{
 };
 use crate::model::{
     AgentCatalogEntry, AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime,
-    PlatformDefaults, Principal, Resource, SecretCredential, SecretRef, SessionDetail,
-    ShapeBPendingProject, SystemAgentRuntimeStatus, TenantSet,
+    PlatformDefaults, Principal, RecentSessionEntry, Resource, SecretCredential, SecretRef,
+    SessionDetail, ShapeBPendingProject, SystemAgentRuntimeStatus, TenantSet,
 };
 
 // ----------------------------------------------------------------------------
@@ -1653,11 +1653,33 @@ pub trait Repository: Send + Sync + 'static {
     async fn fetch_session(&self, session: SessionId) -> RepositoryResult<Option<SessionDetail>>;
 
     /// List every session whose `owning_project == project`.
-    /// Ordered newest-first by `started_at`. Used by page 11's
-    /// "Recent sessions" panel + the M5/P4 `GET /projects/:id/sessions`
-    /// endpoint (which strips to `SessionHeader` at the wire tier per
-    /// the plan's §P4 schema-snapshot invariant).
+    /// Ordered newest-first by `started_at`. Used by the M5/P4
+    /// `GET /projects/:id/sessions` endpoint (which strips to
+    /// `SessionHeader` at the wire tier per the plan's §P4
+    /// schema-snapshot invariant).
     async fn list_sessions_in_project(&self, project: ProjectId) -> RepositoryResult<Vec<Session>>;
+
+    /// List up to `limit` most-recent sessions for `project`, ordered
+    /// newest-first by `started_at`, returned in the view-shape
+    /// [`RecentSessionEntry`] for the page-11 `recent_sessions` panel.
+    ///
+    /// **Cardinality bound is enforced at the query layer**: SurrealQL
+    /// impls push `LIMIT $limit` into the database query (no full-list
+    /// materialisation in-process); the in-memory impl mirrors the
+    /// contract via `filter + sort + take(limit)`. This is the
+    /// scale-resilient counterpart to `list_sessions_in_project` —
+    /// callers that only need the page-11 top-N use this method, not
+    /// the full-list one.
+    ///
+    /// Lands at CH-24 / ADR-0059 §D59.1–§D59.3 to close the M4
+    /// `recent_sessions: Vec::new()` placeholder at
+    /// `server::platform::projects::detail`. Page-11 default
+    /// cardinality bound is `limit = 10` per §D59.1.
+    async fn list_recent_sessions_for_project(
+        &self,
+        project: ProjectId,
+        limit: u32,
+    ) -> RepositoryResult<Vec<RecentSessionEntry>>;
 
     /// List every session with `started_by == agent` and
     /// `governance_state == Running`. Drives the per-agent

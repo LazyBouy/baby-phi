@@ -30,9 +30,14 @@
 //! `context_config` / `retry_config` keys at any depth.
 //!
 //! **Q3 rejections** (explicit module walk): `phi_core::Session` /
-//! `LoopRecord` / `Turn` — deferred to M5 per D11; the `recent_sessions`
-//! field in [`ProjectDetail`] is a placeholder `Vec::new()` until M5
-//! wires baby-phi's governance `Session` node. `phi_core::AgentEvent`
+//! `LoopRecord` / `Turn` — wrapped at `domain::model::nodes` per
+//! ADR-0029; the `recent_sessions` field in [`ProjectDetail`] is
+//! populated from [`Repository::list_recent_sessions_for_project`] per
+//! ADR-0059 §D59.1–§D59.3 (CH-24 close — was an M4 `Vec::new()`
+//! placeholder until CH-24 wired the real query). The view-shape
+//! [`RecentSessionEntry`] is baby-phi-defined in
+//! `domain::model::composites_m5` so the [`Repository`] trait can name
+//! it directly — NOT a phi-core reuse. `phi_core::AgentEvent`
 //! — orthogonal per `phi/CLAUDE.md`. `phi_core::Usage` — the token
 //! budget is governance-level economic resource tracking, not per-
 //! loop usage.
@@ -49,6 +54,7 @@ use domain::audit::AuditEmitter;
 use domain::model::composites_m4::{KeyResult, Objective};
 use domain::model::ids::{AgentId, AuditEventId, OrgId, ProjectId};
 use domain::model::nodes::{Agent, AgentKind, AgentRole, Project};
+use domain::model::RecentSessionEntry;
 use domain::repository::Repository;
 
 use super::create::validate_okrs;
@@ -81,19 +87,6 @@ pub enum ProjectMembershipRole {
     Sponsor,
 }
 
-/// Placeholder row for the `recent_sessions` panel. The struct is
-/// defined so the wire shape is stable across M4 ↔ M5; at M4 the list
-/// is always empty.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RecentSessionStub {
-    /// Opaque id — materialises to baby-phi's governance `Session` id
-    /// at M5 (C-M5-3). The field is present at M4 so JSON consumers
-    /// don't break when M5 flips the empty list to real rows.
-    pub session_id: String,
-    pub started_at: DateTime<Utc>,
-    pub summary: String,
-}
-
 /// Project-detail aggregate for page 11. Wire-stable contract; handler
 /// serialises this verbatim.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,10 +97,14 @@ pub struct ProjectDetail {
     pub owning_org_ids: Vec<OrgId>,
     pub lead_agent_id: Option<AgentId>,
     pub roster: Vec<RosterMember>,
-    /// **M4 placeholder** — always `Vec::new()`. Populates at M5 via
-    /// C-M5-3 (baby-phi governance `Session` node). The field exists at
-    /// M4 so CLI + Web renderers don't need to change when M5 ships.
-    pub recent_sessions: Vec<RecentSessionStub>,
+    /// Top-N most-recent sessions for this project (panel cardinality
+    /// bound: 10 per ADR-0059 §D59.1; query-side LIMIT pushed into
+    /// SurrealQL per §D59.2). Populated from
+    /// [`Repository::list_recent_sessions_for_project`] at every read
+    /// (no caching — freshness on-read). Empty when the project has
+    /// never launched a session. Lands at CH-24 — the prior M4
+    /// placeholder always returned `Vec::new()`.
+    pub recent_sessions: Vec<RecentSessionEntry>,
 }
 
 /// Three-state outcome: the project may be absent (→ 404), the viewer
@@ -220,15 +217,28 @@ pub async fn project_detail(
         .find(|m| m.project_role == ProjectMembershipRole::Lead)
         .map(|m| m.agent_id);
 
+    // CH-24 / ADR-0059 §D59.1–§D59.3: page-11 `recent_sessions` panel
+    // queries the top-10 most-recent sessions for this project,
+    // newest-first by `started_at`. Cap pushed into SurrealQL via
+    // `LIMIT $limit` (in-memory impl mirrors with filter+sort+take).
+    let recent_sessions = repo
+        .list_recent_sessions_for_project(project_id, RECENT_SESSIONS_LIMIT)
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+
     Ok(DetailOutcome::Found(Box::new(ProjectDetail {
         project,
         owning_org_ids: owning_orgs,
         lead_agent_id,
         roster,
-        // M4 placeholder — C-M5-3 flips this to the real query.
-        recent_sessions: Vec::new(),
+        recent_sessions,
     })))
 }
+
+/// Page-11 `recent_sessions` panel cardinality bound per ADR-0059
+/// §D59.1. Bumping this constant requires re-running the panel
+/// acceptance test (see `acceptance_m5_sessions.rs`).
+const RECENT_SESSIONS_LIMIT: u32 = 10;
 
 async fn build_roster(
     repo: Arc<dyn Repository>,
@@ -670,7 +680,14 @@ mod tests {
     }
 
     #[test]
-    fn recent_sessions_is_empty_at_m4() {
+    fn recent_sessions_defaults_empty_for_projects_with_no_launches() {
+        // Pure-struct invariant: a `ProjectDetail` constructed with an
+        // empty `recent_sessions` vec exposes an empty panel. The
+        // production reader path always calls
+        // `Repository::list_recent_sessions_for_project` (per CH-24 /
+        // ADR-0059 §D59.1–§D59.3); when the project has never
+        // launched a session that call returns `Vec::new()` and the
+        // wire-shape mirrors this fixture exactly.
         let detail = ProjectDetail {
             project: sample_project(),
             owning_org_ids: vec![OrgId::new()],
@@ -680,7 +697,7 @@ mod tests {
         };
         assert!(
             detail.recent_sessions.is_empty(),
-            "M4 placeholder — C-M5-3 flips this to real rows"
+            "panel is empty when the project has never launched a session"
         );
     }
 

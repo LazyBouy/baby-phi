@@ -28,8 +28,8 @@ use crate::model::nodes::{
 };
 use crate::model::{
     AgentCatalogEntry, AgentExecutionLimitsOverride, Composite, ExternalService, ModelRuntime,
-    PlatformDefaults, SecretCredential, SecretRef, SessionDetail, ShapeBPendingProject,
-    SystemAgentRuntimeStatus, TenantSet,
+    PlatformDefaults, RecentSessionEntry, SecretCredential, SecretRef, SessionDetail,
+    ShapeBPendingProject, SystemAgentRuntimeStatus, TenantSet,
 };
 use crate::repository::{
     BootstrapCredentialRow, CascadeResult, OrgCreationPayload, OrgCreationReceipt,
@@ -2392,6 +2392,31 @@ impl Repository for InMemoryRepository {
         // Newest-first by started_at.
         out.sort_by_key(|s| std::cmp::Reverse(s.started_at));
         Ok(out)
+    }
+
+    async fn list_recent_sessions_for_project(
+        &self,
+        project: ProjectId,
+        limit: u32,
+    ) -> RepositoryResult<Vec<RecentSessionEntry>> {
+        // Mirrors the SurrealQL contract: filter by project + sort
+        // newest-first + truncate at `limit` + view-shape map. The
+        // filter happens before sort+take, matching the query-side
+        // cap semantics (no full-list materialisation of `Session`
+        // wires; we still hold every session in HashMap state, but
+        // production SurrealStore pushes the cap into the DB).
+        let s = self.lock()?;
+        let mut filtered: Vec<&Session> = s
+            .sessions
+            .values()
+            .filter(|sess| sess.owning_project == project)
+            .collect();
+        filtered.sort_by_key(|sess| std::cmp::Reverse(sess.started_at));
+        Ok(filtered
+            .into_iter()
+            .take(limit as usize)
+            .map(RecentSessionEntry::from_session)
+            .collect())
     }
 
     async fn list_active_sessions_for_agent(

@@ -314,8 +314,8 @@ async fn shape_b_both_approve_terminal_state_is_approved() {
     let org = spawn_claimed_with_org(false).await;
     let state = drive_shape_b_matrix(&org, true, true).await;
     assert_eq!(state, "approved");
-    // NOTE: at M4 project_id is null per C-M5-6 deferral. The state
-    // machine invariant is what this test pins.
+    // NOTE: post-CH-24, materialise_project is wired into approve_pending_shape_b;
+    // this test pins the AR state-machine invariant (terminal state on dual-approve).
 }
 
 #[tokio::test]
