@@ -83,6 +83,10 @@ fn build_ctx<'a>(
         // M1/CH-06 invariants for instance-URI grant-match proptest.
         session_org_tags: &[],
         session_project_tags: &[],
+        // CH-25 / ADR-0060 §D60.3 — instance-URI grant-match proptests
+        // are orthogonal to owner-grant synth; empty slices → no-op.
+        agent_owned_orgs: &[],
+        agent_owned_projects: &[],
         call,
     }
 }

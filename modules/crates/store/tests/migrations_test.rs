@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 16, "every embedded migration recorded");
+    assert_eq!(rows.len(), 17, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -115,6 +115,14 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[15].get("slug").and_then(|v| v.as_str()),
         Some("template_a_session_object_grant_add_observe")
+    );
+    // CH-25 — Agent-as-creator-and-owner edge model (ADR-0060 §D60.1).
+    // Adds the `owns` relation table backing the new `Edge::Owns`
+    // variant.
+    assert_eq!(rows[16].get("version").and_then(|v| v.as_i64()), Some(17));
+    assert_eq!(
+        rows[16].get("slug").and_then(|v| v.as_str()),
+        Some("add_owns_relation")
     );
 
     // A sample table from the initial migration exists and accepts a row

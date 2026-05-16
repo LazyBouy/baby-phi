@@ -455,6 +455,8 @@ async fn seed_unrelated_org_with_project(
             project,
             owning_orgs: vec![other_org_id],
             lead_agent_id: other_ceo.id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: other_ceo.id,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![(format!("project:{project_id}"), "project".into())],
@@ -571,6 +573,9 @@ async fn dashboard_shape_counters_are_org_scoped() {
             project: shape_b_project,
             owning_orgs: vec![second_org_id, third_org_id],
             lead_agent_id: second_ceo,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator
+            // at Shape B as well (the AR-submitter chose the lead).
+            creator_agent: second_ceo,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![(format!("project:{shape_b_id}"), "project".into())],

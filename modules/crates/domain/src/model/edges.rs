@@ -1,7 +1,9 @@
-//! The 71 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
+//! The 72 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
 //! `HAS_SUBPROJECT` + `HAS_CONFIG` per the project-node edge table in
 //! `concepts/project.md §Project Edges`; CH-23 adds `MANAGES` +
-//! `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges).
+//! `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges; CH-25
+//! adds `OWNS` per ADR-0060 §D60.1 for Agent→Org/Project ownership with
+//! typed [`crate::model::ids::OwnedResourceId`] payload, F1.b USER-LOCKED).
 //!
 //! Edges are modelled as a single tagged enum [`Edge`]. Each variant's payload
 //! carries the edge's ID and the IDs of its `from` and `to` nodes. Where the
@@ -10,20 +12,20 @@
 //! target; `HOLDS_GRANT` from Agent/Project/Org; `PROVIDES_TOOL` from
 //! McpServer/OpenApiSpec; `OWNED_BY` both as Agent→User and generic
 //! Resource→Principal), we model each source/target type pair as a distinct
-//! variant — this is what gets the count to 71.
+//! variant — this is what gets the count to 72.
 //!
 //! Source of truth: `docs/specs/v0/concepts/ontology.md` §Edge Types.
 
 use serde::{Deserialize, Serialize};
 
 use super::ids::{
-    AgentId, AuthRequestId, ConsentId, EdgeId, GrantId, MemoryId, NodeId, OrgId, ProjectId,
-    SessionId, TemplateId, UserId,
+    AgentId, AuthRequestId, ConsentId, EdgeId, GrantId, MemoryId, NodeId, OrgId, OwnedResourceId,
+    ProjectId, SessionId, TemplateId, UserId,
 };
 
 /// Every edge type in the v0 ontology.
 ///
-/// Count: **71** (invariant asserted in [`tests`]).
+/// Count: **72** (invariant asserted in [`tests`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "edge")]
 pub enum Edge {
@@ -340,7 +342,7 @@ pub enum Edge {
         to: AgentId,
     },
 
-    // --- Governance — Ownership (3) --------------------------------------
+    // --- Governance — Ownership (4) --------------------------------------
     /// Generic form: any Resource is owned by any Principal. The `from` and
     /// `to` carry the respective node IDs via `NodeId` since Resource /
     /// Principal are type unions, not single types.
@@ -358,6 +360,22 @@ pub enum Edge {
         id: EdgeId,
         from: NodeId,
         to: NodeId,
+    },
+    /// CH-25 / ADR-0060 §D60.1 (F1.b USER-LOCKED, DIVERGENT) — Agent
+    /// owns an Organization or a Project. The payload is typed at both
+    /// ends (Agent → OwnedResourceId) so that callers cannot accidentally
+    /// emit this edge with the wrong principal-end or resource-end kind.
+    /// Distinct from the generic [`Edge::OwnedBy`] variant (which stays
+    /// Memory-as-Resource focused per ADR-0015 / M1 close).
+    ///
+    /// Org/Project STAY Principal-only per the v0 ontology invariant at
+    /// `principal_resource.rs:182-186`; the typed `OwnedResourceId`
+    /// payload is the resource-end carrier, NOT a `Resource`-trait
+    /// relaxation.
+    Owns {
+        id: EdgeId,
+        from: AgentId,
+        to: OwnedResourceId,
     },
 
     // --- Governance — Grant + Auth Request (10) --------------------------
@@ -498,6 +516,7 @@ impl Edge {
             Edge::OwnedBy { .. } => "OWNED_BY",
             Edge::Created { .. } => "CREATED",
             Edge::AllocatedTo { .. } => "ALLOCATED_TO",
+            Edge::Owns { .. } => "OWNS",
 
             Edge::IssuedGrant { .. } => "ISSUED_GRANT",
             Edge::DescendsFrom { .. } => "DESCENDS_FROM",
@@ -518,11 +537,13 @@ impl Edge {
 
 /// Every edge kind name, in the same order as the concept doc's tables.
 ///
-/// Used by tests to assert the 71 count: 67 at M3 close, +2 at M4/P1
+/// Used by tests to assert the 72 count: 67 at M3 close, +2 at M4/P1
 /// (`HasSubproject`, `HasConfig`), +2 at CH-23 for Template C/D
-/// triggers (`Manages`, `HasAgentSupervisor`). Strings here mirror
-/// [`Edge::name`] outputs for the same variant order.
-pub const EDGE_KIND_NAMES: [&str; 71] = [
+/// triggers (`Manages`, `HasAgentSupervisor`), +1 at CH-25 (`Owns`)
+/// per ADR-0060 §D60.1 for Agent→Org/Project ownership (F1.b
+/// USER-LOCKED DIVERGENT). Strings here mirror [`Edge::name`] outputs
+/// for the same variant order.
+pub const EDGE_KIND_NAMES: [&str; 72] = [
     "HAS_PROFILE",
     "USES_MODEL",
     "HAS_TOOL",
@@ -582,6 +603,7 @@ pub const EDGE_KIND_NAMES: [&str; 71] = [
     "OWNED_BY",
     "CREATED",
     "ALLOCATED_TO",
+    "OWNS",
     "ISSUED_GRANT",
     "DESCENDS_FROM",
     "APPLIES_TO",
@@ -646,6 +668,25 @@ impl Edge {
             to: to.node_id(),
         }
     }
+
+    /// Typed constructor for `owns` — an Agent owns an Organization or
+    /// Project (CH-25 / ADR-0060 §D60.1, F1.b USER-LOCKED).
+    ///
+    /// The payload is typed at both ends: `from: AgentId` is concrete
+    /// (NOT generic `Principal`) and `to: OwnedResourceId` is the
+    /// closed-set enum carrying either `Org(OrgId)` or `Project(ProjectId)`.
+    /// This is more restrictive than `new_owned_by` / `new_created` /
+    /// `new_allocated_to` (which use the Principal/Resource trait
+    /// dispatch) — the typed variant payload makes wrong cross-pastes
+    /// (e.g., `OwnedResourceId::Org(uid)` where `uid` is `UserId`)
+    /// impossible at compile time.
+    pub fn new_owns(agent: &AgentId, owned: OwnedResourceId) -> Edge {
+        Edge::Owns {
+            id: EdgeId::new(),
+            from: *agent,
+            to: owned,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -655,17 +696,18 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn edge_kind_names_is_exactly_seventy_one() {
+    fn edge_kind_names_is_exactly_seventy_two() {
         // 67 at M3 close + 2 at M4/P1 (HasSubproject, HasConfig) + 2
         // at CH-23 (Manages, HasAgentSupervisor — Template C/D
-        // production triggers, ADR-0046).
-        assert_eq!(EDGE_KIND_NAMES.len(), 71);
+        // production triggers, ADR-0046) + 1 at CH-25 (Owns — Agent
+        // ownership of Org/Project per ADR-0060 §D60.1, F1.b USER-LOCKED).
+        assert_eq!(EDGE_KIND_NAMES.len(), 72);
     }
 
     #[test]
     fn edge_kind_names_are_distinct() {
         let set: HashSet<_> = EDGE_KIND_NAMES.iter().collect();
-        assert_eq!(set.len(), 71);
+        assert_eq!(set.len(), 72);
     }
 
     #[test]
@@ -741,5 +783,61 @@ mod tests {
         let owned = AgentId::new();
         let edge = Edge::new_owned_by(&owned, &owner);
         assert!(matches!(edge, Edge::OwnedBy { .. }));
+    }
+
+    #[test]
+    fn owns_variant_has_correct_name() {
+        // CH-25 / ADR-0060 §D60.1 (F1.b USER-LOCKED) — sanity check that
+        // the new Owns variant emits the concept-doc-mandated name "OWNS"
+        // from `Edge::name()` and is present in `EDGE_KIND_NAMES`.
+        use crate::model::ids::OwnedResourceId;
+        let agent = AgentId::new();
+        let org = OrgId::new();
+        let edge = Edge::Owns {
+            id: EdgeId::new(),
+            from: agent,
+            to: OwnedResourceId::Org(org),
+        };
+        assert_eq!(edge.name(), "OWNS");
+        assert!(EDGE_KIND_NAMES.contains(&"OWNS"));
+    }
+
+    #[test]
+    fn typed_new_owns_org_constructs_valid_edge() {
+        // CH-25 / ADR-0060 §D60.1 — Edge::new_owns typed constructor.
+        // F1.b user-lock: payload is typed at both ends; AgentId on the
+        // principal-end, OwnedResourceId on the resource-end.
+        use crate::model::ids::OwnedResourceId;
+        let agent = AgentId::new();
+        let org = OrgId::new();
+        let edge = Edge::new_owns(&agent, OwnedResourceId::Org(org));
+        match edge {
+            Edge::Owns { from, to, .. } => {
+                assert_eq!(from.as_uuid(), agent.as_uuid());
+                match to {
+                    OwnedResourceId::Org(o) => assert_eq!(o.as_uuid(), org.as_uuid()),
+                    other => panic!("expected Org variant, got {:?}", other),
+                }
+            }
+            other => panic!("expected Owns variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn typed_new_owns_project_constructs_valid_edge() {
+        use crate::model::ids::{OwnedResourceId, ProjectId};
+        let agent = AgentId::new();
+        let project = ProjectId::new();
+        let edge = Edge::new_owns(&agent, OwnedResourceId::Project(project));
+        match edge {
+            Edge::Owns { from, to, .. } => {
+                assert_eq!(from.as_uuid(), agent.as_uuid());
+                match to {
+                    OwnedResourceId::Project(p) => assert_eq!(p.as_uuid(), project.as_uuid()),
+                    other => panic!("expected Project variant, got {:?}", other),
+                }
+            }
+            other => panic!("expected Owns variant, got {:?}", other),
+        }
     }
 }

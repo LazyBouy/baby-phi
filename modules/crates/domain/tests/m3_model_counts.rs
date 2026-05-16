@@ -14,22 +14,25 @@ use domain::model::{
 // ---- Count invariants -----------------------------------------------------
 
 #[test]
-fn edge_count_bumps_from_sixty_six_to_seventy_one() {
+fn edge_count_bumps_from_sixty_six_to_seventy_two() {
     // M3/P1 added `HasLead` as variant #67. M4/P1 added
     // `HasSubproject` + `HasConfig` as #68 + #69. CH-23 added
     // `Manages` + `HasAgentSupervisor` as #70 + #71 per ADR-0046 to
-    // give Templates C and D real production triggers. The
-    // compile-time count is pinned in `edges.rs`
-    // (`pub const EDGE_KIND_NAMES: [&str; 71]`); this test is a
+    // give Templates C and D real production triggers. CH-25 added
+    // `Owns` as #72 per ADR-0060 §D60.1 (F1.b USER-LOCKED) for
+    // Agent→Org/Project ownership with typed `OwnedResourceId`
+    // payload. The compile-time count is pinned in `edges.rs`
+    // (`pub const EDGE_KIND_NAMES: [&str; 72]`); this test is a
     // belt-and-braces check visible in the integration suite so
     // count regressions surface under `cargo test --workspace`.
-    assert_eq!(EDGE_KIND_NAMES.len(), 71);
+    assert_eq!(EDGE_KIND_NAMES.len(), 72);
     for required in [
         "HAS_LEAD",
         "HAS_SUBPROJECT",
         "HAS_CONFIG",
         "MANAGES",
         "HAS_AGENT_SUPERVISOR",
+        "OWNS",
     ] {
         assert!(
             EDGE_KIND_NAMES.contains(&required),

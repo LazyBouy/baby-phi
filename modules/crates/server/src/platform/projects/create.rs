@@ -382,6 +382,11 @@ async fn materialise_project(
         project: project.clone(),
         owning_orgs: owning_orgs.clone(),
         lead_agent_id: input.lead_agent_id,
+        // CH-25 / ADR-0060 §D60.1 — Decision-3 user-lock: at Shape A and
+        // Shape B materialise paths, the lead is BOTH creator AND owner.
+        // The AR-submitter (Shape B) chose the lead; that's the owner.
+        // Future per-org co-ownership is M6+ refinement.
+        creator_agent: input.lead_agent_id,
         member_agent_ids: input.member_agent_ids.clone(),
         sponsor_agent_ids: input.sponsor_agent_ids.clone(),
         catalogue_entries: vec![(format!("project:{}", input.project_id), "project".into())],

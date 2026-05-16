@@ -261,6 +261,11 @@ pub async fn create_organization(
         ceo_inbox,
         ceo_outbox,
         ceo_grant,
+        // CH-25 / ADR-0060 §D60.1 — the platform-admin invoking the
+        // create-org handler is the *creator*; the ceo_agent is the
+        // *owner*. The owner-grant Permission Check rule (§D60.3)
+        // synth on `Owns` edges; `Created` carries provenance only.
+        creator_agent: input.actor,
         system_agents: system_agents.clone(),
         token_budget_pool,
         adoption_auth_requests: adoption_ars.clone(),

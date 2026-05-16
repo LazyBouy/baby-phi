@@ -236,6 +236,8 @@ pub async fn bootstrap_with_two_orgs_and_projects() -> TwoOrgsWithProjectA {
         project,
         owning_orgs: vec![two.org_a_id],
         lead_agent_id: lead_id,
+        // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+        creator_agent: lead_id,
         member_agent_ids: vec![],
         sponsor_agent_ids: vec![two.org_a_ceo],
         catalogue_entries: vec![(format!("project:{}", project_id), "project".into())],

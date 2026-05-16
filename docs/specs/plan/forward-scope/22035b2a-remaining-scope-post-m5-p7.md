@@ -239,19 +239,23 @@ No M5 P8/P9 commitments orphaned.
 >
 > **Plan archive (verbatim)**: [`plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](../core-philosophy-check/525d2085-m5-3-announcement-plan.md).
 
-### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1)
+### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1) — **CLOSED at cycle hex `1e01618e` (2026-05-16)**
 
-- **Drifts closed**: **D-philosophy-01** (HIGH) — see [`m5_3/drifts/D-philosophy-01.md`](../../v0/implementation/m5_3/drifts/D-philosophy-01.md).
-- **Concept docs**: `core-philosophy.md` ("Agent owns Organization", "Agent create Projects"); `agent.md` ("Agent spawns other Agents (Ownership)").
-- **Prerequisites**: **CH-24** (M5 final seal). Independent of CH-23.
-- **Deliverables**:
-  - New `Owns` edge variant in `EdgeKind` enum (or extended `Created` with Agent→Org/Project type pairs).
-  - Bootstrap-claim flow + `apply_project_creation` compound tx emit the edge.
-  - Permission Check gains an "owner-grant" rule (auto-issue `[admin, transfer]` for the owner-Agent over the child Org/Project).
-  - Acceptance: owner-Agent can disable a child Agent without an explicit grant.
-  - New ADR (next-free at chunk-open; likely **ADR-0042**).
-- **Estimated effort**: ~3 engineer-days.
-- **Carry-forward investigation from CH-24 retro R5 (deferred 2026-05-11)**: at CH-25 chunk-open or first retrospective, investigate the `permissions-audit` skill's window-filter logic. CH-24 retrospective reported `Total tool calls observed: 0` for the cycle window `2026-05-11T12:48:36Z → 2026-05-11T19:36:05Z` but the actual `.claude/tool-use.log` carried 1290 entries within that window (orchestrator spot-check). Likely a `jq` window-predicate bug, file-path resolution issue, or stdin-vs-file read mismatch in the skill. **Not a hook-daemon outage**; the telemetry pipeline is healthy. Goal: surface the skill's actual query mechanism, identify why it returned 0, fix the predicate, validate against CH-25 cycle window. CH-25 retrospector should run the skill manually + sanity-check against `grep -c "<cycle-date>" tool-use.log` before publishing §3.5 numbers.
+- **Drifts closed**: **1** — D-philosophy-01 (HIGH-A) transitioned `discovered → remediated` per [`m5_3/drifts/D-philosophy-01.md`](../../v0/implementation/m5_3/drifts/D-philosophy-01.md) lifecycle entry 2026-05-16.
+- **Concept docs**: `core-philosophy.md` (lines 9, 23, 24, 31, 32 now honored for the Org/Project axis); `agent.md` (Participation in Projects ownership semantics now [EXISTS]). Forward-pointing concept claim *"Agent spawn other Agents (Ownership)"* in `agent.md` remains [PLANNED] — CH-25 ships the Org + Project axis only; the Agent-spawns-Agent axis is deferred to a future M6+ chunk.
+- **Prerequisites**: **CH-24** (M5 final seal) ✓ done. Independent of CH-23 ✓ confirmed.
+- **Deliverables (shipped)**:
+  - NEW `Edge::Owns { from: AgentId, to: OwnedResourceId }` variant on the closed-set `Edge` enum (per F1.b user-locked DIVERGENT path); NEW `OwnedResourceId { Org(OrgId), Project(ProjectId) }` enum at `domain/src/model/ids.rs`.
+  - `apply_org_creation` + `apply_project_creation` compound transactions emit `Edge::Owns` (CEO → Org; lead → Project; Shape A + Shape B materialise both wire lead = creator per Decision-3 user-lock).
+  - Permission Check synth-owner-grant rule fires in `step_2_resolve_grants` carrying `[Action::Allocate, Action::Transfer]` Authority (per F2.a; `Action::Admin` does NOT exist in canonical 34-verb set — re-interpreted per concept-doc).
+  - Acceptance test `server/tests/acceptance_m5_3_owner_grant.rs::m5_3_ceo_synth_owner_grant_resolves_allocate_over_owned_org` exercises end-to-end: bootstrap → wizard org-creation → Owns edge emission → `list_agent_owned_orgs` query → engine resolves Allocate over owned-Org URI without explicit grant; stranger Agent gets `NO_GRANTS_HELD`.
+  - **ADR-0060** — *Agent-as-creator-and-owner edge model + owner-grant Permission Check rule* — Accepted at P-SEAL (6 sub-decisions §D60.1–§D60.6 ratified).
+  - Migration `0017_add_owns_relation.surql` (additive; idempotent re-run).
+  - 2 NEW Repository methods: `list_agent_owned_orgs(AgentId) → Vec<OrgId>` + `list_agent_owned_projects(AgentId) → Vec<ProjectId>` on both InMemory + SurrealDB backends.
+  - User-facing docs: NEW `m5_3/architecture/agent-ownership-model.md` + NEW `m5_3/operations/agent-ownership-operations.md` + CH-25 amendment subsection in `m5/user-guide/first-session-walkthrough.md` + verified-header bumps on `concepts/core-philosophy.md` + `concepts/agent.md` + `concepts/permissions/04-manifest-and-resolution.md` (NEW §"Owner-grant auto-issue rule" subsection) + `concepts/permissions/01-resource-ontology.md` (verified-header note on Principal-only invariant preserved under F1.b).
+  - R5 carry-forward closed: `permissions-audit` skill jq predicate fixed (line 31 single-`select(...)` form); skill version bumped v3 → v4.
+- **Actual effort**: ~3.5 engineer-days (matches plan §0 estimate of 3.0 + 0.5 for R5).
+- **EDGE_KIND_NAMES cardinality evolution**: 71 → 72 (controlled invariant evolution; invariant test renamed `_seventy_one → _seventy_two`; 9 enumerated literal sites flipped in lockstep per ADR-0060 §D60.6).
 
 ### CH-26 — Org/Project as Composite resources (philosophy §4.2)
 

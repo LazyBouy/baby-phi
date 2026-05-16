@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-16 by Claude Code (CH-25 P3 — amendment appended below for owner-grant auto-issue rule per ADR-0060. The CEO/creator-Agent gains auto-owner authority over the resulting Org via `Edge::Owns` + synth-grant in `step_2_resolve_grants`. Cycle hex `1e01618e`.) -->
 <!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-DOCS — verified-header re-stamp per plan §3.C; body content unchanged from CH-17 close. CH-24 milestone-seal cycle — first-session walkthrough re-verified PASS against current HEAD; happy-path + Template A grant + SSE tail amendments all still correct. Cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-05-09 by Claude Code (CH-17 amendment: live SSE tail at GET /api/v0/sessions/:id/events — operators now see events as they happen rather than only at session-end; CLI default-tail flips to real stream consumption; new --no-tail flag preserves the prior detach-equivalent behaviour. Drift D7.1 closed via ADR-0055; cycle hex 40c4d759.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-15 amendment: hard-deny launch gate post-CH-15 + Template A grant-seeding requirement for happy-path launches; D4.1 closed.) -->
@@ -94,6 +95,21 @@ curl http://localhost:8080/api/v0/orgs/<org-uuid>/system-agents | jq '.standard[
 
 Per-agent catalog rows are also visible — each agent your org creates / updates / archives gets one entry that mirrors the agent's lifecycle state (`active = false` if disabled or archived).
 
+## CH-25 amendment — owner-grant rule (2026-05-16)
+
+When you create your first Org via the bootstrap-claim wizard (or via `POST /api/v0/orgs`), the compound transaction now emits TWO new edges in the same tx:
+
+1. `Edge::Owns { from: AgentId, to: OwnedResourceId::Org(<id>) }` — captures ownership semantics. The CEO Agent created by the wizard owns the resulting Org.
+2. `Edge::Created { from: NodeId, to: NodeId }` — captures provenance. The creator-Agent → Org provenance link is now first-class.
+
+The CEO automatically gains `[Action::Allocate, Action::Transfer]` Authority over `org:<id>` through the Permission Check engine's synth-owner-grant rule (per [ADR-0060](../../m5_3/decisions/0060-agent-as-creator-and-owner.md)) — **WITHOUT** any persisted explicit grant. The synth fires inside `step_2_resolve_grants` whenever the calling Agent's `Owns` edges surface in `CheckContext.agent_owned_orgs/projects`.
+
+**Operator-visible effect**: M6+ admin pages for Orgs (page 1) and Projects (page 3) can plan against a unified owner-grant model. A CEO can authorize operations on their own Org without explicit `[Allocate]` grants being pre-seeded — the engine infers the authority from the Owns edge.
+
+The same Owns edge is emitted at project creation: the lead Agent (per Decision-3 user-lock: lead = creator at both Shape A and Shape B materialise paths) gains auto-owner authority on the resulting Project.
+
+To inspect ownership relationships, see the operations runbook [`m5_3/operations/agent-ownership-operations.md`](../../m5_3/operations/agent-ownership-operations.md).
+
 ## Cross-references
 
 - [requirements/admin/14-first-session-launch.md](../../../requirements/admin/14-first-session-launch.md).
@@ -102,3 +118,4 @@ Per-agent catalog rows are also visible — each agent your org creates / update
 - [Session launch operations runbook](../operations/session-launch-operations.md).
 - [ADR-0032](../../m5_2/decisions/0032-mock-provider-at-m5.md) — MockProvider at M5 (CH-02).
 - [System agents walkthrough](system-agents-walkthrough.md) — CH-22 catalog-listener + audit-mode operator tour.
+- [ADR-0060](../../m5_3/decisions/0060-agent-as-creator-and-owner.md) — CH-25 owner-grant rule.

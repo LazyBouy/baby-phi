@@ -728,8 +728,13 @@ async fn preview_decision_matches_launch_decision_on_grants_stable() {
 /// CH-15 / ADR-0054 §D54.5 — the launch_denied audit event's
 /// `failed_step` field equals the wire `step` reported in the 403
 /// response body, so dashboards joining on either project
-/// consistently. Specifically: NoGrantsHeld → step 2
-/// (FailedStep::Resolution maps to "2" in `as_metric_label`).
+/// consistently. Post-CH-25, project_lead is auto-granted
+/// `[Allocate, Transfer]` over the project via `Edge::Owns`
+/// (lead = creator = owner wiring). The synth grant's action set
+/// does NOT include `session.launch`, so the deny lands at
+/// Step 3 (Match) `NoMatchingGrant` rather than Step 2 (Resolution)
+/// `NoGrantsHeld`. `FailedStep::Match` maps to "3" in
+/// `as_metric_label`.
 #[tokio::test]
 async fn launch_denied_audit_event_failed_step_matches_wire_step() {
     let project = spawn_claimed_with_org_and_project(false).await;
@@ -737,7 +742,10 @@ async fn launch_denied_audit_event_failed_step_matches_wire_step() {
 
     let runtime_id = seed_model_runtime(repo.clone()).await;
     bind_model_to_agent(repo.clone(), project.project_lead, runtime_id).await;
-    // No grants seeded → Step 2 (Resolution) NoGrantsHeld.
+    // Post-CH-25: project_lead is auto-owner of the project via
+    // Edge::Owns, so Step 2 finds the synth `[Allocate, Transfer]`
+    // candidate. session.launch doesn't match those actions →
+    // Step 3 (Match) NoMatchingGrant.
 
     let launch_url = project.url(&format!(
         "/api/v0/orgs/{}/projects/{}/sessions",
@@ -755,14 +763,14 @@ async fn launch_denied_audit_event_failed_step_matches_wire_step() {
         .unwrap();
     assert_eq!(res.status().as_u16(), 403);
     let body: Value = res.json().await.unwrap();
-    // The wire message embeds `STEP_2` for Resolution-deny.
+    // The wire message embeds `STEP_3` for Match-deny.
     let msg = body["message"].as_str().unwrap();
     assert!(
-        msg.contains("AT_STEP_2"),
-        "wire message should contain AT_STEP_2 for NoGrantsHeld; got {msg}"
+        msg.contains("AT_STEP_3"),
+        "wire message should contain AT_STEP_3 for NoMatchingGrant; got {msg}"
     );
 
-    // The audit event's failed_step == 2.
+    // The audit event's failed_step == 3.
     let events = repo
         .list_recent_audit_events_for_org(project.org_id(), 200)
         .await
@@ -773,8 +781,8 @@ async fn launch_denied_audit_event_failed_step_matches_wire_step() {
         .expect("launch_denied event present");
     assert_eq!(
         evt.diff["after"]["failed_step"].as_u64(),
-        Some(2),
-        "audit event failed_step matches wire step 2"
+        Some(3),
+        "audit event failed_step matches wire step 3"
     );
 }
 

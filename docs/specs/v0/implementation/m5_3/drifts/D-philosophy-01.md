@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-16 by Claude Code (CH-25 P-SEAL — drift remediated; lifecycle entry appended below with cycle hex `1e01618e` + cardinality amendment 66 → 71 → 72.) -->
 <!-- Last verified: 2026-04-28 by Claude Code -->
 
 # D-philosophy-01 — Agent-as-creator-and-owner of Organization and Project not modeled
@@ -7,7 +8,7 @@
 - **Phase of origin**: post-CH-21 philosophy alignment audit (2026-04-28); filed under M5.3 drift catalogue.
 - **Discovery source**: `core-philosophy-audit`
 - **Date discovered**: 2026-04-28
-- **Status**: `discovered`
+- **Status**: `remediated`
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `philosophy-gap`, `ownership-model`, `provenance-chain`, `permission-engine`
@@ -24,7 +25,7 @@
 ## Plan vs. reality
 - **Plan said**: Core Philosophy claim list (line 4 of [`concepts/core-philosophy.md`](../../../concepts/core-philosophy.md)): *"Agent owns Organization"*.
 - **Reality (shipped state at HEAD post-CH-21 seal)**:
-  - Edge enum at [`modules/crates/domain/src/model/edges.rs`](../../../../../../modules/crates/domain/src/model/edges.rs) (66 variants) has no `Owns` or analogous Agent→Org/Project edge.
+  - Edge enum at [`modules/crates/domain/src/model/edges.rs`](../../../../../../modules/crates/domain/src/model/edges.rs) had no `Owns` or analogous Agent→Org/Project edge. Note: drift filing cited "66 variants"; the actual EDGE_KIND_NAMES cardinality at drift filing was 71 (per CH-23 final count); CH-25 adds the `Owns` variant + flips invariant to 72. Cardinality evolution `66 → 71 → 72` documented in ADR-0060 §D60.6 META.
   - `Organization` struct at [`modules/crates/domain/src/model/nodes.rs:262-334`](../../../../../../modules/crates/domain/src/model/nodes.rs) has no `created_by_agent` / `owner_agent` field.
   - `Project` struct at [`modules/crates/domain/src/model/nodes.rs:434-463`](../../../../../../modules/crates/domain/src/model/nodes.rs) has no creator/owner field.
   - Permission Check engine at [`modules/crates/domain/src/permissions/engine.rs`](../../../../../../modules/crates/domain/src/permissions/engine.rs) has no owner-grant rule (no automatic admin authority for the owner-Agent over child Org/Project).
@@ -59,3 +60,4 @@
 
 ## Lifecycle history
 - 2026-04-28 — `discovered` — surfaced by post-CH-21 philosophy alignment audit; user-confirmed as load-bearing intent; filed as drift in same session under M5.3 catalogue.
+- 2026-05-16 — `remediated` — **CH-25 ✓ (cycle hex `1e01618e`)**: NEW `Edge::Owns { from: AgentId, to: OwnedResourceId::{Org, Project} }` variant added to the `Edge` enum (F1.b user-locked path, divergent from planner-recommended F1.a). Emitted at `apply_org_creation` (CEO → Org) + `apply_project_creation` (lead → Project, Shape A + Shape B) inside the compound transactions. EDGE_KIND_NAMES cardinality flipped 71 → 72 at all 9 enumerated literal sites; invariant test renamed `_seventy_one → _seventy_two`. Owner-grant synth-rule fires in `step_2_resolve_grants` carrying `[Action::Allocate, Action::Transfer]` over `org:<id>` / `project:<id>` URIs. 2 new Repository methods `list_agent_owned_orgs/projects` land on both InMemory + SurrealDB backends. Migration `0017_add_owns_relation.surql` declares the new SurrealDB relation table. Acceptance test `server/tests/acceptance_m5_3_owner_grant.rs::m5_3_ceo_synth_owner_grant_resolves_allocate_over_owned_org` extant. ADR-0060 ratified Accepted. User-facing docs at `m5_3/architecture/agent-ownership-model.md` + `m5_3/operations/agent-ownership-operations.md` (NEW) + `m5/user-guide/first-session-walkthrough.md` (CH-25 amendment subsection).

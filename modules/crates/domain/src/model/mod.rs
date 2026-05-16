@@ -5,7 +5,8 @@
 //! - [`fundamentals`] — 9 atomic resource classes.
 //! - [`composites`] — 8 named bundles of fundamentals.
 //! - [`nodes`] — 37 node types (structs + `NodeKind` inventory enum).
-//! - [`edges`] — 67-variant `Edge` enum.
+//! - [`edges`] — 72-variant `Edge` enum (67 at M3 + 2 at M4/P1 + 2 at
+//!   CH-23 + 1 at CH-25 / `Owns` per ADR-0060 §D60.1).
 //!
 //! Source of truth for the inventory: `docs/specs/v0/concepts/ontology.md` +
 //! `docs/specs/v0/concepts/permissions/01-resource-ontology.md`.
@@ -41,8 +42,8 @@ pub use edges::{Edge, EDGE_KIND_NAMES};
 pub use fundamentals::Fundamental;
 pub use ids::{
     AgentCatalogEntryId, AgentId, AuditEventId, AuthRequestId, ConsentId, EdgeId, GrantId, LoopId,
-    McpServerId, MemoryId, ModelProviderId, NodeId, OrgId, ProjectId, SecretId, SessionId,
-    SystemAgentRuntimeStatusId, TemplateId, TurnNodeId, UserId,
+    McpServerId, MemoryId, ModelProviderId, NodeId, OrgId, OwnedResourceId, ProjectId, SecretId,
+    SessionId, SystemAgentRuntimeStatusId, TemplateId, TurnNodeId, UserId,
 };
 pub use nodes::{
     Agent, AgentKind, AgentProfile, AgentRole, ApprovalMode, ApproverSlot, ApproverSlotState,
@@ -77,10 +78,12 @@ mod tests {
     }
 
     #[test]
-    fn ontology_has_seventy_one_edge_kinds() {
+    fn ontology_has_seventy_two_edge_kinds() {
         // 67 at M3 close + 2 at M4/P1 (HasSubproject, HasConfig) + 2
         // at CH-23 (Manages, HasAgentSupervisor — Template C/D
-        // production triggers, ADR-0046).
-        assert_eq!(EDGE_KIND_NAMES.len(), 71);
+        // production triggers, ADR-0046) + 1 at CH-25 (Owns — Agent
+        // ownership of Org/Project per ADR-0060 §D60.1, F1.b USER-LOCKED
+        // DIVERGENT).
+        assert_eq!(EDGE_KIND_NAMES.len(), 72);
     }
 }

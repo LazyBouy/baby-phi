@@ -1963,6 +1963,59 @@ impl Repository for SurrealStore {
         Ok(out)
     }
 
+    async fn list_agent_owned_orgs(&self, agent: AgentId) -> RepositoryResult<Vec<OrgId>> {
+        // CH-25 / ADR-0060 §D60.3 — owns edges with target_kind = 'org'
+        // and `in` = the agent. Returns the `out` Record IDs flattened
+        // to their string form so we can re-construct typed OrgId.
+        let mut resp = self
+            .client()
+            .query(
+                "LET $a = type::thing('agent', $agent); \
+                 SELECT record::id(out) AS org_rid FROM owns \
+                 WHERE in = $a AND target_kind = 'org'",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(1).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let rid = row
+                .as_object()
+                .and_then(|m| m.get("org_rid"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| RepositoryError::Backend("owns row missing org_rid".into()))?;
+            out.push(OrgId::from_uuid(parse_uuid(rid)?));
+        }
+        Ok(out)
+    }
+
+    async fn list_agent_owned_projects(&self, agent: AgentId) -> RepositoryResult<Vec<ProjectId>> {
+        // CH-25 / ADR-0060 §D60.3 — owns edges with target_kind =
+        // 'project'. Symmetric peer to list_agent_owned_orgs.
+        let mut resp = self
+            .client()
+            .query(
+                "LET $a = type::thing('agent', $agent); \
+                 SELECT record::id(out) AS project_rid FROM owns \
+                 WHERE in = $a AND target_kind = 'project'",
+            )
+            .bind(("agent", agent.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(1).map_err(backend)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let rid = row
+                .as_object()
+                .and_then(|m| m.get("project_rid"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| RepositoryError::Backend("owns row missing project_rid".into()))?;
+            out.push(ProjectId::from_uuid(parse_uuid(rid)?));
+        }
+        Ok(out)
+    }
+
     async fn upsert_project(&self, project: &Project) -> RepositoryResult<()> {
         let body = strip_id(serde_json::to_value(project).map_err(backend)?);
         self.client()
@@ -2346,7 +2399,16 @@ impl Repository for SurrealStore {
              RELATE $sys0 -> has_profile -> $prof0 \
                  SET id = type::thing('has_profile', $edge_hp_s0) RETURN NONE;\n\
              RELATE $sys1 -> has_profile -> $prof1 \
-                 SET id = type::thing('has_profile', $edge_hp_s1) RETURN NONE;\n",
+                 SET id = type::thing('has_profile', $edge_hp_s1) RETURN NONE;\n\
+             RELATE $ceo -> owns -> $org \
+                 SET id = type::thing('owns', $edge_owns_ceo), \
+                     edge_id = $edge_owns_ceo, \
+                     target_kind = 'org', \
+                     created_at = $now RETURN NONE;\n\
+             LET $f_created = type::thing('node', $creator_node); \n\
+             LET $t_created = type::thing('node', $org_node); \n\
+             RELATE $f_created -> created -> $t_created \
+                 SET id = type::thing('created', $edge_created_org) RETURN NONE;\n",
         );
         // Adoption ARs — one CREATE per entry.
         for i in 0..adoption_ar_bodies.len() {
@@ -2402,6 +2464,15 @@ impl Repository for SurrealStore {
             .bind(("edge_hc_ceo", EdgeId::new().to_string()))
             .bind(("edge_hp_s0", EdgeId::new().to_string()))
             .bind(("edge_hp_s1", EdgeId::new().to_string()))
+            // CH-25 / ADR-0060 §D60.1 — Owns + Created edges.
+            // The OWNER is the ceo_agent (already bound as `ceo` via
+            // `$ceo` LET stmt above); the CREATOR is the actor who
+            // invoked the handler (`creator_agent`, NodeId-flattened
+            // for the generic `created` relation table).
+            .bind(("edge_owns_ceo", EdgeId::new().to_string()))
+            .bind(("edge_created_org", EdgeId::new().to_string()))
+            .bind(("creator_node", payload.creator_agent.to_string()))
+            .bind(("org_node", payload.organization.id.to_string()))
             .bind(("now", now));
         for (i, ar) in payload.adoption_auth_requests.iter().enumerate() {
             binder = binder
@@ -2470,7 +2541,16 @@ impl Repository for SurrealStore {
              LET $p = type::thing('project', $pid);\n\
              LET $lead = type::thing('agent', $lead_id);\n\
              RELATE $p -> has_lead -> $lead \
-                 SET id = type::thing('has_lead', $edge_hl) RETURN NONE;\n",
+                 SET id = type::thing('has_lead', $edge_hl) RETURN NONE;\n\
+             RELATE $lead -> owns -> $p \
+                 SET id = type::thing('owns', $edge_owns_lead), \
+                     edge_id = $edge_owns_lead, \
+                     target_kind = 'project', \
+                     created_at = $now RETURN NONE;\n\
+             LET $f_created = type::thing('node', $creator_node); \n\
+             LET $t_created = type::thing('node', $project_node); \n\
+             RELATE $f_created -> created -> $t_created \
+                 SET id = type::thing('created', $edge_created_project) RETURN NONE;\n",
         );
         // One BELONGS_TO + HAS_PROJECT edge pair per owning org.
         for i in 0..payload.owning_orgs.len() {
@@ -2513,6 +2593,14 @@ impl Repository for SurrealStore {
             .bind(("project_body", project_body))
             .bind(("lead_id", payload.lead_agent_id.to_string()))
             .bind(("edge_hl", has_lead_edge_id.to_string()))
+            // CH-25 / ADR-0060 §D60.1 — Owns (lead → project) + Created
+            // (creator → project) edges. Per Decision-3 user-lock, lead
+            // IS the creator at both Shape A and Shape B materialise
+            // paths (the AR-submitter chose the lead at v0).
+            .bind(("edge_owns_lead", EdgeId::new().to_string()))
+            .bind(("edge_created_project", EdgeId::new().to_string()))
+            .bind(("creator_node", payload.creator_agent.to_string()))
+            .bind(("project_node", payload.project.id.to_string()))
             .bind(("now", now));
         for (i, org) in payload.owning_orgs.iter().enumerate() {
             binder = binder

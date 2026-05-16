@@ -1940,6 +1940,8 @@ async fn surreal_create_has_agent_supervisor_edge_persists_row_and_audit() {
             project,
             owning_orgs: vec![org],
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![supervisor, supervisee],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![(format!("project:{pid}"), "project".into())],

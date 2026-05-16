@@ -18,7 +18,7 @@ use std::time::Instant;
 use tracing::instrument;
 
 use crate::model::ids::{AgentId, GrantId, OrgId, ProjectId};
-use crate::model::nodes::{Grant, PrincipalRef};
+use crate::model::nodes::{Grant, PrincipalRef, ResourceRef};
 use crate::model::Fundamental;
 
 use super::action::Action;
@@ -196,6 +196,31 @@ pub struct Candidate {
 
 /// Collect all non-revoked grants from agent/project/org, resolve each, and
 /// tag it with its scope tier.
+///
+/// **CH-25 / ADR-0060 §D60.3 — Owner-grant synthesis.** Before returning,
+/// this step also synthesises candidate grants for every Org / Project the
+/// calling agent owns (per [`CheckContext::agent_owned_orgs`] +
+/// [`CheckContext::agent_owned_projects`], pre-loaded by call-sites from
+/// `Repository::list_agent_owned_orgs` / `list_agent_owned_projects` which
+/// read `Edge::Owns` graph edges).
+///
+/// Synthesised grants carry:
+/// - `holder = PrincipalRef::Agent(ctx.agent)` (the owner);
+/// - `action = [Allocate, Transfer]` (per F2.a lock — the two Authority-
+///   category actions that authorise an owner over child resources of the
+///   owned Org/Project);
+/// - `resource.uri = "org:<uuid>"` / `"project:<uuid>"` (instance URI);
+/// - `fundamentals = [IdentityPrincipal]` (Case D in `resolve_grant`: the
+///   `[Allocate, Transfer]` axis operates on identity principals — child
+///   agents under the owned Org/Project per concept-doc 03 line 149);
+/// - `tier = ScopeTier::Agent` (most-specific — see concept-doc 04
+///   §"Step 5 Scope Resolution").
+///
+/// The synth-grants merge into the candidate pool with the persisted
+/// agent/project/org grants — Step 3+ matching is uniform thereafter, so
+/// no other step needs to know about owner-grants specially. Empty
+/// `agent_owned_orgs` / `agent_owned_projects` slices produce zero
+/// synth-grants (no-op fast path).
 pub fn step_2_resolve_grants(ctx: &CheckContext<'_>) -> Vec<Candidate> {
     fn collect(grants: &[Grant], tier: ScopeTier, out: &mut Vec<Candidate>) {
         for g in grants {
@@ -209,12 +234,86 @@ pub fn step_2_resolve_grants(ctx: &CheckContext<'_>) -> Vec<Candidate> {
         }
     }
     let mut out = Vec::with_capacity(
-        ctx.agent_grants.len() + ctx.project_grants.len() + ctx.org_grants.len(),
+        ctx.agent_grants.len()
+            + ctx.project_grants.len()
+            + ctx.org_grants.len()
+            + ctx.agent_owned_orgs.len()
+            + ctx.agent_owned_projects.len(),
     );
     collect(ctx.agent_grants, ScopeTier::Agent, &mut out);
     collect(ctx.project_grants, ScopeTier::Project, &mut out);
     collect(ctx.org_grants, ScopeTier::Organization, &mut out);
+    // CH-25 / ADR-0060 §D60.3 — synth owner-grants from Owns edges.
+    for org_id in ctx.agent_owned_orgs {
+        out.push(Candidate {
+            resolved: resolve_grant(&synth_owner_grant(ctx.agent, &format!("org:{org_id}"))),
+            tier: ScopeTier::Agent,
+        });
+    }
+    for project_id in ctx.agent_owned_projects {
+        out.push(Candidate {
+            resolved: resolve_grant(&synth_owner_grant(
+                ctx.agent,
+                &format!("project:{project_id}"),
+            )),
+            tier: ScopeTier::Agent,
+        });
+    }
     out
+}
+
+/// CH-25 / ADR-0060 §D60.3 — Build the in-memory synthesised owner-grant
+/// for one owned Org/Project URI. Not persisted: only lives for the
+/// duration of one [`check`] call. Carries `[Allocate, Transfer]` on the
+/// `IdentityPrincipal` fundamental class (the axis on which Authority-
+/// category actions operate per concept-doc 03 line 149 + 03 line 195).
+///
+/// Mirrors the persisted [`Grant`] shape exactly (every field set
+/// explicitly) so downstream consumers — [`resolve_grant`]'s Case D path,
+/// Step 4 constraints, Step 5 scope cascade, Step 6 consent gating —
+/// treat synth-grants identically to persisted grants.
+fn synth_owner_grant(owner: AgentId, resource_uri: &str) -> Grant {
+    Grant {
+        id: GrantId::new(),
+        holder: PrincipalRef::Agent(owner),
+        action: vec![Action::Allocate, Action::Transfer],
+        resource: ResourceRef {
+            uri: resource_uri.to_string(),
+        },
+        // Case D in `resolve_grant`: instance URI + explicit fundamentals.
+        // `[Allocate, Transfer]` is the Authority axis over identity
+        // principals (concept-doc 03 line 149 + line 195) — owner can
+        // allocate/transfer authority *of* their owned org/project to
+        // its child agents.
+        fundamentals: vec![Fundamental::IdentityPrincipal],
+        // No AR provenance — synth-grants are derived structurally from
+        // the Owns edge, not minted by a template-driven Auth Request.
+        descends_from: None,
+        // Delegable: owners may further delegate authority they hold by
+        // virtue of ownership. Concept-doc 04 line 197 (typed
+        // allocate-refinement) governs runtime sub-capability narrowing
+        // at delegation time.
+        delegable: true,
+        issued_at: chrono::Utc::now(),
+        revoked_at: None,
+        // Implicit approval — owner-grant fires synchronously inside
+        // Permission Check; no subordinate consent required for the
+        // owner-over-owned-resource axis.
+        approval_mode: crate::model::ApprovalMode::Implicit,
+        // Silent audit class — owner-grant synthesis is a structural
+        // inference, not a state-changing template adoption. The
+        // *underlying* operations (e.g. `disable_agent`) still emit
+        // their normal audit events; the synth-grant resolution itself
+        // is not separately auditable. Mirrors the M1 baseline for
+        // implicit class-level grants.
+        audit_class: crate::audit::AuditClass::Silent,
+        // Owner-grants carry no allocate-refinement constraint — the
+        // refinement axis is reserved for template-issued grants
+        // (concept-doc 02 line 197). A future chunk may add bounded
+        // refinement to owner-grants if/when org-level policy needs to
+        // narrow owner authority.
+        allocate_refinement: None,
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -1059,6 +1158,10 @@ mod tests {
         /// Default empty; cascade tests populate per-scenario.
         session_org_tags: Vec<OrgId>,
         session_project_tags: Vec<ProjectId>,
+        /// CH-25 / ADR-0060 §D60.3 — owned-resource slices. Default
+        /// empty; owner-grant synth tests populate per-scenario.
+        agent_owned_orgs: Vec<OrgId>,
+        agent_owned_projects: Vec<ProjectId>,
     }
 
     impl Fixture {
@@ -1078,6 +1181,8 @@ mod tests {
                 template_gated: HashSet::new(),
                 session_org_tags: vec![],
                 session_project_tags: vec![],
+                agent_owned_orgs: vec![],
+                agent_owned_projects: vec![],
             }
         }
 
@@ -1098,6 +1203,8 @@ mod tests {
                 set_ref_registry: &crate::permissions::NOOP_SET_REF_REGISTRY,
                 session_org_tags: &self.session_org_tags,
                 session_project_tags: &self.session_project_tags,
+                agent_owned_orgs: &self.agent_owned_orgs,
+                agent_owned_projects: &self.agent_owned_projects,
                 call,
             }
         }
@@ -2411,6 +2518,255 @@ mod tests {
         assert_eq!(
             allowed[0].grant_id, acme_project_grant.id,
             "concept-08 §Step 7: contractor's Acme project-tier grant wins (Gamma base_org irrelevant)"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // CH-25 / ADR-0060 §D60.3 — Owner-grant synthesis tests.
+    //
+    // The synth-grant loop in `step_2_resolve_grants` produces
+    // `[Allocate, Transfer]` candidate grants on
+    // `IdentityPrincipal`-class fundamentals at `ScopeTier::Agent` for
+    // every Org/Project the calling agent owns via `Edge::Owns`. These
+    // tests pin the loop's behaviour at the engine boundary.
+    // ------------------------------------------------------------------
+
+    /// Baseline: empty `agent_owned_orgs` + `agent_owned_projects` →
+    /// `step_2_resolve_grants` produces no synth candidates. Pins the
+    /// no-op fast-path so M1 callsite-count test invariants
+    /// (which run the engine with the default empty fixture) stay
+    /// green.
+    #[test]
+    fn owner_grant_synth_empty_owns_slices_produces_no_synth_candidates() {
+        let f = Fixture::new();
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert!(
+            candidates.is_empty(),
+            "no persisted grants + empty owned slices → zero candidates; got {} candidates",
+            candidates.len()
+        );
+    }
+
+    /// Single owned org → one synth candidate at `ScopeTier::Agent`
+    /// with `[Allocate, Transfer]` actions on `IdentityPrincipal`.
+    #[test]
+    fn owner_grant_synth_owned_org_produces_allocate_transfer_candidate() {
+        let mut f = Fixture::new();
+        let owned_org = OrgId::new();
+        f.agent_owned_orgs = vec![owned_org];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(
+            candidates.len(),
+            1,
+            "exactly one synth candidate per owned org"
+        );
+        let c = &candidates[0];
+        assert_eq!(
+            c.tier,
+            ScopeTier::Agent,
+            "owner-grants surface at the most-specific (Agent) tier per ADR-0060 §D60.3"
+        );
+        assert_eq!(
+            c.resolved.grant.action,
+            vec![Action::Allocate, Action::Transfer],
+            "owner-grants carry exactly [Allocate, Transfer] per F2.a lock"
+        );
+        assert_eq!(
+            c.resolved.grant.resource.uri,
+            format!("org:{owned_org}"),
+            "owner-grant URI binds to the owned-org instance"
+        );
+        assert!(
+            c.resolved.fundamentals.contains(&Fundamental::IdentityPrincipal),
+            "owner-grant resolves to IdentityPrincipal class (Authority axis per concept-03 line 149)"
+        );
+        assert!(
+            matches!(c.resolved.grant.holder, PrincipalRef::Agent(a) if a == f.agent),
+            "owner-grant holder is the calling agent"
+        );
+        assert!(
+            c.resolved.grant.revoked_at.is_none(),
+            "synth owner-grants are never revoked at synthesis time"
+        );
+    }
+
+    /// Single owned project → one synth candidate at `ScopeTier::Agent`
+    /// with `[Allocate, Transfer]` actions on `IdentityPrincipal`,
+    /// URI `project:<id>`. Symmetric to the owned-org case.
+    #[test]
+    fn owner_grant_synth_owned_project_produces_allocate_transfer_candidate() {
+        let mut f = Fixture::new();
+        let owned_project = ProjectId::new();
+        f.agent_owned_projects = vec![owned_project];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(
+            candidates.len(),
+            1,
+            "exactly one synth candidate per owned project"
+        );
+        let c = &candidates[0];
+        assert_eq!(c.tier, ScopeTier::Agent);
+        assert_eq!(
+            c.resolved.grant.action,
+            vec![Action::Allocate, Action::Transfer],
+        );
+        assert_eq!(
+            c.resolved.grant.resource.uri,
+            format!("project:{owned_project}"),
+            "owner-grant URI binds to the owned-project instance"
+        );
+        assert!(c
+            .resolved
+            .fundamentals
+            .contains(&Fundamental::IdentityPrincipal),);
+    }
+
+    /// Multi-resource ownership: 2 orgs + 1 project → 3 synth
+    /// candidates, all at `ScopeTier::Agent`. Pins the per-resource
+    /// enumeration discipline so the synth loop scales cleanly.
+    #[test]
+    fn owner_grant_synth_multiple_owned_resources_produces_one_candidate_each() {
+        let mut f = Fixture::new();
+        let org_a = OrgId::new();
+        let org_b = OrgId::new();
+        let project_c = ProjectId::new();
+        f.agent_owned_orgs = vec![org_a, org_b];
+        f.agent_owned_projects = vec![project_c];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(
+            candidates.len(),
+            3,
+            "two owned orgs + one owned project → 3 synth candidates"
+        );
+        // All at the Agent tier.
+        for c in &candidates {
+            assert_eq!(
+                c.tier,
+                ScopeTier::Agent,
+                "every synth candidate is at the most-specific tier"
+            );
+        }
+        // URIs collected so we can pin the set.
+        let mut uris: Vec<String> = candidates
+            .iter()
+            .map(|c| c.resolved.grant.resource.uri.clone())
+            .collect();
+        uris.sort();
+        let mut expected = vec![
+            format!("org:{org_a}"),
+            format!("org:{org_b}"),
+            format!("project:{project_c}"),
+        ];
+        expected.sort();
+        assert_eq!(
+            uris, expected,
+            "the synth candidates' URIs match the owned-resource set exactly"
+        );
+    }
+
+    /// Synth grants compose with persisted grants: an agent with one
+    /// persisted Read-on-filesystem grant AND one owned org gets BOTH
+    /// candidates in the pool. Pins that owner-grant synthesis is
+    /// **additive** — it never replaces or shadows persisted grants.
+    #[test]
+    fn owner_grant_synth_composes_additively_with_persisted_agent_grants() {
+        let mut f = Fixture::new();
+        let owned_org = OrgId::new();
+        f.agent_owned_orgs = vec![owned_org];
+        let persisted = grant(
+            PrincipalRef::Agent(f.agent),
+            &[Action::Read],
+            "filesystem_object",
+        );
+        let persisted_id = persisted.id;
+        f.agent_grants.push(persisted);
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(
+            candidates.len(),
+            2,
+            "one persisted agent-tier grant + one synth owner-grant = 2 candidates"
+        );
+        // The persisted grant retains its identity by id; the synth
+        // grant has a freshly-minted id.
+        let persisted_count = candidates
+            .iter()
+            .filter(|c| c.resolved.grant.id == persisted_id)
+            .count();
+        assert_eq!(
+            persisted_count, 1,
+            "the original persisted grant is preserved verbatim by id"
+        );
+        let synth_count = candidates
+            .iter()
+            .filter(|c| c.resolved.grant.resource.uri == format!("org:{owned_org}"))
+            .count();
+        assert_eq!(
+            synth_count, 1,
+            "exactly one synth owner-grant for the owned org"
+        );
+    }
+
+    /// End-to-end isolation: owner-grant synth fires from the
+    /// `agent_owned_orgs` slice on **this** ctx only. A separate ctx
+    /// without owned orgs sees no synth candidates. Pins the
+    /// per-CheckContext locality so synth-grants cannot leak across
+    /// callers in the same process.
+    #[test]
+    fn owner_grant_synth_is_per_context_no_leakage_across_callers() {
+        let owned_org = OrgId::new();
+        // Caller 1: owns one org.
+        let mut owner = Fixture::new();
+        owner.agent_owned_orgs = vec![owned_org];
+        // Caller 2: distinct agent, no owned orgs.
+        let bystander = Fixture::new();
+
+        let owner_ctx = owner.ctx(ToolCall::default());
+        let owner_candidates = step_2_resolve_grants(&owner_ctx);
+        assert_eq!(
+            owner_candidates.len(),
+            1,
+            "owner sees their synth owner-grant"
+        );
+
+        let bystander_ctx = bystander.ctx(ToolCall::default());
+        let bystander_candidates = step_2_resolve_grants(&bystander_ctx);
+        assert!(
+            bystander_candidates.is_empty(),
+            "bystander with no Owns edges sees no synth candidates (got {})",
+            bystander_candidates.len()
+        );
+    }
+
+    /// End-to-end `check()` integration: with the owned-org slice
+    /// pre-loaded, a manifest demanding `[Allocate]` on
+    /// `identity_principal` resolves to `Allowed` via the synth-grant
+    /// (no persisted grant required). Pins the canonical owner-grant
+    /// acceptance scenario inside the engine boundary; P3 ships the
+    /// full server-tier acceptance test.
+    #[test]
+    fn owner_grant_synth_authorises_allocate_on_identity_principal_via_check() {
+        let mut f = Fixture::new();
+        let owned_org = OrgId::new();
+        f.agent_owned_orgs = vec![owned_org];
+        // Synth-grant URI (`org:<uuid>`) is the engine-level target;
+        // seed the catalogue so Step 0 doesn't deny on the instance
+        // URI lookup.
+        let target_uri = format!("org:{owned_org}");
+        f.catalogue.seed(None, &target_uri);
+        let ctx = f.ctx(ToolCall {
+            target_uri: target_uri.clone(),
+            ..Default::default()
+        });
+        let m = manifest(&[Action::Allocate], &["identity_principal"]);
+        let d = check(&ctx, &m, &NoopMetrics);
+        assert!(
+            d.is_allowed(),
+            "owner-grant synth authorises Allocate on identity_principal for owned-org target; got {d:?}"
         );
     }
 }

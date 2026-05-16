@@ -194,6 +194,8 @@ async fn spawn_seeded_server() -> SeededFixture {
     });
     let payload = OrgCreationPayload {
         organization: org,
+        // CH-25 / ADR-0060 §D60.1 — fixture: ceo IS the creator.
+        creator_agent: ceo_agent.id,
         ceo_agent: ceo_agent.clone(),
         ceo_channel,
         ceo_inbox,
@@ -273,6 +275,9 @@ async fn spawn_seeded_server() -> SeededFixture {
         project,
         owning_orgs: vec![org_id],
         lead_agent_id: lead_id,
+        // CH-25 / ADR-0060 §D60.1 — Decision-3 user-lock: lead IS the
+        // creator at both Shape A and Shape B.
+        creator_agent: lead_id,
         member_agent_ids: vec![],
         sponsor_agent_ids: vec![ceo_agent.id],
         catalogue_entries: vec![(format!("project:{}", project_id), "project".into())],

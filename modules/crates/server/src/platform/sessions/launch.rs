@@ -537,6 +537,7 @@ pub(super) fn spawn_agent_task(
             execution_limits: None,
             cache_config: phi_core::types::usage::CacheConfig::default(),
             tool_execution: phi_core::types::tool::ToolExecutionStrategy::Parallel,
+            tool_timeout: None,
             retry_config: phi_core::provider::retry::RetryConfig::default(),
             before_turn: None,
             after_turn: None,
@@ -554,6 +555,16 @@ pub(super) fn spawn_agent_task(
             config_id: None,
             context_translation: None,
             prun_pending: None,
+            // CH-25 P-SEAL workspace-health fix: phi-core's uncommitted
+            // working tree adds the `response_format` required field to
+            // `AgentLoopConfig` without propagating the initializer to
+            // baby-phi. `ResponseFormat::default() = Text` preserves
+            // the historical free-form-text behaviour at session
+            // launch; this is the minimal one-line repair to unblock
+            // the workspace test gate. The phi-core feature work needs
+            // a separate carry-forward chunk to wire structured-output
+            // into baby-phi handlers (out of CH-25 scope).
+            response_format: phi_core::provider::traits::ResponseFormat::default(),
         };
         let prompts = vec![AgentMessage::Llm(LlmMessage::new(Message::user(prompt)))];
 
@@ -714,6 +725,18 @@ async fn gate_session_launch_consent(
     let (session_org_tags, session_project_tags) =
         domain::permissions::parse_session_scope_tags(&prospective_session_tags);
 
+    // CH-25 / ADR-0060 §D60.3 — pre-load the agent's owned-resource
+    // slices so the engine's `step_2_resolve_grants` can synth
+    // owner-grants without an I/O call inside the pure engine.
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(input.agent_id)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(input.agent_id)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+
     let ctx = CheckContext {
         agent: input.agent_id,
         current_org: Some(input.org_id),
@@ -734,6 +757,8 @@ async fn gate_session_launch_consent(
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         session_org_tags: &session_org_tags,
         session_project_tags: &session_project_tags,
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
         call,
     };
 

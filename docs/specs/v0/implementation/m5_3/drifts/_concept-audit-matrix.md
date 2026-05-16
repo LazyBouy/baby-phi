@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-16 by Claude Code (CH-25 P-SEAL — D-philosophy-01 transitions discovered → remediated; the "Agent owns Organization" row flips contradicted → honored via NEW `Edge::Owns` variant emitted at `apply_org_creation`; the "Agent create Projects" row flips partially-honored → honored via the Owns + Created emission at `apply_project_creation`. D-philosophy-02 unchanged — CH-26 target. Cycle hex `1e01618e`.) -->
 <!-- Last verified: 2026-04-28 by Claude Code -->
 
 # M5.3 Concept-audit matrix
@@ -18,7 +19,7 @@ The M5.1 + M5.2 concept-audit matrix at [`../../m5_1/drifts/_concept-audit-matri
 | § | Claim | Status | Code evidence | Covering drift |
 |---|---|---|---|---|
 | Two Types of Agents | `AgentKind::{Human, Llm}` enum + role-validity rules | honored | `nodes.rs:225-228` + `nodes.rs:284-289` | — |
-| Agent owns Organization | Agent creates Org/Project; transitive ownership through Org-owned children | contradicted | no `Owns` edge; no creator field on Organization / Project; bootstrap-claim doesn't emit ownership edge | **D-philosophy-01** (HIGH, CH-25) |
+| Agent owns Organization | Agent creates Org/Project; transitive ownership through Org-owned children | honored | NEW `Edge::Owns { from: AgentId, to: OwnedResourceId::Org(_) }` emitted at `apply_org_creation` per ADR-0060 §D60.1 + CH-25 cycle hex `1e01618e`; owner-grant synth at `step_2_resolve_grants` carries `[Allocate, Transfer]` Authority | **D-philosophy-01** (HIGH, **remediated at CH-25**) |
 | Organization has Resources | `OWNED_BY` / `BELONGS_TO` edges + Org-scoped resource catalogue | honored | `edges.rs` + `composites_m4::ResourceBoundaries` | — |
 | Two Types of Resources (Fundamental + Composite) | 9 Fundamental + 8 Composite variants with `constituents()` codified | honored | `fundamentals.rs` (9 variants) + `composites.rs:150-174` (`constituents()`) | — |
 | Resources have actions | Open string vocabulary per `permissions/03-action-vocabulary.md`; inheritance via composite expansion | honored | `permissions/manifest/mod.rs:38` (`actions: Vec<String>`) + `composites.rs:150` | — |
@@ -28,7 +29,7 @@ The M5.1 + M5.2 concept-audit matrix at [`../../m5_1/drifts/_concept-audit-matri
 | Resource shared between Projects + cross-org via shared Project | `BelongsTo` N:N + Shape-B + `AllocatedTo` edges | honored | `edges.rs:289,334` + `permissions/06-multi-scope-consent.md` § Joint project | — |
 | Org has Agents (Ownership) | `MEMBER_OF` edge + `Agent.owning_org` | honored | `edges.rs:136` + `nodes.rs:194` | — |
 | Agent spawn other Agents | `DELEGATES_TO` edge + audit-event capture of creator-actor | honored (creator-foreign-key on node deliberately omitted per philosophy §4.4 clarification — access-control over creator-tracking) | `edges.rs:100` + `agents/create.rs` audit emit | — |
-| Agent create Projects | `apply_project_creation` actor recorded in audit; CREATED edge emitted | partially-honored (post-CH-25 closure adds Agent→Project Owns edge) | `apply_project_creation` audit + post-CH-25 `Owns` edge | — (post-D-philosophy-01) |
+| Agent create Projects | `apply_project_creation` actor recorded in audit; CREATED edge emitted | honored | `apply_project_creation` emits `Edge::Owns(lead → Project)` + `Edge::Created` per ADR-0060 §D60.1 (CH-25 cycle hex `1e01618e`); Shape A + Shape B materialise paths both wire lead = creator per Decision-3 user-lock | — (post-D-philosophy-01) |
 | Agents own Resources | `OWNED_BY` edge + `Grant.holder` | honored | `edges.rs` + `nodes.rs:624-639` | — |
 | Agents work on several Projects/Orgs | N:N `MEMBER_OF` + `HAS_AGENT` edges | honored | `edges.rs:136,254` | — |
 | Resources can be Transferred + co-owned | `transfer` action + `AllocatedTo` edge | honored | `permissions/03-action-vocabulary.md` + `edges.rs:334` | — |

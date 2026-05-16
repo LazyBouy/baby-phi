@@ -213,6 +213,26 @@ pub struct CheckContext<'a> {
     /// today's behaviour. Concept 06 lines 14–53 reads scopes from
     /// `session.tags` directly.
     pub session_project_tags: &'a [ProjectId],
+    /// CH-25 / ADR-0060 §D60.3 — Orgs the calling [`agent`] owns via
+    /// `Edge::Owns` graph edges (from-side `Agent`, to-side
+    /// `OwnedResourceId::Org`). Pre-loaded by call-sites from
+    /// [`crate::repository::Repository::list_agent_owned_orgs`] so the
+    /// engine's [`crate::permissions::engine::step_2_resolve_grants`]
+    /// can synth `[Allocate, Transfer]` candidate grants at the most-
+    /// specific (`ScopeTier::Agent`) tier without an I/O call inside
+    /// the pure engine.
+    ///
+    /// **Empty slice** = agent owns no orgs → no synth grants produced
+    /// (the engine's synth loop is a no-op). This matches the M1-baseline
+    /// `agent_grants` / `project_grants` / `org_grants` slice discipline:
+    /// callers pass `&[]` when the tier is irrelevant.
+    pub agent_owned_orgs: &'a [OrgId],
+    /// CH-25 / ADR-0060 §D60.3 — Projects the calling [`agent`] owns via
+    /// `Edge::Owns` graph edges (from-side `Agent`, to-side
+    /// `OwnedResourceId::Project`). Symmetric peer to
+    /// [`agent_owned_orgs`]; see its docs for the rationale and
+    /// pre-load discipline.
+    pub agent_owned_projects: &'a [ProjectId],
     /// The invocation being checked.
     pub call: ToolCall,
 }

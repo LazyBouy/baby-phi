@@ -99,6 +99,19 @@ pub async fn preview_session(
         StaticCatalogue::with_entries([(Some(input.org_id), "session_object".to_string())]);
     let template_gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
 
+    // CH-25 / ADR-0060 §D60.3 — pre-load owned-resource slices so the
+    // engine's `step_2_resolve_grants` can synth owner-grants. Preview
+    // must match launch's owner-grant resolution for the
+    // `preview-matches-launch` invariant.
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(agent.id)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(agent.id)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+
     let ctx = CheckContext {
         agent: agent.id,
         current_org: Some(input.org_id),
@@ -127,6 +140,8 @@ pub async fn preview_session(
         // preview support lands with CH-15.
         session_org_tags: &[],
         session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
         // CH-15 / ADR-0054 §D54.1 — synthetic ToolCall is class-level
         // (`target_uri = ""` skips Step 0 catalogue) but carries the
         // would-be session's tags so the engine's

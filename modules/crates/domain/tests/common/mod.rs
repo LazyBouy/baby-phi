@@ -59,6 +59,10 @@ impl OwnedCtx {
             // single-tier behaviour.
             session_org_tags: &[],
             session_project_tags: &[],
+            // CH-25 / ADR-0060 §D60.3 — proptest fixtures own no
+            // resources; empty slices → synth-grant loop no-ops.
+            agent_owned_orgs: &[],
+            agent_owned_projects: &[],
             call,
         }
     }

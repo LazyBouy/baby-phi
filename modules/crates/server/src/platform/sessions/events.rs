@@ -166,6 +166,19 @@ pub async fn open_live_stream(
     let (session_org_tags, session_project_tags) =
         domain::permissions::parse_session_scope_tags(&prospective_session_tags);
 
+    // CH-25 / ADR-0060 §D60.3 — pre-load owned-resource slices so the
+    // SSE-observe gate sees the same owner-grant resolution as launch.
+    // An owner-Agent observing a session inside their owned org/project
+    // benefits from the synth-grant axis just like at launch.
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(input.actor)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(input.actor)
+        .await
+        .map_err(|e| SessionError::Repository(e.to_string()))?;
+
     let ctx = CheckContext {
         agent: input.actor,
         current_org: Some(org_id),
@@ -182,6 +195,8 @@ pub async fn open_live_stream(
         set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
         session_org_tags: &session_org_tags,
         session_project_tags: &session_project_tags,
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
         call,
     };
 

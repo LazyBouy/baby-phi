@@ -55,6 +55,11 @@ struct State {
     ownership_edges: Vec<OwnershipEdge>,
     creation_edges: Vec<CreationEdge>,
     allocation_edges: Vec<AllocationEdge>,
+    /// CH-25 / ADR-0060 §D60.1 — `OWNS` edges (Agent → Org/Project).
+    /// Read at Permission Check time by `list_agent_owned_orgs` +
+    /// `list_agent_owned_projects` to synth owner-grants in
+    /// `step_2_resolve_grants` per §D60.3.
+    owns_edges: Vec<OwnsEdge>,
     bootstrap_credentials: Vec<BootstrapCredentialRow>,
     catalogue: Vec<(Option<OrgId>, String, String)>, // (owning_org, uri, kind)
     audit_events: Vec<AuditEvent>,
@@ -172,6 +177,20 @@ struct AllocationEdge {
     to: NodeId,
     resource: ResourceRef,
     auth_request: AuthRequestId,
+}
+
+/// CH-25 / ADR-0060 §D60.1 — In-memory row for the `owns` relation.
+/// Mirrors the typed `Edge::Owns { from: AgentId, to: OwnedResourceId }`
+/// payload on the graph side. The `OwnedResourceId` is stored typed so
+/// the new [`Repository::list_agent_owned_orgs`] +
+/// `list_agent_owned_projects` reads can filter by variant.
+#[derive(Clone)]
+#[allow(dead_code)]
+struct OwnsEdge {
+    id: EdgeId,
+    from: AgentId,
+    to: crate::model::ids::OwnedResourceId,
+    created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// In-memory `Repository`. Cheap to construct; `Clone` via the inner
@@ -1465,6 +1484,32 @@ impl Repository for InMemoryRepository {
             .collect())
     }
 
+    async fn list_agent_owned_orgs(&self, agent: AgentId) -> RepositoryResult<Vec<OrgId>> {
+        let state = self.lock()?;
+        Ok(state
+            .owns_edges
+            .iter()
+            .filter(|e| e.from == agent)
+            .filter_map(|e| match e.to {
+                crate::model::ids::OwnedResourceId::Org(org) => Some(org),
+                crate::model::ids::OwnedResourceId::Project(_) => None,
+            })
+            .collect())
+    }
+
+    async fn list_agent_owned_projects(&self, agent: AgentId) -> RepositoryResult<Vec<ProjectId>> {
+        let state = self.lock()?;
+        Ok(state
+            .owns_edges
+            .iter()
+            .filter(|e| e.from == agent)
+            .filter_map(|e| match e.to {
+                crate::model::ids::OwnedResourceId::Project(pid) => Some(pid),
+                crate::model::ids::OwnedResourceId::Org(_) => None,
+            })
+            .collect())
+    }
+
     async fn upsert_project(&self, project: &Project) -> RepositoryResult<()> {
         let mut state = self.lock()?;
         state.projects.insert(project.id, project.clone());
@@ -1722,6 +1767,31 @@ impl Repository for InMemoryRepository {
             payload.token_budget_pool.clone(),
         );
 
+        // CH-25 / ADR-0060 §D60.1 — emit `Owns` (ceo → org) + `Created`
+        // (creator → org) edges inside the same compound tx. The
+        // ceo_agent is the OWNER per concept-doc `core-philosophy.md:9`
+        // (*"Agent owns Organization"*); the creator_agent is who
+        // invoked the handler (typically the platform-admin), and may
+        // differ from the ceo_agent at provenance level. The owner-
+        // grant Permission Check rule (§D60.3) synth on `Owns` only.
+        let now = chrono::Utc::now();
+        state.owns_edges.push(OwnsEdge {
+            id: EdgeId::new(),
+            from: payload.ceo_agent.id,
+            to: crate::model::ids::OwnedResourceId::Org(org_id),
+            created_at: now,
+        });
+        // Edge::Created uses struct-literal NodeId form per F1.b
+        // (Org does NOT impl Resource — the typed Edge::new_created
+        // constructor would fail to type-check). In_memory's
+        // CreationEdge row carries NodeId, NodeId so the wire form is
+        // exactly the same.
+        state.creation_edges.push(CreationEdge {
+            id: EdgeId::new(),
+            creator: NodeId::from_uuid(*payload.creator_agent.as_uuid()),
+            resource: NodeId::from_uuid(*org_id.as_uuid()),
+        });
+
         let mut adoption_ar_ids = Vec::with_capacity(payload.adoption_auth_requests.len());
         for ar in &payload.adoption_auth_requests {
             state.auth_requests.insert(ar.id, ar.clone());
@@ -1819,6 +1889,30 @@ impl Repository for InMemoryRepository {
             state.project_belongs_to_edges.push((pid, *org));
         }
         state.has_lead_edges.push((pid, payload.lead_agent_id));
+
+        // CH-25 / ADR-0060 §D60.1 — emit `Owns` (lead → project) +
+        // `Created` (creator → project) edges inside the same compound
+        // tx. Per Decision-3 user-lock, the lead is the OWNER for both
+        // Shape A AND Shape B materialise paths (the AR-submitter chose
+        // the lead; that's the owner). `creator_agent` equals the lead
+        // at v0 per the same Decision-3 lock; the field exists for
+        // future per-org co-ownership refinement at M6+.
+        let project_now = chrono::Utc::now();
+        state.owns_edges.push(OwnsEdge {
+            id: EdgeId::new(),
+            from: payload.lead_agent_id,
+            to: crate::model::ids::OwnedResourceId::Project(pid),
+            created_at: project_now,
+        });
+        // Edge::Created uses struct-literal NodeId form per F1.b
+        // (Project does NOT impl Resource — the typed
+        // Edge::new_created constructor would fail to type-check).
+        state.creation_edges.push(CreationEdge {
+            id: EdgeId::new(),
+            creator: NodeId::from_uuid(*payload.creator_agent.as_uuid()),
+            resource: NodeId::from_uuid(*pid.as_uuid()),
+        });
+
         // `HAS_AGENT` / `HAS_SPONSOR` edges are tracked structurally
         // via the project row; in-memory repo does not (yet) carry a
         // dedicated Vec for them. Surface-level reads live on the

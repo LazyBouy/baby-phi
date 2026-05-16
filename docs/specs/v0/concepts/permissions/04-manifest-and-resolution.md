@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-05-16 by Claude Code (CH-25 amendment: NEW §"Owner-grant auto-issue rule (CH-25 / ADR-0060)" subsection appended below covering the synth-owner-grant fired by `step_2_resolve_grants` for every `Edge::Owns` (Agent → Org/Project). The synth carries `[Allocate, Transfer]` on `IdentityPrincipal` over the owned-Org/Project URI; `descends_from = None` (synth — no AR provenance, exempt from the bootstrap-traceback invariant by design); `audit_class = Silent` (the underlying operation's audit emit covers the resolution). Refines the "every grant traces to bootstrap" wording at §"The Authority Chain" — synth-grants from structural Owns edges are an in-engine inference, NOT persisted grants, so the bootstrap-traceback walker does not visit them. Cycle hex `1e01618e`.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-14 amendment: §"The Authority Chain" lines 510–547 — every-grant-traces-to-bootstrap claim now backed by `Repository::walk_provenance_chain(grant) -> Vec<AuthRequest>` on both backends + `AuthRequest.descends_from_grant: Option<GrantId>` field-add (migration 0014) per ADR-0053 §D53.3/§D53.5; depth cap 32 + `RepositoryError::ProvenanceCycleDepthExceeded` defensive guard. Doc body unchanged.) -->
 <!-- Last verified: 2026-05-07 by Claude Code (CH-07 amendment: §"Mechanism 2: Scope Resolution" lines 354–375 + §"Key Invariants" line 310 lifted into typed Rust at domain::permissions::engine::step_5_scope_resolution (full 2-tier cascade body) per ADR-0051 §D51.1 + §D51.2. Doc body unchanged.) -->
 <!-- Last verified: 2026-05-04 by Claude Code (CH-12 amendment: §"Manifest Validation at Publish Time" rule set is extended from 4 rules + 3 warnings (Rule A/B/C/D shipped at CH-05) to 5 rules + 3 warnings — CH-12 (ADR-0049) adds **Rule E** (CompositeStructuralTagWrite): reject `[Modify]` on a composite whose `target_kinds` overlaps the reserved-namespace prefix list returned by `reserved_namespace_prefixes()`. Composes with Rule C — Rule C still fires for `[Modify] × bare tag`; Rule E covers `[Modify] × composite × target_kinds` (the `session_object`-via-Tag composite-cascade case). Rule E is exempt for `Composite::MemoryObject` per concept doc 05 lines 24–26 (Memory tags are agent-mutable). Drift D-new-08 closed. Doc body UNCHANGED.) -->
@@ -584,5 +585,32 @@ Permission                       -- the node stores 4 of 5 components
 A single Grant node can be referenced by multiple `HOLDS_GRANT` edges from different subjects. Storing subject as a property would force one Grant node per subject, even when the capability shape is identical. Modeling subject as the edge source enables capability *templates* — define the Permission once, attach it to N subjects.
 
 For example, an org-default "read project workspace" grant can be defined once and attached to every project in the org via N `HOLDS_GRANT` edges from the projects to the same Grant node. Provenance still tracks who CREATED the template (`config:org-default.toml`), and the resolution hierarchy still applies.
+
+---
+
+## Owner-grant auto-issue rule (CH-25 / ADR-0060)
+
+CH-25 adds a third grant-issuance pathway alongside (1) template-driven issuance + (2) admin-issued explicit grants: **synth-grants from structural `Owns` edges**. The Permission Check engine's `step_2_resolve_grants` synthesises a candidate `Grant` for every `Edge::Owns { from: AgentId, to: OwnedResourceId }` whose `from` matches the calling agent. The synth carries:
+
+- `holder: PrincipalRef::Agent(<agent_id>)`
+- `action: [Action::Allocate, Action::Transfer]` (canonical Authority verbs per concept-doc 03 line 149)
+- `resource.uri: org:<id>` or `project:<id>`
+- `fundamentals: [IdentityPrincipal]` (the axis on which Authority-category actions operate)
+- `descends_from: None` (synth — no AR provenance; structurally exempt from the bootstrap-traceback walker)
+- `delegable: true`
+- `approval_mode: Implicit`
+- `audit_class: Silent` (the underlying operation's audit emit covers the resolution; synth-resolution itself is not separately auditable per CH-25 / ADR-0060 §D60.3 rationale)
+
+### How this fits the authority-chain invariant
+
+The "every grant traces to bootstrap" invariant at §"The Authority Chain" applies to **persisted Grants** — rows in the `grants` table whose `descends_from: Option<GrantId>` participates in the provenance walk. Synth-owner-grants are NOT persisted; they live only for the duration of one `check` call and are reconstructed on every Permission Check from the current `Owns` edges. The walker `Repository::walk_provenance_chain` only operates on persisted Grants.
+
+The Owns edge itself IS persisted (in the SurrealDB `owns` relation table, declared via migration `0017_add_owns_relation.surql`). The edge's lifetime is the structural authority record — when a future M6+ chunk introduces ownership transfer, the Owns edge is the row that flips, not a Grant. Auditing of ownership changes flows through the `Owns` edge's emission audit event (per `apply_org_creation` / `apply_project_creation` compound-tx audit row), not through Grant-level audit events.
+
+### Operator implications
+
+The CEO who creates an Org via the bootstrap-claim wizard or `POST /api/v0/orgs` auto-gains `[Allocate, Transfer]` on `org:<id>` WITHOUT any persisted explicit grant being seeded. M6+ admin pages (Orgs page 1 + Projects page 3) can plan against this unified owner-grant model rather than pre-seeding bespoke `[Allocate]` grants at every org/project creation site.
+
+See [`m5_3/architecture/agent-ownership-model.md`](../../implementation/m5_3/architecture/agent-ownership-model.md) for the full design and [ADR-0060](../../implementation/m5_3/decisions/0060-agent-as-creator-and-owner.md) for the decision record.
 
 ---

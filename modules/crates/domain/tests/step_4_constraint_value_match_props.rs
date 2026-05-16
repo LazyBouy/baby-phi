@@ -69,6 +69,10 @@ fn build_ctx<'a>(
         // the cascade.
         session_org_tags: &[],
         session_project_tags: &[],
+        // CH-25 / ADR-0060 §D60.3 — Step-4 constraint-value proptests
+        // are orthogonal to owner-grant synth; empty slices → no-op.
+        agent_owned_orgs: &[],
+        agent_owned_projects: &[],
         call,
     }
 }

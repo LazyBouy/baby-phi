@@ -138,6 +138,50 @@ id_newtype!(
     SystemAgentRuntimeStatusId
 );
 
+/// Typed payload-end discriminator for the [`Edge::Owns`] variant
+/// (CH-25 / ADR-0060 §D60.1).
+///
+/// Carries the Agent→Org/Project ownership target as a typed enum so
+/// the variant payload can name the concrete ID kind at compile time
+/// (vs erasing to `NodeId`). The two-variant closed-set mirrors the
+/// concept-doc claim *"Agent owns Organization"* + *"Agent create
+/// Projects"* (core-philosophy.md:9, 23, 24).
+///
+/// Note (F1.b user-lock vs F1.a planner-recommendation): under F1.b
+/// (NEW [`Edge::Owns`] variant) Org/Project STAY Principal-only per the
+/// v0 ontology invariant at `principal_resource.rs:182-186`. This enum
+/// is the resource-end carrier, NOT a `Resource`-trait relaxation. See
+/// `m5_3/decisions/0060-agent-as-creator-and-owner.md` §D60.1 for the
+/// full rationale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum OwnedResourceId {
+    Org(OrgId),
+    Project(ProjectId),
+}
+
+impl OwnedResourceId {
+    /// Convert the typed payload into a `NodeId` for graph-shape consumers
+    /// that don't care which sub-variant is in play (e.g., wire-format
+    /// serialization). Read-only — the typed kind is preserved on the
+    /// owning [`Edge::Owns`] variant payload.
+    pub fn node_id(&self) -> NodeId {
+        match self {
+            Self::Org(id) => NodeId::from_uuid(*id.as_uuid()),
+            Self::Project(id) => NodeId::from_uuid(*id.as_uuid()),
+        }
+    }
+
+    /// Stable canonical-name string for the resource kind ("org" /
+    /// "project"). Used by the synth-grant URI builder in the Permission
+    /// Check engine (CH-25 / ADR-0060 §D60.3).
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Self::Org(_) => "org",
+            Self::Project(_) => "project",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,5 +199,39 @@ mod tests {
         let json = serde_json::to_string(&id).expect("serialize");
         // Transparent repr: the JSON is just a quoted UUID string.
         assert_eq!(json, format!("\"{}\"", id.0));
+    }
+
+    #[test]
+    fn owned_resource_id_org_round_trips_node_id() {
+        // CH-25 / ADR-0060 §D60.1 — typed payload carrier for
+        // `Edge::Owns`. `node_id()` is the lossy conversion for
+        // graph-shape consumers; the typed kind is preserved on the
+        // owning Edge variant.
+        let org = OrgId::new();
+        let owned = OwnedResourceId::Org(org);
+        let node = owned.node_id();
+        assert_eq!(node.as_uuid(), org.as_uuid());
+        assert_eq!(owned.kind_name(), "org");
+    }
+
+    #[test]
+    fn owned_resource_id_project_round_trips_node_id() {
+        let project = ProjectId::new();
+        let owned = OwnedResourceId::Project(project);
+        let node = owned.node_id();
+        assert_eq!(node.as_uuid(), project.as_uuid());
+        assert_eq!(owned.kind_name(), "project");
+    }
+
+    #[test]
+    fn owned_resource_id_serde_round_trips() {
+        // Default external-tagging — wire form is `{"Org": "<uuid>"}` or
+        // `{"Project": "<uuid>"}`. Round-trips losslessly across the
+        // serde adapter.
+        let project = ProjectId::new();
+        let owned = OwnedResourceId::Project(project);
+        let json = serde_json::to_string(&owned).expect("serialize");
+        let back: OwnedResourceId = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back, owned);
     }
 }

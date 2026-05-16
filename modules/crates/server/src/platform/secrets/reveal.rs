@@ -83,6 +83,15 @@ pub async fn reveal_secret(
     let consents = ConsentIndex::empty();
     let template_gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
 
+    // CH-25 / ADR-0060 §D60.3 — pre-load owned-resource slices so the
+    // engine's `step_2_resolve_grants` synth-grant loop is consistent
+    // across all production callsites. Secret reveal does not currently
+    // route through the owner-grant axis (secrets are not Owned-via-Edge
+    // resources), but providing the slices keeps the engine's input
+    // shape uniform.
+    let agent_owned_orgs = repo.list_agent_owned_orgs(input.actor).await?;
+    let agent_owned_projects = repo.list_agent_owned_projects(input.actor).await?;
+
     let (manifest, call) = build_reveal_manifest_and_call(&uri);
 
     let ctx = CheckContext {
@@ -104,6 +113,8 @@ pub async fn reveal_secret(
         // single-tier semantics for this path.
         session_org_tags: &[],
         session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
         call,
     };
 
@@ -384,6 +395,10 @@ mod tests {
             // are class-level; empty slices preserve single-tier path.
             session_org_tags: &[],
             session_project_tags: &[],
+            // CH-25 / ADR-0060 §D60.3 — no Owns edges in these test
+            // fixtures; empty slices → synth-grant loop no-ops.
+            agent_owned_orgs: &[],
+            agent_owned_projects: &[],
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);
@@ -442,6 +457,10 @@ mod tests {
             // are class-level; empty slices preserve single-tier path.
             session_org_tags: &[],
             session_project_tags: &[],
+            // CH-25 / ADR-0060 §D60.3 — no Owns edges in these test
+            // fixtures; empty slices → synth-grant loop no-ops.
+            agent_owned_orgs: &[],
+            agent_owned_projects: &[],
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);
@@ -497,6 +516,10 @@ mod tests {
             // are class-level; empty slices preserve single-tier path.
             session_org_tags: &[],
             session_project_tags: &[],
+            // CH-25 / ADR-0060 §D60.3 — no Owns edges in these test
+            // fixtures; empty slices → synth-grant loop no-ops.
+            agent_owned_orgs: &[],
+            agent_owned_projects: &[],
             call,
         };
         let d = check(&ctx, &manifest, &NoopMetrics);

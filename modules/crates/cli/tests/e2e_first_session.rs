@@ -274,6 +274,8 @@ async fn seed_session_launch_prereqs(
             project,
             owning_orgs: vec![org_id],
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![ceo_agent_id],
             catalogue_entries: vec![(format!("project:{}", project_id), "project".into())],

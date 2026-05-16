@@ -82,6 +82,10 @@ fn check_permission_allows_when_grant_covers_reach() {
         // class-level / single-tier; empty slices preserve M1 path.
         session_org_tags: &[],
         session_project_tags: &[],
+        // CH-25 / ADR-0060 §D60.3 — handler-support tests own no
+        // resources; empty slices → synth-grant loop no-ops.
+        agent_owned_orgs: &[],
+        agent_owned_projects: &[],
         call: ToolCall::default(),
     };
     let m = Manifest {
@@ -117,6 +121,10 @@ fn check_permission_maps_step_2_resolution_to_no_grants_held() {
         // class-level / single-tier; empty slices preserve M1 path.
         session_org_tags: &[],
         session_project_tags: &[],
+        // CH-25 / ADR-0060 §D60.3 — handler-support tests own no
+        // resources; empty slices → synth-grant loop no-ops.
+        agent_owned_orgs: &[],
+        agent_owned_projects: &[],
         call: ToolCall::default(),
     };
     let m = Manifest {
@@ -158,6 +166,10 @@ fn check_permission_maps_step_4_to_constraint_violation() {
         // class-level / single-tier; empty slices preserve M1 path.
         session_org_tags: &[],
         session_project_tags: &[],
+        // CH-25 / ADR-0060 §D60.3 — handler-support tests own no
+        // resources; empty slices → synth-grant loop no-ops.
+        agent_owned_orgs: &[],
+        agent_owned_projects: &[],
         call: ToolCall::default(),
     };
     let mut m = Manifest {
@@ -208,6 +220,10 @@ fn check_permission_maps_pending_to_awaiting_consent_202() {
         // class-level / single-tier; empty slices preserve M1 path.
         session_org_tags: &[],
         session_project_tags: &[],
+        // CH-25 / ADR-0060 §D60.3 — handler-support tests own no
+        // resources; empty slices → synth-grant loop no-ops.
+        agent_owned_orgs: &[],
+        agent_owned_projects: &[],
         call: ToolCall {
             target_agent: Some(AgentId::new()),
             ..Default::default()

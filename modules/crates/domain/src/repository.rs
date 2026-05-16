@@ -305,6 +305,13 @@ pub struct OrgCreationPayload {
     /// CEO's `[allocate]`-on-`org:<id>` grant — the root authority
     /// over the org's control-plane surface.
     pub ceo_grant: crate::model::nodes::Grant,
+    /// CH-25 / ADR-0060 §D60.1 — the Agent that **created** the
+    /// organization. Typically the platform-admin (`input.actor`) who
+    /// invoked the create-org handler. May differ from `ceo_agent` (the
+    /// **owner** per concept-doc `core-philosophy.md:9` *"Agent owns
+    /// Organization"*); the owner-grant Permission Check rule synth on
+    /// `Owns` edges only, while `Created` carries provenance only.
+    pub creator_agent: crate::model::ids::AgentId,
     /// Two system agents + their `AgentProfile` nodes. Each profile's
     /// `blueprint: phi_core::agents::profile::AgentProfile` carries
     /// the role-specific system prompt.
@@ -390,6 +397,13 @@ pub struct ProjectCreationPayload {
     /// Optional sponsor agents (`HAS_SPONSOR` edges). Typically the
     /// CEO of the owning org.
     pub sponsor_agent_ids: Vec<AgentId>,
+    /// CH-25 / ADR-0060 §D60.1 — the Agent that **created** the project.
+    /// Per Decision-3 user-lock, this equals `lead_agent_id` for both
+    /// Shape A and Shape B materialise paths (the lead is the creator
+    /// AND owner at v0). Future per-org co-ownership is an M6+
+    /// refinement. The owner-grant Permission Check rule synth on
+    /// `Owns` edges; `Created` carries provenance only.
+    pub creator_agent: AgentId,
     /// Catalogue seeds for project-scoped grants. Must include at
     /// minimum `project:<id>`.
     pub catalogue_entries: Vec<(String, String)>,
@@ -1219,6 +1233,34 @@ pub trait Repository: Send + Sync + 'static {
     /// trait surface exists now so P4 handlers can wire the call
     /// site.
     async fn list_projects_led_by_agent(&self, agent: AgentId) -> RepositoryResult<Vec<Project>>;
+
+    /// CH-25 / ADR-0060 §D60.3 — list the `OrgId`s for which `agent`
+    /// holds an `Owns` edge (i.e., the agent is the **owner** of those
+    /// orgs per concept-doc `core-philosophy.md:9` *"Agent owns
+    /// Organization"*).
+    ///
+    /// Called from the Permission Check engine's `step_2_resolve_grants`
+    /// + session-launch/preview `CheckContext` builder to drive the
+    /// owner-grant synthesis rule (synth `[Action::Allocate,
+    /// Action::Transfer]` grants over each owned org's control-plane
+    /// URI). Order is unspecified; callers may sort if determinism
+    /// matters.
+    ///
+    /// Returns `Ok(vec![])` for agents holding no `Owns` edges (the
+    /// common case for non-CEO/non-creator agents).
+    async fn list_agent_owned_orgs(&self, agent: AgentId) -> RepositoryResult<Vec<OrgId>>;
+
+    /// CH-25 / ADR-0060 §D60.3 — list the `ProjectId`s for which `agent`
+    /// holds an `Owns` edge (i.e., the agent is the **owner** of those
+    /// projects per concept-doc `core-philosophy.md:23,24` *"Agent
+    /// create Projects"* + *"Agents own Resources"*).
+    ///
+    /// Per Decision-3 user-lock, the owner of a Shape A or Shape B
+    /// project is the `lead_agent_id` supplied at materialise time.
+    ///
+    /// Symmetric peer to `list_agent_owned_orgs`. See its docs for
+    /// calling pattern + ordering semantics.
+    async fn list_agent_owned_projects(&self, agent: AgentId) -> RepositoryResult<Vec<ProjectId>>;
 
     /// Persist (create-or-replace) a project row. Shipped at M4/P7 for
     /// the in-place OKR editor (`PATCH /api/v0/projects/:id/okrs`) —

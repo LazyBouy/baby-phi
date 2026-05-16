@@ -97,6 +97,8 @@ async fn shape_a_happy_path_materialises_project_and_edges() {
             project,
             owning_orgs: vec![org],
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![member_id],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![(format!("project:{}", project_id), "project".into())],
@@ -132,6 +134,8 @@ async fn shape_a_rollback_on_duplicate_project_id_leaves_no_partial_state() {
             project: project.clone(),
             owning_orgs: vec![org],
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![],
@@ -145,6 +149,8 @@ async fn shape_a_rollback_on_duplicate_project_id_leaves_no_partial_state() {
             project,
             owning_orgs: vec![org],
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![],
@@ -183,6 +189,8 @@ async fn shape_b_happy_path_materialises_for_both_co_owners() {
             project,
             owning_orgs: vec![org_a, org_b],
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![],
@@ -215,6 +223,8 @@ async fn shape_b_arity_violation_is_rejected_before_open_tx() {
             project,
             owning_orgs: vec![org], // wrong arity for Shape B
             lead_agent_id: lead_id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_id,
             member_agent_ids: vec![],
             sponsor_agent_ids: vec![],
             catalogue_entries: vec![],

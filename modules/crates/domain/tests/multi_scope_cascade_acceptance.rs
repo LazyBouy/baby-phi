@@ -129,6 +129,10 @@ impl AcceptanceCtx {
             set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
             session_org_tags: &self.session_org_tags,
             session_project_tags: &self.session_project_tags,
+            // CH-25 / ADR-0060 §D60.3 — multi-scope cascade fixtures
+            // own no resources; empty slices → synth-grant loop no-ops.
+            agent_owned_orgs: &[],
+            agent_owned_projects: &[],
             call,
         }
     }

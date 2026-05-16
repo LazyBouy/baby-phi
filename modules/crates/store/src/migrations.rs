@@ -168,6 +168,17 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "template_a_session_object_grant_add_observe",
         sql: include_str!("../migrations/0016_template_a_session_object_grant_add_observe.surql"),
     },
+    // CH-25 — Agent-as-creator-and-owner edge model (ADR-0060 §D60.1).
+    // Adds the `owns` relation table backing the new `Edge::Owns`
+    // variant for Agent → Org/Project ownership semantics. F1.b user-
+    // lock divergence from planner-recommended F1.a: NEW dedicated
+    // relation table rather than reusing the generic `owned_by`
+    // relation; Org/Project STAY Principal-only in the v0 ontology.
+    Migration {
+        version: 17,
+        slug: "add_owns_relation",
+        sql: include_str!("../migrations/0017_add_owns_relation.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

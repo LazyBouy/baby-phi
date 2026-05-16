@@ -162,6 +162,10 @@ fn build_payload(org: Organization) -> OrgCreationPayload {
 
     OrgCreationPayload {
         organization: org,
+        // CH-25 / ADR-0060 §D60.1 — fixture: ceo IS the creator (no
+        // platform-admin in this test scaffold). Production callers
+        // pass `input.actor`.
+        creator_agent: ceo_agent.id,
         ceo_agent,
         ceo_channel,
         ceo_inbox,

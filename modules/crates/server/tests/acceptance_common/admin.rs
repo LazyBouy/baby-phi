@@ -318,6 +318,8 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
 
     let payload = OrgCreationPayload {
         organization,
+        // CH-25 / ADR-0060 §D60.1 — fixture: ceo IS the creator.
+        creator_agent: ceo_agent.id,
         ceo_agent: ceo_agent.clone(),
         ceo_channel,
         ceo_inbox,
@@ -511,6 +513,8 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
             project,
             owning_orgs: vec![org_id],
             lead_agent_id: lead_agent.id,
+            // CH-25 / ADR-0060 §D60.1 — Decision-3: lead = creator.
+            creator_agent: lead_agent.id,
             member_agent_ids: vec![member_agent.id],
             sponsor_agent_ids: vec![claimed_org.ceo_agent_id],
             catalogue_entries: vec![(format!("project:{}", project_id), "project".into())],
