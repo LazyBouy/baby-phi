@@ -76,6 +76,13 @@ Source: `https://code.claude.com/docs/en/permissions.md` (sections "Permission r
 - **Redirects are part of the literal match**: `cmd 2>&1` is matched as the full string including `2>&1`. They're not pre-stripped.
 - **Subshells `$(...)` and quoted args are part of the literal match.**
 
+**Worked examples** (compound shapes encountered in cycles + their canonical break-up):
+
+- `cd /abs && cmd <flags>` → BREAK into a single `cmd --manifest-path /abs/Cargo.toml <flags>` invocation (no `cd`). For `git`, use `git -C /abs <subcmd>`; for `bash`, use `bash /abs/script.sh`.
+- `cmd1 ; cmd2` (sequential, don't-care about cmd1 result) → BREAK into two separate Bash calls. Each subcommand must independently allow-match.
+  - **CH-02a-i-phi example (added 2026-05-17 per CH-02a retro Row 4)**: `ps -p $pid; ls /proc/$pid/status` produced 4 PermissionRequest fires in CH-26-baby-phi concurrent background-polling work because the matcher saw `ps -p ...` as a separate subcommand and there was no `Bash(ps *)` allow rule. Resolution: (a) added `Bash(ps *)` to settings.json benign-read cluster (adjacent to `Bash(stat *)` / `Bash(cat *)` / `Bash(find *)` / `Bash(wc *)`); (b) granular invocations sidestep this entirely — `ps -p $pid` and `ls /proc/$pid/status` should run as separate Bash calls when both are needed.
+- `cmd1 | cmd2 | cmd3 | cmd4` (4-stage pipe) → BREAK by writing the pipeline to a script (`scripts/audit-tmp-*.sh`) and running `bash /abs/script.sh` as a single Bash call. The 2-stage cap on inline pipelines is empirical (per CH-14 retro Row 4 cardinality-extraction pipeline; 14 PermissionRequests on a 4-stage chain).
+
 ### 2.3 — Empirical observations from CH-13 (where docs and behavior diverge)
 
 CH-13 telemetry surfaced cases where compound commands had each subcommand allow-listed yet still prompted. Per the docs they should auto-approve. Hypotheses (none confirmed):
