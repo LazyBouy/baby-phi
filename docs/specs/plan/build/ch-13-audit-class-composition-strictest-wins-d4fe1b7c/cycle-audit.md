@@ -30,10 +30,10 @@
 - Claims: 14 PASS / 0 FAIL / 2 PARTIAL of 16
 - PARTIAL details:
   - **F-AUDB-1 (line 23 of ADR-0050)**: §"Forks" header lacked explicit "user-locked at plan approval" language. Header read `### Forks (all planner-recommended at chunk-open)` — should also note user-lock outcome (F1.A / F2.A / F3.A all locked at planner-recommendation level via AskUserQuestion).
-  - **F-AUDB-2 (line 113 of ADR-0050)**: §"Cross-references" omitted the forward-scope row pointer. Listed concept-doc + ADR-0046/0048/0049 + drift D-new-19 but not the forward-scope file at `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 130–135.
+  - **F-AUDB-2 (line 113 of ADR-0050)**: §"Cross-references" omitted the forward-scope row pointer. Listed concept-doc + ADR-0046/0048/0049 + drift D-new-19 but not the forward-scope file at `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 130–135.
 - Resolution: **Trivial-1L orchestrator inline patches** (per CLAUDE.md trivial-tier discipline; no auditor re-spawn).
   - Patch 1: Updated line 23 to read `### Forks (all planner-recommended at chunk-open; user-locked at plan approval to F1.A / F2.A / F3.A)`.
-  - Patch 2: Appended a 1-line bullet to §"Cross-references": `- [Forward-scope row CH-13](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 130–135) — chunk source.`
+  - Patch 2: Appended a 1-line bullet to §"Cross-references": `- [Forward-scope row CH-13](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 130–135) — chunk source.`
 - Critical claim 7 (concept-audit matrix Status flipped letter-for-letter to `honored` per CH-12 retro Row 1 P4 paperwork addendum): **PASS** at line 216 of `_concept-audit-matrix.md` (one-row drift from plan-predicted 215, content correct).
 
 ---

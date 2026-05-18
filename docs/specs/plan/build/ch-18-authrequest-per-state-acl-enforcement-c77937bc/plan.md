@@ -4,7 +4,7 @@
 
 **Cycle hex**: `c77937bc` (unchanged from v1; only the plan body is revised at gate-1 user-lock divergence).
 **Plan version**: **v2 — F3.B re-plan after gate-1 user lock divergence (2026-05-09)**. v1 was structured for F3.A (4 mutation handlers); v2 expands for F3.B (Repository docstring update + dashboard + show + slot-fill read + the 4 mutation handlers + 8 submit-side create_auth_request callsites). User-locked at gate-1 to F1.B / F2.A / **F3.B (DIVERGENT from planner-recommended F3.A)** / F4.A / F5.B. The diverging fork — F3.B — explicitly broadens scope; v2 re-derives §7 (phasing) / §8 (test-count band) / §11 (audit envelope) / §3.B K8s axes accordingly.
-**Forward-scope row**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 169–175.
+**Forward-scope row**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 169–175.
 **Severity / effort**: MED · ~2 days at v1 (F3.A) → **~3.0–3.5 days at v2 (F3.B)** · in-M5-close per forward-scope §6 + §7 Q5. Effort up-revised because F3.B adds Repository-docstring + 5 read-side handler wiring sites + 8 submit-side handler wiring sites + ≥10 new tests. Still ≤ 1.5× forward-scope target (1.5× of 2 days = 3 days; 3.0–3.5 days is on/at the boundary — orchestrator-discretion).
 **Test baseline at chunk-open**: 1491 passed / 0 failed / 2 ignored (CH-17 close, cycle hex `40c4d759`, per `_cycle-index.md` line 37 + `ch-17-live-sse-tail-endpoint-40c4d759/cycle-audit.md:52,101`).
 **phi-core import baseline at chunk-open**: 57 `use phi_core` statements across the workspace (`grep -rn "use phi_core" /root/projects/phi/baby-phi/modules/crates/ | wc -l` = 57, verified 2026-05-09).
@@ -98,7 +98,7 @@ Dashboard reads at `dashboard.rs:273` (`list_active_auth_requests_for_org`) + `d
 
 **Quality-over-speed restatement**: *Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently.* CH-18 v2 application: the per-state matrix is concept-locked at `permissions/02-auth-request.md` lines 130–144 verbatim; the typed function captures every row + column from that table; F3.B (full wiring) honours the user's locked tightening of scope; the residual deferral (admin/auditor role-discrimination) is documented as a NEW drift (`D-CH18-FOLLOWUP-01`) with explicit re-scope to M6+, NOT silently ignored.
 
-**Forward-scope reference**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 row 18 (CH-18 entry, lines 169–175); §6 severity row line 426 (`MED, 2d, permissions/02, —, yes`); §7 Q5 binding decision (line 478) — MED chunks evaluate close-at-M5 vs defer per chunk-open. v2 effort estimate (3.0–3.5d) is at the boundary of the 1.5× scope ratio; orchestrator gate-1 user-lock to F3.B explicitly accepted the broader scope.
+**Forward-scope reference**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5 row 18 (CH-18 entry, lines 169–175); §6 severity row line 426 (`MED, 2d, permissions/02, —, yes`); §7 Q5 binding decision (line 478) — MED chunks evaluate close-at-M5 vs defer per chunk-open. v2 effort estimate (3.0–3.5d) is at the boundary of the 1.5× scope ratio; orchestrator gate-1 user-lock to F3.B explicitly accepted the broader scope.
 
 ## §2 — Concept alignment walk
 
@@ -339,7 +339,7 @@ All AR-touching action verbs the matrix names (`read`, `modify`, `submit`/Approv
   - [`m5_2/decisions/0049-frozen-session-tag-immutability.md`](../../../v0/implementation/m5_2/decisions/0049-frozen-session-tag-immutability.md) — typed-violation-enum + Repository docstring contract precedent.
   - [`m5_2/decisions/0053-system-genesis-authority-chain-revocation-cascade.md`](../../../v0/implementation/m5_2/decisions/0053-system-genesis-authority-chain-revocation-cascade.md) — `is_bootstrap_ar` two-witness + system-internal cascade precedent.
   - [`m5_2/decisions/0054-session-launch-manifest-and-hard-deny-flip.md`](../../../v0/implementation/m5_2/decisions/0054-session-launch-manifest-and-hard-deny-flip.md) — Alerted-class deny audit-event pattern.
-- (d) Forward-scope row: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 lines 169–175 + §5 row 18 line 426 + §6 line 478.
+- (d) Forward-scope row: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 lines 169–175 + §5 row 18 line 426 + §6 line 478.
 
 **Forks header (v2)**: at v2 plan-draft time the ADR header reads `Forks user-locked at gate-1 to F1.B / F2.A / F3.B / F4.A / F5.B (F3 DIVERGENT from planner's F3.A recommendation; v2 re-plan applied)`. Sub-forks under F3.B all auto-resolved to defer-via-followup-drift / principal-blind-Repository / wire-submit-sites / silent-post-filter.
 
@@ -625,7 +625,7 @@ Upstream tests CH-18 v2 must NOT break:
 4. ✅ `docs/specs/plan/build/ch-15-real-permission-check-gate-at-session-launch-c3f46f17/plan.md` — for permission-check style precedent + Alerted-class deny event shape.
 5. ✅ `docs/specs/plan/build/ch-12-frozen-session-tag-immutability-6a748175/plan.md` — for forward-defensive ship + typed-violation enum + Repository docstring contract precedent.
 6. ✅ `docs/specs/plan/build/ch-14-system-genesis-authority-chain-revocation-cascade-5803bb94/plan.md` — for `is_bootstrap_ar` 2-witness predicate + pre-existing-behaviour preservation note discipline.
-7. ✅ `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §5 row 18 + §6 line 426 + §7 Q5 line 478.
+7. ✅ `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §5 row 18 + §6 line 426 + §7 Q5 line 478.
 8. ✅ `baby-phi/CLAUDE.md` §"phi-core Leverage" + §"Multi-agent chunk pipeline" + §"Granular Bash discipline".
 9. ✅ Source code (v2 expanded):
    - `domain/src/auth_requests/{mod,state,transitions,revocation,retention}.rs` (all 5 files)

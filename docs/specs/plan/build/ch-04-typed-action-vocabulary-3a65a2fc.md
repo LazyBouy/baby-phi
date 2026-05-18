@@ -57,7 +57,7 @@ Action strings are the foot-gun version of a model that the concept doc already 
 
 ### Forward-scope reference
 
-[CH-04 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 63–68) + [§5 inventory](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 412).
+[CH-04 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 63–68) + [§5 inventory](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 412).
 
 ---
 

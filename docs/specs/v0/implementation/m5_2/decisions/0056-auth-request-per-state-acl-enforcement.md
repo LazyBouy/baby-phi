@@ -270,7 +270,7 @@ Planner v1 recommended F3.A (mutation-handlers-only forward-defensive ship — 4
 
 ### Forward-scope row
 
-- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 lines 169–175 (CH-18 row) + §5 row 18 + §6 line 426 (`MED, 2d, permissions/02, —, yes`) + §7 Q5 line 478 (close-at-M5 binding decision for MED-severity chunks).
+- [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 lines 169–175 (CH-18 row) + §5 row 18 + §6 line 426 (`MED, 2d, permissions/02, —, yes`) + §7 Q5 line 478 (close-at-M5 binding decision for MED-severity chunks).
 
 ---
 

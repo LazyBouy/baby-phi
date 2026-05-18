@@ -3,7 +3,7 @@
 # CH-25 — Agent-as-creator-and-owner of Organization and Project + R5 permissions-audit skill fix
 
 **Cycle hex**: `1e01618e`
-**Forward-scope row**: [`plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 242-254
+**Forward-scope row**: [`plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 242-254
 **Chunk slug**: `ch-25-agent-as-creator-and-owner`
 **Folder**: `baby-phi/docs/specs/plan/build/ch-25-agent-as-creator-and-owner-1e01618e/`
 **Estimated effort**: ~3.5 engineer-days (3.0 core + 0.5 R5 investigation)
@@ -104,7 +104,7 @@ CH-25 is code-touching + new ADR + new Permission Check rule + R5 skill-fix + NE
 
 **Quality-over-speed restatement**: *"Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently."* CH-25 application: the philosophy claims have been honored at the docs tier since 2026-04-28's audit; CH-25 brings the code into alignment with the doc as the **first** M5.3 carve-out work, before any M6 chunk encodes around the gap.
 
-**Forward-scope reference**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 242-254 (CH-25 row + R5 carry-forward).
+**Forward-scope reference**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 242-254 (CH-25 row + R5 carry-forward).
 
 ---
 
@@ -387,7 +387,7 @@ If P-R5-INVESTIGATE surfaces a NEW drift (e.g., a follow-up `D-CH25-FOLLOWUP-NN`
   - `m3/decisions/0022-org-creation-compound-transaction.md` (the compound-tx pattern CH-25 extends at apply_org_creation).
   - `m1/decisions/0034-human-agent-identity-guard.md` (CH-01's `disable_system_agent` ADR for the acceptance test's child-disable path).
   - `m5_2/decisions/0053-system-genesis-authority-chain-revocation-cascade.md` (CH-14 / system-genesis precedent for synth-grants from axiomatic principals — analogous to owner-grant synthesis).
-- (d) **Forward-scope row**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 242-254.
+- (d) **Forward-scope row**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 242-254.
 
 **Forks header (per chunk-planner v6 ADR-body checklist)**: *"Forks (CH-25 planner-recommendation: F1.a / F2.a / F3.a / F4.a / F5.a / F6.b; user-locked at plan approval to **F1.b / F2.a / F3.a / F4.a / F5.a / F6.b** — F1 DIVERGENT from planner-recommendation; divergence-aware framing applied to F1 + F2 + F4 per chunk-planner v13 80%-cumulative-divergence rule)"*.
 
@@ -590,9 +590,9 @@ Per per-chunk-planning-template §6 rule, this table runs AT CHUNK OPEN before a
 5. `docs/specs/v0/concepts/permissions/03-action-vocabulary.md` (verify 34-verb closed set; §3.D contradiction check).
 6. `docs/specs/v0/implementation/m5_3/drifts/D-philosophy-01.md` (drift being closed).
 7. `docs/specs/v0/implementation/m5_3/drifts/_concept-audit-matrix.md` (matrix to flip).
-8. `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §2.5 lines 242-254.
+8. `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §2.5 lines 242-254.
 9. `docs/specs/plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md` §4.1 (user clarification record).
-10. `docs/specs/plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md` (M5.3 announcement plan archive).
+10. `docs/specs/plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md` (M5.3 announcement plan archive).
 11. `baby-phi/CLAUDE.md` phi-core Leverage section.
 12. **Conditional (CH-11 retro v8)**: chunk touches `domain::permissions::engine` Step 2 body → reading list MUST include `server/src/platform/sessions/launch.rs` body + `server/src/platform/sessions/preview.rs` body. **Applied here.**
 13. **Conditional (CH-12 retro v3 tag-write rule)**: not applicable — CH-25 does NOT introduce a tag-write Repository method.

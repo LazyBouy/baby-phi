@@ -109,7 +109,7 @@ All 7 rows (6 v1/v2 + 1 v3/v4 NEW row for "Session list query at API surface via
 | m5/README.md | (existing) | ✅ Phase status all ✓; CH-24 close summary section appended; ADR table refreshed (ADR-0059 listed) |
 | `_concept-audit-matrix.md` | (existing) | ✅ NEW row "page-11 recent_sessions panel" Status `silent-in-code → **honored**` with `D-CH24-recent-sessions-api-flip ✓` |
 | drifts/README.md | (existing) | ✅ NEW index row for D-CH24 appended |
-| Forward-scope row 211 amendment | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` | ✅ Drifts closed: 1 + mid-cycle scope expansion paragraph |
+| Forward-scope row 211 amendment | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` | ✅ Drifts closed: 1 + mid-cycle scope expansion paragraph |
 | Cycle-index row | `_cycle-index.md` | ✅ row + verified-header at top (status `ready-for-audit`; will flip to `audited-pending-retro` at gate-4 close) |
 | Milestone-tag staging | `ch-24-carryover-reverification-m5-seal-5778bb77/milestone-tag-staging.md` | ✅ extant (proposed `git tag v0.1-m5 <SHA>` command + user sign-off checklist + recommended annotated tag message) |
 | CHK8S-D-02 cross-ref | `v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md` | ✅ AMEND BODY (e2e_first_session.rs extant at cli/tests/; SIGTERM branch M7b-deferred) |

@@ -131,4 +131,4 @@ CH-22's plan §5 ADR section MUST cite this ADR. CH-22's plan §7 phase delivera
 - Drift reviewed (stays scoped): [D-new-23](../../m5_1/drifts/D-new-23.md)
 - Concept docs touched: [`agent.md`](../../../concepts/agent.md), [`system-agents.md`](../../../concepts/system-agents.md), [`human-agent.md`](../../../concepts/human-agent.md), [`phi-core-mapping.md`](../../../concepts/phi-core-mapping.md)
 - Sibling ADR: [ADR-0033](./0033-k8s-prep-refactors.md) (CH-K8S-PREP — D33.1–D33.4 conforming criteria still satisfied; CH-01 is K8s-neutral per its §3.B 7-axis evaluation)
-- Forward-scope: [`forward-scope/22035b2a-...md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §3 `M6+-OPEN-01` (AgentProfile cardinality re-evaluation — open question surfaced during CH-01 plan review)
+- Forward-scope: [`forward-scope/22035b2a-...md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §3 `M6+-OPEN-01` (AgentProfile cardinality re-evaluation — open question surfaced during CH-01 plan review)

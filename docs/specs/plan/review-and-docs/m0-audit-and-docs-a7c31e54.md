@@ -16,7 +16,7 @@ The audit result (below) says M0 is structurally solid but has one HIGH-severity
 
 The *overall v0.1 build plan* (M0→M8) still lives in its archive at `phi/docs/specs/plan/build/build-plan-v01-36d0c6c5.md`. This plan file supersedes that one only for the next block of work (audit + docs); M1+ planning will be picked up separately.
 
-**Archive location for this plan:** `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md` (new subfolder; matches the sibling convention used by `plan/build/` and `plan/requirements/`). The first execution step (Part 7 step 0) is to copy this plan file verbatim to that path so the audit + doc plan is preserved alongside the other archived plans.
+**Archive location for this plan:** `phi/docs/specs/plan/review-and-docs/m0-audit-and-docs-a7c31e54.md` (new subfolder; matches the sibling convention used by `plan/build/` and `plan/requirements/`). The first execution step (Part 7 step 0) is to copy this plan file verbatim to that path so the audit + doc plan is preserved alongside the other archived plans.
 
 ---
 
@@ -299,7 +299,7 @@ Will be modified:
 - `phi/config/prod.toml`  (R1 — reverse-proxy comment)
 
 Will be created:
-- `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md`  (archive of this plan; new `review-and-docs/` subfolder)
+- `phi/docs/specs/plan/review-and-docs/m0-audit-and-docs-a7c31e54.md`  (archive of this plan; new `review-and-docs/` subfolder)
 - `phi/modules/web/package-lock.json`  (R2)
 - `phi/.env.example`  (R3)
 - `phi/docs/ops/runbook.md`  (R4 — stub)
@@ -329,7 +329,7 @@ Before declaring this plan's work complete, verify:
 
 ## Part 7 — Execution order  `[STATUS: ⏳ pending]`
 
-0. **Archive this plan** — create `phi/docs/specs/plan/review-and-docs/` (new subfolder) and copy this plan verbatim to `phi/docs/specs/plan/review-and-docs/a7c31e54-m0-audit-and-docs.md`. Mirrors the pattern used for the v0.1 build plan (`plan/build/36d0c6c5-…`) and the requirements plan (`plan/requirements/e2781622-…`). (~2 min.)
+0. **Archive this plan** — create `phi/docs/specs/plan/review-and-docs/` (new subfolder) and copy this plan verbatim to `phi/docs/specs/plan/review-and-docs/m0-audit-and-docs-a7c31e54.md`. Mirrors the pattern used for the v0.1 build plan (`plan/build/36d0c6c5-…`) and the requirements plan (`plan/requirements/e2781622-…`). (~2 min.)
 1. **R1** — axum-server + TLS wiring + smoke test (~45 min).
 2. **R2** — `npm install` in modules/web, commit lockfile (~5 min).
 3. **R3** — `.env.example` (~5 min).

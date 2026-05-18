@@ -239,7 +239,7 @@ No M5 P8/P9 commitments orphaned.
 >
 > **M5.3 drift catalogue**: [`v0/implementation/m5_3/drifts/`](../../v0/implementation/m5_3/drifts/) — D-philosophy-01 + D-philosophy-02 with their own README + concept-audit matrix. Parallel to (not under) `m5_1/drifts/`.
 >
-> **Plan archive (verbatim)**: [`plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](../core-philosophy-check/525d2085-m5-3-announcement-plan.md).
+> **Plan archive (verbatim)**: [`plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md`](../core-philosophy-check/m5-3-announcement-plan-525d2085.md).
 
 ### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1) — **CLOSED at cycle hex `1e01618e` (2026-05-16)**
 
@@ -350,7 +350,7 @@ Scope markers for drifts explicitly deferred past M5 close. Each maps to its tar
 - **Strategic input**: [`v0/implementation/m7b/architecture/k8s-microservices-readiness.md`](../../v0/implementation/m7b/architecture/k8s-microservices-readiness.md) — 8 K8s blockers, 7 microservice boundaries, 10-step migration order, ~35 engineer-day rough estimate.
 - **Tactical input**: [`v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md`](../../v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md) — 8 specific items the CH-K8S-PREP prep refactors named M7b as the owner of (CHK8S-D-01 through CHK8S-D-08), each with provenance + M7b sub-task assignment.
 - **Trait contracts to satisfy**: per [ADR-0033](../../v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md) §D33.1 / §D33.2 / §D33.4 conforming-impl criteria. M7b adapter chunks must satisfy these contracts; new ADRs may supersede each sub-decision as backend choices land.
-- **Source chunk plan**: [`forward-scope/ab49f22b-k8s-microservices-readiness-plan.md`](./ab49f22b-k8s-microservices-readiness-plan.md) (verbatim copy of the approved CH-K8S-PREP plan).
+- **Source chunk plan**: [`forward-scope/k8s-microservices-readiness-plan-ab49f22b.md`](./k8s-microservices-readiness-plan-ab49f22b.md) (verbatim copy of the approved CH-K8S-PREP plan).
 - Target: M7b production-hardening milestone (per `baby-phi/CLAUDE.md` § Scope).
 
 ### M6+-OPEN-01 — AgentProfile cardinality re-evaluation (1:1 → N:1 template-sharing) (added 2026-04-27 by CH-01)

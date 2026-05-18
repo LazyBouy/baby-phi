@@ -137,7 +137,7 @@ CH-24 application: a milestone seal is where silently-accumulated drift surfaces
 
 ### Forward-scope reference
 
-[`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §M5.2 inherited chunks, line 210–212; cross-ref M5 archive plan §P9 line 798–852.
+[`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §M5.2 inherited chunks, line 210–212; cross-ref M5 archive plan §P9 line 798–852.
 
 ---
 
@@ -291,7 +291,7 @@ CH-24's docs deliverables are the milestone-rollup tier. **v3 update**: scope ex
 | **Drifts index (v3 NEW)** | `m5_1/drifts/README.md` | YES — add index entry for new drift | (a) add row in-chunk (P-DOCS) |
 | **ADRs (v3 NEW / v4 sub-decisions rewritten)** | `m5_2/decisions/0059-recent-sessions-api-surface-flip.md` | YES — NEW ADR with v4 sub-decision wording | (a) create in-chunk (P-FLIP-RECENT-SESSIONS commits draft `Proposed`; P-SEAL flips to `Accepted`) |
 | **Source code doc-comment (v3 NEW)** | `server/src/platform/projects/detail.rs:33` | YES — module doc-comment refresh (remove stale "deferred to M5 per D11" line; replace with current reality per ADR-0059) | (a) update in-chunk (P-FLIP-RECENT-SESSIONS) |
-| **Forward-scope (v3 NEW)** | `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md:211` | YES — one-line amendment noting CH-24 closed 1 new drift via in-cycle scope expansion | (a) amend in-chunk (P-SEAL deliverable 7) |
+| **Forward-scope (v3 NEW)** | `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md:211` | YES — one-line amendment noting CH-24 closed 1 new drift via in-cycle scope expansion | (a) amend in-chunk (P-SEAL deliverable 7) |
 
 **Doc-sync sweep at gate-2 (chunk-planner v6 + CH-15 retro widening):** v2 baseline was "ZERO expected". **v3 update**: the API-surface flip removes the stale "M4 placeholder" / "deferred to M5 per D11" / "C-M5-3 flips this to real rows" wording from `detail.rs:33` + the existing test docstring at `acceptance_m5_sessions.rs:204-209` ("Page-11 carryover gap (M4 placeholder still active)" + "C-M5-3 inline note never executed"). **v4 update**: additionally sweep for `RecentSessionStub` references repo-wide; archival doc mentions (e.g., `m4/architecture/phi-core-reuse-map.md:88`) may remain as historical record but ALL active source-code references MUST migrate to `RecentSessionEntry`. Apply at P-FLIP-RECENT-SESSIONS or P-DOCS as appropriate.
 
@@ -518,7 +518,7 @@ If cascade > 13 sites (1.5× the v4 upper-bound prediction of 9) OR any cardinal
 4. **MIGRATE M5.1 drift catalogue to terminal status** — including the new `D-CH24-recent-sessions-api-flip` at `remediated`.
 5. **STAGE milestone tag** `v0.1-m5` for user execution.
 6. **WORKSPACE HEALTH CONFIRMATION**.
-7. **(v3 NEW)** AMEND `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md:211` — append a one-line note to the "Drifts closed: none new" cell acknowledging CH-24 closed 1 new drift (`D-CH24-recent-sessions-api-flip`) via in-cycle scope expansion. Cite ADR-0059. Note: this is the first time a CH-NN amends its own forward-scope row at chunk-seal due to mid-cycle scope expansion (CH-20's META amendment was for an off-by-N count; CH-24's is for a scope-expansion).
+7. **(v3 NEW)** AMEND `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md:211` — append a one-line note to the "Drifts closed: none new" cell acknowledging CH-24 closed 1 new drift (`D-CH24-recent-sessions-api-flip`) via in-cycle scope expansion. Cite ADR-0059. Note: this is the first time a CH-NN amends its own forward-scope row at chunk-seal due to mid-cycle scope expansion (CH-20's META amendment was for an off-by-N count; CH-24's is for a scope-expansion).
 8. **(v3 NEW)** ADR-0059 status flip from `Proposed` → `Accepted` (1-line sed-style edit).
 
 **Tests.** No new tests; final workspace health gate.
@@ -746,5 +746,5 @@ CH-24 is the **first cycle to scope-expand mid-flight via a P-NEW-TESTS authorin
   - ADR-0031 (Session cancellation + concurrency bounds) — `m5/decisions/0031-session-cancellation-and-concurrency.md`
   - ADR-0033 (CH-K8S-PREP K8s readiness) — `m7b/decisions/0033-k8s-readiness.md`
   - ADR-0058 (Bucket C confirm-in-place) — `m5_2/decisions/0058-bucket-c-convention-confirm-in-place.md` (v3 precedent for ratifying previously-deferred decisions in-cycle).
-- **Forward-scope row**: `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` line 210–212 (v3 amendment at P-SEAL deliverable 7).
+- **Forward-scope row**: `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` line 210–212 (v3 amendment at P-SEAL deliverable 7).
 - **M5 archive plan §P9**: `docs/specs/plan/build/m5-templates-system-agents-sessions-01710c13.md` line 798–852.

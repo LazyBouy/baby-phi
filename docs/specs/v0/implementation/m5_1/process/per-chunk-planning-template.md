@@ -5,7 +5,7 @@
 
 Every implementation chunk opened after M5.1 ships its own standalone plan file before any code moves. This document is the canonical template. Drafters copy it verbatim into `baby-phi/docs/specs/plan/build/<8hex>-<chunk-name>.md` and fill every section. Incomplete templates do not qualify for `ExitPlanMode` approval.
 
-The template bakes in the M5.1/P3 Q1–Q7 planning decisions (see [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §7). Chunk-plan authors do not re-litigate those decisions; they apply them.
+The template bakes in the M5.1/P3 Q1–Q7 planning decisions (see [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §7). Chunk-plan authors do not re-litigate those decisions; they apply them.
 
 ## File location & naming
 
@@ -28,7 +28,7 @@ Each numbered section is mandatory. Sections may be lengthy or short depending o
 
 - **Why this chunk** — one paragraph. What user-visible or concept-fidelity gap does this chunk close? Which drift IDs make it necessary?
 - **Quality-over-speed restatement** — restate the M5.1 governing principle: *"Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently."* One-sentence chunk-specific application.
-- **Forward-scope reference** — explicit link to the `CH-NN` row in [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5.
+- **Forward-scope reference** — explicit link to the `CH-NN` row in [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5.
 
 ### §2 — Concept alignment walk
 
@@ -261,7 +261,7 @@ The reading list + invariant check the drafter walks BEFORE `ExitPlanMode` is in
 1. Every concept doc cited in §2.
 2. Every drift file cited in §4.
 3. Every prior-chunk plan cited in §6 (under `docs/specs/plan/build/`).
-4. [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 + §7 (the chunk row + binding Q&A decisions).
+4. [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5 + §7 (the chunk row + binding Q&A decisions).
 5. [`baby-phi/CLAUDE.md`](../../../../../../CLAUDE.md) phi-core Leverage section.
 6. **Conditional (v2026-05-03 per CH-11 retrospective, cycle hex `d5428c43`)**: if the chunk touches `domain::permissions::engine` Step N body, the reading list MUST include `server::platform::sessions::launch.rs` body + `server::platform::sessions::preview.rs` body (the synthetic-manifest construction sites), so manifest-shape preconditions are discovered at plan time, not at implementation. CH-11 surfaced drift D4.1 (preview-path manifest-resource bug) at implementation that should have been visible at plan time.
 

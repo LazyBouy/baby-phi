@@ -115,9 +115,10 @@ Documentation in `docs/` must accurately reflect the current codebase at all tim
 
 ## Multi-agent chunk pipeline
 
-baby-phi chunks (CH-NN) run through a 4-agent pipeline orchestrated by Claude. The orchestrator (Claude with full conversation context) is the **reviewer / approver / process-refiner / retrospective-driver**, not a doer in the chunk lane. Specialized agents own their lanes; the orchestrator gates phase transitions, verifies diffs, audits audit reports, and drives retrospectives.
+baby-phi chunks (CH-NN) run through a 5-agent pipeline orchestrated by Claude. The orchestrator (Claude with full conversation context) is the **reviewer / approver / process-refiner / retrospective-driver**, not a doer in the chunk lane. Specialized agents own their lanes; the orchestrator gates phase transitions, verifies diffs, audits audit reports, and drives retrospectives.
 
 **Agents** at `/root/projects/phi/.claude/agents/`:
+- `phase-planner` (opus) — drafts the per-milestone forward-scope document (chunk-level decomposition + dep graph) from a base build-plan section + pre-scoping alignment audit + prior-milestone deferral markers. Sits one tier above `chunk-planner` (shipped v1 at 2026-05-18 post-CH-27 close, per CH-27 retrospective's M6 plan-mode unblock).
 - `chunk-planner` (opus) — drafts the 12-section plan from a forward-scope row.
 - `chunk-implementer` (opus) — executes phases per the approved plan.
 - `chunk-auditor` (opus) — independent post-implementation audit; writes per-iteration audit log.

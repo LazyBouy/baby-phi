@@ -36,7 +36,7 @@ CH-10 closes drift D-new-05 by shipping (1) the pure-fn transition module at `do
 
 ### Forward-scope reference
 
-[`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 lines 107–112.
+[`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 lines 107–112.
 
 ---
 

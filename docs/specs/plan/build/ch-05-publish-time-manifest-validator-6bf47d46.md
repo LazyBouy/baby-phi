@@ -45,7 +45,7 @@ That's the chunk. Build the validator, hard-wire it into the `Repository::create
 
 ### Forward-scope reference
 
-[CH-05 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 70–75) + [§5 inventory](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 413).
+[CH-05 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 70–75) + [§5 inventory](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 413).
 
 ---
 

@@ -46,4 +46,4 @@ The M5.1 + M5.2 concept-audit matrix at [`../../m5_1/drifts/_concept-audit-matri
 - M5.1 + M5.2 matrix (claims under `agent.md`, `organization.md`, `project.md`, `permissions/*`): [`../../m5_1/drifts/_concept-audit-matrix.md`](../../m5_1/drifts/_concept-audit-matrix.md).
 - Drift schema: [`../../m5_1/drifts/_schema.md`](../../m5_1/drifts/_schema.md).
 - Philosophy alignment audit + user clarifications: [`../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`](../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md).
-- M5.3 announcement plan archive (verbatim): [`../../../../plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](../../../../plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md).
+- M5.3 announcement plan archive (verbatim): [`../../../../plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md`](../../../../plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md).

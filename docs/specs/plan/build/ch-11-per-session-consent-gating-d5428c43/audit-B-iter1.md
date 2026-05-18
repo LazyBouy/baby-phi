@@ -25,7 +25,7 @@
 | 10. F3.A locked (NOT F3.B-defer); plan carries no defer-ledger entry for `Org.approval_timeout`. | PASS | ADR-0048 lines 57–59 + 102–104; plan F3 §"LOCKED: F3.A" line 29 |
 | 11. Plan archive at folder-style path exists. | PASS | `docs/specs/plan/build/ch-11-per-session-consent-gating-d5428c43/plan.md` (78713 bytes) |
 | 12. CH-09 + CH-10 invariants intact: ADR-0045/0047 Accepted; D-new-04/05 remediated; concept doc 06 retains CH-09/10 amendments; consents::{state,transitions} legal-transition table line-count match. | PASS | ADR-0045/0047 each have 1 `**Status: Accepted**`; D-new-04/05 status `remediated`; concept doc 06 has 3 amendment lines (CH-09 + CH-10 + CH-11); state.rs git-diff = 0 lines; transitions.rs git-diff = 12 lines (test fixture only — `legal_transition` fn untouched) |
-| 13. Forward-scope row for CH-11 unchanged; consumed by D-new-17 closure, not edited. | PASS | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:114-119` (git diff = empty) |
+| 13. Forward-scope row for CH-11 unchanged; consumed by D-new-17 closure, not edited. | PASS | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:114-119` (git diff = empty) |
 | 14. Cycle index has CH-11-d5428c43 row in "Active cycles (folder-style, multi-agent system)" section. | PASS | `docs/specs/plan/build/_cycle-index.md:9-13` |
 
 ## Per-claim detail
@@ -196,7 +196,7 @@ Folder-style multi-agent layout confirmed: the directory `ch-11-per-session-cons
 
 **Verdict:** PASS
 
-**Evidence:** `git diff HEAD -- docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` returns empty — file is unchanged from HEAD baseline. CH-11 row at lines 114–119 reads as it did at chunk-open (drifts closed: D-new-17; concept doc reference; prerequisites CH-09 + CH-10; deliverables; "unblocks: nothing"). The row is consumed by the chunk closing D-new-17 — not by editing the row's text.
+**Evidence:** `git diff HEAD -- docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` returns empty — file is unchanged from HEAD baseline. CH-11 row at lines 114–119 reads as it did at chunk-open (drifts closed: D-new-17; concept doc reference; prerequisites CH-09 + CH-10; deliverables; "unblocks: nothing"). The row is consumed by the chunk closing D-new-17 — not by editing the row's text.
 
 ### Claim 14 — Cycle index has CH-11-d5428c43 row in "Active cycles (folder-style, multi-agent system)" section.
 

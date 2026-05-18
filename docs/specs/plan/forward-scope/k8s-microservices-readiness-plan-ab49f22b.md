@@ -80,8 +80,8 @@ The 3 parallel Explore agents that just ran confirmed the state in detail. This 
 
 ### Deliverable 3 — Place this plan verbatim in `forward-scope/`
 
-**Path:** `baby-phi/docs/specs/plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md`
-(8hex token `ab49f22b` generated via `openssl rand -hex 4`; sibling to the existing `22035b2a-remaining-scope-post-m5-p7.md`.)
+**Path:** `baby-phi/docs/specs/plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md`
+(8hex token `ab49f22b` generated via `openssl rand -hex 4`; sibling to the existing `remaining-scope-post-m5-p7-22035b2a.md`.)
 
 **Action:** copy this `/root/.claude/plans/sharded-discovering-stearns.md` file verbatim into the path above. Same content, no edits at copy-time. Adds a `<!-- Last verified: YYYY-MM-DD by Claude Code -->` header as line 1 to satisfy `check-doc-links.sh`. Otherwise byte-identical.
 
@@ -132,7 +132,7 @@ All four are **single-pod-safe** (no infrastructure additions, no behavior chang
 - `baby-phi/docs/specs/v0/implementation/m7b/architecture/k8s-microservices-readiness.md`
 
 **Created (Deliverable 3):**
-- `baby-phi/docs/specs/plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md` (verbatim copy of this plan + `Last verified` header)
+- `baby-phi/docs/specs/plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md` (verbatim copy of this plan + `Last verified` header)
 
 **Modified (Deliverable 2):**
 - `baby-phi/modules/crates/server/src/state.rs` (P-1 trait + impl)
@@ -146,7 +146,7 @@ All four are **single-pod-safe** (no infrastructure additions, no behavior chang
 
 **Touched docs:**
 - `baby-phi/docs/specs/v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md` — new ADR-0033 documenting P-1..P-4 scope + rationale + future M7b connection. Status: Accepted at chunk seal.
-- `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` — append a §3 entry pointing to the new M7b precursor doc.
+- `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` — append a §3 entry pointing to the new M7b precursor doc.
 
 ## Existing functions/utilities to reuse
 
@@ -198,9 +198,9 @@ grep -c "K8s-BLOCKER\|K8s blocker" docs/specs/v0/implementation/m7b/architecture
 grep -c "deferred to milestone M7b\|deferred to M7b" docs/specs/v0/implementation/m7b/architecture/k8s-microservices-readiness.md   # ≥ 2
 
 # 4b. Forward-scope verbatim copy landed (Deliverable 3)
-ls docs/specs/plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md   # 1
+ls docs/specs/plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md   # 1
 # Confirm verbatim (modulo the prepended Last-verified header line):
-diff <(tail -n +3 docs/specs/plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md) /root/.claude/plans/sharded-discovering-stearns.md  # expect empty diff
+diff <(tail -n +3 docs/specs/plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md) /root/.claude/plans/sharded-discovering-stearns.md  # expect empty diff
 
 # 5. ADR-0033 Accepted
 grep -c "^\- \*\*Status\*\*: Accepted\|^\*\*Status: Accepted\*\*" docs/specs/v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md   # 1

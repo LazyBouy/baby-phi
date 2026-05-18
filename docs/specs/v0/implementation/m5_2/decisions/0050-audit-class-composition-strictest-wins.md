@@ -111,4 +111,4 @@ Cross-pod: every pod sees the same durable `Organization.audit_class_default` + 
 - [ADR-0048 — Per-session consent gating](./0048-per-session-consent-gating.md) §D48.1 — Grant-denormalisation precedent CH-13 mirrors for `audit_class`.
 - [ADR-0049 — Frozen session-tag immutability](./0049-frozen-session-tag-immutability.md) — most recent ADR; shape reference for chunk-spanning ADRs with sub-decisions.
 - [Drift D-new-19](../../m5_1/drifts/D-new-19.md) — closes here.
-- [Forward-scope row CH-13](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 130–135) — chunk source.
+- [Forward-scope row CH-13](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 130–135) — chunk source.

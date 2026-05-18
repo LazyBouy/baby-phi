@@ -54,7 +54,7 @@ Two reasons:
 
 ### Forward-scope reference
 
-[§1 CH-03 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 51–59) + [§5 inventory row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 411) + [Q1 decision context](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines ~450–456).
+[§1 CH-03 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 51–59) + [§5 inventory row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 411) + [Q1 decision context](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines ~450–456).
 
 ---
 
@@ -145,7 +145,7 @@ git diff --stat HEAD -- modules/                                              # 
 
 ADR numbering check: highest currently issued = **ADR-0041** (CH-21, 2026-04-28). Next-free = **ADR-0042**.
 
-> **Note on ADR-0042 reservation**: the M5.3 announcement plan ([`plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](baby-phi/docs/specs/plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md)) provisionally tagged ADR-0042 + 0043 for CH-25 + CH-26. Those are placeholders ("likely 0042"). Since CH-03 ships before M5 final seal (CH-24), and CH-25/CH-26 only open post-M5-seal, **CH-03 takes ADR-0042 here**; the M5.3 plan archive can be re-pointed at chunk-open time to ADR-0043 + ADR-0044. (The M5.3 announcement plan archive is itself frozen verbatim; the chunk-open of CH-25 will resolve the placeholder against the next-free-at-the-time number.)
+> **Note on ADR-0042 reservation**: the M5.3 announcement plan ([`plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md`](baby-phi/docs/specs/plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md)) provisionally tagged ADR-0042 + 0043 for CH-25 + CH-26. Those are placeholders ("likely 0042"). Since CH-03 ships before M5 final seal (CH-24), and CH-25/CH-26 only open post-M5-seal, **CH-03 takes ADR-0042 here**; the M5.3 plan archive can be re-pointed at chunk-open time to ADR-0043 + ADR-0044. (The M5.3 announcement plan archive is itself frozen verbatim; the chunk-open of CH-25 will resolve the placeholder against the next-free-at-the-time number.)
 
 | ADR | Title | Drafted at phase | Decision summary | Flip-to-Accepted phase |
 |---|---|---|---|---|
@@ -301,7 +301,7 @@ This step matches the chunk-lifecycle-checklist Step 1 and the precedent set by 
 - Highest applied migration is 0009 (CH-16's; no migration in CH-03).
 - Highest issued ADR is 0041 → next-free = 0042.
 
-**ADR numbering caveat (per §5 above):** the M5.3 announcement plan ([`525d2085-m5-3-announcement-plan.md`](baby-phi/docs/specs/plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md)) provisionally tagged ADR-0042 for CH-25. If CH-03 ships first (this is the assumption — CH-03 has no prereqs and is doc-only), **CH-03 takes ADR-0042**; CH-25 becomes ADR-0043 at its chunk-open. The M5.3 plan archive is frozen verbatim; the actual numbering resolves at each chunk-open against next-free-at-the-time.
+**ADR numbering caveat (per §5 above):** the M5.3 announcement plan ([`m5-3-announcement-plan-525d2085.md`](baby-phi/docs/specs/plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md)) provisionally tagged ADR-0042 for CH-25. If CH-03 ships first (this is the assumption — CH-03 has no prereqs and is doc-only), **CH-03 takes ADR-0042**; CH-25 becomes ADR-0043 at its chunk-open. The M5.3 plan archive is frozen verbatim; the actual numbering resolves at each chunk-open against next-free-at-the-time.
 
 **Cargo command convention** (per memory): all cargo invocations use `-j 4`. Tests serialise via `--test-threads=1`. (Not relevant for CH-03 — doc-only — but discipline preserved.)
 

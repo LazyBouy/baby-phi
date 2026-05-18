@@ -2,7 +2,7 @@
 
 # CH-27 plan — Blocking-gate enforcement + resolvers wiring + acceptance fixture extension (cycle hex `0edcaba9`)
 
-Forward-scope: [§2.5 lines 277-289](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md). Drift closed: [`D-CH26-FOLLOWUP-01`](../../../v0/implementation/m5_3/drifts/D-CH26-FOLLOWUP-01.md) (LOW). Next ADR: **ADR-0062**.
+Forward-scope: [§2.5 lines 277-289](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md). Drift closed: [`D-CH26-FOLLOWUP-01`](../../../v0/implementation/m5_3/drifts/D-CH26-FOLLOWUP-01.md) (LOW). Next ADR: **ADR-0062**.
 
 > **v2 re-plan banner (2026-05-18)**: gate-1 user-locks applied. F1.a (Single CH-27) ✓ aligned. F3.a (Defer resolvers wiring to M6) ✓ aligned. **F4.b (Opt-in helper `seed_owner_grants`) ✅ USER-DIVERGENT** (planner-recommended F4.a Default-extension). Count-amend (15 → 7) at P-SEAL ✓ aligned. All v1 content preserved; v2 additions follow chunk-planner v9 surfacing-not-suppressing.
 
@@ -68,7 +68,7 @@ The acceptance fixture extension question: do we extend `acceptance_common::admi
 
 **Quality-over-speed restatement**: *"Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently."* — CH-27 closes the deliberately-scoped CH-26 follow-up at the wire-tier axis with full acceptance + audit coverage before M5.3 carve-out closes + M6 plan-mode opens.
 
-**Forward-scope reference**: [§2.5 lines 277-289](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (CH-27 row; M5.3 carve-out extension).
+**Forward-scope reference**: [§2.5 lines 277-289](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (CH-27 row; M5.3 carve-out extension).
 
 ---
 
@@ -596,7 +596,7 @@ ADR-0062 MUST author all 7 canonical sections:
 7. [`m5_3/decisions/0060-agent-as-creator-and-owner.md`](../../../v0/implementation/m5_3/decisions/0060-agent-as-creator-and-owner.md) §D60.2 + §D60.3 (synth-grant scope baseline).
 8. [`m5_3/architecture/composite-resources-model.md`](../../../v0/implementation/m5_3/architecture/composite-resources-model.md) (current "advisory at CH-26" body).
 9. [`m5_3/architecture/agent-ownership-model.md`](../../../v0/implementation/m5_3/architecture/agent-ownership-model.md) (current 2-verb synth-grant body).
-10. [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 CH-26 + CH-27 rows.
+10. [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 CH-26 + CH-27 rows.
 11. [`baby-phi/CLAUDE.md`](../../../../CLAUDE.md) phi-core Leverage section.
 12. CH-26 plan archive: `docs/specs/plan/build/ch-26-org-project-as-composite-d1cb9e1f/plan.md` (cascade methodology + handler enumeration + F2.b precedent).
 13. CH-25 plan archive: `docs/specs/plan/build/ch-25-<slug>-1e01618e/plan.md` (synth-grant rule rationale).

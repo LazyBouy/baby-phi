@@ -5,7 +5,7 @@
 **Cycle hex:** `2c520ba7`
 **Slug:** `ch-19-bucket-b-ratification`
 **Type:** **doc-only** — no code change, no test count change, no migration, +0 phi-core delta.
-**Forward-scope row:** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md:179-183`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (§5 row also at line 427).
+**Forward-scope row:** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md:179-183`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (§5 row also at line 427).
 **Per-chunk template:** [`m5_1/process/per-chunk-planning-template.md`](../../../v0/implementation/m5_1/process/per-chunk-planning-template.md).
 **Drifts closed in this chunk:** D5.2, D5.3, D6.3, D7.2, D7.4, D7.5, D-new-21, D-new-25, D-new-27, D-new-30 (10 drifts; transition `discovered → accepted-as-is` for nine; D7.4 is `accepted-as-is` with M7-server-promote-deferral note; D-new-25 + D-new-27 are `accepted-as-is` with deferred-marker cross-ref to M6-DEFERRED-02 and M6-or-M7-DEFERRED).
 **ADR drafted:** ADR-0057 — Bucket B convention ratification (10 sub-decisions D57.1–D57.10).
@@ -33,7 +33,7 @@
 
 **Quality-over-speed restatement.** *"Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently."* CH-19 application: the ten Bucket-B drifts have lived as `discovered`/`classified` in the catalogue since M5/P5–P7 close (April 23–24, 2026); shipping CH-19 closes them by promoting their convention-status from "shipped but undocumented" to "shipped + ADR-0057 + concept-doc refresh paragraph + matrix row honored." The chunk's value is removing silent-convention drift, not changing behaviour.
 
-**Forward-scope reference.** [forward-scope row at line 179-183](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md). Severity-row binding at line 427 of §5 table: `MED | 2d | various (refresh paragraphs) | — | yes`. The chunk's §6 severity entry is `MED` (closes 6 MEDIUM-severity Bucket-B drifts + 4 LOW-severity).
+**Forward-scope reference.** [forward-scope row at line 179-183](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md). Severity-row binding at line 427 of §5 table: `MED | 2d | various (refresh paragraphs) | — | yes`. The chunk's §6 severity entry is `MED` (closes 6 MEDIUM-severity Bucket-B drifts + 4 LOW-severity).
 
 ---
 
@@ -189,7 +189,7 @@ Verified at chunk-open 2026-05-10 via the same command → returned `57`.
      - [`m5_2/decisions/0046-template-cd-http-edges.md`](../../../v0/implementation/m5_2/decisions/0046-template-cd-http-edges.md) (CH-23; Template C/D listener-pattern symmetric with D5.2's domain-tier convention).
      - [`m5_2/decisions/0050-audit-class-composition-strictest-wins.md`](../../../v0/implementation/m5_2/decisions/0050-audit-class-composition-strictest-wins.md) (CH-13; audit-event diff `audit_class_source` attribution that crosses both D5.2 tiers — domain-tier listeners + platform-tier handlers).
      - [`m3/decisions/0022-org-creation-compound-transaction.md`](../../../v0/implementation/m3/decisions/0022-org-creation-compound-transaction.md) (M3; D6.3 union-bucketing's M3-era-fixture origin).
-   - **(d) Forward-scope row:** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 179-183](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (CH-19 row); §5 severity table line 427.
+   - **(d) Forward-scope row:** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 179-183](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (CH-19 row); §5 severity table line 427.
 
 3. **Pre-existing-behaviour preservation note (CH-14 retro Row 10):** ADR-0057 does NOT change runtime behaviour — every sub-decision documents a convention SHIPPED at M5/P5–P7 close. Format applied per sub-decision: each §D57.N body opens with *"Shipped at M5/P<n> close (date YYYY-MM-DD); CH-19 ratifies without behaviour change. Pre-existing implementation preserved at `<file:line>`."* — the audit-trail makes explicit which behaviours are now relied-upon invariants.
 
@@ -350,7 +350,7 @@ Three phases: P1 (ADR + concept-doc refresh), P2 (drift-file lifecycle + matrix)
 2. **Drift files cited in §4** (10 files):
    - D5.2, D5.3, D6.3, D7.2, D7.4, D7.5, D-new-21, D-new-25, D-new-27, D-new-30 — all under [`v0/implementation/m5_1/drifts/`](../../../v0/implementation/m5_1/drifts/)
 3. **Prior-chunk plans cited in §6** — N/A (no prior-chunk plan needed; M5/P5–P7 plan archives are referenced via in-line line numbers in drift bodies).
-4. [forward-scope §1 + §5 + §7](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) — the chunk row + Q4 (per-chunk ordering) + Q5 (M5-scope defer) + Q7 (uniform doc-only ritual) + Q9 (user-facing doc impact map).
+4. [forward-scope §1 + §5 + §7](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) — the chunk row + Q4 (per-chunk ordering) + Q5 (M5-scope defer) + Q7 (uniform doc-only ritual) + Q9 (user-facing doc impact map).
 5. [`baby-phi/CLAUDE.md`](../../../../../CLAUDE.md) phi-core Leverage section.
 6. **Tag-write Repository conditional (v3 per CH-12 retrospective Row 5):** N/A — CH-19 does NOT introduce or reference a new tag-write Repository method.
 7. **Engine.rs Step-N body conditional (v3 per CH-11 retrospective):** N/A — CH-19 does NOT touch `domain::permissions::engine` Step N body.

@@ -3,7 +3,7 @@
 # M5.3 announcement — forward-scope §2.5 + drift filings + philosophy promotion
 
 > **Plan file token:** `525d2085` (generated 2026-04-28 via `openssl rand -hex 4`).
-> **Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`.
+> **Plan archive path (verbatim copy):** `baby-phi/docs/specs/plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md`.
 
 ## Context
 
@@ -30,7 +30,7 @@ This plan **does not** open M5.3 chunk plans. It produces the **announcement inf
 | 3 | **Create** drift file (§4.2 closure) | `baby-phi/docs/specs/v0/implementation/m5_3/drifts/D-philosophy-02.md` | NEW |
 | 4 | **Create** M5.3 drift catalogue index (mirrors `m5_1/drifts/README.md` structure but scoped to M5.3 drifts) | `baby-phi/docs/specs/v0/implementation/m5_3/drifts/README.md` | NEW |
 | 5 | **Create** M5.3 concept-audit matrix (mirrors `m5_1/drifts/_concept-audit-matrix.md` structure but scoped to M5.3 — primarily the new `concepts/core-philosophy.md` claims) | `baby-phi/docs/specs/v0/implementation/m5_3/drifts/_concept-audit-matrix.md` | NEW |
-| 6 | **Edit** forward-scope — insert new §2.5 (M5.3 carve-out) after §2; add §4 graph edges; add §5 inventory rows | `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` | EDIT |
+| 6 | **Edit** forward-scope — insert new §2.5 (M5.3 carve-out) after §2; add §4 graph edges; add §5 inventory rows | `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` | EDIT |
 | 7 | **Promote** philosophy brief — copy from plan tree to concepts tree as binding source | source: `baby-phi/docs/specs/plan/core-philosophy-check/core-philosophy.md` (post-rename)<br>target: `baby-phi/docs/specs/v0/concepts/core-philosophy.md` | NEW (copy) |
 | 8 | **Edit** concepts index — add `core-philosophy.md` row | `baby-phi/docs/specs/v0/concepts/README.md` | EDIT |
 | 9 | **Edit** audit doc — bump cross-reference paths in `plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md` from `Core Philosophy.md` to `core-philosophy.md` (rename consequence) | `baby-phi/docs/specs/plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md` | EDIT (light) |
@@ -131,7 +131,7 @@ This plan **does not** open M5.3 chunk plans. It produces the **announcement inf
 - `plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md` §4.1
 - `plan/core-philosophy-check/core-philosophy.md` (philosophy brief, post-rename)
 - `plan/core-philosophy-check/<8hex>-m5-3-announcement-plan.md` (this plan archived verbatim)
-- `plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §2.5 M5.3 (added by this plan)
+- `plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §2.5 M5.3 (added by this plan)
 
 ## Lifecycle history
 - 2026-04-28 — `discovered` — surfaced by post-CH-21 philosophy alignment audit; user-confirmed as load-bearing intent; filed as drift in same session.
@@ -199,7 +199,7 @@ Same lifecycle as `m5_1/drifts/` per [`../../m5_1/drifts/_schema.md`](../../m5_1
 ## Cross-reference
 
 - Philosophy alignment audit + clarifications: [`../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`](../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md).
-- Forward-scope M5.3 carve-out: [`../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5.
+- Forward-scope M5.3 carve-out: [`../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5.
 - M5.3 announcement plan archive: [`../../../../plan/core-philosophy-check/<8hex>-m5-3-announcement-plan.md`](../../../../plan/core-philosophy-check/) (this plan, archived verbatim).
 ```
 
@@ -254,7 +254,7 @@ The M5.1 + M5.2 concept-audit matrix at [`../../m5_1/drifts/_concept-audit-matri
 - Philosophy alignment audit: [`../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`](../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md).
 ```
 
-### §3.5 — `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` (EDIT — three sub-edits)
+### §3.5 — `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` (EDIT — three sub-edits)
 
 **Sub-edit A: Insert new §2.5 after line 223** (current `No M5 P8/P9 commitments orphaned.` line) and before line 225 (the `---` separator that starts §3):
 
@@ -333,7 +333,7 @@ Copy the verbatim content from `plan/core-philosophy-check/core-philosophy.md` (
 
 ```markdown
 <!-- Status: BINDING SPEC SOURCE (promoted 2026-04-28 from `plan/core-philosophy-check/core-philosophy.md` per post-CH-21 audit; see `plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md` for the audit that ratified the promotion). -->
-<!-- Last verified: 2026-04-28 by Claude Code (initial promotion; D-philosophy-01 + D-philosophy-02 (under `m5_3/drifts/`) file the two HIGH drifts the audit surfaced; M5.3 carve-out per `plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §2.5 closes them at CH-25 + CH-26.) -->
+<!-- Last verified: 2026-04-28 by Claude Code (initial promotion; D-philosophy-01 + D-philosophy-02 (under `m5_3/drifts/`) file the two HIGH drifts the audit surfaced; M5.3 carve-out per `plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §2.5 closes them at CH-25 + CH-26.) -->
 
 # Baby-Phi Core Philosophy
 
@@ -408,8 +408,8 @@ head -30 baby-phi/docs/specs/v0/implementation/m5_3/drifts/README.md
 # Expect: both files exist; README shows the 2-row drift table.
 
 # 7. Forward-scope §2.5 visible + chunk references
-grep -n "## §2.5 — M5.3 carve-out" baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md
-grep -n "CH-25\|CH-26" baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md
+grep -n "## §2.5 — M5.3 carve-out" baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md
+grep -n "CH-25\|CH-26" baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md
 # Expect: §2.5 header ≥ 1 hit; CH-25/CH-26 each ≥ 2 hits (in §2.5 + §4 graph + §5 inventory).
 
 # 8. Concept-tree promotion + index
@@ -429,7 +429,7 @@ head -3 baby-phi/docs/specs/plan/core-philosophy-check/*-m5-3-announcement-plan.
 
 # 11. Cross-references intact (drift IDs appear in: drift bodies + matrix + forward-scope §2.5 + audit doc)
 grep -rn "D-philosophy-01\|D-philosophy-02" baby-phi/docs/specs/v0/implementation/m5_3/drifts/
-grep -n "D-philosophy-0[12]" baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md
+grep -n "D-philosophy-0[12]" baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md
 # Expect: each grep returns multiple hits.
 
 # 12. m5_1/drifts/ untouched (sanity)
@@ -472,7 +472,7 @@ This plan does NOT:
 - `baby-phi/docs/specs/plan/core-philosophy-check/<8hex>-m5-3-announcement-plan.md` (verbatim copy of this plan, archived per user correction)
 
 **Edited files:**
-- `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` (new §2.5; §4 graph edges; §5 inventory rows)
+- `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` (new §2.5; §4 graph edges; §5 inventory rows)
 - `baby-phi/docs/specs/v0/concepts/README.md` (1 new row — `core-philosophy.md` as the first index entry)
 - `baby-phi/docs/specs/plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md` (light: 2-3 cross-reference path fix-ups + 1 §10 provenance bullet)
 

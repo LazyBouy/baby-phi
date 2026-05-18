@@ -55,8 +55,8 @@
 ## Prior documentation locations
 - [`plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`](../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md) §4.1
 - [`plan/core-philosophy-check/core-philosophy.md`](../../../../plan/core-philosophy-check/core-philosophy.md) (philosophy brief, post-rename)
-- [`plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](../../../../plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md) (M5.3 announcement plan archived verbatim)
-- [`plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 M5.3
+- [`plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md`](../../../../plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md) (M5.3 announcement plan archived verbatim)
+- [`plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 M5.3
 
 ## Lifecycle history
 - 2026-04-28 — `discovered` — surfaced by post-CH-21 philosophy alignment audit; user-confirmed as load-bearing intent; filed as drift in same session under M5.3 catalogue.

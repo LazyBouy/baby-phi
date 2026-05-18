@@ -94,7 +94,7 @@ CH-12 retro Row 1 + CH-13 retro Row 1 letter-for-letter discipline honored — b
   - (a) Originating concept-doc — `permissions/02:179-207` (incl. lines 197 + 199–207 + 206) and `permissions/03:48-54`.
   - (b) Closed drifts — D-new-13 (HIGH-A) + D-new-29 (LOW-B).
   - (c) Prior ADRs — ADR-0022, ADR-0023, ADR-0028, ADR-0033, ADR-0043, ADR-0048 §D48.1, ADR-0050 §D50.5 (all 7 prior ADRs cited; the audit prompt only lists 7 — ADR-0022/0023/0028/0033/0043/0048/0050 — all covered).
-  - (d) Forward-scope row — `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 91–96.
+  - (d) Forward-scope row — `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 91–96.
 - (d-correction verified) The audit prompt flagged a P0 paperwork bug where ADR-0052 cited ADR-0022/0023/0028 with sibling-style relative paths (e.g., `./0022-...md`) which would 404 because those ADRs live in `m3/` and `m4/` not `m5_2/`. Verified the corrected paths point at real files via `ls`:
   - `/root/projects/phi/baby-phi/docs/specs/v0/implementation/m3/decisions/0022-org-creation-compound-transaction.md` — exists.
   - `/root/projects/phi/baby-phi/docs/specs/v0/implementation/m3/decisions/0023-system-agents-inherit-from-org-snapshot.md` — exists.

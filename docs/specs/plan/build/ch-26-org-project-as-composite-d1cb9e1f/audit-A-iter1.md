@@ -36,7 +36,7 @@
 | 21. D-philosophy-02 Status = remediated + lifecycle entry | PASS | `D-philosophy-02.md:11 Status: remediated` + lifecycle at `:62` with cycle hex `d1cb9e1f` |
 | 22. D-CH26-FOLLOWUP-01 filed; Bucket B, LOW, CH-27 closing | PASS | `D-CH26-FOLLOWUP-01.md:10-16` (Status discovered, Bucket B, Severity LOW, Closing chunk CH-27) |
 | 23. Cycle-index dual-write | PASS | `_cycle-index.md` row at line 59 + verified-header at line 1; `head -1 | grep -c d1cb9e1f` = 1 |
-| 24. Forward-scope CH-27 row + §Post-M5.3 amendments | PASS | `22035b2a-remaining-scope-post-m5-p7.md:261 CH-26 — ...CLOSED` + `:277 CH-27 row` + `:293-294 Post-M5.3-actions amended` |
+| 24. Forward-scope CH-27 row + §Post-M5.3 amendments | PASS | `remaining-scope-post-m5-p7-22035b2a.md:261 CH-26 — ...CLOSED` + `:277 CH-27 row` + `:293-294 Post-M5.3-actions amended` |
 
 **CI guards: 4/4 GREEN (executed cleanly in audit shell — see §CI guards below; positive cross-check, orchestrator gate-4 remains authoritative).**
 
@@ -212,7 +212,7 @@
 ### Claim 24 — Forward-scope CH-27 row appended + §Post-M5.3 amendments
 **Verdict:** PASS
 **Evidence:**
-- `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:261 ### CH-26 — Org/Project as Composite resources ... CLOSED at d1cb9e1f 2026-05-17`.
+- `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:261 ### CH-26 — Org/Project as Composite resources ... CLOSED at d1cb9e1f 2026-05-17`.
 - `:271` enumerates 15 advisory check_permission invocations; advisory-only consumption documented.
 - `:273 ADR-0061 Accepted`.
 - `:274 NEW follow-up drift filed at chunk-seal D-CH26-FOLLOWUP-01`.

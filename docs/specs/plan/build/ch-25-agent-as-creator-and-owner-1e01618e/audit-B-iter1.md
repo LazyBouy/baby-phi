@@ -28,7 +28,7 @@
 | 10. m5_3/drifts/README.md — open 2→1, remediated 0→1, Status flipped | PASS | `README.md:1,8-10,28` |
 | 11. m5_3/drifts/_concept-audit-matrix.md — 2 row flips with D-philosophy-01 ✓ | PASS | `_concept-audit-matrix.md:22,32` |
 | 12. Cycle-index row APPENDED at line 55 — Status `ready-for-audit`, cycle hex `1e01618e`, 6 phases enumerated. NEW verified-header line documenting CH-25 chunk-seal at top | PARTIAL | `_cycle-index.md:55` row present + complete; lines 1-2 verified-headers remain CH-24-stamped (no NEW CH-25 verified-header line at top) |
-| 13. Forward-scope §2.5 CH-25 row AMENDED with `CLOSED at cycle hex 1e01618e` + shipped deliverables + R5 RESOLVED | PASS | `22035b2a-remaining-scope-post-m5-p7.md:242-258` |
+| 13. Forward-scope §2.5 CH-25 row AMENDED with `CLOSED at cycle hex 1e01618e` + shipped deliverables + R5 RESOLVED | PASS | `remaining-scope-post-m5-p7-22035b2a.md:242-258` |
 | 14. R5 permissions-audit skill v3 → v4 with `fixed at CH-25` header + robust-parse `fromjson?` line + single-`select(...)` form | PASS | `permissions-audit.md:4,8,63` |
 | 15. DOC-SYNC SWEEP — 0 actionable matches for stale-narrative phrase set across `m*/architecture/`, `m*/operations/`, `m*/user-guide/` | PASS | `agent-ownership-model.md:31` intentional context (NEW CH-25 doc showing "existing 71 variants → +1 Owns = 72" pre-state); `m1/architecture/graph-model.md:33,159` "66 variants" is intentional M1-era historical narrative (last-verified 2026-04-28, before M3/M4/CH-23 evolution); doc-sync sweep also flagged `m5_2/operations/authority-chain-operations.md:1`, `m5/architecture/event-bus-m5-extensions.md:25,27`, `m5/architecture/session-persistence.md:150`, `m5_2/architecture/authority-chain.md:173`, `m5_2/user-guide/selector-syntax-guide.md:107`, `m7b/architecture/deferred-from-ch-k8s-prep.md:1,79`, `m5/user-guide/troubleshooting.md:33` — all classified as legitimate historical context (verified by inspection: each phrase is part of pre-CH-25 milestone-context narrative, NOT a stale-CH-25 reference) |
 
@@ -215,7 +215,7 @@ The audit prompt allowed either (a) deferred-scope OR (c) never-shipped-yet vari
 
 **Evidence:**
 
-- File: `/root/projects/phi/baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`.
+- File: `/root/projects/phi/baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`.
 - **Closure header at line 242**: `### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1) — **CLOSED at cycle hex `1e01618e` (2026-05-16)**` ✓.
 - **Deliverables enumerated as shipped artifacts** (lines 247-258):
   - NEW `Edge::Owns` variant + `OwnedResourceId` enum ✓ (line 248).

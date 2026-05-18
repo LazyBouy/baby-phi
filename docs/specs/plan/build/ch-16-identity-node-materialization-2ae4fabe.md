@@ -53,7 +53,7 @@ The Human Agent guard is not an afterthought — `human-agent.md` line 16 spends
 
 ### Forward-scope reference
 
-[§1 CH-16 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 155–160) + [§4 critical-path graph](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 314 — `CH-02 → CH-15/16/17/21/24`) + [§5 inventory row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 348).
+[§1 CH-16 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 155–160) + [§4 critical-path graph](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 314 — `CH-02 → CH-15/16/17/21/24`) + [§5 inventory row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 348).
 
 ---
 

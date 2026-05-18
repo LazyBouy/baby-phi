@@ -3,7 +3,7 @@
 # CH-22 — AgentCatalogListener body + D6.1 second call site
 
 **Plan file token:** `c5f201bb` (generated via `openssl rand -hex 4`)
-**Chunk ID:** CH-22 (see [forward-scope §1 CH-22 block](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) and [§5 row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md))
+**Chunk ID:** CH-22 (see [forward-scope §1 CH-22 block](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) and [§5 row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md))
 **Severity:** HIGH
 **Expected effort:** ~1.25 engineer-days
 **Chunks enabled after close:** CH-23 (cross-listener acceptance suite verifies CH-22 + CH-21 ordering + idempotency)
@@ -41,7 +41,7 @@ Applied here: `system-agents.md` §"Agent Catalog Agent" treats the catalog as a
 
 ### Forward-scope reference
 
-[Forward-scope §1 CH-22 block](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) + [§5 CH-22 row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md).
+[Forward-scope §1 CH-22 block](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) + [§5 CH-22 row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md).
 
 ---
 
@@ -364,7 +364,7 @@ These run at chunk-open AND chunk-seal.
 2. Drift file: [`D6.1.md`](docs/specs/v0/implementation/m5_1/drifts/D6.1.md).
 3. ADR-0034: [`0034-agent-durable-lifecycle.md`](docs/specs/v0/implementation/m5_2/decisions/0034-agent-durable-lifecycle.md) §D34.5 (conforming criteria CH-22 must satisfy).
 4. Process: [`per-chunk-planning-template.md`](docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md) (incl. CH-01-codified §3.B), [`chunk-lifecycle-checklist.md`](docs/specs/v0/implementation/m5_1/process/chunk-lifecycle-checklist.md), [`drift-lifecycle.md`](docs/specs/v0/implementation/m5_1/process/drift-lifecycle.md).
-5. Forward-scope: [`22035b2a-...md`](docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 CH-22 + §1 CH-21 + §7 Q4/Q5/Q8.
+5. Forward-scope: [`22035b2a-...md`](docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 CH-22 + §1 CH-21 + §7 Q4/Q5/Q8.
 6. [`baby-phi/CLAUDE.md`](CLAUDE.md) §phi-core Leverage rules + §"Orthogonal surfaces".
 7. Sibling listener bodies: [`TemplateAFireListener::on_event`, `TemplateCFireListener::on_event`, `TemplateDFireListener::on_event`](modules/crates/domain/src/events/listeners.rs) — canonical pattern reference.
 8. Existing P3 stub + `record_system_agent_fire` helper at [`listeners.rs:52`](modules/crates/domain/src/events/listeners.rs#L52).

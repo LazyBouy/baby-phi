@@ -3,7 +3,7 @@
 # CH-01 — Agent durable lifecycle (`active` + `archived_at`)
 
 **Plan file token:** `2aa37c80` (generated via `openssl rand -hex 4`)
-**Chunk ID:** CH-01 (see [forward-scope §1 CH-01 block](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) and [§5 row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md))
+**Chunk ID:** CH-01 (see [forward-scope §1 CH-01 block](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) and [§5 row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md))
 **Severity:** HIGH
 **Expected effort:** ~2.25 engineer-days (incl. P0 process-doc ratification)
 **Chunks enabled after close:** CH-22 (AgentCatalogListener body reads `Agent.active`)
@@ -29,7 +29,7 @@ Applied here: `agent.md` §"Roles" treats role as immutable post-creation; `syst
 
 ### Forward-scope reference
 
-[Forward-scope §1 CH-01 block](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) + [§5 CH-01 row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md).
+[Forward-scope §1 CH-01 block](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) + [§5 CH-01 row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md).
 
 **Note:** forward-scope §1 CH-01 says "migration 0006" — this was written before CH-02 shipped migration 0006 (`agent_profile_mock_response`). CH-01 lands as **migration 0007**. ADR is **ADR-0034** (next free above CH-K8S-PREP's ADR-0033).
 
@@ -95,7 +95,7 @@ bash scripts/check-phi-core-reuse.sh                                            
 
 **Rule (binding from this chunk forward):** Every chunk plan evaluates whether its changes introduce new K8s-deployment hurdles. The rule is codified at:
 - [`m5_1/process/per-chunk-planning-template.md`](../../v0/implementation/m5_1/process/per-chunk-planning-template.md) §3.B (template content — every chunk fills in)
-- [`forward-scope/22035b2a-...md`](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §7 Q8 (binding planning decision)
+- [`forward-scope/22035b2a-...md`](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §7 Q8 (binding planning decision)
 - [`m7b/architecture/k8s-microservices-readiness.md`](../../v0/implementation/m7b/architecture/k8s-microservices-readiness.md) §11 (strategic doc cross-link)
 - [`m7b/architecture/deferred-from-ch-k8s-prep.md`](../../v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md) (any new blocker creates a CHK8S-D-XX entry here before chunk seal)
 
@@ -182,7 +182,7 @@ These run at chunk-open (Step 2) AND chunk-seal (Step 8).
    - Rule statement: any new K8s blocker introduced by the chunk must file a `CHK8S-D-XX` entry in [`deferred-from-ch-k8s-prep.md`](docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md) before chunk seal.
    - Conforming-criteria check against ADR-0033 D33.1–D33.4 (every chunk verifies it doesn't break those four trait-surface contracts).
    - Bump the file's `Last verified` header.
-2. **[`docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md)** §7 — append **Q8 — K8s microservice readiness rule**:
+2. **[`docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md)** §7 — append **Q8 — K8s microservice readiness rule**:
    - Decided: every chunk plan evaluates the 7 K8s-deployability axes via §3.B; any new blocker creates a `CHK8S-D-XX` entry in the m7b ledger.
    - Scope impact: per-chunk-planning-template gains §3.B; CH-01 is the first chunk to apply.
    - Rationale: prevent silent K8s-deployment-debt accumulation between now and M7b plan-open. Pre-position trait surfaces incrementally instead of in a big-bang at M7b.
@@ -203,7 +203,7 @@ These run at chunk-open (Step 2) AND chunk-seal (Step 8).
 
 **Concept re-evaluation marker surfaced during CH-01 plan review** (out-of-scope for CH-01 implementation; in-scope for repo-level capture so the question is recoverable at a future milestone):
 
-8. **[`docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §3** — append a new entry **`M6+-OPEN-01 — AgentProfile cardinality re-evaluation (1:1 → N:1 template-sharing)`**. Distinguished from the existing `M6-DEFERRED-*` / `M7-DEFERRED-*` / `M7b-DEFERRED-*` markers because those represent scope items that *will* happen; this entry represents an *open question* that may or may not be pursued. Entry contents:
+8. **[`docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §3** — append a new entry **`M6+-OPEN-01 — AgentProfile cardinality re-evaluation (1:1 → N:1 template-sharing)`**. Distinguished from the existing `M6-DEFERRED-*` / `M7-DEFERRED-*` / `M7b-DEFERRED-*` markers because those represent scope items that *will* happen; this entry represents an *open question* that may or may not be pursued. Entry contents:
    - **Status**: *open question — may or may not be pursued; not a committed deferred-scope item*.
    - **Origin**: surfaced during CH-01 chunk-open by user during plan review (2026-04-27). Investigation confirmed the current 1:1 cardinality is concept-mandated by [`ontology.md`](../../v0/concepts/ontology.md) line 92 + [`agent.md`](../../v0/concepts/agent.md) §"Soul" (profile-as-genetics) + schema UNIQUE constraint at migration 0001:131.
    - **Question to evaluate**: should baby-phi adopt N:1 template-sharing (multiple agents share one profile row) instead of the current 1:1 model? Argument FOR: profiles are templates ("intern coder", "research assistant"), template-sharing fits standard infrastructure patterns (Kubernetes ConfigMaps, Helm values), and ephemeral `AgentContext` makes profile sharing structurally feasible without disrupting runtime semantics. Argument AGAINST: concept-mandated profile-as-genetics + per-agent governance fields (`parallelize`, `model_config_id`, `mock_response`) + audit clarity + org-level isolation.
@@ -624,7 +624,7 @@ Only if a future feature introduces *long-lived in-memory chat agents* — e.g.,
 1. Concept docs: [`agent.md`](docs/specs/v0/concepts/agent.md), [`system-agents.md`](docs/specs/v0/concepts/system-agents.md), [`human-agent.md`](docs/specs/v0/concepts/human-agent.md).
 2. Drift files: [`D6.5.md`](docs/specs/v0/implementation/m5_1/drifts/D6.5.md), [`D-new-22.md`](docs/specs/v0/implementation/m5_1/drifts/D-new-22.md), [`D-new-23.md`](docs/specs/v0/implementation/m5_1/drifts/D-new-23.md).
 3. Process: [`per-chunk-planning-template.md`](docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md), [`chunk-lifecycle-checklist.md`](docs/specs/v0/implementation/m5_1/process/chunk-lifecycle-checklist.md), [`drift-lifecycle.md`](docs/specs/v0/implementation/m5_1/process/drift-lifecycle.md).
-4. Forward-scope: [`22035b2a-remaining-scope-post-m5-p7.md`](docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 CH-01 + §7 Q&A.
+4. Forward-scope: [`remaining-scope-post-m5-p7-22035b2a.md`](docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 CH-01 + §7 Q&A.
 5. [`baby-phi/CLAUDE.md`](CLAUDE.md) §phi-core Leverage rules 1–5 + §"Orthogonal surfaces".
 6. Sibling chunk plan: [`ch-02-real-agent-loop-wiring-16fd9a3a.md`](docs/specs/plan/build/ch-02-real-agent-loop-wiring-16fd9a3a.md) for style + structure reference.
 7. Existing migration patterns: [`0001_initial.surql`](modules/crates/store/migrations/0001_initial.surql), [`0004_agents_projects.surql`](modules/crates/store/migrations/0004_agents_projects.surql), [`0006_agent_profile_mock_response.surql`](modules/crates/store/migrations/0006_agent_profile_mock_response.surql).
@@ -738,14 +738,14 @@ Touched doc pages (denominator):
 > 7. `docs/specs/v0/concepts/agent.md` and `system-agents.md` — `Last verified` headers bumped to today; if §"Lifecycle" / §"Operator can disable" body needed clarification re durable persistence, the change is present and accurate.
 > 8. `docs/specs/v0/concepts/human-agent.md` — `Last verified` header bumped (no body change required).
 > 9. **(P0 K8s readiness rule landed):** `docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md` contains a new sub-section `§3.B — K8s microservice readiness check` with the 7-axis table template (axes A1 in-process state · A2 IPC · A3 pod-local resource · A4 migration runner / first-apply race · A5 trait-shape requirement · A6 cross-pod state · A7 audit hash-chain symmetry) plus the rule that any new blocker creates a `CHK8S-D-XX` entry in the m7b ledger.
-> 10. `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §7 contains a new `Q8 — K8s microservice readiness rule` block whose decision binds future chunks to apply §3.B.
+> 10. `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §7 contains a new `Q8 — K8s microservice readiness rule` block whose decision binds future chunks to apply §3.B.
 > 11. `docs/specs/v0/implementation/m7b/architecture/k8s-microservices-readiness.md` has a new closing §11 titled "Per-chunk readiness check rule (CH-01+)" with cross-links to the per-chunk template + forward-scope Q8 + the deferred-items ledger.
 > 12. `docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md` "Adding new entries" guidance section explicitly names the per-chunk-template §3.B as the canonical entry-source from CH-01 onward; provenance field guidance updated to cite originating chunks.
 > 13. All four P0 docs above had their `Last verified` headers bumped to today's date.
 > 14. No new CHK8S-D-XX entries appear in the deferred-items ledger as a result of CH-01 (CH-01 is declared K8s-neutral in §3.B).
 > 15. **(P0 doc-gap closures):** `baby-phi/CLAUDE.md` §"Orthogonal surfaces that are NOT phi-core duplicates" contains a new bullet for `domain::Agent` vs `phi_core::Agent` (trait) + `BasicAgent` (runtime impl), naming the connection point at `sessions/provider.rs::build_agent_context` as ID-only delegation.
 > 16. `docs/specs/v0/concepts/phi-core-mapping.md` agents/ table: `phi_core::Agent` (trait) row added with classification "Runtime-only"; `BasicAgent` row clarified as "Runtime-only impl of `phi_core::Agent` trait, not persisted by baby-phi"; a §"Connection point" or §"Agent governance vs runtime separation" sub-section names `provider.rs::build_agent_context` as the ID-only delegation site; `Last verified` header bumped.
-> 17. **(Concept re-evaluation marker)** `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §3 contains a new `M6+-OPEN-01 — AgentProfile cardinality re-evaluation (1:1 → N:1 template-sharing)` entry. The entry MUST include: a `Status: open question` line (distinguishing it from committed `DEFERRED-*` markers); origin/provenance citing CH-01 plan-review 2026-04-27; question being evaluated; argument-for + argument-against summary; required-if-pursued list (concept amendment, ADR, schema migration, code refactor); target milestone (M6 plan-open or standalone concept-reeval chunk).
+> 17. **(Concept re-evaluation marker)** `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §3 contains a new `M6+-OPEN-01 — AgentProfile cardinality re-evaluation (1:1 → N:1 template-sharing)` entry. The entry MUST include: a `Status: open question` line (distinguishing it from committed `DEFERRED-*` markers); origin/provenance citing CH-01 plan-review 2026-04-27; question being evaluated; argument-for + argument-against summary; required-if-pursued list (concept amendment, ADR, schema migration, code refactor); target milestone (M6 plan-open or standalone concept-reeval chunk).
 >
 > Report each as PASS/FAIL with 1-line evidence. ≤ 800 words. Read-only.
 
@@ -803,7 +803,7 @@ grep -c "honored" docs/specs/v0/implementation/m5_1/drifts/_concept-audit-matrix
 
 # 10. P0 K8s readiness rule landed
 grep -c "§3.B\|K8s microservice readiness check" docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md   # ≥ 1
-grep -c "Q8 — K8s microservice readiness rule\|Q8 . K8s microservice readiness rule" docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md   # ≥ 1
+grep -c "Q8 — K8s microservice readiness rule\|Q8 . K8s microservice readiness rule" docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md   # ≥ 1
 grep -c "Per-chunk readiness check rule" docs/specs/v0/implementation/m7b/architecture/k8s-microservices-readiness.md   # ≥ 1
 grep -c "per-chunk-template §3.B\|per-chunk-planning-template §3.B" docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md   # ≥ 1
 
@@ -816,8 +816,8 @@ grep -c "phi_core::Agent\|Runtime-only" docs/specs/v0/concepts/phi-core-mapping.
 grep -c "build_agent_context\|Connection point" docs/specs/v0/concepts/phi-core-mapping.md       # ≥ 1 (connection-point cross-link)
 
 # 13. Concept re-evaluation marker captured in forward-scope §3
-grep -c "M6+-OPEN-01\|AgentProfile cardinality re-evaluation" docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md   # ≥ 1
-grep -c "Status: open question\|Status.*open question" docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md           # ≥ 1 (distinguishes from DEFERRED markers)
+grep -c "M6+-OPEN-01\|AgentProfile cardinality re-evaluation" docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md   # ≥ 1
+grep -c "Status: open question\|Status.*open question" docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md           # ≥ 1 (distinguishes from DEFERRED markers)
 ```
 
 ---
@@ -836,7 +836,7 @@ grep -c "Status: open question\|Status.*open question" docs/specs/plan/forward-s
 
 ## Notes on M5.1/P3 Q&A binding
 
-This plan honors all 7 planning decisions from [forward-scope §7](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md):
+This plan honors all 7 planning decisions from [forward-scope §7](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md):
 
 - **Q1** (storage-backend) — untouched by CH-01; CH-03 owns.
 - **Q2** (selector PEG split) — untouched; CH-06 owns.

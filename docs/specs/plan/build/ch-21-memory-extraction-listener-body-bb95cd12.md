@@ -49,7 +49,7 @@ CH-21 also closes the gap CH-16 left open: ADR-0038 §D38.5 committed that `Iden
 
 ### Forward-scope reference
 
-[§1 CH-21 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 191–195) + [§4 dependency edges](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 320 — `CH-02 → CH-21`, `CH-21 → CH-23 → CH-24`) + [§5 inventory row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 353).
+[§1 CH-21 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 191–195) + [§4 dependency edges](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 320 — `CH-02 → CH-21`, `CH-21 → CH-23 → CH-24`) + [§5 inventory row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 353).
 
 ---
 
@@ -538,7 +538,7 @@ grep -c '^\*\*Status: Accepted\*\*' docs/specs/v0/implementation/m5_2/decisions/
 grep -c '^### CHK8S-D-' docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md   # 8
 
 # 9. Forward-scope marker
-grep -n "M6-DEFERRED-04" docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md  # ≥ 1
+grep -n "M6-DEFERRED-04" docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md  # ≥ 1
 
 # 10. Prior-chunk regression sanity
 /root/rust-env/cargo/bin/cargo test -j 4 -p domain --lib events::listeners::tests              # 15+ catalog tests still green

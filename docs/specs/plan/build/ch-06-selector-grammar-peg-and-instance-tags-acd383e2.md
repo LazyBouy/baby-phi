@@ -66,7 +66,7 @@ Concurrently, `permissions/01-resource-ontology.md §"Instance Identity Tags"` m
 
 ### Forward-scope reference
 
-[§1 CH-06 row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 77) + [§4 critical-path graph](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 284) + [§5 inventory row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 338) + [§7 Q2 split decision](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 378 — resolved at plan-review: unified).
+[§1 CH-06 row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 77) + [§4 critical-path graph](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 284) + [§5 inventory row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 338) + [§7 Q2 split decision](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 378 — resolved at plan-review: unified).
 
 ---
 

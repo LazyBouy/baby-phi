@@ -153,7 +153,7 @@ This ADR may flip to `Superseded by ADR-NNNN` per sub-decision as M7b ships its 
 
 ## References
 
-- [CH-K8S-PREP plan](../../../../plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md) — the chunk plan this ADR ratifies.
+- [CH-K8S-PREP plan](../../../../plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md) — the chunk plan this ADR ratifies.
 - [`m7b/architecture/k8s-microservices-readiness.md`](../../m7b/architecture/k8s-microservices-readiness.md) — strategic K8s-readiness assessment.
 - [`m7b/architecture/deferred-from-ch-k8s-prep.md`](../../m7b/architecture/deferred-from-ch-k8s-prep.md) — tactical deferred-items ledger (8 entries).
 - [ADR-0031 — Session cancellation + concurrency bounds](../../m5/decisions/0031-session-cancellation-and-concurrency.md) — §D31.1 + §D31.4 + §D31.5 are the load-bearing references.

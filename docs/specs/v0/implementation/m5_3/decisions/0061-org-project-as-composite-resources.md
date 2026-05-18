@@ -179,7 +179,7 @@ Other follow-up drifts not anticipated at CH-26 close.
   - [`m1/decisions/0012-forward-only-migrations.md`](../../m1/decisions/0012-forward-only-migrations.md) — idempotent-migration discipline applied to `0018_org_project_tags.surql`.
   - [`m3/decisions/0022-org-creation-compound-transaction.md`](../../m3/decisions/0022-org-creation-compound-transaction.md) — compound-tx pattern CH-26 extends at `apply_org_creation` + `apply_project_creation`.
   - [`m2/decisions/0018-handler-support-module.md`](../../m2/decisions/0018-handler-support-module.md) — `handler_support::check_permission` entrypoint CH-26 wires ≥ 7 handlers through.
-- (d) **Forward-scope row**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 260-271.
+- (d) **Forward-scope row**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 260-271.
 
 ---
 

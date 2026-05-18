@@ -93,7 +93,7 @@ The chunk's deliverables map directly to forward-scope row 134's two clauses ("`
 
 ### Forward-scope reference
 
-[CH-13 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 130–135) + §1.4 "Frozen tags + audit" block (lines 121–135).
+[CH-13 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 130–135) + §1.4 "Frozen tags + audit" block (lines 121–135).
 
 ### Concept-doc anchor
 
@@ -402,7 +402,7 @@ ls /root/projects/phi/baby-phi/docs/specs/v0/implementation/m5_2/architecture/ \
 
 **Reading list (mandatory, all read by planner before publishing this draft):**
 
-1. `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 121–135 (CH-13 row + §1.4 "Frozen tags + audit" block) ✓
+1. `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 121–135 (CH-13 row + §1.4 "Frozen tags + audit" block) ✓
 2. `baby-phi/docs/specs/v0/implementation/m5_1/drifts/D-new-19.md` ✓
 3. `baby-phi/docs/specs/v0/concepts/permissions/07-templates-and-tools.md` (full file, with focus on §"audit_class Composition Through Templates" lines 64–72) ✓
 4. `baby-phi/docs/specs/v0/concepts/permissions/README.md` (entry invariants — per the per-chunk-template Permissions subtree hook) — implementer to re-read at P0.

@@ -11,7 +11,7 @@ Eight mandatory steps. Each step has explicit entry + exit criteria. No step ski
 ## Step 1 — Draft the chunk plan per template
 
 **Entry criteria:**
-- User has selected the next chunk from [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 (Q4 decision — user-decided per chunk-open).
+- User has selected the next chunk from [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5 (Q4 decision — user-decided per chunk-open).
 - No other chunk is mid-flight in this repo.
 - CI guards (`check-doc-links.sh`, `check-ops-doc-headers.sh`, `check-phi-core-reuse.sh`, `check-spec-drift.sh`) are green at HEAD.
 

@@ -22,7 +22,7 @@
 | 6. Composite expansion (`constituents()`) | PASS | `domain/src/model/composites.rs:182-188` returns `[DataObject, IdentityPrincipal, Tag]` for both `OrganizationObject` and `ProjectObject` (shared with `ControlPlaneObject`); concept-doc `permissions/01-resource-ontology.md:45-46` documents the same constituents — matches |
 | 7. Drift catalogue terminal status | PASS | `D-philosophy-01.md:11` Status `remediated`; `D-philosophy-02.md:11` Status `remediated`; `D-CH26-FOLLOWUP-01.md:10` Status `discovered` with Closing chunk `CH-27` at line 16; README accounting matches (1 open / 2 remediated) |
 | 8. Migration #0018 idempotent + reverse-compatible | PASS | `migrations/0018_org_project_tags.surql`: (a) `DEFINE FIELD ... TYPE array<string> DEFAULT []` is idempotent per SurrealDB 2.x semantics + line 49-50; (b) UPDATE clauses filter on `tags IS NONE OR tags = []` at lines 64-70; (c) no catalogue-row touch (deferred to compound-tx, doc-noted at lines 72-87); migration registered at `store/src/migrations.rs:189-193` as version 18 slug `org_project_tags`; no #0018 conflict in pre-existing slots (0001-0017 distinct) |
-| 9. CH-27 carve-out forward-routing complete (3+ surfaces) | PASS | 5+ deliverables enumerated in `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:282-288`; D-CH26-FOLLOWUP-01 cross-refs CH-27 at lines 14, 16, 54; ADR-0061 §D61.5 amendment line 134 + §D61.7 amendment lines 152, 156, 158, 160 explicitly route to CH-27; Post-M5.3 actions lines 293-294 wait on CH-27 |
+| 9. CH-27 carve-out forward-routing complete (3+ surfaces) | PASS | 5+ deliverables enumerated in `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:282-288`; D-CH26-FOLLOWUP-01 cross-refs CH-27 at lines 14, 16, 54; ADR-0061 §D61.5 amendment line 134 + §D61.7 amendment lines 152, 156, 158, 160 explicitly route to CH-27; Post-M5.3 actions lines 293-294 wait on CH-27 |
 
 ## Per-claim detail
 
@@ -165,7 +165,7 @@ Reading `modules/crates/store/migrations/0018_org_project_tags.surql`:
 
 Three durable documentation surfaces verified:
 
-1. **Forward-scope CH-27 row** at `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md:277-289` enumerates 5 deliverables:
+1. **Forward-scope CH-27 row** at `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md:277-289` enumerates 5 deliverables:
    - Line 283: tighten 15 advisory invocations to blocking gates.
    - Line 284: extend CH-25 synth-owner-grant for Observe + Inspect.
    - Line 285: wire `projects::resolvers::*` through check_permission.

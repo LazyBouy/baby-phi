@@ -152,7 +152,7 @@ The catalogue seed at preview.rs:101 + launch.rs:603 also flips from `"session"`
 
 ### D54.8 — Forward-scope row literal re-interpretation note for the planning ledger
 
-The forward-scope row at `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 147–151 names *"actions `session.start` / `session.tool_invoke` / `session.read_memory`"* as the launch-time reaches. CH-15 re-interprets this wording as scoping-gloss per D54.2 above. Future planners reading the row should consult this ADR (D54.2) for the resolved canonical Action mapping rather than introducing new Action variants.
+The forward-scope row at `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 147–151 names *"actions `session.start` / `session.tool_invoke` / `session.read_memory`"* as the launch-time reaches. CH-15 re-interprets this wording as scoping-gloss per D54.2 above. Future planners reading the row should consult this ADR (D54.2) for the resolved canonical Action mapping rather than introducing new Action variants.
 
 ---
 
@@ -199,7 +199,7 @@ The forward-scope row at `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` 
 
 ### Forward-scope row
 
-- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 row 13 (CH-15 row, lines 147–151) — including the *forward-scope-literal-re-interpretation* note (§D54.8).
+- [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5 row 13 (CH-15 row, lines 147–151) — including the *forward-scope-literal-re-interpretation* note (§D54.8).
 
 ---
 

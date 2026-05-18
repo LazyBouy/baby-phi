@@ -99,7 +99,7 @@ Verdict marked PASS-with-caveat (not FAIL) because the shift is a load-bearing-c
 **Verdict:** PASS
 **Evidence:**
 - **Cycle-index**: `_cycle-index.md` carries all 3 carve-out rows: L61 CH-25 (`1e01618e` 2026-05-16, `retro-complete`); L62 CH-26 (`d1cb9e1f` 2026-05-17, `retro-complete`); L63 CH-27 (`0edcaba9` 2026-05-18, `in-flight` — chunk-implementer-complete, awaiting gate-3 audits). All 3 carry hexes + plan-archive paths.
-- **Forward-scope**: `22035b2a-remaining-scope-post-m5-p7.md:244` `### CH-25 … — **CLOSED at cycle hex 1e01618e (2026-05-16)**`; `:262` `### CH-26 … — **CLOSED at d1cb9e1f 2026-05-17 …**`; `:278` `### CH-27 … — **CLOSED at cycle hex 0edcaba9 2026-05-18**`.
+- **Forward-scope**: `remaining-scope-post-m5-p7-22035b2a.md:244` `### CH-25 … — **CLOSED at cycle hex 1e01618e (2026-05-16)**`; `:262` `### CH-26 … — **CLOSED at d1cb9e1f 2026-05-17 …**`; `:278` `### CH-27 … — **CLOSED at cycle hex 0edcaba9 2026-05-18**`.
 - **M6 unblock**: `22035b2a:299` `**M6 plan-mode opens after CH-27 close** (not CH-26 close — M5.3 carve-out extended per user routing 2026-05-16)` — wording is in active future tense at CH-27 close (M5.3 carve-out implementation now closed; awaits retro to fully unblock M6).
 
 ### Claim 14 — `use phi_core` import count Δ +0 (= 57)

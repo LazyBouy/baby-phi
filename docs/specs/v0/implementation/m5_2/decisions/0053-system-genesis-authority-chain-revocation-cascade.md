@@ -132,7 +132,7 @@ The cascade-method return type is `domain::repository::CascadeResult { revoked_g
   - [`m5_2/decisions/0052-allocate-transfer-cardinality-and-refinement.md`](./0052-allocate-transfer-cardinality-and-refinement.md) (CH-08) §D52.3 — typed-field cascade pattern; precedent for §D53.5 `Option<GrantId>` field-add cascade.
   - [`m5_2/decisions/0048-per-session-consent-gating.md`](./0048-per-session-consent-gating.md) (CH-11) §D48.1 — `Grant.approval_mode` denormalisation with `#[serde(default)]`; precedent for §D53.5 serde back-compat.
   - [`m5_2/decisions/0051-multi-scope-cascade-contractor-model.md`](./0051-multi-scope-cascade-contractor-model.md) (CH-07) §D51.1 — cascade algorithm inside engine; the BFS in §D53.4 is structurally analogous to CH-07's cascade resolution but in the revoke-direction.
-- **Forward-scope row:** [`baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 139–143.
+- **Forward-scope row:** [`baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 139–143.
 
 ---
 

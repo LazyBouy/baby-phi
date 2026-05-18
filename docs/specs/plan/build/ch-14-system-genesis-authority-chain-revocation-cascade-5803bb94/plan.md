@@ -6,7 +6,7 @@
 | Field | Value |
 |---|---|
 | Cycle hex | `5803bb94` |
-| Forward-scope row | [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 139–143 |
+| Forward-scope row | [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 139–143 |
 | Severity | ⚠HIGH |
 | Estimated effort | ~4 engineer-days |
 | Drifts closed | **D-new-14** (genesis + walker), **D-new-18** (full-tree revocation cascade) |
@@ -112,7 +112,7 @@ CH-14 closes both gaps: typed `system:genesis` constant + `is_bootstrap_ar` pred
 
 **Quality-over-speed restatement.** *"Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently."* Specifically for CH-14: the partially-honored authority chain is being lifted into typed Rust without altering wire format or breaking any existing audit invariant. Forward-defensive plumbing only — no callsite outside Template-revoke is rewired.
 
-**Forward-scope reference.** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 139–143 (CH-14 row, ⚠HIGH, ~4 days, drifts D-new-14 + D-new-18).
+**Forward-scope reference.** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 139–143 (CH-14 row, ⚠HIGH, ~4 days, drifts D-new-14 + D-new-18).
 
 ---
 
@@ -331,7 +331,7 @@ Recommended new follow-up drift (if F1.A is locked + adoption-AR descends_from_g
 - `m5_2/decisions/0051-multi-scope-cascade-contractor-model.md` (CH-07) §D51.1 (cascade algorithm inside engine — the BFS in CH-14 §D53.4 is structurally analogous to CH-07's cascade resolution but in the revoke-direction).
 - (Forward reference, not a citation — `m5_2/decisions/0033-...` stays the K8s-conformance anchor for §3.B.)
 
-(d) **Forward-scope row**: [`baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 139–143.
+(d) **Forward-scope row**: [`baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 139–143.
 
 **Forks header pattern (per CH-13 v2 + CH-12 retro)**: at chunk-seal, depending on user-lock outcome:
 - All `.A` locked (planner-recommended): `Forks (F1–F5 user-locked at plan approval to F1.A / F2.A / F3.A / F4.A / F5.A — all align with planner recommendation)`.
@@ -583,7 +583,7 @@ Healthy implementer over-shoot is biased high, not symmetric. CH-14 expects heal
 6. ✅ `drifts/D-new-18.md` — full file.
 7. ✅ `drifts/_concept-audit-matrix.md` — relevant rows (44, 135, 157, 181, 231).
 8. ✅ Prior plans: CH-08 (`ch-08-allocate-transfer-cardinality-refinements-7cbe74a4/plan.md`), CH-13 (`ch-13-audit-class-composition-strictest-wins-d4fe1b7c/plan.md`) — read for typed-field-cascade + audit-emission patterns.
-9. ✅ `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` — §5 chunk row + §7 binding Q&A.
+9. ✅ `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` — §5 chunk row + §7 binding Q&A.
 10. ✅ `baby-phi/CLAUDE.md` — phi-core Leverage section + Granular Bash discipline.
 11. ✅ Existing code: `bootstrap/claim.rs`, `auth_requests/revocation.rs`, `templates/revoke.rs`, `repo_impl_m2.rs:680-781`, `in_memory.rs:1170-1209,2510-2540`, `repository.rs:950-998`, `model/nodes.rs:540-870`.
 12. ✅ Existing migrations: `0002_platform_setup.surql`, `0005_sessions_templates_system_agents.surql` — for migration 0011 stylistic reference.

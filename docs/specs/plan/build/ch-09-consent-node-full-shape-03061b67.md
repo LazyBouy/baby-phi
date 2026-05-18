@@ -40,7 +40,7 @@ That's the chunk. Extend `Consent` to the concept-doc shape, define the `Consent
 
 ### Forward-scope reference
 
-[CH-09 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 100–105) + [§5 inventory](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (line 417).
+[CH-09 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 100–105) + [§5 inventory](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (line 417).
 
 ---
 

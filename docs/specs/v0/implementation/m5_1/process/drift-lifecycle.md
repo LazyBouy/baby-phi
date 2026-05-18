@@ -72,7 +72,7 @@ Entered when the drift file is fully annotated per [`../drifts/_schema.md`](../d
 
 Entered when the drift is assigned to a specific implementation chunk in the forward-scope inventory:
 
-- `Remediation scope > Implementation chunk this belongs to` — names a concrete `CH-NN` from [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5.
+- `Remediation scope > Implementation chunk this belongs to` — names a concrete `CH-NN` from [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5.
 - Estimated effort in engineer-days recorded.
 - Dependencies on other drift IDs recorded.
 

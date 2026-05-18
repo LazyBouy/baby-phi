@@ -211,7 +211,7 @@ Verified at P1 close: `cargo build --workspace` succeeds; cascade count = 27 (wi
   - [ADR-0048](./0048-per-session-consent-gating.md) §D48.1 — `Grant.approval_mode` field-add precedent (F3.A's structural twin: additive Grant field with `#[serde(default)]` shielding, zero migration).
   - [ADR-0050](./0050-audit-class-composition-strictest-wins.md) §D50.5 — `Grant.audit_class` field-add precedent (F3.A's structural twin: same shielding pattern as D48.1).
 - **(d) Forward-scope row cross-reference**:
-  - [`baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96 (CH-08 row).
+  - [`baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96 (CH-08 row).
 
 ---
 

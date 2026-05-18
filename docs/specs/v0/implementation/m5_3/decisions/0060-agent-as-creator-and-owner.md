@@ -177,7 +177,7 @@ Grant {
   - [`m3/decisions/0022-org-creation-compound-transaction.md`](../../m3/decisions/0022-org-creation-compound-transaction.md) — the compound-tx pattern CH-25 extends at `apply_org_creation`.
   - [`m5_2/decisions/0039-human-agent-identity-guard.md`](../../m5_2/decisions/0039-human-agent-identity-guard.md) — the `disable_system_agent` ADR for the acceptance test's child-disable path.
   - [`m5_2/decisions/0053-system-genesis-authority-chain-revocation-cascade.md`](../../m5_2/decisions/0053-system-genesis-authority-chain-revocation-cascade.md) — CH-14 system-genesis precedent for synth-grants from axiomatic principals — analogous to owner-grant synthesis.
-- (d) **Forward-scope row**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 242-254.
+- (d) **Forward-scope row**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 242-254.
 
 ---
 

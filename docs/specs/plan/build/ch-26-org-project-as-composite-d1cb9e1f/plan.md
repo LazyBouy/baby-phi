@@ -37,7 +37,7 @@ Phase count = **7** post-v2 (P0 / P1 / P-FIELD-EXTEND / P2 / P3 / P-DOCS / P-SEA
 
 **Chunk slug**: `ch-26-org-project-as-composite`.
 
-**Forward-scope row**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 260-271.
+**Forward-scope row**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 260-271.
 
 **Drift closed**: [`D-philosophy-02`](../../../v0/implementation/m5_3/drifts/D-philosophy-02.md) (HIGH severity, Bucket A — load-bearing scope gap).
 
@@ -77,7 +77,7 @@ CH-26 closes the gap by (v2 — reflects F1.b + F2.b user-locks):
 
 **Quality-over-speed restatement.** Concept docs are source-of-truth. The unified-resource-model contradiction is HIGH severity. v2 re-plan absorbs the user-locked WIDER scope (F1.b + F2.b) without scope-creep beyond those locks; both deliveries are ratified in-cycle to close the D-philosophy-02:39 ≥ 3-hit invariant in full at chunk-seal (no M7 follow-up drift needed under F1.b user-lock).
 
-**Forward-scope reference**: [§2.5 lines 260-271](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md).
+**Forward-scope reference**: [§2.5 lines 260-271](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md).
 
 ## §2 — Concept alignment walk
 

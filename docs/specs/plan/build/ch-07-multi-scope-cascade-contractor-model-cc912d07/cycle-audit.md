@@ -256,5 +256,5 @@ No re-spawn of Implementer or Planner needed. No further audit iterations needed
 - [ADR-0051](../../v0/implementation/m5_2/decisions/0051-multi-scope-cascade-contractor-model.md) — Accepted.
 - [D-new-06](../../v0/implementation/m5_1/drifts/D-new-06.md), [D-new-20](../../v0/implementation/m5_1/drifts/D-new-20.md) — remediated.
 - [D-CH07-FOLLOWUP-01](../../v0/implementation/m5_1/drifts/D-CH07-FOLLOWUP-01.md) — new, discovered, M6+.
-- [Forward-scope row](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 84–89.
+- [Forward-scope row](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 84–89.
 - [Multi-agent pipeline meta-plan](../../agentic-workflow/multi-agent-chunk-pipeline-0853574c.md).

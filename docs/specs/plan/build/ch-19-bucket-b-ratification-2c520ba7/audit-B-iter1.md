@@ -60,7 +60,7 @@ ADR `## Cross-references` section starts at line 246. All 4 sub-categories prese
   - `m5_2/decisions/0046-template-cd-http-edges.md` (CH-23) — line 267
   - `m5_2/decisions/0050-audit-class-composition-strictest-wins.md` (CH-13) — line 268
   - `m3/decisions/0022-org-creation-compound-transaction.md` (M3) — line 269
-- (d) Forward-scope row at `:271-273` — `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 179-183 + §5 severity-row at line 427.
+- (d) Forward-scope row at `:271-273` — `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 179-183 + §5 severity-row at line 427.
 
 Every prior ADR carries the `m<milestone>/decisions/<adr-file>.md` prefix as required by CH-08 retro Row 1.
 

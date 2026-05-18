@@ -42,5 +42,5 @@ Same lifecycle as the M5.1 + M5.2 catalogue per [`../../m5_1/drifts/_schema.md`]
 ## Cross-reference
 
 - Philosophy alignment audit + clarifications: [`../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md`](../../../../plan/core-philosophy-check/2026-04-28-philosophy-alignment-audit.md).
-- Forward-scope M5.3 carve-out: [`../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5.
-- M5.3 announcement plan archive (verbatim): [`../../../../plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md`](../../../../plan/core-philosophy-check/525d2085-m5-3-announcement-plan.md).
+- Forward-scope M5.3 carve-out: [`../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5.
+- M5.3 announcement plan archive (verbatim): [`../../../../plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md`](../../../../plan/core-philosophy-check/m5-3-announcement-plan-525d2085.md).

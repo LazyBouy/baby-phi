@@ -6,7 +6,7 @@
 **Project**: baby-phi
 **Slug**: `ch-27-blocking-gate-enforcement-resolvers-wiring`
 **Plan archive**: [./plan.md](./plan.md) (v2 re-plan; F4.b USER-DIVERGENT lock)
-**Forward-scope row**: [`22035b2a-remaining-scope-post-m5-p7.md` §2.5 CH-27](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (CLOSED at this cycle)
+**Forward-scope row**: [`remaining-scope-post-m5-p7-22035b2a.md` §2.5 CH-27](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (CLOSED at this cycle)
 **Chunk-seal date**: 2026-05-18
 
 ---
@@ -53,7 +53,7 @@
   - 4 section-anchor cascade patches (`composite-classes-8` → `composite-classes-10`) in `ontology.md` / `permissions/05-memory-sessions.md` / `requirements/admin/{02-platform-model-providers, 03-platform-mcp-servers}.md`.
 - **Plan / cycle paperwork** — 4 files:
   - `plan/build/_cycle-index.md` (+2; row + verified-header dual-write per chunk-implementer v9 R2).
-  - `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` (~31): CH-27 row CLOSED marker + Post-M5.3 actions update.
+  - `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` (~31): CH-27 row CLOSED marker + Post-M5.3 actions update.
   - `m5_3/operations/agent-ownership-operations.md` (+5): cross-ref refresh.
   - `cycle folder`: plan.md + RESUME-NOTE.md + audit-{A,B,C}-iter1.md + audit-B-iter2.md + this cycle-audit.md.
 

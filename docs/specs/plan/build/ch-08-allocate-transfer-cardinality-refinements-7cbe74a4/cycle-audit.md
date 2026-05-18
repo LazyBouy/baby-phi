@@ -236,5 +236,5 @@ No re-spawn of Implementer or Planner needed. No further audit iterations needed
 - [Audit B](./audit-B-iter1.md) — docs fidelity + concept alignment (GREEN).
 - [ADR-0052](../../v0/implementation/m5_2/decisions/0052-allocate-transfer-cardinality-and-refinement.md) — Accepted.
 - [D-new-13](../../v0/implementation/m5_1/drifts/D-new-13.md), [D-new-20](../../v0/implementation/m5_1/drifts/D-new-29.md) — remediated.
-- [Forward-scope row](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96.
+- [Forward-scope row](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96.
 - [Multi-agent pipeline meta-plan](../../agentic-workflow/multi-agent-chunk-pipeline-0853574c.md).

@@ -25,9 +25,9 @@
 | 9. AMEND _concept-audit-matrix.md — "Org has Projects" row Status honored with D-philosophy-02 + D-CH26-FOLLOWUP-01 covering-drift cells | PASS | `m5_3/drifts/_concept-audit-matrix.md:27` row "Org has Projects (Project = Resource Type)" Status `honored`; Covering-drift cell cites D-philosophy-02 ✓ remediated + D-CH26-FOLLOWUP-01 follow-up |
 | 10. Cycle-index row APPENDED for CH-26 with status `ready-for-audit`, cycle hex `d1cb9e1f`, 7+ phases, F1.b + F2.b user-locks | PASS | `_cycle-index.md:59` row appended with cycle hex `d1cb9e1f`, status `ready-for-audit`, 7 phases listed, F1.b + F2.b DIVERGENT user-locks called out |
 | 11. Cycle-index top verified-header PREPENDED; `head -1` returns 1 hit for d1cb9e1f | PASS | `_cycle-index.md:1` verified-header dated 2026-05-17 with cycle hex `d1cb9e1f`; `head -1 _cycle-index.md \| grep -c d1cb9e1f` → 1 |
-| 12. Forward-scope §2.5 CH-26 row AMENDED — closure header + deliverables shipped + advisory-only path + CH-27 cross-ref | PASS | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:261` CLOSED header; deliverables@:266-273; advisory-only language@:271; CH-27 cross-ref@:274 + drift link |
-| 13. Forward-scope §2.5 CH-27 row APPENDED — deliverables enumerated, ~6-10 ed estimate, ADR-0062, prereq CH-26 | PASS | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:277-289` NEW CH-27 row with prereq CH-26@:281, deliverables@:282-287, ADR-0062@:288, ~6-10 ed estimate@:289 |
-| 14. Forward-scope §"Post-M5.3 actions" amended — philosophy alignment re-run + M6 plan-open wait on CH-27 (not CH-26) | PASS | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:293` philosophy alignment "Now waits on CH-27 close (not CH-26)"; :294 "M6 plan-mode opens after CH-27 close (not CH-26 close)" |
+| 12. Forward-scope §2.5 CH-26 row AMENDED — closure header + deliverables shipped + advisory-only path + CH-27 cross-ref | PASS | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:261` CLOSED header; deliverables@:266-273; advisory-only language@:271; CH-27 cross-ref@:274 + drift link |
+| 13. Forward-scope §2.5 CH-27 row APPENDED — deliverables enumerated, ~6-10 ed estimate, ADR-0062, prereq CH-26 | PASS | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:277-289` NEW CH-27 row with prereq CH-26@:281, deliverables@:282-287, ADR-0062@:288, ~6-10 ed estimate@:289 |
+| 14. Forward-scope §"Post-M5.3 actions" amended — philosophy alignment re-run + M6 plan-open wait on CH-27 (not CH-26) | PASS | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:293` philosophy alignment "Now waits on CH-27 close (not CH-26)"; :294 "M6 plan-mode opens after CH-27 close (not CH-26 close)" |
 | 15. DOC-SYNC SWEEP — grep stale-narrative phrase set; 0 actionable matches | PASS-with-caveat | All grep matches classified as legitimate historical context (pre-CH-26 baseline citations in ADR-0061/composite-resources-model.md/D-philosophy-02.md, M5/M5.2 historical narrative); 2 minor stale-text observations recorded in §"Side observations" below as orchestrator-awareness items, NOT FAILs against the CH-26 P-DOCS deliverables |
 
 **Final tally: 15/15 PASS** (minimum tolerable 12/15 cleared at 100%).
@@ -187,7 +187,7 @@
 
 **Evidence:**
 
-- `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:1` verified-header dated 2026-05-17 documents §2.5 amendments (CH-26 row CLOSED + NEW CH-27 row + Post-M5.3 actions amended).
+- `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:1` verified-header dated 2026-05-17 documents §2.5 amendments (CH-26 row CLOSED + NEW CH-27 row + Post-M5.3 actions amended).
 - CH-26 row header @ line 261: "### CH-26 — Org/Project as Composite resources (philosophy §4.2) — **CLOSED at `d1cb9e1f` 2026-05-17; deliverables shipped at load-bearing semantic axis; D-philosophy-02 remediated; advisory-only path documented in ADR-0061 §D61.5; CH-27 carves out the wire-tier tightening**".
 - Drifts closed @ :263 cites D-philosophy-02 (HIGH).
 - Deliverables shipped at chunk-seal 2026-05-17 enumerated @ :266-273:
@@ -206,7 +206,7 @@
 
 **Evidence:**
 
-- `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:277` — NEW row header "### CH-27 — Blocking-gate enforcement + resolvers wiring + acceptance fixture extension (M5.3 carve-out extension)".
+- `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:277` — NEW row header "### CH-27 — Blocking-gate enforcement + resolvers wiring + acceptance fixture extension (M5.3 carve-out extension)".
 - Drifts closed @ :279: D-CH26-FOLLOWUP-01.
 - Concept docs @ :280: permissions/04-manifest-and-resolution.md + composite-resources-model.md tighten advisory → blocking.
 - **Prerequisites: CH-26** @ :281 (advisory infrastructure must be in place).
@@ -224,7 +224,7 @@
 
 **Evidence:**
 
-- `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:293` — "Re-run philosophy alignment audit (same 3-Explore-agent shape as 2026-04-28). Goal: confirm 12 → 14 ALIGNED claims, surface any third-order ripple effects. **Now waits on CH-27 close (not CH-26) per the M5.3 carve-out extension to 3-chunk {CH-25, CH-26, CH-27}.**"
+- `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:293` — "Re-run philosophy alignment audit (same 3-Explore-agent shape as 2026-04-28). Goal: confirm 12 → 14 ALIGNED claims, surface any third-order ripple effects. **Now waits on CH-27 close (not CH-26) per the M5.3 carve-out extension to 3-chunk {CH-25, CH-26, CH-27}.**"
 - @ :294: "**M6 plan-mode opens after CH-27 close** (not CH-26 close — M5.3 carve-out extended per user routing 2026-05-16)."
 - @ :295: Smaller philosophy follow-ups continue to route to M6-DEFERRED-04 + next docs sweep — unchanged.
 - Verified-header at line 1 mentions "§Post-M5.3 actions line 277 amended" (the verified-header refers to the section heading line; the actual amendment text at line 293-294 is correctly amended).

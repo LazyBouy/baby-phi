@@ -31,7 +31,7 @@
 | 16. 2 concept-doc amendments per RESUME-NOTE | PASS | `permissions/04-manifest-and-resolution.md:2` (CH-27 amendment header) + L597/L613 body; `permissions/03-action-vocabulary.md:44` preserved per plan |
 | 17. Plan archive exists with v2 re-plan banner | PASS | `plan.md:7` v2 re-plan banner |
 | 18. Cycle-index row + verified-header at TOP per v9 R2 | PASS | `_cycle-index.md:1` CH-27 verified-header; row at L63 with status `in-flight` |
-| 19. Forward-scope §2.5 CH-27 row CLOSED + cycle hex + ADR-0062 cite | PASS | `22035b2a-remaining-scope-post-m5-p7.md:278` "CLOSED at cycle hex 0edcaba9 2026-05-18" |
+| 19. Forward-scope §2.5 CH-27 row CLOSED + cycle hex + ADR-0062 cite | PASS | `remaining-scope-post-m5-p7-22035b2a.md:278` "CLOSED at cycle hex 0edcaba9 2026-05-18" |
 | 20. Verified-headers bumped to 2026-05-18 on all touched docs | PASS | all touched m5_3 + concept docs carry 2026-05-18 CH-27 header at TOP |
 
 **Side note**: F4.b helper actual call-site count = **9** (not 12-18 / not 19). The ADR §Verification grep expects ≥ 12 hits (L270); composite-resources-model.md L153 + composite-resources-operations.md L100 + D-CH26-FOLLOWUP-01.md:73 + concept-audit-matrix L28 all claim "19 fixture-extension sites". Cardinality mismatch surfaces in 4 docs. Flagged as Side Observation — not a per-claim FAIL (no audit prompt claim addresses fixture-extension count). Suggest gate-4 orchestrator decide: amend docs to "9" or extend cascade to ≥ 12 sites.
@@ -117,7 +117,7 @@
 
 ### Claim 19 — Forward-scope §2.5 CH-27 row CLOSED + cycle hex + ADR-0062 cite
 **Verdict:** PASS
-**Evidence:** `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:1` CH-27 P-SEAL verified-header at TOP; L278 header "CH-27 — Blocking-gate enforcement + resolvers wiring + acceptance fixture extension (M5.3 carve-out extension) — **CLOSED at cycle hex `0edcaba9` 2026-05-18**"; L280 drifts-closed entry cites D-CH26-FOLLOWUP-01 + 3-of-4 axes; L294 count-amendment footnote `[^count-fix]` documents "15" → "7" per ADR-0062 §D62.5 META; L298-299 Post-M5.3 actions paragraph updated.
+**Evidence:** `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:1` CH-27 P-SEAL verified-header at TOP; L278 header "CH-27 — Blocking-gate enforcement + resolvers wiring + acceptance fixture extension (M5.3 carve-out extension) — **CLOSED at cycle hex `0edcaba9` 2026-05-18**"; L280 drifts-closed entry cites D-CH26-FOLLOWUP-01 + 3-of-4 axes; L294 count-amendment footnote `[^count-fix]` documents "15" → "7" per ADR-0062 §D62.5 META; L298-299 Post-M5.3 actions paragraph updated.
 
 ### Claim 20 — Verified-headers bumped to 2026-05-18 on all touched docs
 **Verdict:** PASS
@@ -132,7 +132,7 @@
 - composite-resources-operations.md: L1 (P-DOCS body amend).
 - permissions/04-manifest-and-resolution.md: L2 (CH-27 amendment).
 - _cycle-index.md: L1.
-- forward-scope/22035b2a-remaining-scope-post-m5-p7.md: L1.
+- forward-scope/remaining-scope-post-m5-p7-22035b2a.md: L1.
 Body diffs match the verified-header descriptions in each case.
 
 ## Workspace test result

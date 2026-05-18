@@ -171,7 +171,7 @@ Wires into `audit/events/m5_2/mod.rs` via `pub mod tool_authority;`.
 - Audit-event family precedent: [`m5/consents.rs`](../../../../../../modules/crates/domain/src/audit/events/m5/consents.rs) (consent transition events; same builder pattern); [`m5_2/memory.rs`](../../../../../../modules/crates/domain/src/audit/events/m5_2/memory.rs) (memory-extracted, also `m5_2`-bucketed); [`m4/agents.rs`](../../../../../../modules/crates/domain/src/audit/events/m4/agents.rs) (Alerted-class for security-sensitive changes).
 - Concept docs: [`permissions/05-memory-sessions.md`](../../../concepts/permissions/05-memory-sessions.md) lines 220–231 + 516–525 + 531–541; [`permissions/01-resource-ontology.md`](../../../concepts/permissions/01-resource-ontology.md) lines 254–261 + 267; [`permissions/09-selector-grammar.md`](../../../concepts/permissions/09-selector-grammar.md) lines 190–196; [`permissions/04-manifest-and-resolution.md`](../../../concepts/permissions/04-manifest-and-resolution.md) §"Manifest Validation at Publish Time".
 - Drift [D-new-08](../../m5_1/drifts/D-new-08.md) (closed by this ADR).
-- Forward-scope row CH-12 (lines 123–128) at [22035b2a-remaining-scope-post-m5-p7.md](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md).
+- Forward-scope row CH-12 (lines 123–128) at [remaining-scope-post-m5-p7-22035b2a.md](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md).
 - Plan archive: [`plan/build/ch-12-frozen-session-tag-immutability-6a748175/plan.md`](../../../../plan/build/ch-12-frozen-session-tag-immutability-6a748175/plan.md).
 
 ---

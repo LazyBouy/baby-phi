@@ -226,7 +226,7 @@ ADR-0058 is governance-tier; convention-docs are reviewer-tier. The two artefact
 
 ### §D58.10 (META) — Forward-scope row "(14 items)" off-by-2 amendment
 
-**Pre-existing wording preserved at [`docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` line 185](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (M5.1/P3 authoring, 2026-04-24); CH-20 amends `(existing 14 items)` → `(existing 16 items)` inline at chunk-seal P3 to match the empirical drift count.**
+**Pre-existing wording preserved at [`docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` line 185](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (M5.1/P3 authoring, 2026-04-24); CH-20 amends `(existing 14 items)` → `(existing 16 items)` inline at chunk-seal P3 to match the empirical drift count.**
 
 The convention: when a forward-scope row's parenthetical drift-count is empirically off, the chunk that closes the drifts amends the wording inline at chunk-seal (rather than filing a separate planning-artefact correction drift). The forward-scope row is a planning artefact, not a concept-doc; the parenthetical fix is a 1-line content edit (categorised as Trivial-1L per the audit-fix-loop rule).
 
@@ -304,7 +304,7 @@ Out-of-scope explicitly:
 
 ### (d) Forward-scope row
 
-- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 185–187](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (CH-20 row); §5 severity table line 428.
+- [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 185–187](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (CH-20 row); §5 severity table line 428.
 
 ### (e) Convention-doc URLs (NEW for F1.B; ADR cross-references all 5)
 

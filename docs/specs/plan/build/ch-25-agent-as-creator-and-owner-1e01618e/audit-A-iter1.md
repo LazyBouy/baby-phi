@@ -35,7 +35,7 @@
 | 20. ADR-0060 Accepted + 6 sub-decisions | PASS | `m5_3/decisions/0060-agent-as-creator-and-owner.md:6` `Status: Accepted`; §D60.1–§D60.6 enumerated at lines 42, 79, 87, 112, 127, 144 |
 | 21. D-philosophy-01 remediated + cycle hex | PASS | `m5_3/drifts/D-philosophy-01.md:11` `Status: remediated`; lifecycle entry at `:63` `2026-05-16 — remediated — **CH-25 ✓ (cycle hex 1e01618e)**` |
 | 22. Cycle-index row appended | PASS | `_cycle-index.md:55` CH-25 row with status `ready-for-audit`, hex `1e01618e`, F1.b divergence noted, 1556/0/2 reported |
-| 23. Forward-scope §2.5 CH-25 closure header | PASS | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:242` `### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1) — **CLOSED at cycle hex 1e01618e (2026-05-16)**` |
+| 23. Forward-scope §2.5 CH-25 closure header | PASS | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:242` `### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1) — **CLOSED at cycle hex 1e01618e (2026-05-16)**` |
 | 24. 4 CI guards green in audit shell | PASS-with-caveat | all 4 ran clean in audit shell (see below); orchestrator gate-4 MUST-RUN remains authoritative |
 
 ## Per-claim detail
@@ -266,7 +266,7 @@
 ### Claim 23 — Forward-scope §2.5 CH-25 closure header
 **Verdict:** PASS
 **Evidence:**
-- `forward-scope/22035b2a-remaining-scope-post-m5-p7.md:242`:
+- `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:242`:
   `### CH-25 — Agent-as-creator-and-owner of Org/Project (philosophy §4.1) — **CLOSED at cycle hex \`1e01618e\` (2026-05-16)**`
 - Deliverables list at `:247-256` enumerates all shipped items + R5 carry-forward.
 

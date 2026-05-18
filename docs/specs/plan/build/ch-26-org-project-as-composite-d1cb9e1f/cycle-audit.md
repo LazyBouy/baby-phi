@@ -110,7 +110,7 @@ All §2 rows `honored` at chunk close. Notable transitions:
 | `m5_3/drifts/README.md` | (existing) | ✅ AMEND — open-drifts + remediated counts updated; D-philosophy-02 row Status flipped; D-CH26-FOLLOWUP-01 row appended |
 | `m5_3/drifts/_concept-audit-matrix.md` | (existing) | ✅ AMEND — "Org has Projects" row flipped + "Two Types of Resources" cardinality updated 8→10 (Trivial-1L) |
 | Cycle-index row | `_cycle-index.md` | ✅ APPEND + cycle-index top verified-header PREPEND per chunk-implementer v9 R2 dual-write (verified: `head -1 \| grep -c d1cb9e1f` returns 1; `grep -c d1cb9e1f _cycle-index.md` returns ≥ 2) |
-| Forward-scope §2.5 | `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` | ✅ CH-26 row CLOSED header amended + NEW CH-27 row appended + §"Post-M5.3 actions" amended (M6 plan-open waits on CH-27 close) |
+| Forward-scope §2.5 | `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` | ✅ CH-26 row CLOSED header amended + NEW CH-27 row appended + §"Post-M5.3 actions" amended (M6 plan-open waits on CH-27 close) |
 
 **Doc-sync widened sweep (per CLAUDE.md gate-2 + CH-15 retro Row 1):** ZERO actionable stale-narrative matches introduced by CH-26.
 

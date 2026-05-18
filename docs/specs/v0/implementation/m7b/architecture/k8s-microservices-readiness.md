@@ -6,8 +6,8 @@
 **Owning milestone:** M7b (production hardening)
 **Inputs:**
 - Concept docs at [`v0/concepts/`](../../../concepts/)
-- Forward-scope inventory: [`plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md)
-- This doc's executable counterpart: [`plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md`](../../../../plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md)
+- Forward-scope inventory: [`plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md)
+- This doc's executable counterpart: [`plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md`](../../../../plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md)
 - 3 parallel Explore-agent investigation reports (process / persistence / operational surfaces)
 
 ---
@@ -220,7 +220,7 @@ If single-pod throughput becomes a real bottleneck before M7b opens, that trigge
 
 **Cross-references for the rule:**
 - [`m5_1/process/per-chunk-planning-template.md`](../../m5_1/process/per-chunk-planning-template.md) §3.B — the template every chunk plan fills in.
-- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §7 Q8 — the binding planning decision.
+- [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §7 Q8 — the binding planning decision.
 - [`deferred-from-ch-k8s-prep.md`](./deferred-from-ch-k8s-prep.md) — the live ledger where new entries land.
 - [`m5_2/decisions/0033-k8s-prep-refactors.md`](../../m5_2/decisions/0033-k8s-prep-refactors.md) §D33.1–D33.4 — the conforming-impl criteria each chunk verifies it doesn't break.
 

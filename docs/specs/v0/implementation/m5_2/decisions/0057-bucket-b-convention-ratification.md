@@ -270,7 +270,7 @@ Out-of-scope explicitly:
 
 ### (d) Forward-scope row
 
-- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 179–183](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (CH-19 row); §5 severity-row binding at line 427.
+- [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 179–183](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (CH-19 row); §5 severity-row binding at line 427.
 
 ### Plan archive
 

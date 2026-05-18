@@ -5,7 +5,7 @@
 
 **Severity:** ⚠ HIGH
 **Estimated effort:** ~2 engineer-days
-**Forward-scope row:** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96.
+**Forward-scope row:** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96.
 **Drifts closed:** **D-new-13** (HIGH, A) + **D-new-29** (LOW, B).
 **ADR slot:** ADR-0052.
 **Prerequisites:** **CH-04** (typed actions — sealed at `ch-04-typed-action-vocabulary-3a65a2fc.md`; `Action::Allocate` + `Action::Transfer` already live at `action.rs:57-58`).
@@ -109,7 +109,7 @@ If the user locks all 5 to the planner recommendation, **all Direct-approval cri
 
 **Quality-over-speed restatement.** *Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently.* For CH-08 specifically: the cardinality distinction is **structural** (a transfer that fails to revoke sender = silent over-accounting of authority across multiple holders, contradicting concept-doc 02 line 199–204 verbatim) and **the chunk-plan refuses the shortcut of leaving D-new-13 closed-as-aspirational**. The forward-defensive primitive is the minimum viable structural enforcement; it ships now even though no production transfer-flow exists yet.
 
-**Forward-scope reference.** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96 (CH-08 row).
+**Forward-scope reference.** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96 (CH-08 row).
 
 ---
 
@@ -278,7 +278,7 @@ Both transitions land at chunk seal (P4) per [`drift-lifecycle.md`](../../../v0/
    - **(a) Originating concept-doc**: `permissions/02-auth-request.md` §"`allocate` Scope Semantics" lines 179–207 (cardinality table at lines 201–204; atomic-revocation language at line 206; refinement framing at line 197); `permissions/03-action-vocabulary.md` §"`allocate` as the Umbrella Action" lines 48–54 (umbrella + refinement-as-constraint framing).
    - **(b) Closed drifts**: `D-new-13` (HIGH-A); `D-new-29` (LOW-B).
    - **(c) Prior ADRs cited as precedent**: ADR-0022 (compound-tx pattern for org creation — F1.A precedent); ADR-0023 (inherit-from-snapshot — F1.A relevance); ADR-0028 (audit-event emission via `AuditEmitter` — A7 pattern); ADR-0033 (CH-K8S-PREP conforming criteria); ADR-0048 §D48.1 (Grant.approval_mode field-add precedent for F3.A); ADR-0050 §D50.5 (Grant.audit_class field-add precedent for F3.A); ADR-0043 (typed Action enum — CH-04 prerequisite).
-   - **(d) Forward-scope row**: [`baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96 (CH-08 row).
+   - **(d) Forward-scope row**: [`baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96 (CH-08 row).
 
 ---
 
@@ -440,7 +440,7 @@ Healthy implementer over-shoot (one-property-per-row determinism tests; round-tr
    - `baby-phi/docs/specs/plan/build/ch-11-per-session-consent-gating-d5428c43/plan.md` (CH-11 D48.1 precedent).
    - `baby-phi/docs/specs/plan/build/ch-13-audit-class-composition-d4fe1b7c/plan.md` (CH-13 D50.5 precedent — folder name confirmed via `ls`).
    - `baby-phi/docs/specs/plan/build/ch-12-frozen-session-tag-immutability-6a748175/plan.md` (CH-12 forward-defensive precedent — folder name confirmed via `ls`).
-4. `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §5 (CH-08 row at lines 91–96) + §7 (binding Q&A decisions).
+4. `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §5 (CH-08 row at lines 91–96) + §7 (binding Q&A decisions).
 5. `baby-phi/CLAUDE.md` §"phi-core Leverage" rules 1–5.
 6. **CH-11 conditional reading-list (per `engine` Step N body discipline)**: not triggered. CH-08 does not modify any `domain::permissions::engine::step_N_*` body.
 

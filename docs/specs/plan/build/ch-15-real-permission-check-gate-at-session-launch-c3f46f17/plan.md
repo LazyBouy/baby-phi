@@ -4,7 +4,7 @@
 # CH-15 — Real permission-check gate at session launch · Plan
 
 **Cycle hex**: `c3f46f17`
-**Forward-scope row**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 147-151.
+**Forward-scope row**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 147-151.
 **Severity / effort**: ⚠HIGH · ~2 days · M5 critical path.
 **Test baseline at chunk-open**: 1431 passed / 0 failed / 2 ignored (`cargo test --workspace -j 4`, verified 2026-05-08).
 **phi-core import baseline at chunk-open**: 49 `use phi_core` statements across 68 files; `check-phi-core-reuse.sh` green.
@@ -104,7 +104,7 @@ Audit class: `Alerted` (concept doc 04 invariant 5: "audit trail on every outcom
 
 **Quality-over-speed restatement**: *Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently.* CH-15 application: where the forward-scope literal text (`session.start / session.tool_invoke / session.read_memory` as actions) disagrees with concept doc 03's closed action vocabulary, **the concept doc wins**, the forward-scope wording is re-interpreted as scoping-gloss (see F3), and the chunk gates the launch boundary using canonical Action verbs that concept doc 03 already permits.
 
-**Forward-scope reference**: [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 row 13 (CH-15 entry, lines 147-151).
+**Forward-scope reference**: [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5 row 13 (CH-15 entry, lines 147-151).
 
 ## §2 — Concept alignment walk
 
@@ -323,7 +323,7 @@ git grep -nE 'match.*Decision\b' /root/projects/phi/baby-phi/modules/crates/
      - `m4/decisions/0028-domain-event-bus.md` (Template A listener wiring precedent for the dual-grant emission).
      - `m5/decisions/0029-session-persistence-and-recorder-wrap.md` (launch handler architecture).
      - `m5/decisions/0031-session-cancellation-and-concurrency.md` (launch handler concurrency model — informs ordering of hard-deny BEFORE registry.insert).
-   - **(d) Forward-scope row**: `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 147-151 (CH-15 row) — including the *forward-scope-literal-re-interpretation* note (§D54.8 below).
+   - **(d) Forward-scope row**: `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 147-151 (CH-15 row) — including the *forward-scope-literal-re-interpretation* note (§D54.8 below).
 
 3. **Pre-existing-behaviour preservation note** (CH-14 retro Row 10):
    - Document explicitly the **pre-CH-15 advisory-log behaviour**: "At M5/P4, `launch.rs:198-246` advisory-logs every step-1-to-6 Permission-Check denial via `tracing::info!(..., 'sessions::launch: Permission Check denied (advisory at M5; not blocking)')` and proceeds to `spawn_agent_task`. Only Step 0 (Catalogue) gates, returning 403 `PERMISSION_CHECK_FAILED_AT_STEP_0`. CH-15 (this ADR) flips Step 1–6 deny paths to hard-deny via the same `SessionError::PermissionCheckFailed { step, reason }` shape."
@@ -545,7 +545,7 @@ bash scripts/check-spec-drift.sh
    - CH-09 / CH-10 / CH-11 plan archives (per-session consent gating).
    - CH-13 plan archive (audit-class composition).
    - CH-14 plan archive (authority chain — `walk_provenance_chain` reused here).
-4. `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §5 row 13 (CH-15) + §7 Q&A binding decisions.
+4. `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §5 row 13 (CH-15) + §7 Q&A binding decisions.
 5. `baby-phi/CLAUDE.md` phi-core Leverage section + `phi-core/CLAUDE.md` summary.
 6. `permissions/04-manifest-and-resolution.md` Step-N enforcement semantics (re-read at chunk-open).
 7. `repository.rs` module-level docstring lines 19-48 (Repository trait contract block) — **NOT applicable** to CH-15 (no new tag-write Repository method introduced; the new audit-event emission is via the existing `Arc<dyn AuditEmitter>` not a Repository tag-write surface).

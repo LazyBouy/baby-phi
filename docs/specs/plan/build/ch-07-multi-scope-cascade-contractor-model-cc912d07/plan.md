@@ -122,7 +122,7 @@ CH-07 closes both drifts: `step_5_scope_resolution` becomes the full 2-tier-plus
 
 ### Forward-scope reference
 
-[§1 CH-07 row](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 84–89. No §4 critical-path entry (CH-07 unblocks nothing critical).
+[§1 CH-07 row](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 84–89. No §4 critical-path entry (CH-07 unblocks nothing critical).
 
 ---
 
@@ -353,7 +353,7 @@ The actual lock-state will be filled in by P1 implementer when the chunk-planner
 - (a) **Originating concept-doc + sections**: `permissions/04-manifest-and-resolution.md` §"Mechanism 2: Scope Resolution" lines 354–375; `permissions/06-multi-scope-consent.md` §"The Unified Resolution Rule" lines 28–63 + §"Subject-Side Reach Is Bounded by Scope Membership" lines 161–166; `permissions/08-worked-example.md` §"Step 4" lines 192–222 + §"Step 7" lines 287–298.
 - (b) **Closed drifts**: D-new-06 (HIGH), D-new-20 (MEDIUM).
 - (c) **Prior ADRs cited as precedent**: ADR-0036 (selector grammar — provides the tag-predicate machinery the cascade reads `session.tags` through), ADR-0048 (per-session consent — precedent for adding `&[OrgId]`-shaped slices to CheckContext), ADR-0050 (audit-class composition — precedent for additive enum variants without migration), ADR-0033 (CH-K8S-PREP conforming criteria — referenced for K8s-neutral verification).
-- (d) **Forward-scope row cross-reference**: `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 84–89 (CH-07 row).
+- (d) **Forward-scope row cross-reference**: `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 84–89 (CH-07 row).
 
 ---
 
@@ -811,7 +811,7 @@ grep -nE "5-tier scope cascade|Unified resolve_scope cascade|Contractor model|Sh
 
 ## Appendix — Cross-references
 
-- **Forward-scope row**: `baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 84–89.
+- **Forward-scope row**: `baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 84–89.
 - **Per-chunk template**: `baby-phi/docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md`.
 - **Granular Bash discipline source-of-truth**: `baby-phi/docs/specs/permissions/granular-bash-discipline-ab19399b.md`.
 - **Multi-agent pipeline meta-plan**: `baby-phi/docs/specs/agentic-workflow/multi-agent-chunk-pipeline-0853574c.md`.

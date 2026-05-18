@@ -51,7 +51,7 @@
 - [`m5/decisions/0031-session-cancellation-and-concurrency.md`](../../m5/decisions/0031-session-cancellation-and-concurrency.md) — `SessionRegistry` precedent + 503 saturation gate (`SessionLiveStreamRegistry` mirrors this shape).
 - [`m5_2/decisions/0032-mock-provider-at-m5.md`](./0032-mock-provider-at-m5.md) — CH-02 the real `agent_loop` runtime + MockProvider that produces the events being streamed.
 
-**(d) Forward-scope row** (mandatory per CH-13 retro Row 1): [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §"Live SSE", lines 161–167.
+**(d) Forward-scope row** (mandatory per CH-13 retro Row 1): [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §"Live SSE", lines 161–167.
 
 ---
 

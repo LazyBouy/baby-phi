@@ -119,7 +119,7 @@ The chunk closes drift D-new-08 (HIGH; security-boundary). No new K8s blockers (
 
 ### Forward-scope reference
 
-[CH-12 row](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (lines 123–128) + §1.4 "Frozen tags + audit" block (lines 121–128).
+[CH-12 row](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (lines 123–128) + §1.4 "Frozen tags + audit" block (lines 121–128).
 
 ### Concept-doc anchor
 

@@ -3,7 +3,7 @@
 # CH-02 — Real `agent_loop` + MockProvider wiring
 
 **Plan file token:** `16fd9a3a` (generated via `openssl rand -hex 4`)
-**Chunk ID:** CH-02 (see [forward-scope §1](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) and [§5](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md))
+**Chunk ID:** CH-02 (see [forward-scope §1](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) and [§5](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md))
 **Severity:** HIGH
 **Expected effort:** ~6 engineer-days (forward-scope §5 was 5d; +1d for per-profile `mock_response` governance field + migration 0006 + repo layer — Q decided 2026-04-24)
 **Chunks enabled after close:** CH-15, CH-16, CH-17, CH-21, CH-24
@@ -26,7 +26,7 @@ Applied here: CH-02 exercises phi-core's canonical execution primitive (`agent_l
 
 ### Forward-scope reference
 
-[Forward-scope §1 CH-02 block](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) + [§5 row](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md).
+[Forward-scope §1 CH-02 block](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) + [§5 row](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md).
 
 ---
 
@@ -281,7 +281,7 @@ These run at chunk-open AND at chunk-seal.
 3. [`../../v0/implementation/m5_1/process/per-chunk-planning-template.md`](../../v0/implementation/m5_1/process/per-chunk-planning-template.md).
 4. [`../../v0/implementation/m5_1/process/chunk-lifecycle-checklist.md`](../../v0/implementation/m5_1/process/chunk-lifecycle-checklist.md).
 5. [`../../v0/implementation/m5_1/process/drift-lifecycle.md`](../../v0/implementation/m5_1/process/drift-lifecycle.md).
-6. [`../forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 CH-02 + §7 Q&A.
+6. [`../forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 CH-02 + §7 Q&A.
 7. [`../../../../CLAUDE.md`](../../../../CLAUDE.md) §phi-core Leverage rules 1–5.
 8. Existing ADRs 0029 / 0030 / 0031 in [`../../v0/implementation/m5/decisions/`](../../v0/implementation/m5/decisions/) for style reference.
 
@@ -403,7 +403,7 @@ grep -c "^\- \*\*Status\*\*: Accepted" docs/specs/v0/implementation/m5_2/decisio
 
 ## Notes on M5.1/P3 Q&A binding
 
-This plan honors all 7 planning decisions from [forward-scope §7](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md):
+This plan honors all 7 planning decisions from [forward-scope §7](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md):
 
 - **Q1** (storage-backend) — untouched by CH-02; CH-03 owns.
 - **Q2** (selector PEG split) — untouched; CH-06 owns.

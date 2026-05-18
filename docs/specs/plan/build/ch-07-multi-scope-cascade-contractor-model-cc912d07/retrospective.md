@@ -119,7 +119,7 @@ Two updates surface from §3.5 (rolled into §5 below):
 |---|---|---|---|---|
 | 1 | `/root/projects/phi/.claude/agents/chunk-planner.md` | Step 0 / pre-archive checklist | Add bullet: "Re-run every §3 grep against current git HEAD immediately before plan-archive; update line citations if any drifted." | §3 row 1 + P1 |
 | 2 | `/root/projects/phi/baby-phi/docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md` | §3 cascade-artifact discipline | Add caveat: "Per-file edit-count predictions are approximate; aggregate band (lower–upper) is the load-bearing prediction. Pause threshold (1.5× upper) is enforced on the aggregate." | §3 row 2 + P2 |
-| 3 | `/root/projects/phi/baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md` | §1 row CH-07 (already-closed) + every open multi-step pipeline row | Add parenthetical "(informal labeling for N distinct outcomes — see concept-doc canonical phrasing)" wherever the row's wording diverges from a concept doc. Touches at minimum the closed CH-07 row at lines 84–89 (retroactive) + any open rows that future cycles will visit. | §3 row 3 + P3 |
+| 3 | `/root/projects/phi/baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md` | §1 row CH-07 (already-closed) + every open multi-step pipeline row | Add parenthetical "(informal labeling for N distinct outcomes — see concept-doc canonical phrasing)" wherever the row's wording diverges from a concept doc. Touches at minimum the closed CH-07 row at lines 84–89 (retroactive) + any open rows that future cycles will visit. | §3 row 3 + P3 |
 | 4 | `/root/projects/phi/baby-phi/docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md` | §3 (cascade artifacts) | Add sub-bullet: "When a concept-doc semantic could land at multiple pipeline steps, §3 MUST explicitly state which step + cite the rationale." Cite CH-07 §3 Artifact B (step_2a vs step_5 placement of concept 06 line 162) as exemplar. | §3 row 4 + P4 |
 | 5 | `/root/projects/phi/.claude/settings.json` | `permissions.allow` array — `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh *)` (line 45) | **Refine the rule.** Either (a) replace `*` suffix with `:*` (colon form: `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh:*)`); OR (b) add a paired rule `Bash(bash /root/projects/phi/baby-phi/scripts/check-*.sh 2>&1*)` to capture the redirect+pipe shape. Test post-update by running `bash /root/projects/phi/baby-phi/scripts/check-doc-links.sh 2>&1 \| tail -10` and verifying no PermissionRequest fires. | §3.5 §H1 (A1) + §3 row 5 |
 | 6 | `/root/projects/phi/baby-phi/docs/specs/permissions/granular-bash-discipline-ab19399b.md` | "Empirical Bash matcher quirks" section (new or existing) | Document the "redirect+pipe combo defeats single-`*` glob" quirk: `Bash(prefix *)` does NOT match `prefix arg 2>&1 \| tail -N`. Workaround: use `Bash(prefix:*)` colon form, OR add a paired rule for the redirect form. Cross-reference CH-07 retro §3 row 5 + §3.5. | §3.5 §H2 (A2) |
@@ -177,7 +177,7 @@ Two updates surface from §3.5 (rolled into §5 below):
 
 ## §7 — Forward-scope feedback
 
-CH-07 surfaced two specific findings about the forward-scope row at `22035b2a-remaining-scope-post-m5-p7.md` lines 84–89:
+CH-07 surfaced two specific findings about the forward-scope row at `remaining-scope-post-m5-p7-22035b2a.md` lines 84–89:
 
 1. **"5-tier" labeling diverged from concept-doc canonical phrasing** (concept 04 + 06 say 2 main tiers + tie-breakers + intersection). This was a F1-shape fork that consumed plan-approval AskUserQuestion bandwidth (user had to read concept docs to confirm F1.A vs F1.B). **Standards update §5 row 3 closes it** by mandating concept-doc phrasing OR explicit informal-labeling tag in forward-scope rows that touch multi-step pipelines.
 
@@ -197,7 +197,7 @@ CH-07 surfaced two specific findings about the forward-scope row at `22035b2a-re
 - **ADR-0051** (Accepted): [`m5_2/decisions/0051-multi-scope-cascade-contractor-model.md`](../../v0/implementation/m5_2/decisions/0051-multi-scope-cascade-contractor-model.md)
 - **Drifts remediated**: [D-new-06](../../v0/implementation/m5_1/drifts/D-new-06.md), [D-new-20](../../v0/implementation/m5_1/drifts/D-new-20.md)
 - **Drifts opened**: [D-CH07-FOLLOWUP-01](../../v0/implementation/m5_1/drifts/D-CH07-FOLLOWUP-01.md) (LOW, M6+)
-- **Forward-scope row**: [`22035b2a-remaining-scope-post-m5-p7.md` lines 84–89](../forward-scope/22035b2a-remaining-scope-post-m5-p7.md)
+- **Forward-scope row**: [`remaining-scope-post-m5-p7-22035b2a.md` lines 84–89](../forward-scope/remaining-scope-post-m5-p7-22035b2a.md)
 - **Prior retros (cross-cycle pattern source)**: [CH-13 retro](../ch-13-audit-class-composition-strictest-wins-d4fe1b7c/retrospective.md), [CH-12 retro](../ch-12-frozen-session-tag-immutability-6a748175/retrospective.md), [CH-11 retro](../ch-11-per-session-consent-gating-d5428c43/retrospective.md)
 - **Multi-agent pipeline meta-plan**: [`agentic-workflow/multi-agent-chunk-pipeline-0853574c.md`](../../agentic-workflow/multi-agent-chunk-pipeline-0853574c.md)
 - **Granular Bash discipline**: [`permissions/granular-bash-discipline-ab19399b.md`](../../permissions/granular-bash-discipline-ab19399b.md)

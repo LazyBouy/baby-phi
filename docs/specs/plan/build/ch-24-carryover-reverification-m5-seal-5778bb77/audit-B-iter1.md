@@ -24,7 +24,7 @@
 | 9. AMEND `m7b/architecture/deferred-from-ch-k8s-prep.md` CHK8S-D-02 (current body says e2e_first_session.rs IS extant at modules/crates/cli/tests/e2e_first_session.rs; SIGTERM branch deferred) | PASS | `deferred-from-ch-k8s-prep.md:79` "the `e2e_first_session.rs` file is extant at `modules/crates/cli/tests/e2e_first_session.rs`"; SIGTERM at `:79` "remains M7b-deferred"; verified-header `:1` |
 | 10. VERIFIED-HEADER bumps (4 m5/operations + 4 m5/user-guide, 2026-05-11 + CH-24 attribution) | PASS | 8 files all carry `2026-05-11 by Claude Code (CH-24 P-DOCS ...)` headers |
 | 11. DOC-SYNC SWEEP (stale-narrative phrases) — 0 actionable matches | PASS | grep results only intentional historical contexts (D4.1, ADR-0054) |
-| 12. Forward-scope row 211 amendment + verified-header bumped | PASS | `22035b2a-remaining-scope-post-m5-p7.md:212` "Drifts closed: **1 (D-CH24-recent-sessions-api-flip — mid-cycle scope expansion approved at gate-2.5)**"; scope-expansion paragraph at `:214`; verified-header `:1` |
+| 12. Forward-scope row 211 amendment + verified-header bumped | PASS | `remaining-scope-post-m5-p7-22035b2a.md:212` "Drifts closed: **1 (D-CH24-recent-sessions-api-flip — mid-cycle scope expansion approved at gate-2.5)**"; scope-expansion paragraph at `:214`; verified-header `:1` |
 
 ## Per-claim detail
 
@@ -319,7 +319,7 @@ Conclusion: **0 actionable matches**. All matches are intentional historical-con
 
 **Evidence:**
 
-File at `/root/projects/phi/baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md`.
+File at `/root/projects/phi/baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md`.
 
 Verified-header at `:1`:
 ```

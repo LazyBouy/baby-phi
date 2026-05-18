@@ -6,7 +6,7 @@
 **Type:** Architecture / scoping input
 **Owning milestone:** M7b
 **Sibling:** [`k8s-microservices-readiness.md`](./k8s-microservices-readiness.md) (the assessment doc)
-**Source chunk:** [CH-K8S-PREP plan](../../../../plan/forward-scope/ab49f22b-k8s-microservices-readiness-plan.md)
+**Source chunk:** [CH-K8S-PREP plan](../../../../plan/forward-scope/k8s-microservices-readiness-plan-ab49f22b.md)
 
 ---
 

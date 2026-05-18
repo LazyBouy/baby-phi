@@ -34,7 +34,7 @@ M5.1 was opened after M5/P7 close when the accumulating drift ledger (24→29 dr
 
 ### Forward-scope inventory — [`plan/forward-scope/`](../../../plan/forward-scope/)
 
-- [`22035b2a-remaining-scope-post-m5-p7.md`](../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md)
+- [`remaining-scope-post-m5-p7-22035b2a.md`](../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md)
   - §1 — 24 remediation chunks CH-01 to CH-24 + 5 deferred-markers (M6-DEFERRED-01/02, M6-or-M7-DEFERRED, M7-DEFERRED-01, M7b-DEFERRED-01).
   - §2 — M5 P8 + P9 scope restated as chunks.
   - §3 — M6+ scope at chunk granularity.
@@ -180,7 +180,7 @@ Target for P5 was ≥99% with independent-audit sign-off. Target exceeded.
 
 ## What happens next
 
-1. **User selects the first chunk** from [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §5 (per Q4 — user-decided at each chunk-open).
+1. **User selects the first chunk** from [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §5 (per Q4 — user-decided at each chunk-open).
 2. **Drafter copies [`process/per-chunk-planning-template.md`](./process/per-chunk-planning-template.md) structure** into a new plan file at `plan/build/<8hex>-<chunk-name>.md`; fills 12 sections; allocates ADR number(s) per Q6.
 3. **Pre-chunk gate walked** per template §9: reading list, carry-forward invariants, chunk-specific re-verification.
 4. **`ExitPlanMode` approval** per Q7 (uniform ritual — same for doc-only chunks).

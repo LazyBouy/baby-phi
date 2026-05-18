@@ -184,7 +184,7 @@ Changes to durable artifacts. Each row: target file + concrete diff intent + gap
 
 ## §7 — Forward-scope feedback (CH-08 row accuracy)
 
-The forward-scope row at [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96 said *"~2 days; transfer revokes sender's grant atomically; AllocateRefinement structured constraint type"*.
+The forward-scope row at [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96 said *"~2 days; transfer revokes sender's grant atomically; AllocateRefinement structured constraint type"*.
 
 - ✅ **Effort estimate accurate**: ~2 days. Actual ~14h elapsed including halt window — within band.
 - ✅ **"transfer revokes sender's grant atomically"**: directly mapped to F1.A `Repository::apply_transfer_grant` compound-tx. Concept-doc 02 line 206 verbatim quote landed in module + ADR-0052 §D52.5.
@@ -204,7 +204,7 @@ The forward-scope row at [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`
 - [Cycle audit](./cycle-audit.md) — orchestrator final cycle re-audit (gate 4) GREEN.
 - [ADR-0052](../../v0/implementation/m5_2/decisions/0052-allocate-transfer-cardinality-and-refinement.md) — Accepted 2026-05-07.
 - [D-new-13](../../v0/implementation/m5_1/drifts/D-new-13.md), [D-new-29](../../v0/implementation/m5_1/drifts/D-new-29.md) — both remediated 2026-05-07.
-- [Forward-scope row](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) lines 91–96.
+- [Forward-scope row](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) lines 91–96.
 - [Multi-agent pipeline meta-plan](../../agentic-workflow/multi-agent-chunk-pipeline-0853574c.md).
 - [CH-07 retrospective](../ch-07-multi-scope-cascade-contractor-model-cc912d07/retrospective.md) — origin of regression-protection step (§5 row 7).
 - [CH-13 retrospective](../ch-13-audit-class-composition-strictest-wins-d4fe1b7c/retrospective.md) — origin of bash-check hot signature (§H1).

@@ -6,7 +6,7 @@
 
 # CH-17 — Live SSE tail endpoint — chunk plan
 
-**Forward-scope row** — [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §"Live SSE", lines 161–167.
+**Forward-scope row** — [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §"Live SSE", lines 161–167.
 **Cycle hex** — `40c4d759` (token derived from `openssl rand -hex 4` at draft time).
 **Severity** — ⚠HIGH · ~1.0–1.3 days (iter-2 with F5.B-locked + F5.B.subfork(a) migration 0016).
 **Drift closed** — D7.1.
@@ -52,7 +52,7 @@
 
 **Quality-over-speed restatement.** *Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently.* For CH-17: the closed 34-verb action vocabulary (concept-doc 03 §"Standard Action Vocabulary"; `Action::CANONICAL.len() == 34` invariant at `domain/src/permissions/action.rs:439`) is **non-negotiable** — F5.B uses an action verb (`Observe`) that is already canonical (line 282), so no closed-set break occurs. Iter-1 incorrectly claimed F5.B would extend the vocabulary; iter-2 retracts that claim with the verified citations above.
 
-**Forward-scope reference.** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §"Live SSE", lines 161–167.
+**Forward-scope reference.** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §"Live SSE", lines 161–167.
 
 ---
 
@@ -277,7 +277,7 @@ git -C /root/projects/phi/baby-phi grep -nE 'pub (struct|enum|type) RecorderEven
    - `m5/decisions/0031-session-cancellation-and-concurrency.md` — `SessionRegistry` precedent + 503 saturation gate (`SessionLiveStreamRegistry` mirrors this shape).
    - `m5_2/decisions/0032-real-agent-loop-with-mock-provider.md` — CH-02 the real `agent_loop` runtime that produces the events being streamed.
 
-   (d) **Forward-scope row** (mandatory per CH-13 retro Row 1): [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §"Live SSE", lines 161–167.
+   (d) **Forward-scope row** (mandatory per CH-13 retro Row 1): [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §"Live SSE", lines 161–167.
 
 3. **Pre-existing-behaviour preservation note** (per CH-14 retro Row 10): documented in ADR-0055 §D55.8:
    > *"Pre-CH-17 behaviour preserved: the CLI's `phi session launch` print at `cli/src/commands/session.rs:228` ('(live tail deferred to M7 — `phi session show --id <id>` inspects terminal state)') is retired. The `--detach` flag's wire shape is preserved verbatim — `--detach` continues to skip the live tail and return the JSON receipt only. Pre-CH-17, every launch was effectively `--detach`. CH-17 makes `--detach` semantic for the first time. The `permission_check.decision` field on the launch receipt is preserved; CH-17 adds zero fields to the receipt schema. **Iter-2-specific preservation note**: `Action::Observe` was already canonical at `domain/src/permissions/action.rs:73,282,322` pre-CH-17 (introduced at CH-04 / ADR-0043 when the 34-verb enum landed). CH-17 does NOT introduce the `Observe` variant; it merely exercises the pre-existing canonical verb on `session_object` for the first time. Migration 0016 walks legacy Template A grants and appends `\"observe\"` to their action arrays — preserving every other field (holder, descends_from, delegable, issued_at, approval_mode, audit_class) verbatim. The pre-CH-15 single-grant-per-fire shape is unchanged; the pre-CH-15 paired-grant migration 0015 is unchanged; 0016 is purely additive."*
@@ -466,7 +466,7 @@ Named expected-still-green tests:
 9. `m5_2/decisions/0033-k8s-prep-refactors.md` (trait-shaping precedent for `SessionLiveStreamRegistry` + migration-runner ledger pattern for 0016).
 10. `m5/decisions/0029-session-persistence-and-recorder-wrap.md` (recorder-wrap design).
 11. `m5_2/decisions/0032-real-agent-loop-with-mock-provider.md` (CH-02).
-12. `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §"Live SSE", lines 161–167 + §7 Q&A.
+12. `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §"Live SSE", lines 161–167 + §7 Q&A.
 13. `baby-phi/CLAUDE.md` §"phi-core Leverage" (rules 1–5).
 14. `m7b/architecture/k8s-microservices-readiness.md` + `m7b/architecture/deferred-from-ch-k8s-prep.md` (current ledger; CHK8S-D-10 will append).
 15. **Conditional (CH-11 retro)**: `server::platform::sessions::launch.rs` body + `server::platform::sessions::preview.rs` body (manifest-shape preconditions).

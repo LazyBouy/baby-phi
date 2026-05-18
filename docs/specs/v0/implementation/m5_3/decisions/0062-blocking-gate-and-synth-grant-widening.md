@@ -212,7 +212,7 @@ Each §D62.<M> above carries its own Pre-existing-behaviour preservation note in
 - [`m2/0018-handler-support-module.md`](../../m2/decisions/0018-handler-support-module.md) — `denial_to_api_error` precedent at `handler_support::permission`.
 
 **Forward-scope row**:
-- [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](../../../../plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §2.5 lines 277-289 (CH-27 row + M5.3 carve-out arc).
+- [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](../../../../plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §2.5 lines 277-289 (CH-27 row + M5.3 carve-out arc).
 
 **NEW drift filed at P-SEAL**:
 - `D-CH27-FOLLOWUP-01` — `Impl chunk = M6-DEFERRED-RESOLVERS-WIRING`; resolver actor-passthrough architectural design + wiring at M6 plan-open.

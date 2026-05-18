@@ -5,7 +5,7 @@
 **Cycle hex:** `240616a4`
 **Slug:** `ch-20-bucket-c-confirm-in-place`
 **Type:** **doc-only** — no code changes, no test count change, no migration, +0 phi-core delta.
-**Forward-scope row:** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md:185-187`](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (§5 row also at line 428).
+**Forward-scope row:** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md:185-187`](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (§5 row also at line 428).
 **Per-chunk template:** [`m5_1/process/per-chunk-planning-template.md`](../../../v0/implementation/m5_1/process/per-chunk-planning-template.md).
 **Drifts closed in this chunk:** D1.1, D1.2, D1.3, D2.1, D2.2, D3.1, D3.2, D3.3, D3.4, D4.3, D4.4, D4.5, D4.6, D6.4, D7.3, D7.6 — **16 drifts** (forward-scope row's "(existing 14 items)" parenthetical is empirically off-by-2; see §1 reconciliation).
 **ADR drafted:** **ADR-0058** — Bucket C convention confirm-in-place (sub-decisions §D58.1–§D58.10 grouping the 16 drifts into 5 thematic conventions + 3 META decisions for the new peer tier).
@@ -62,7 +62,7 @@ The chunk produces (a) **5 new convention-docs** under the new `v0/conventions/`
 
 **Quality-over-speed restatement.** *"Concept docs are source-of-truth; implementation aligns to them. Drift is discovered, documented, and planned-through — never accumulated silently."* CH-20 application: the 16 Bucket-C drifts have lived as `discovered` in the catalogue since M5/P1–P7 close (April 23–24, 2026); shipping CH-20 closes them by promoting their convention-status from "shipped but undocumented" to "shipped + ADR-0058 + 5 convention-docs + matrix-side rollup honored." The chunk's value is removing silent-convention drift and creating the FIRST `v0/conventions/` directory entries — establishing the convention-doc-as-first-class-artefact pattern for future M6+ reviewer guidance. **F1.B's multi-file shape additionally establishes the per-area-file convention** for future Bucket-C-style ratifications (one thematic convention area = one file), which CH-21+ planners can mirror.
 
-**Forward-scope reference.** [forward-scope row at line 185-187](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md). Severity-row binding at line 428 of §5 table: `LOW | 1d | various (conventions doc) | — | yes`. F1.B raises the deliverable count from "1 doc" to "5 docs" but each doc is small (~150–250 words); total prose volume is comparable to the v1 single-file estimate (~700–900 words across 5 files vs ~600–900 words in 1 file).
+**Forward-scope reference.** [forward-scope row at line 185-187](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md). Severity-row binding at line 428 of §5 table: `LOW | 1d | various (conventions doc) | — | yes`. F1.B raises the deliverable count from "1 doc" to "5 docs" but each doc is small (~150–250 words); total prose volume is comparable to the v1 single-file estimate (~700–900 words across 5 files vs ~600–900 words in 1 file).
 
 ---
 
@@ -264,7 +264,7 @@ Verified at chunk-open 2026-05-10 + re-verified at v2 re-plan time → returned 
      - [`m5/decisions/0029-session-persistence-and-recorder-wrap.md`](../../../v0/implementation/m5/decisions/0029-session-persistence-and-recorder-wrap.md) (M5; §D29.1 nested-not-flatten + §D29.2 `Arc<Mutex<_>>` already documented these conventions per-record-type; ADR-0058 §D58.2 generalises across all wrap sites).
      - [`m5_2/decisions/0033-k8s-prep-refactors.md`](../../../v0/implementation/m5_2/decisions/0033-k8s-prep-refactors.md) (CH-K8S-PREP; §D33.4 single-AuditEmitter-writer guarantee that §D58.5's convention-extension preserves).
      - [`m4/decisions/0028-domain-event-bus.md`](../../../v0/implementation/m4/decisions/0028-domain-event-bus.md) (M4; Template-A fire-listener pattern that §D58.4's listener-wiring conventions extend).
-   - **(d) Forward-scope row:** [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md` lines 185-187](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) (CH-20 row); §5 severity table line 428.
+   - **(d) Forward-scope row:** [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md` lines 185-187](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) (CH-20 row); §5 severity table line 428.
    - **(e) Convention-doc URLs (NEW for F1.B; ADR cross-references all 5):**
      - [`docs/specs/v0/conventions/persistence.md`](../../../v0/conventions/persistence.md) — §D58.1 + §D58.3
      - [`docs/specs/v0/conventions/wrap-pattern.md`](../../../v0/conventions/wrap-pattern.md) — §D58.2
@@ -282,7 +282,7 @@ Verified at chunk-open 2026-05-10 + re-verified at v2 re-plan time → returned 
    - **§D58.7 — Web pattern (D7.6)**: strict formula. *"Pre-existing implementation preserved at `modules/web/app/(admin)/organizations/[id]/templates/page.tsx:142,159,182,199` (M5/P7 close, 2026-04-24); CH-20 ratifies without behaviour change."*
    - **§D58.8 (META) — Doc-tree `v0/conventions/` introduction**: v11 (c) Never-shipped-yet variation. *"Pre-existing absence preserved: no `v0/conventions/` directory existed before CH-20 (verified `ls baby-phi/docs/specs/v0/conventions/ → No such file or directory` at chunk-open 2026-05-10 + at v2 re-plan time); CH-20 ratifies the directory introduction as canonical."*
    - **§D58.9 (META) — First convention-doc set (5-file split per F1.B)**: v11 (c) Never-shipped-yet variation. *"Pre-existing absence preserved: no convention-doc files existed before CH-20; F1.B user-lock at gate-1 (2026-05-10, divergent from planner v1 F1.A single-file recommendation) settles the granularity at 5 separate files (one per thematic area: persistence / wrap-pattern / event-bus-wiring / cli-patterns / web-patterns)."*
-   - **§D58.10 (META) — Forward-scope row "(14 items)" off-by-2 amendment**: strict formula. *"Pre-existing wording preserved at `docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md:185` (M5.1/P3 authoring, 2026-04-24); CH-20 amends `(existing 14 items)` → `(existing 16 items)` inline at chunk-seal P3 to match the empirical drift count."*
+   - **§D58.10 (META) — Forward-scope row "(14 items)" off-by-2 amendment**: strict formula. *"Pre-existing wording preserved at `docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md:185` (M5.1/P3 authoring, 2026-04-24); CH-20 amends `(existing 14 items)` → `(existing 16 items)` inline at chunk-seal P3 to match the empirical drift count."*
 
    **Spirit-of-rule check applied:** every sub-decision identifies (i) what was the case before this chunk, (ii) whether this chunk changes it, (iii) where the historical evidence lives. The v11 variations don't loosen the spirit — they accommodate sub-decision shapes that lack a single shipped-at date (multi-milestone pattern emergence + doc-tree introductions).
 
@@ -487,7 +487,7 @@ Three phases: P1 (5 convention-docs + ADR-0058 + concept-doc verified-header bum
    - Flat-file area docs: `agent.md`, `coordination.md`, `core-philosophy.md`, `human-agent.md`, `ontology.md`, `organization.md`, `permissions/` (subdirectory), `phi-core-mapping.md`, `project.md`, `system-agents.md`, `token-economy.md`.
    - **Shape reference takeaways for `v0/conventions/`:** flat-file naming (one `.md` per area, no per-area subdirectories needed at the 5-file scale); kebab-case file names; verified-header line 1; ~200-500 word area docs is the typical concept-doc shape (CH-20 convention-docs target ≤ 250 words per file, slightly tighter because conventions are guidance not narrative). **No structural deviation from concept-doc shape; F1.B's 5-file split mirrors the concept-doc-area-per-file convention.**
 4. **Prior-chunk plans cited in §6** — N/A as plan files (no prior-chunk per-chunk plan needed; M5/P1–P7 plan archives are referenced via in-line line numbers in drift bodies). **Cross-cycle precedent reading**: [`ch-19-bucket-b-ratification-2c520ba7/plan.md`](../ch-19-bucket-b-ratification-2c520ba7/plan.md) (closest precedent; single-ADR doc-only ratification shape) + [ADR-0042](../../../v0/implementation/m5_2/decisions/0042-storage-backend-configurable.md) (first doc-only ratification ADR) + [ADR-0057](../../../v0/implementation/m5_2/decisions/0057-bucket-b-convention-ratification.md) (second; immediately preceding). Read at planner-draft time + re-confirmed at v2 re-plan time.
-5. [forward-scope §1 + §5 + §7](../../forward-scope/22035b2a-remaining-scope-post-m5-p7.md) — the chunk row + Q4 (per-chunk ordering) + Q5 (M5-scope defer) + Q7 (uniform doc-only ritual) + Q9 (user-facing doc impact map).
+5. [forward-scope §1 + §5 + §7](../../forward-scope/remaining-scope-post-m5-p7-22035b2a.md) — the chunk row + Q4 (per-chunk ordering) + Q5 (M5-scope defer) + Q7 (uniform doc-only ritual) + Q9 (user-facing doc impact map).
 6. [`baby-phi/CLAUDE.md`](../../../../../CLAUDE.md) phi-core Leverage section.
 7. **Tag-write Repository conditional (v3 per CH-12 retrospective Row 5):** N/A — CH-20 does NOT introduce or reference a new tag-write Repository method.
 8. **Engine.rs Step-N body conditional (v3 per CH-11 retrospective):** N/A — CH-20 does NOT touch `domain::permissions::engine` Step N body.
@@ -685,7 +685,7 @@ grep -n 240616a4 /root/projects/phi/baby-phi/docs/specs/plan/build/_cycle-index.
 # Expect: >= 1 hit
 
 # 3.i Forward-scope row amendment (§D58.10)
-grep -nE "existing 16 items" /root/projects/phi/baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md
+grep -nE "existing 16 items" /root/projects/phi/baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md
 # Expect: 1 hit at line 185 (replacing the prior "14 items")
 
 # 4. Drift-file status totals (template §12 rule)

@@ -59,7 +59,7 @@ CH-11 closes drift D-new-17 by wiring **real** Step 6 gating logic for all three
 
 ### Forward-scope reference
 
-[`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 lines 114–119.
+[`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 lines 114–119.
 
 ### Concept-doc anchor
 
@@ -529,7 +529,7 @@ ADR file path: [`m5_2/decisions/0048-per-session-consent-gating.md`](baby-phi/do
 11. [`modules/crates/domain/src/model/composites_m3.rs`](baby-phi/modules/crates/domain/src/model/composites_m3.rs) lines 41–68 (`ConsentPolicy`) — `ApprovalTimeout` enum is added in this file mirroring `ConsentPolicy` placement (per D48.11).
 12. [`modules/crates/store/migrations/0010_consent_full_shape.surql`](baby-phi/modules/crates/store/migrations/0010_consent_full_shape.surql) + [`0012_consent_deadline.surql`](baby-phi/modules/crates/store/migrations/0012_consent_deadline.surql) — migration precedents.
 13. [`baby-phi/CLAUDE.md`](baby-phi/CLAUDE.md) — phi-core Leverage section.
-14. [`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 lines 114–119 + §7 binding decisions.
+14. [`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 lines 114–119 + §7 binding decisions.
 15. [`process/per-chunk-planning-template.md`](baby-phi/docs/specs/v0/implementation/m5_1/process/per-chunk-planning-template.md) — full template (this plan's scaffold).
 16. [`m7b/architecture/deferred-from-ch-k8s-prep.md`](baby-phi/docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md) — to confirm CHK8S-D-09 + the conventions for new ledger entries.
 

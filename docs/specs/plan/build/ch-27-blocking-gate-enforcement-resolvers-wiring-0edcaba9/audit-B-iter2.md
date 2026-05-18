@@ -70,7 +70,7 @@ Iter-1 PARTIAL (1 PARTIAL of 20 + 1 cardinality side-observation across 4 docs).
 
 ### Claim 10 — forward-scope L288 §D62.4 CH-27 row amendment
 **Verdict:** PASS
-**Evidence:** `plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md:288` §D62.4 deliverable bullet enumerates the 6 named test files identically to ADR §D62.4 body. Phrase "**9 explicit call-sites** across 6 M3+M4+M5 acceptance test files" + cascade-collapse rationale + CH-25 ADR-0060 §D60.1 cite all present.
+**Evidence:** `plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md:288` §D62.4 deliverable bullet enumerates the 6 named test files identically to ADR §D62.4 body. Phrase "**9 explicit call-sites** across 6 M3+M4+M5 acceptance test files" + cascade-collapse rationale + CH-25 ADR-0060 §D60.1 cite all present.
 
 ### Claim 11 — Zero stale "19 fixture-extension" references remain
 **Verdict:** PASS

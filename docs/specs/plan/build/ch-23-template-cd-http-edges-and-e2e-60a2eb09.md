@@ -38,7 +38,7 @@ CH-23 closes that gap. It ships the two missing edges as first-class graph varia
 
 ### Forward-scope reference
 
-[`forward-scope/22035b2a-remaining-scope-post-m5-p7.md`](baby-phi/docs/specs/plan/forward-scope/22035b2a-remaining-scope-post-m5-p7.md) §1 lines 203–207 + §5 inventory row line 431.
+[`forward-scope/remaining-scope-post-m5-p7-22035b2a.md`](baby-phi/docs/specs/plan/forward-scope/remaining-scope-post-m5-p7-22035b2a.md) §1 lines 203–207 + §5 inventory row line 431.
 
 ---
 

@@ -68,7 +68,7 @@
     - `m4/decisions/0028-...` ✓ (file exists per `ls m4/decisions/`)
     - `m5/decisions/0029-...` ✓
     - `m5/decisions/0031-...` ✓
-  - `### Forward-scope row` (`:200-202`) — cites `forward-scope/22035b2a-remaining-scope-post-m5-p7.md` §5 row 13 lines 147–151 + the D54.8 re-interpretation note.
+  - `### Forward-scope row` (`:200-202`) — cites `forward-scope/remaining-scope-post-m5-p7-22035b2a.md` §5 row 13 lines 147–151 + the D54.8 re-interpretation note.
 - All 5 prior ADRs the audit prompt explicitly named (0033, 0044, 0048, 0050, 0053) carry the `m5_2/decisions/` milestone-prefix per CH-08 retro Row 1.
 
 ### Claim 4 — Pre-existing-behaviour preservation note (per CH-14 retro Row 10) + §D54.6 documents pre-CH-15 advisory-log + new hard-deny
