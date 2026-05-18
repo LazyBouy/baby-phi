@@ -86,6 +86,10 @@ For every load-bearing struct/enum/function the chunk touches with cascade impac
 - **Migration-number reservation.** When the plan adds a new SQL migration, run `ls /root/projects/phi/baby-phi/modules/crates/store/migrations/` at draft-time and capture the **next-free slot** (highest existing 4-digit prefix + 1). Do NOT assume sequential numbering from the chunk's hex order. CH-14 plan said `0011` was next-free but actual was `0014` (slots 0011/0012/0013 already taken by CH-23/CH-10/CH-11). Implementer corrected at P0 with no harm, but the plan-vs-reality drift is avoidable by greppting at draft-time. Cite the next-free slot in §3 + the migration deliverable bullet.
 - **Typed multi-value cascade-result precedent (`CascadeResult` pattern).** When a cascade method must return multiple semantically-distinct lists (e.g., "revoked grants" + "cascaded ARs", or "transitioned-states" + "emitted-events"), prefer a typed struct (`CascadeResult { revoked_grants: Vec<GrantId>, cascaded_ars: Vec<AuthRequestId> }`) over raw `Vec<X>` or tuple returns. CH-14 ships this at `domain/src/repository.rs:172-182` for the recursive-revoke cascade (`Repository::revoke_grants_by_descends_from_recursive`). Rationale: handler-side iteration becomes self-documenting; future cascade-result extensions (e.g., adding a third list field) don't break callsite signatures or trait-method shapes; field names compose with `cascade.revoked_grants.len()` more readably than `cascade.0.len()`. Cite this precedent when the chunk introduces or extends a cascade method.
 
+**Caveats** (CH-02b-i-phi retro Row 1, cycle hex `57b20bda`; chunk-planner v17 effective 2026-05-17):
+
+- **Per-fork pause-threshold re-derivation after gate-1 fork-locks.** §3 cascade-thresholds (file count cap, per-file LOC cap, Cargo.lock churn cap) are derived at plan-draft, BEFORE gate-1 locks the forks. When the orchestrator locks a fork that materially expands scope (e.g., F4.b 6 handlers vs F4.a 3; F-error.b thiserror enum vs F-error.a anyhow), the plan-draft thresholds may no longer reflect the locked scope. The plan §3 cascade paragraph MUST emit a **per-fork pause-threshold table** that lists each fork × its impact on the cascade-vector thresholds; the orchestrator at gate-1 re-derives the active thresholds by summing locked-option deltas before handing the implementer the chunk-open invariant set. CH-02b precedent: `src/daemon/ipc/server.rs` shipped at 354 LOC vs plan-draft 250 LOC cap (1.5× predicted 150); planner under-predicted F2.a transport-dual complexity, and threshold was NOT re-derived after gate-1. Companion rule at chunk-implementer.md v11 — implementer MUST AskUserQuestion at the breach (not just log in phase-close report).
+
 ### §3.B — K8s microservice readiness check
 
 **Binding rule (codified by CH-01 / forward-scope Q8 — every chunk applies):** the chunk plan evaluates whether its changes introduce new K8s-deployment hurdles. The full rationale + strategic context lives in [`m7b/architecture/k8s-microservices-readiness.md`](../../m7b/architecture/k8s-microservices-readiness.md); the tactical ledger of deferred items is at [`m7b/architecture/deferred-from-ch-k8s-prep.md`](../../m7b/architecture/deferred-from-ch-k8s-prep.md). Pre-CH-01 chunks (CH-02, CH-K8S-PREP) are grandfathered.
@@ -202,6 +206,18 @@ For each ADR list: number, title, drafted-at-phase, decision-summary (one line),
 
 **Spirit-of-rule check**: regardless of strict-vs-variation, every Pre-existing-behaviour preservation note MUST identify (i) what was the case before this chunk, (ii) whether this chunk changes it, (iii) where the historical evidence lives. The 3 variations don't loosen the spirit — they accommodate sub-decision shapes that lack a single shipped-at date.
 
+**ADR top-level section enumeration (v17 added 2026-05-17 per CH-02b-i-phi retro Row 2, cycle hex `57b20bda`; HIGH + mid-cycle confirmed)** — plan §5 MUST explicitly list every ADR top-level section the implementer authors. The canonical i-phi/baby-phi ADR shape is:
+
+1. `## Forks` (header table; Direct-approval vs Divergent form)
+2. `## Context` (chunk-graph + forward-scope citations)
+3. `## Sub-decisions` (one `### §D<N>.<M>` per fork + supporting decisions; each ends with the pre-existing-behaviour preservation note)
+4. `## Cross-references` (4 categories: (a) concept-doc + line range; (b) closed drifts; (c) prior ADRs as precedent; (d) forward-scope row)
+5. `## Consequences` (one `### For CH-<NN>` subsection per downstream chunk the ADR forward-routes to)
+6. **`## Revisit triggers`** — 3-7 bullets listing conditions that would warrant revisiting the ADR (each cites a specific §D<N>.<M> that would need re-opening)
+7. `## Verification` (commands to replay verification)
+
+The plan §5 ADR enumeration MUST name these 7 sections explicitly so the implementer doesn't omit them. CH-02b precedent: ADR-0003 first-iter omitted §"Revisit triggers" entirely + §"Consequences ### For CH-06" — Audit-B iter 1 caught both; 2 Trivial-multi orchestrator patches landed the missing content. v17 codifies the enumeration so future cycles don't re-incur the gap.
+
 ### §6 — Prior-chunk regression re-verification
 
 List every upstream chunk whose invariants this chunk depends on. For each, state the re-verification recipe:
@@ -235,7 +251,7 @@ Each phase documented as:
   - The chunk-implementer prompt (v7+) MUST treat MUST-SHIP-absent-at-chunk-seal as a chunk-seal **blocker** (do NOT silently substitute MAY-COVER coverage). CH-17 first implementer-spawn dropped MUST-SHIP `sse_live_stream_test.rs` per band-floor surrogate substitution; user-driven gate-3 re-dispatch closed the gap with +4h scope.
 - **Layer breakdown** — unit / integration / acceptance / e2e counts.
 - **Named test files** — list the new test file paths (per MUST-SHIP / MAY-COVER split above).
-- **Named expected-still-green tests** — anything fragile that the chunk's changes risk breaking; re-verified at chunk close.
+- **Named expected-still-green tests** — anything fragile that the chunk's changes risk breaking; re-verified at chunk close. **Grep-verify against actual repo state (v17 added 2026-05-17 per CH-02b-i-phi retro Row 3, cycle hex `57b20bda`)**: before emitting this list, run `grep -hE "^fn (test_|smoke_)" <PROJECT_ROOT>/tests/*.rs` (or equivalent for the project's test-naming convention) and use the actual fn names verbatim. Do NOT paraphrase from prior-cycle plan or retrospective text — those may have drifted. CH-02b precedent: plan §8 listed CH-02a carry-forward test names that didn't match actual fn names (`test_daemon_start_and_programmatic_shutdown_returns_within_5s` vs actual `test_daemon_starts_and_shuts_down_via_programmatic_shutdown`); no harm, but wording-drift; codified at v17 for cheap insurance.
 
 ### §9 — Pre-chunk gate
 
