@@ -68,8 +68,8 @@ mod tests {
     }
 
     #[test]
-    fn ontology_has_eight_composites() {
-        assert_eq!(Composite::ALL.len(), 8);
+    fn ontology_has_ten_composites() {
+        assert_eq!(Composite::ALL.len(), 10);
     }
 
     #[test]

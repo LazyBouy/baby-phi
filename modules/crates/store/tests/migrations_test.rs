@@ -23,7 +23,7 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
         .expect("query ledger")
         .take(0)
         .expect("take");
-    assert_eq!(rows.len(), 17, "every embedded migration recorded");
+    assert_eq!(rows.len(), 18, "every embedded migration recorded");
     assert_eq!(rows[0].get("version").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         rows[0].get("slug").and_then(|v| v.as_str()),
@@ -123,6 +123,14 @@ async fn open_embedded_applies_initial_migration_and_creates_schema() {
     assert_eq!(
         rows[16].get("slug").and_then(|v| v.as_str()),
         Some("add_owns_relation")
+    );
+    // CH-26 — Org/Project as Composite resources (ADR-0061 §D61.2 +
+    // §D61.3). Adds `tags` field to organization + project SCHEMAFULL
+    // tables; backfills instance-identity tag + catalogue entries.
+    assert_eq!(rows[17].get("version").and_then(|v| v.as_i64()), Some(18));
+    assert_eq!(
+        rows[17].get("slug").and_then(|v| v.as_str()),
+        Some("org_project_tags")
     );
 
     // A sample table from the initial migration exists and accepts a row

@@ -230,6 +230,7 @@ pub async fn bootstrap_with_two_orgs_and_projects() -> TwoOrgsWithProjectA {
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![format!("project:{}", project_id)],
         created_at: now,
     };
     repo.apply_project_creation(&ProjectCreationPayload {

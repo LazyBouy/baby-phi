@@ -56,6 +56,11 @@ pub enum OrgError {
     /// creation time — Template E / SystemBootstrap are not
     /// adopt-on-create; Template F is reserved for M6.
     TemplateNotAdoptable(String),
+    /// CH-26 / ADR-0061 §D61.5 — Permission Check engine returned
+    /// Denied for the requested action on the target org URI. The
+    /// HTTP layer maps this to 403 `NO_GRANTS_HELD` (preserves the
+    /// CH-25 wire convention from `denial_to_api_error`).
+    PermissionDenied(String),
     /// Repository returned an error.
     Repository(String),
     /// Audit emitter returned an error.
@@ -68,6 +73,7 @@ impl std::fmt::Display for OrgError {
             OrgError::Validation(m) => write!(f, "validation failed: {m}"),
             OrgError::OrgIdInUse => write!(f, "org id already in use"),
             OrgError::TemplateNotAdoptable(m) => write!(f, "template not adoptable: {m}"),
+            OrgError::PermissionDenied(m) => write!(f, "permission denied: {m}"),
             OrgError::Repository(m) => write!(f, "repository: {m}"),
             OrgError::AuditEmit(m) => write!(f, "audit emit: {m}"),
         }

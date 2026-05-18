@@ -426,6 +426,20 @@ pub struct Organization {
     /// `TimeoutResponse::Deny`.
     #[serde(default = "Organization::default_timeout_response")]
     pub approval_timeout_default_response: TimeoutResponse,
+    /// CH-26 / ADR-0061 §D61.2 — instance-identity + governance tags
+    /// carried at the row level. At-creation-time the
+    /// `apply_org_creation` compound-tx populates this with
+    /// `[format!("organization:{}", id)]` (the self-identity tag per
+    /// `concepts/permissions/01-resource-ontology.md` §"Instance Identity
+    /// Tags"). Backfill migration `0018_org_project_tags.surql`
+    /// populates extant pre-CH-26 rows.
+    ///
+    /// `#[serde(default)]` shields pre-CH-26 wire payloads — they decode
+    /// as `Vec::new()`. Precedent: `Session.tags`, `Memory.tags`,
+    /// `Channel.tags`, `AgentCredential.tags` (4 existing tag-bearing
+    /// node-types).
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -485,6 +499,19 @@ pub struct Project {
     /// project-scoped grants.
     #[serde(default)]
     pub resource_boundaries: Option<crate::model::composites_m4::ResourceBoundaries>,
+    /// CH-26 / ADR-0061 §D61.2 — instance-identity + governance tags
+    /// carried at the row level. At-creation-time the
+    /// `apply_project_creation` compound-tx populates this with
+    /// `[format!("project:{}", id)]` (the self-identity tag per
+    /// `concepts/permissions/01-resource-ontology.md` §"Instance Identity
+    /// Tags"). Backfill migration `0018_org_project_tags.surql`
+    /// populates extant pre-CH-26 rows.
+    ///
+    /// `#[serde(default)]` shields pre-CH-26 wire payloads — they decode
+    /// as `Vec::new()`. Precedent: `Session.tags`, `Memory.tags`,
+    /// `Channel.tags`, `AgentCredential.tags`.
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -1488,6 +1515,53 @@ mod tests {
             let back: AgentRole = serde_json::from_str(&j).expect("deserialize");
             assert_eq!(back, r);
         }
+    }
+
+    // ---- CH-26 / ADR-0061 §D61.2 — `tags: Vec<String>` field on
+    // Organization + Project carries `#[serde(default)]` for backward
+    // compat with pre-CH-26 wire payloads. The test below pins the
+    // round-trip behaviour: deserialising a pre-CH-26 JSON blob (without
+    // the `tags` field) MUST resolve to `tags = vec![]` rather than
+    // erroring on the missing field.
+
+    #[test]
+    fn organization_tags_serde_default_round_trips_pre_ch26_payload() {
+        // Pre-CH-26 wire payload — no `tags` field.
+        let pre_ch26_json = serde_json::json!({
+            "id": OrgId::new(),
+            "display_name": "Acme",
+            "consent_policy": "implicit",
+            "audit_class_default": "logged",
+            "approval_timeout_default_response": "deny",
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        });
+        let org: Organization =
+            serde_json::from_value(pre_ch26_json).expect("pre-CH-26 payload must deserialise");
+        assert_eq!(
+            org.tags,
+            Vec::<String>::new(),
+            "tags must default to vec![] when missing from wire payload"
+        );
+    }
+
+    #[test]
+    fn project_tags_serde_default_round_trips_pre_ch26_payload() {
+        // Pre-CH-26 wire payload — no `tags` field.
+        let pre_ch26_json = serde_json::json!({
+            "id": ProjectId::new(),
+            "name": "Atlas",
+            "description": "memory benchmark",
+            "status": "planned",
+            "shape": "shape_a",
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        });
+        let project: Project =
+            serde_json::from_value(pre_ch26_json).expect("pre-CH-26 payload must deserialise");
+        assert_eq!(
+            project.tags,
+            Vec::<String>::new(),
+            "tags must default to vec![] when missing from wire payload"
+        );
     }
 
     #[test]

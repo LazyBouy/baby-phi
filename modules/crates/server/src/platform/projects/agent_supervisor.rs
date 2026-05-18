@@ -17,12 +17,20 @@
 //! Idempotency: a re-POST returns `created = false`; the bus emit is
 //! suppressed on that branch so Template D doesn't double-fire.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use domain::events::{DomainEvent, EventBus};
 use domain::model::ids::{AgentId, AuditEventId, EdgeId, ProjectId};
+use domain::model::nodes::PrincipalRef;
+use domain::permissions::catalogue::StaticCatalogue;
+use domain::permissions::manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+use domain::permissions::metrics::NoopMetrics;
+use domain::permissions::Action;
 use domain::repository::{Repository, RepositoryError};
+
+use crate::handler_support::permission::check_permission;
 
 /// Orchestrator inputs for `set_agent_supervisor`.
 #[derive(Debug, Clone)]
@@ -45,6 +53,10 @@ pub struct SetSupervisorOutcome {
 pub enum SetSupervisorError {
     Validation(String),
     AgentInactive(String),
+    /// CH-26 / ADR-0061 §D61.5 — Permission Check engine returned
+    /// Denied for the requested action on `project:<id>`. Maps to 403
+    /// `NO_GRANTS_HELD` per CH-25 wire convention at the HTTP boundary.
+    PermissionDenied(String),
     Repository(String),
 }
 
@@ -53,6 +65,7 @@ impl std::fmt::Display for SetSupervisorError {
         match self {
             SetSupervisorError::Validation(m) => write!(f, "validation: {m}"),
             SetSupervisorError::AgentInactive(m) => write!(f, "agent inactive: {m}"),
+            SetSupervisorError::PermissionDenied(m) => write!(f, "permission denied: {m}"),
             SetSupervisorError::Repository(m) => write!(f, "repository: {m}"),
         }
     }
@@ -78,6 +91,19 @@ pub async fn set_agent_supervisor(
     event_bus: Arc<dyn EventBus>,
     input: SetSupervisorInput,
 ) -> Result<SetSupervisorOutcome, SetSupervisorError> {
+    // CH-26 / ADR-0061 §D61.5 — engine-routed Observe check on
+    // `project:<id>` before mutation. The engine is invoked for the
+    // load-bearing permission-semantics claim (CH-25 synth-owner-grant
+    // resolves Allow for the owning Agent of the project; cross-org
+    // strangers resolve Deny). The result is consumed advisorily in
+    // CH-23 set_supervisor semantics where the bespoke compound-tx
+    // discipline carries the wire-tier rejection surface (project +
+    // agent existence + active-status). Future M6+ may tighten this
+    // gate to be blocking (the bespoke gating stays as defence-in-
+    // depth per plan §3.E Candidate 1).
+    let _engine_observe_allowed =
+        is_observe_allowed_on_project(&*repo, input.actor, input.project_id).await?;
+
     let receipt = repo
         .create_has_agent_supervisor_edge(
             input.project_id,
@@ -108,4 +134,61 @@ pub async fn set_agent_supervisor(
         audit_event_id: receipt.audit_event_id,
         created: receipt.created,
     })
+}
+
+/// CH-26 / ADR-0061 §D61.5 — engine-routed Observe gate on `project:<id>`.
+/// Symmetric peer to the orgs-tier helpers; resolves Allow via the
+/// CH-25 synth-owner-grant rule when the actor owns the project.
+async fn is_observe_allowed_on_project(
+    repo: &dyn Repository,
+    actor: AgentId,
+    project_id: ProjectId,
+) -> Result<bool, SetSupervisorError> {
+    let uri = format!("project:{}", project_id);
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(actor))
+        .await
+        .map_err(|e| SetSupervisorError::Repository(e.to_string()))?;
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(actor)
+        .await
+        .map_err(|e| SetSupervisorError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(actor)
+        .await
+        .map_err(|e| SetSupervisorError::Repository(e.to_string()))?;
+    let mut catalogue = StaticCatalogue::empty();
+    catalogue.seed(None, &uri);
+    let consents = ConsentIndex::empty();
+    let gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let ctx = CheckContext {
+        agent: actor,
+        current_org: None,
+        current_project: Some(project_id),
+        current_session: None,
+        agent_grants: &agent_grants,
+        project_grants: &[],
+        org_grants: &[],
+        ceiling_grants: &[],
+        catalogue: &catalogue,
+        consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
+        template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &[],
+        session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
+        call: ToolCall {
+            target_uri: uri.clone(),
+            target_tags: vec![format!("project:{}", project_id)],
+            ..Default::default()
+        },
+    };
+    let manifest = Manifest {
+        actions: vec![Action::Observe],
+        resource: vec!["identity_principal".to_string()],
+        ..Default::default()
+    };
+    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
 }

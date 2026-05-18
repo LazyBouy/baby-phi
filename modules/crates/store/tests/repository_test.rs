@@ -84,6 +84,7 @@ async fn organization_create_and_get_round_trip() {
         system_agents: vec![],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![],
         created_at: Utc::now(),
     };
     store.create_organization(&org).await.expect("create");
@@ -1834,6 +1835,7 @@ async fn seed_org_with_two_agents_in_store(store: &SurrealStore) -> (OrgId, Agen
         system_agents: vec![],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![],
         created_at: Utc::now(),
     };
     store.create_organization(&org).await.unwrap();
@@ -1932,6 +1934,7 @@ async fn surreal_create_has_agent_supervisor_edge_persists_row_and_audit() {
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(domain::model::composites_m4::ResourceBoundaries::default()),
+        tags: vec![],
         created_at: Utc::now(),
     };
     let pid = project.id;

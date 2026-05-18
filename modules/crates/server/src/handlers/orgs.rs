@@ -170,9 +170,9 @@ pub async fn create(
 
 pub async fn list(
     State(state): State<AppState>,
-    _session: AuthenticatedSession,
+    session: AuthenticatedSession,
 ) -> Result<Response, ApiError> {
-    let summaries = list_organizations(state.repo.clone())
+    let summaries = list_organizations(state.repo.clone(), session.agent_id)
         .await
         .map_err(error_to_api_error)?;
     let orgs = summaries
@@ -253,6 +253,9 @@ fn error_to_api_error(err: OrgError) -> ApiError {
         OrgError::TemplateNotAdoptable(m) => {
             ApiError::new(StatusCode::BAD_REQUEST, "TEMPLATE_NOT_ADOPTABLE", m)
         }
+        // CH-26 / ADR-0061 §D61.5 — engine-routed gate denials map to
+        // 403 `NO_GRANTS_HELD` per CH-25 wire convention.
+        OrgError::PermissionDenied(m) => ApiError::new(StatusCode::FORBIDDEN, "NO_GRANTS_HELD", m),
         OrgError::Repository(m) => {
             error!(error = %m, "orgs: repository error");
             ApiError::internal()

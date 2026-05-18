@@ -30,6 +30,7 @@
 //! different layer for it" (e.g. agent-creation at M4/P5, or
 //! session-launch at M5).
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -49,7 +50,13 @@ use domain::model::nodes::{
     ApproverSlot, ApproverSlotState, AuthRequest, AuthRequestState, PrincipalRef, Project,
     ProjectShape, ProjectStatus, ResourceRef, ResourceSlot, ResourceSlotState,
 };
+use domain::permissions::catalogue::StaticCatalogue;
+use domain::permissions::manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+use domain::permissions::metrics::NoopMetrics;
+use domain::permissions::Action;
 use domain::repository::{ProjectCreationPayload, ProjectCreationReceipt, Repository};
+
+use crate::handler_support::permission::check_permission;
 
 use super::ProjectError;
 
@@ -158,6 +165,19 @@ pub async fn create_project(
 ) -> Result<CreateProjectOutcome, ProjectError> {
     validate_input_shape(&input)?;
 
+    // CH-26 / ADR-0061 §D61.5 — engine-routed Allocate check on the
+    // parent-org URI. The engine is invoked for the load-bearing
+    // permission-semantics claim (CH-25 synth-owner-grant resolves
+    // Allow for the owning Agent; cross-org strangers resolve Deny).
+    // The result is consumed advisorily in M4-shipped create-project
+    // semantics where the bespoke lead/member-in-owning-org gating
+    // (validate_lead_and_members) carries the wire-tier rejection
+    // surface. Future M6+ may tighten this gate to be blocking
+    // (the bespoke gating stays as defence-in-depth per plan
+    // §3.E Candidate 1).
+    let _engine_allocate_allowed =
+        is_allocate_allowed_on_org(&*repo, input.actor, input.org_id).await?;
+
     // Pre-tx existence check — avoids a fragile string-match on the
     // SurrealDB duplicate error. A race between this check + the
     // compound tx is possible but the underlying UNIQUE index still
@@ -186,6 +206,65 @@ pub async fn create_project(
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
+
+/// CH-26 / ADR-0061 §D61.5 — engine-routed Allocate gate on the parent
+/// org URI. Symmetric peer to `orgs::dashboard::is_observe_allowed` and
+/// `orgs::show::is_inspect_allowed`. Resolves Allow via the CH-25
+/// synth-owner-grant rule when the actor owns `org:<O>`; otherwise
+/// resolves against explicit Allocate grants on the URI.
+async fn is_allocate_allowed_on_org(
+    repo: &dyn Repository,
+    actor: AgentId,
+    parent_org_id: OrgId,
+) -> Result<bool, ProjectError> {
+    let uri = format!("org:{}", parent_org_id);
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(actor))
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(actor)
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(actor)
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+    let mut catalogue = StaticCatalogue::empty();
+    catalogue.seed(Some(parent_org_id), &uri);
+    let consents = ConsentIndex::empty();
+    let gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let ctx = CheckContext {
+        agent: actor,
+        current_org: Some(parent_org_id),
+        current_project: None,
+        current_session: None,
+        agent_grants: &agent_grants,
+        project_grants: &[],
+        org_grants: &[],
+        ceiling_grants: &[],
+        catalogue: &catalogue,
+        consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
+        template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &[],
+        session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
+        call: ToolCall {
+            target_uri: uri.clone(),
+            target_tags: vec![format!("organization:{}", parent_org_id)],
+            ..Default::default()
+        },
+    };
+    let manifest = Manifest {
+        actions: vec![Action::Allocate],
+        resource: vec!["identity_principal".to_string()],
+        ..Default::default()
+    };
+    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+}
 
 fn validate_input_shape(input: &CreateProjectInput) -> Result<(), ProjectError> {
     if !is_valid_project_id(&input.project_id.to_string()) {
@@ -363,6 +442,9 @@ async fn materialise_project(
         shape_b_owning_orgs
     };
 
+    // CH-26 / ADR-0061 §D61.4 — populate the instance-identity tag at
+    // creation time so the Permission Check engine can match
+    // `project:<uuid>` selectors against the row's tags.
     let project = Project {
         id: input.project_id,
         name: input.name.trim().to_string(),
@@ -375,6 +457,7 @@ async fn materialise_project(
         objectives: input.objectives.clone(),
         key_results: input.key_results.clone(),
         resource_boundaries: input.resource_boundaries.clone(),
+        tags: vec![format!("project:{}", input.project_id)],
         created_at: input.now,
     };
 

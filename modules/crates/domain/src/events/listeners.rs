@@ -1709,6 +1709,7 @@ mod tests {
             system_agents: vec![],
             approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
+            tags: vec![],
             created_at: Utc::now(),
         };
         repo.create_organization(&org).await.unwrap();
@@ -2192,6 +2193,7 @@ mod tests {
             system_agents: vec![extractor_agent_id],
             approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
+            tags: vec![],
             created_at: now,
         };
         repo.create_organization(&org).await.unwrap();
@@ -2607,6 +2609,7 @@ mod tests {
             system_agents: vec![catalog_sys_agent_id],
             approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
+            tags: vec![],
             created_at: now,
         };
         repo.create_organization(&org).await.unwrap();

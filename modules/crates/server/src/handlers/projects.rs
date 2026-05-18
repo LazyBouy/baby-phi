@@ -374,6 +374,11 @@ fn error_to_api_error(err: ProjectError) -> ApiError {
         ProjectError::AccessDenied(e) => {
             ApiError::new(StatusCode::FORBIDDEN, "AR_ACCESS_DENIED", e.to_string())
         }
+        // CH-26 / ADR-0061 §D61.5 — engine-routed gate denials map to
+        // 403 `NO_GRANTS_HELD` per CH-25 wire convention.
+        ProjectError::PermissionDenied(m) => {
+            ApiError::new(StatusCode::FORBIDDEN, "NO_GRANTS_HELD", m)
+        }
         ProjectError::Repository(m) => {
             error!(error = %m, "projects: repository error");
             ApiError::internal()
@@ -453,6 +458,11 @@ fn set_supervisor_error_to_api_error(err: SetSupervisorError) -> ApiError {
         }
         SetSupervisorError::AgentInactive(m) => {
             ApiError::new(StatusCode::CONFLICT, "AGENT_INACTIVE", m)
+        }
+        // CH-26 / ADR-0061 §D61.5 — engine-routed gate denials map to
+        // 403 `NO_GRANTS_HELD` per CH-25 wire convention.
+        SetSupervisorError::PermissionDenied(m) => {
+            ApiError::new(StatusCode::FORBIDDEN, "NO_GRANTS_HELD", m)
         }
         SetSupervisorError::Repository(m) => {
             error!(error = %m, "projects: set_supervisor repository error");

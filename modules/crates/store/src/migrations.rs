@@ -179,6 +179,18 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "add_owns_relation",
         sql: include_str!("../migrations/0017_add_owns_relation.surql"),
     },
+    // CH-26 — Org/Project as Composite resources (ADR-0061 §D61.2 +
+    // §D61.3). Adds `tags` field to organization + project SCHEMAFULL
+    // tables; backfills instance-identity tag (`organization:<uuid>` /
+    // `project:<uuid>`) for every extant row; seeds catalogue entries
+    // at the canonical `org:<uuid>` / `project:<uuid>` URIs.
+    // F2.b user-lock divergent from planner-recommended F2.a
+    // (catalogue-entry-only path).
+    Migration {
+        version: 18,
+        slug: "org_project_tags",
+        sql: include_str!("../migrations/0018_org_project_tags.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

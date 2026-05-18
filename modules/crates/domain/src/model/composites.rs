@@ -1,4 +1,4 @@
-//! The 8 **Composite Classes** of the resource ontology.
+//! The 10 **Composite Classes** of the resource ontology.
 //!
 //! A composite is a named bundle of fundamentals. Every composite implicitly
 //! pulls in the `tag` fundamental so that its `#kind:{composite_name}` tag is
@@ -14,7 +14,7 @@ use super::fundamentals::Fundamental;
 
 /// Every named bundle of fundamentals the v0 ontology defines.
 ///
-/// Count: **8** (invariant asserted in `crate::model::tests`).
+/// Count: **10** (invariant asserted in `crate::model::tests`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Composite {
@@ -42,12 +42,25 @@ pub enum Composite {
     /// An Agent's sent-messages log.
     /// Expands to: `data_object` + `tag`.
     OutboxObject,
+    /// CH-26 / ADR-0061 §D61.1 — Organization as a governance container
+    /// AND a first-class resource. Owned by an Agent (via `Edge::Owns`,
+    /// CH-25); admin actions (`Action::Allocate`, `Action::Inspect`,
+    /// `Action::Observe`) flow through Permission Check via the
+    /// `organization:<uuid>` instance-identity tag (§D61.2).
+    /// Expands to: `data_object` + `identity_principal` + `tag`.
+    OrganizationObject,
+    /// CH-26 / ADR-0061 §D61.1 — Project as a governance container AND a
+    /// first-class resource. Owned by an Agent (via `Edge::Owns`,
+    /// CH-25); admin actions flow through Permission Check via the
+    /// `project:<uuid>` instance-identity tag (§D61.2).
+    /// Expands to: `data_object` + `identity_principal` + `tag`.
+    ProjectObject,
 }
 
 impl Composite {
     /// Enumerate every variant in a stable order. Matches the concept doc's
     /// §Composite Classes table order.
-    pub const ALL: [Composite; 8] = [
+    pub const ALL: [Composite; 10] = [
         Composite::ExternalServiceObject,
         Composite::ModelRuntimeObject,
         Composite::ControlPlaneObject,
@@ -56,6 +69,8 @@ impl Composite {
         Composite::AuthRequestObject,
         Composite::InboxObject,
         Composite::OutboxObject,
+        Composite::OrganizationObject,
+        Composite::ProjectObject,
     ];
 
     /// The canonical string form (e.g. `memory_object`).
@@ -69,6 +84,8 @@ impl Composite {
             Composite::AuthRequestObject => "auth_request_object",
             Composite::InboxObject => "inbox_object",
             Composite::OutboxObject => "outbox_object",
+            Composite::OrganizationObject => "organization_object",
+            Composite::ProjectObject => "project_object",
         }
     }
 
@@ -88,6 +105,8 @@ impl Composite {
             Composite::AuthRequestObject => "#kind:auth_request",
             Composite::InboxObject => "#kind:inbox",
             Composite::OutboxObject => "#kind:outbox",
+            Composite::OrganizationObject => "#kind:organization",
+            Composite::ProjectObject => "#kind:project",
         }
     }
 
@@ -160,7 +179,9 @@ impl Composite {
                 Fundamental::EconomicResource,
                 Fundamental::Tag,
             ],
-            Composite::ControlPlaneObject => &[
+            Composite::ControlPlaneObject
+            | Composite::OrganizationObject
+            | Composite::ProjectObject => &[
                 Fundamental::DataObject,
                 Fundamental::IdentityPrincipal,
                 Fundamental::Tag,
@@ -180,14 +201,14 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn all_contains_exactly_eight() {
-        assert_eq!(Composite::ALL.len(), 8);
+    fn all_contains_exactly_ten() {
+        assert_eq!(Composite::ALL.len(), 10);
     }
 
     #[test]
     fn all_variants_are_distinct() {
         let set: HashSet<_> = Composite::ALL.iter().collect();
-        assert_eq!(set.len(), 8);
+        assert_eq!(set.len(), 10);
     }
 
     #[test]
@@ -204,7 +225,7 @@ mod tests {
     #[test]
     fn kind_tags_are_distinct() {
         let tags: HashSet<_> = Composite::ALL.iter().map(Composite::kind_tag).collect();
-        assert_eq!(tags.len(), 8);
+        assert_eq!(tags.len(), 10);
     }
 
     #[test]
@@ -237,7 +258,7 @@ mod tests {
     #[test]
     fn as_str_is_distinct_per_variant() {
         let strs: HashSet<_> = Composite::ALL.iter().map(Composite::as_str).collect();
-        assert_eq!(strs.len(), 8);
+        assert_eq!(strs.len(), 10);
     }
 
     #[test]

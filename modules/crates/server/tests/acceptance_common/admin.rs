@@ -294,6 +294,10 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         created_at: Utc::now(),
     };
     let sys_ids = [sys0_agent.id, sys1_agent.id];
+    // CH-26 / ADR-0061 §D61.4 — populate instance-identity tag to mirror
+    // the production `apply_org_creation` compound-tx semantics so
+    // refactored handlers (F1.b) can resolve `org:<id>` selectors
+    // against this fixture row.
     let organization = Organization {
         id: org_id,
         display_name: "Fixture Org".into(),
@@ -307,6 +311,7 @@ pub async fn spawn_claimed_with_org(with_metrics: bool) -> ClaimedOrg {
         system_agents: sys_ids.to_vec(),
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![format!("organization:{}", org_id)],
         created_at: Utc::now(),
     };
     let token_budget_pool = TokenBudgetPool::new(org_id, 1_000_000, Utc::now());
@@ -489,8 +494,13 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         .await
         .expect("spawn_claimed_with_org_and_project: create member agent");
 
+    let project_id = ProjectId::new();
+    // CH-26 / ADR-0061 §D61.4 — populate instance-identity tag to mirror
+    // production `apply_project_creation` semantics so refactored
+    // handlers (F1.b) can resolve `project:<id>` selectors against this
+    // fixture row.
     let project = Project {
-        id: ProjectId::new(),
+        id: project_id,
         name: "Fixture Project".into(),
         description: "Atlas-class memory benchmark".into(),
         goal: None,
@@ -501,9 +511,9 @@ pub async fn spawn_claimed_with_org_and_project(with_metrics: bool) -> ClaimedPr
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![format!("project:{}", project_id)],
         created_at: now,
     };
-    let project_id = project.id;
 
     claimed_org
         .admin

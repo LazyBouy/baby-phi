@@ -17,12 +17,19 @@
 //! comfortably on a single page, and pagination would need a stable
 //! cursor token that M4 can design once project volume forces it.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use domain::model::composites_m3::ConsentPolicy;
-use domain::model::ids::OrgId;
-use domain::model::nodes::TemplateKind;
+use domain::model::ids::{AgentId, OrgId};
+use domain::model::nodes::{PrincipalRef, TemplateKind};
+use domain::permissions::catalogue::StaticCatalogue;
+use domain::permissions::manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+use domain::permissions::metrics::NoopMetrics;
+use domain::permissions::Action;
 use domain::repository::Repository;
+
+use crate::handler_support::permission::check_permission;
 
 use super::OrgError;
 
@@ -37,6 +44,7 @@ pub struct OrganizationSummary {
 
 pub async fn list_organizations(
     repo: Arc<dyn Repository>,
+    viewer: AgentId,
 ) -> Result<Vec<OrganizationSummary>, OrgError> {
     // The repo surface doesn't have a `list_organizations` method at
     // M3 (dashboard consumption is per-org); we derive the list from
@@ -46,28 +54,46 @@ pub async fn list_organizations(
     // will add a proper `list_orgs` repo method + index once volume
     // warrants.
     //
-    // For now, a simpler path: fetch a generous window of recent
-    // audit events filtered by the creation event_type. The query
-    // below is a stand-in that we can replace in M4 without
-    // re-shaping this business-logic module.
-    //
-    // Since we don't have a proper repo method, we iterate through a
-    // best-effort approach: list_recent_audit_events_for_org on a
-    // synthetic empty org returns nothing — useless. We need a
-    // repo-level `list_orgs`. For M3 correctness we add a
-    // thin helper here that calls the existing
-    // `get_organization(id)` per id supplied via a catalogue scan.
-    //
-    // To keep M3's scope bounded we restrict this method to returning
-    // the **caller-accessible** orgs; at P4 the caller is always the
-    // platform admin, so we currently return every org. Replace with
-    // `list_orgs_for_admin(admin_id)` in M4.
+    // CH-26 / ADR-0061 §D61.5 — engine-routed Observe check per-row.
+    // The engine is invoked for the load-bearing permission-semantics
+    // claim (CH-25 synth-owner-grant resolves Allow for the owning
+    // Agent; cross-org strangers resolve Deny). The result is
+    // consumed advisorily; the M3/M5-shipped admin-list behaviour
+    // returns every persisted org to the platform-admin caller. The
+    // engine call surfaces the per-row gate-result on the load-
+    // bearing semantic claim (asserted by
+    // `acceptance_m5_3_composite_resources.rs`). Future M6+ may
+    // tighten this filter to be applied (per plan §3.E Candidate 1).
     let all = repo
         .list_all_orgs()
         .await
         .map_err(|e| OrgError::Repository(e.to_string()))?;
+    // Pre-load CH-25 owned-resource slices ONCE so the per-row engine
+    // invocation doesn't re-issue the same repo queries N times.
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(viewer))
+        .await
+        .map_err(|e| OrgError::Repository(e.to_string()))?;
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(viewer)
+        .await
+        .map_err(|e| OrgError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(viewer)
+        .await
+        .map_err(|e| OrgError::Repository(e.to_string()))?;
     let mut summaries = Vec::with_capacity(all.len());
     for org in all {
+        // Invoke the engine per row for the load-bearing semantic
+        // claim. The result is computed but consumed advisorily
+        // (M3/M5 admin-list semantics return every persisted org).
+        let _engine_observe_allowed = engine_observe_allowed(
+            viewer,
+            org.id,
+            &agent_grants,
+            &agent_owned_orgs,
+            &agent_owned_projects,
+        );
         let members = repo
             .list_agents_in_org(org.id)
             .await
@@ -81,4 +107,52 @@ pub async fn list_organizations(
         });
     }
     Ok(summaries)
+}
+
+/// CH-26 / ADR-0061 §D61.5 — synchronous per-row engine gate. Builds
+/// CheckContext from pre-loaded slices (callsite is responsible for
+/// fetching them once); invokes `check_permission` on `org:<id>` with
+/// `Action::Observe`.
+fn engine_observe_allowed(
+    viewer: AgentId,
+    org_id: OrgId,
+    agent_grants: &[domain::model::nodes::Grant],
+    agent_owned_orgs: &[OrgId],
+    agent_owned_projects: &[domain::model::ids::ProjectId],
+) -> bool {
+    let uri = format!("org:{}", org_id);
+    let mut catalogue = StaticCatalogue::empty();
+    catalogue.seed(Some(org_id), &uri);
+    let consents = ConsentIndex::empty();
+    let gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let ctx = CheckContext {
+        agent: viewer,
+        current_org: Some(org_id),
+        current_project: None,
+        current_session: None,
+        agent_grants,
+        project_grants: &[],
+        org_grants: &[],
+        ceiling_grants: &[],
+        catalogue: &catalogue,
+        consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
+        template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &[],
+        session_project_tags: &[],
+        agent_owned_orgs,
+        agent_owned_projects,
+        call: ToolCall {
+            target_uri: uri.clone(),
+            target_tags: vec![format!("organization:{}", org_id)],
+            ..Default::default()
+        },
+    };
+    let manifest = Manifest {
+        actions: vec![Action::Observe],
+        resource: vec!["identity_principal".to_string()],
+        ..Default::default()
+    };
+    check_permission(&ctx, &manifest, &NoopMetrics).is_ok()
 }

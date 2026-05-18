@@ -89,6 +89,7 @@ async fn build_fixture(
         system_agents: vec![],
         approval_timeout,
         approval_timeout_default_response: timeout_default_response,
+        tags: vec![format!("organization:{}", org_id)],
         created_at: now,
     };
     repo.create_organization(&org).await.expect("create org");
@@ -134,6 +135,7 @@ async fn build_fixture(
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: None,
+        tags: vec![format!("project:{}", project_id)],
         created_at: now,
     };
     repo.upsert_project(&project).await.expect("create project");

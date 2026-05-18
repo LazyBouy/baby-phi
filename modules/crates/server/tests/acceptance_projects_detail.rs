@@ -142,6 +142,7 @@ async fn show_unrelated_viewer_returns_403() {
             system_agents: vec![],
             approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+            tags: vec![format!("organization:{}", other_org_id)],
             created_at: Utc::now(),
         })
         .await

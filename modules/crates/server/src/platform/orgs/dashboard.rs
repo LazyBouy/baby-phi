@@ -62,6 +62,7 @@
 //! orgs. M4+ may coalesce into a single repo method if metrics show
 //! the fan-out is a hot path.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
@@ -74,7 +75,13 @@ use domain::model::ids::{AgentId, AuditEventId, NodeId, OrgId};
 use domain::model::nodes::{
     Agent, AgentKind, AuthRequest, AuthRequestState, Organization, PrincipalRef, TemplateKind,
 };
+use domain::permissions::catalogue::StaticCatalogue;
+use domain::permissions::manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+use domain::permissions::metrics::NoopMetrics;
+use domain::permissions::Action;
 use domain::repository::Repository;
+
+use crate::handler_support::permission::check_permission;
 
 use super::OrgError;
 
@@ -265,6 +272,16 @@ pub async fn dashboard_summary(
         .iter()
         .any(|p| org_project_ids.contains(&p.id));
     let viewer_role = resolve_viewer_role(&agents, viewer_agent_id, viewer_leads_here);
+    // CH-26 / ADR-0061 §D61.5 — engine-routed Observe check on
+    // `org:<id>`. The engine is invoked for the load-bearing
+    // permission-semantics claim (CH-25 synth-owner-grant resolves
+    // Allow for the owning Agent of the org; cross-org strangers
+    // resolve Deny). The result is consumed advisorily; the bespoke
+    // `ViewerRole::None` membership gate carries the wire-tier
+    // rejection surface (M3-shipped semantics). Future M6+ may
+    // tighten this gate to be blocking (the bespoke gating stays as
+    // defence-in-depth per plan §3.E Candidate 1).
+    let _engine_observe_allowed = is_observe_allowed(&*repo, viewer_agent_id, org_id).await?;
     if matches!(viewer_role, ViewerRole::None) {
         return Ok(DashboardOutcome::AccessDenied);
     }
@@ -377,6 +394,59 @@ const RECENT_EVENT_LIMIT: usize = 5;
 /// **M4/P8**: the `ProjectLead` branch populates for the first time —
 /// prior to M4 `HAS_LEAD` edges had no production writers. Admin
 /// detection still narrows to "first Human in the org" (the CEO at
+/// CH-26 / ADR-0061 §D61.5 — engine-routed Observe gate for org dashboard.
+///
+/// Builds the standard CheckContext used across CH-25 + CH-26 handler
+/// refactors and invokes the engine. Returns `Ok(true)` iff the engine
+/// returns Allowed (mirrors the synth-owner-grant + explicit-grant
+/// resolution paths).
+async fn is_observe_allowed(
+    repo: &dyn Repository,
+    viewer: AgentId,
+    org_id: OrgId,
+) -> Result<bool, OrgError> {
+    let uri = format!("org:{}", org_id);
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(viewer))
+        .await?;
+    let agent_owned_orgs = repo.list_agent_owned_orgs(viewer).await?;
+    let agent_owned_projects = repo.list_agent_owned_projects(viewer).await?;
+    let mut catalogue = StaticCatalogue::empty();
+    catalogue.seed(Some(org_id), &uri);
+    let consents = ConsentIndex::empty();
+    let gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let ctx = CheckContext {
+        agent: viewer,
+        current_org: Some(org_id),
+        current_project: None,
+        current_session: None,
+        agent_grants: &agent_grants,
+        project_grants: &[],
+        org_grants: &[],
+        ceiling_grants: &[],
+        catalogue: &catalogue,
+        consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
+        template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &[],
+        session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
+        call: ToolCall {
+            target_uri: uri.clone(),
+            target_tags: vec![format!("organization:{}", org_id)],
+            ..Default::default()
+        },
+    };
+    let manifest = Manifest {
+        actions: vec![Action::Observe],
+        resource: vec!["identity_principal".to_string()],
+        ..Default::default()
+    };
+    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+}
+
 /// creation time); a proper grant-walk lands once M5's permission-check
 /// wiring is dashboard-aware.
 fn resolve_viewer_role(
@@ -780,6 +850,7 @@ mod tests {
             system_agents: vec![],
             approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+            tags: vec![],
             created_at: Utc::now(),
         }
     }

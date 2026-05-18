@@ -151,6 +151,7 @@ async fn fixture(
         system_agents: vec![extractor_agent_id],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![format!("organization:{}", org_id)],
         created_at: now,
     };
     repo.create_organization(&org).await.unwrap();

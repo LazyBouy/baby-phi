@@ -44,6 +44,7 @@ fn minimal_org(id: OrgId) -> Organization {
         system_agents: vec![],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![],
         created_at: Utc::now(),
     }
 }
@@ -74,6 +75,7 @@ fn make_project(shape: ProjectShape) -> Project {
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![],
         created_at: Utc::now(),
     }
 }

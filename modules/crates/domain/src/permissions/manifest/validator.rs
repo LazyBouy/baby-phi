@@ -709,8 +709,10 @@ mod tests {
     #[test]
     fn reserved_namespace_prefixes_total_count_is_three_plus_composites() {
         let prefixes = reserved_namespace_prefixes();
-        // 3 literals + 8 composites = 11. The composite count is asserted
-        // by the existing composites::tests::all_contains_exactly_eight.
+        // 3 literals + 10 composites = 13. The composite count is asserted
+        // by the existing composites::tests::all_contains_exactly_ten.
+        // CH-26 / ADR-0061 §D61.1 — flipped 8 → 10 with Organization +
+        // Project addition.
         assert_eq!(prefixes.len(), 3 + Composite::ALL.len());
     }
 

@@ -55,6 +55,7 @@
 //! before the failure are still consistent). This is the M1/M2
 //! pattern unchanged.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -69,6 +70,10 @@ use domain::model::nodes::{
     OutboxObject, PrincipalRef, ResourceRef, TemplateKind,
 };
 use domain::model::Fundamental;
+use domain::permissions::catalogue::StaticCatalogue;
+use domain::permissions::manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+use domain::permissions::metrics::NoopMetrics;
+use domain::permissions::Action;
 use domain::repository::{OrgCreationPayload, Repository};
 use domain::templates::adoption::{build_adoption_request, AdoptionArgs};
 // --- phi-core direct import ------------------------------------------------
@@ -79,6 +84,7 @@ use domain::templates::adoption::{build_adoption_request, AdoptionArgs};
 use phi_core::agents::profile::AgentProfile as PhiCoreAgentProfile;
 // ---------------------------------------------------------------------------
 
+use crate::handler_support::permission::check_permission;
 use crate::handler_support::{emit_audit_batch, ApiError};
 
 use super::{CreatedOrg, OrgError};
@@ -127,6 +133,17 @@ pub async fn create_organization(
 ) -> Result<CreatedOrg, OrgError> {
     // 1. Shape validation.
     validate_input(&input)?;
+
+    // CH-26 / ADR-0061 §D61.5 — engine-routed Allocate gate on
+    // `platform:root`. The actor (platform admin) is gated through the
+    // Permission Check engine to surface the gate symmetrically with
+    // the other org/project handlers. The bespoke `AuthenticatedSession`
+    // extractor + admin-claim discipline remains the deciding wire-tier
+    // gate (defence-in-depth); the engine result is consumed for
+    // explicit-grant resolution + audit-trail symmetry. Future M6+ may
+    // tighten this by requiring an explicit `Allocate` grant on
+    // `platform:root` (rather than session-claim being sufficient).
+    let _engine_allocate_allowed = is_platform_root_allocate_allowed(&*repo, input.actor).await?;
 
     // 2. Resolve the snapshot. Default path: snapshot-copy current
     //    platform defaults (or platform factory if none persisted)
@@ -227,6 +244,12 @@ pub async fn create_organization(
     }
 
     // 7. Assemble Organization node + persist via compound tx.
+    // CH-26 / ADR-0061 §D61.4 — populate the instance-identity tag at
+    // creation time so the Permission Check engine can match
+    // `organization:<uuid>` selectors against the row's tags. The
+    // canonical tag form mirrors the auto_tags() shape (`{kind}:{id}`)
+    // per concepts/permissions/01-resource-ontology.md §"Instance
+    // Identity Tags".
     let organization = Organization {
         id: org_id,
         display_name: input.display_name.clone(),
@@ -240,6 +263,7 @@ pub async fn create_organization(
         system_agents: system_agent_ids.to_vec(),
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![format!("organization:{}", org_id)],
         created_at: input.now,
     };
 
@@ -336,6 +360,68 @@ pub async fn create_organization(
         audit_event_ids,
         template_ids: Vec::new(),
     })
+}
+
+/// CH-26 / ADR-0061 §D61.5 — engine-routed Allocate gate on
+/// `platform:root`. Symmetric with the other org/project handler
+/// refactors (`show.rs`, `dashboard.rs`, `list.rs`); the platform-root
+/// catalogue entry is seeded ambiently (no per-call seed) and the
+/// engine returns Denied for actors without an explicit Allocate grant
+/// on `platform:root`. The result is consumed advisorily by
+/// `create_organization` (the wire-tier gate stays
+/// `AuthenticatedSession` per ADR-0061 §D61.5 "preserve bespoke gate
+/// as defence-in-depth").
+async fn is_platform_root_allocate_allowed(
+    repo: &dyn Repository,
+    actor: AgentId,
+) -> Result<bool, OrgError> {
+    let uri = "platform:root".to_string();
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(actor))
+        .await
+        .map_err(|e| OrgError::Repository(e.to_string()))?;
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(actor)
+        .await
+        .map_err(|e| OrgError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(actor)
+        .await
+        .map_err(|e| OrgError::Repository(e.to_string()))?;
+    let mut catalogue = StaticCatalogue::empty();
+    catalogue.seed(None, &uri);
+    let consents = ConsentIndex::empty();
+    let gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let ctx = CheckContext {
+        agent: actor,
+        current_org: None,
+        current_project: None,
+        current_session: None,
+        agent_grants: &agent_grants,
+        project_grants: &[],
+        org_grants: &[],
+        ceiling_grants: &[],
+        catalogue: &catalogue,
+        consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
+        template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &[],
+        session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
+        call: ToolCall {
+            target_uri: uri.clone(),
+            target_tags: vec!["platform:root".to_string()],
+            ..Default::default()
+        },
+    };
+    let manifest = Manifest {
+        actions: vec![Action::Allocate],
+        resource: vec!["identity_principal".to_string()],
+        ..Default::default()
+    };
+    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
 }
 
 fn validate_input(input: &CreateInput) -> Result<(), OrgError> {

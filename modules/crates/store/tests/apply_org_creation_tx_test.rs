@@ -51,6 +51,7 @@ fn sample_org() -> Organization {
         system_agents: vec![],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![],
         created_at: Utc::now(),
     }
 }

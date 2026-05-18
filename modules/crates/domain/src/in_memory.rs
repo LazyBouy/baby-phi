@@ -1798,6 +1798,10 @@ impl Repository for InMemoryRepository {
             adoption_ar_ids.push(ar.id);
         }
 
+        // Per CH-26 / ADR-0061 §D61.4: the caller's `catalogue_entries`
+        // vec (see `orgs/create.rs:249`) already seeds the canonical
+        // `org:<id>` URI; no additional entry needed. The existing
+        // seeding path satisfies Step 0 of Permission Check.
         for (uri, kind) in &payload.catalogue_entries {
             state
                 .catalogue
@@ -1918,6 +1922,9 @@ impl Repository for InMemoryRepository {
         // dedicated Vec for them. Surface-level reads live on the
         // SurrealDB impl in P4+. At M4/P3 the in-memory impl's scope
         // is proving the compound-tx ordering + rollback semantics.
+        // Per CH-26 / ADR-0061 §D61.4: the caller's `catalogue_entries`
+        // vec (see `projects/create.rs:392`) already seeds the
+        // canonical `project:<id>` URI; no additional entry needed.
         for (uri, kind) in &payload.catalogue_entries {
             state
                 .catalogue

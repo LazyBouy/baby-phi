@@ -44,6 +44,7 @@
 
 #![allow(clippy::result_large_err)]
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -53,9 +54,15 @@ use domain::audit::events::m4::projects::project_okrs_updated;
 use domain::audit::AuditEmitter;
 use domain::model::composites_m4::{KeyResult, Objective};
 use domain::model::ids::{AgentId, AuditEventId, OrgId, ProjectId};
-use domain::model::nodes::{Agent, AgentKind, AgentRole, Project};
+use domain::model::nodes::{Agent, AgentKind, AgentRole, PrincipalRef, Project};
 use domain::model::RecentSessionEntry;
+use domain::permissions::catalogue::StaticCatalogue;
+use domain::permissions::manifest::{CheckContext, ConsentIndex, Manifest, ToolCall};
+use domain::permissions::metrics::NoopMetrics;
+use domain::permissions::Action;
 use domain::repository::Repository;
+
+use crate::handler_support::permission::check_permission;
 
 use super::create::validate_okrs;
 use super::ProjectError;
@@ -208,6 +215,17 @@ pub async fn project_detail(
     let on_roster = roster.iter().any(|m| m.agent_id == viewer_agent_id);
     let in_owning_org = matches!(viewer_org, Some(o) if owning_orgs.contains(&o));
 
+    // CH-26 / ADR-0061 §D61.5 — engine-routed Inspect check on
+    // `project:<id>`. The engine is invoked for the load-bearing
+    // permission-semantics claim (CH-25 synth-owner-grant resolves
+    // Allow for the owning Agent of the project; cross-org strangers
+    // resolve Deny). The result is consumed advisorily; the bespoke
+    // `on_roster`/`in_owning_org` membership gate carries the
+    // wire-tier rejection surface (M4-shipped semantics). Future M6+
+    // may tighten this gate to be blocking (the bespoke gating stays
+    // as defence-in-depth per plan §3.E Candidate 1).
+    let _engine_inspect_allowed =
+        is_inspect_allowed_on_project(&*repo, viewer_agent_id, project_id).await?;
     if !on_roster && !in_owning_org {
         return Ok(DetailOutcome::AccessDenied);
     }
@@ -239,6 +257,64 @@ pub async fn project_detail(
 /// §D59.1. Bumping this constant requires re-running the panel
 /// acceptance test (see `acceptance_m5_sessions.rs`).
 const RECENT_SESSIONS_LIMIT: u32 = 10;
+
+/// CH-26 / ADR-0061 §D61.5 — engine-routed Inspect gate on `project:<id>`.
+/// Symmetric peer to the orgs-tier helpers; resolves Allow via the
+/// CH-25 synth-owner-grant rule when the viewer owns the project, or
+/// via explicit Inspect grants.
+async fn is_inspect_allowed_on_project(
+    repo: &dyn Repository,
+    viewer: AgentId,
+    project_id: ProjectId,
+) -> Result<bool, ProjectError> {
+    let uri = format!("project:{}", project_id);
+    let agent_grants = repo
+        .list_grants_for_principal(&PrincipalRef::Agent(viewer))
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+    let agent_owned_orgs = repo
+        .list_agent_owned_orgs(viewer)
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+    let agent_owned_projects = repo
+        .list_agent_owned_projects(viewer)
+        .await
+        .map_err(|e| ProjectError::Repository(e.to_string()))?;
+    let mut catalogue = StaticCatalogue::empty();
+    catalogue.seed(None, &uri);
+    let consents = ConsentIndex::empty();
+    let gated: HashSet<domain::model::ids::AuthRequestId> = HashSet::new();
+    let ctx = CheckContext {
+        agent: viewer,
+        current_org: None,
+        current_project: Some(project_id),
+        current_session: None,
+        agent_grants: &agent_grants,
+        project_grants: &[],
+        org_grants: &[],
+        ceiling_grants: &[],
+        catalogue: &catalogue,
+        consents: &consents,
+        timeout_default_response: domain::model::TimeoutResponse::Deny,
+        template_gated_auth_requests: &gated,
+        set_ref_registry: &domain::permissions::NOOP_SET_REF_REGISTRY,
+        session_org_tags: &[],
+        session_project_tags: &[],
+        agent_owned_orgs: &agent_owned_orgs,
+        agent_owned_projects: &agent_owned_projects,
+        call: ToolCall {
+            target_uri: uri.clone(),
+            target_tags: vec![format!("project:{}", project_id)],
+            ..Default::default()
+        },
+    };
+    let manifest = Manifest {
+        actions: vec![Action::Inspect],
+        resource: vec!["identity_principal".to_string()],
+        ..Default::default()
+    };
+    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+}
 
 async fn build_roster(
     repo: Arc<dyn Repository>,
@@ -636,6 +712,7 @@ mod tests {
             objectives: vec![],
             key_results: vec![],
             resource_boundaries: None,
+            tags: vec![],
             created_at: Utc::now(),
         }
     }

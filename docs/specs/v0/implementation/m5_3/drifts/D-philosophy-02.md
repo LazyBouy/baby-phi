@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-17 by Claude Code (CH-26 P-SEAL — Status flipped discovered → remediated at the load-bearing semantic axis: `Composite::OrganizationObject` + `Composite::ProjectObject` variants ship at cardinality 10; `tags: Vec<String>` field on Organization + Project with backfill migration #0018; ≥ 15 advisory `check_permission` invocations across 7 admin handlers (well above the `≥ 3 hits` invariant at line 39); 10 acceptance scenarios at `acceptance_m5_3_composite_resources.rs` validate engine + handler-shape verdicts. Wire-tier blocking-gate tightening + synth-grant widening + resolvers wiring carve to CH-27 per NEW drift D-CH26-FOLLOWUP-01. Cycle hex `d1cb9e1f`.) -->
 <!-- Last verified: 2026-04-28 by Claude Code -->
 
 # D-philosophy-02 — Org/Project not represented in resource ontology (no Composite::OrganizationObject / Composite::ProjectObject)
@@ -7,7 +8,7 @@
 - **Phase of origin**: post-CH-21 philosophy alignment audit (2026-04-28); filed under M5.3 drift catalogue.
 - **Discovery source**: `core-philosophy-audit`
 - **Date discovered**: 2026-04-28
-- **Status**: `discovered`
+- **Status**: `remediated` (at load-bearing semantic axis; wire-tier tightening routes to CH-27 per D-CH26-FOLLOWUP-01)
 - **Bucket**: A — load-bearing scope gap
 - **Severity**: HIGH
 - **Tags**: `philosophy-gap`, `unified-resource-model`, `composite-ontology`, `permission-engine-coverage`
@@ -58,3 +59,4 @@
 
 ## Lifecycle history
 - 2026-04-28 — `discovered` — surfaced by post-CH-21 philosophy alignment audit; user-confirmed as load-bearing intent; filed as drift in same session under M5.3 catalogue.
+- 2026-05-17 — `remediated` — CH-26 (cycle hex `d1cb9e1f`) ships at the load-bearing semantic axis: `Composite::OrganizationObject` + `Composite::ProjectObject` variants ship at cardinality 10 in `composites.rs`; `tags: Vec<String>` field on Organization + Project structs with `#[serde(default)]` for backward-compat; migration `0018_org_project_tags.surql` backfills extant rows + seeds catalogue entries; `apply_org_creation` + `apply_project_creation` populate the instance-identity tag (`organization:<uuid>` / `project:<uuid>`) at-creation-time; ≥ 15 advisory `check_permission` invocations land across 7 admin-page-1/3 handlers (well above the `≥ 3 hits` invariant at line 39); 10 acceptance scenarios at `server/tests/acceptance_m5_3_composite_resources.rs` validate engine + per-handler shape verdicts. The **wire-tier tightening axis** (advisory → blocking gate via `denial_to_api_error`, synth-grant scope widening from `[Allocate, Transfer]` to also cover `Observe` + `Inspect`, `projects::resolvers::*` actor-passthrough wiring, M3 + M4 + M5 acceptance-fixture extension) routes to **CH-27 (M5 carve-out extension, NOT M6-DEFERRED)** per NEW drift [D-CH26-FOLLOWUP-01](D-CH26-FOLLOWUP-01.md) — user-routed 2026-05-16 to keep this work in M5.

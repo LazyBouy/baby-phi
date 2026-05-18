@@ -388,6 +388,7 @@ async fn seed_unrelated_org_with_project(
             system_agents: vec![],
             approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+            tags: vec![format!("organization:{}", other_org_id)],
             created_at: Utc::now(),
         })
         .await
@@ -448,6 +449,7 @@ async fn seed_unrelated_org_with_project(
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![format!("project:{}", project_id)],
         created_at: Utc::now(),
     };
     store
@@ -544,6 +546,7 @@ async fn dashboard_shape_counters_are_org_scoped() {
             system_agents: vec![],
             approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+            tags: vec![format!("organization:{}", third_org_id)],
             created_at: Utc::now(),
         })
         .await
@@ -553,8 +556,9 @@ async fn dashboard_shape_counters_are_org_scoped() {
     let (second_org_id, second_ceo, _second_project) =
         seed_unrelated_org_with_project(store.clone(), "Second", ProjectShape::A).await;
 
+    let shape_b_pid = ProjectId::new();
     let shape_b_project = Project {
-        id: ProjectId::new(),
+        id: shape_b_pid,
         name: "Shared".into(),
         description: "co-owned fixture".into(),
         goal: None,
@@ -565,6 +569,7 @@ async fn dashboard_shape_counters_are_org_scoped() {
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![format!("project:{}", shape_b_pid)],
         created_at: Utc::now(),
     };
     let shape_b_id = shape_b_project.id;

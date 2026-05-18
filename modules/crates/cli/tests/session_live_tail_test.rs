@@ -184,6 +184,7 @@ async fn spawn_seeded_server() -> SeededFixture {
         system_agents: vec![sys0_agent.id, sys1_agent.id],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![],
         created_at: now,
     };
     let pool = TokenBudgetPool::new(org_id, 1_000_000, now);
@@ -269,6 +270,7 @@ async fn spawn_seeded_server() -> SeededFixture {
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![],
         created_at: now,
     };
     repo.apply_project_creation(&ProjectCreationPayload {

@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-17 by Claude Code (CH-26 P-SEAL — §2.5 amended: CH-26 row CLOSED (cycle hex `d1cb9e1f` 2026-05-17; deliverables shipped at load-bearing semantic axis: Composite cardinality 8 → 10, `tags: Vec<String>` field, migration #0018, 15 advisory `check_permission` invocations across 7 admin handlers, 10 acceptance scenarios). D-philosophy-02 transitions discovered → remediated. NEW CH-27 row appended for advisory → blocking gate tightening + synth-grant widening + resolvers wiring + acceptance-fixture extension (closes D-CH26-FOLLOWUP-01; M5 carve-out extension NOT M6-DEFERRED per user routing 2026-05-16). §Post-M5.3 actions line 277 amended: philosophy alignment re-run waits on CH-27 close (not CH-26); M6 plan-open shifts. M5.3 carve-out: 2-chunk {CH-25, CH-26} → 3-chunk {CH-25, CH-26, CH-27}.) -->
 <!-- Last verified: 2026-05-11 by Claude Code (CH-24 P-SEAL chunk-seal — line 211 amended: "Drifts closed: none new" → "Drifts closed: 1 (D-CH24-recent-sessions-api-flip — mid-cycle scope expansion approved at gate-2.5)" per CH-24 plan §13 retrospective routing item 2 (forward-scope row drift-count amendment at P-SEAL); mid-cycle scope expansion closed C-M5-3 API-surface flip via P-FLIP-RECENT-SESSIONS + ADR-0059 (LIMIT 10 / dedicated repo method / RecentSessionEntry 6-field shape; 7th field started_by_display_name deferred to follow-up chunk pending Agent-table-join design); first cycle to scope-expand mid-flight via P-NEW-TESTS authoring finding; gate-2.5 user-lock 2-of-3 DIVERGENT from planner-recommendations (F-D59.2.b dedicated method + F-D59.3.b richer struct); cycle hex `5778bb77`.) -->
 <!-- Last verified: 2026-05-10 by Claude Code (CH-20 P3 chunk-seal — line 185 parenthetical amended `(existing 14 items)` → `(existing 16 items)` per ADR-0058 §D58.10 reconciliation; the forward-scope row's "14" was a counting error in M5.1/P3 authoring (2026-04-24); the explicit drift list at line 186 enumerates 16 IDs (D1.1, D1.2, D1.3, D2.1, D2.2, D3.1, D3.2, D3.3, D3.4, D4.3, D4.4, D4.5, D4.6, D6.4, D7.3, D7.6) — empirically verified via `ls v0/implementation/m5_1/drifts/` showing all 16 files exist with Status `discovered` at chunk-open. Categorised as housekeeping per CH-19/ADR-0057 §D57.7 edge-count reconcile precedent — no new drift file filed. cycle hex `240616a4`.) -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
@@ -257,23 +258,40 @@ No M5 P8/P9 commitments orphaned.
 - **Actual effort**: ~3.5 engineer-days (matches plan §0 estimate of 3.0 + 0.5 for R5).
 - **EDGE_KIND_NAMES cardinality evolution**: 71 → 72 (controlled invariant evolution; invariant test renamed `_seventy_one → _seventy_two`; 9 enumerated literal sites flipped in lockstep per ADR-0060 §D60.6).
 
-### CH-26 — Org/Project as Composite resources (philosophy §4.2)
+### CH-26 — Org/Project as Composite resources (philosophy §4.2) — **CLOSED at `d1cb9e1f` 2026-05-17; deliverables shipped at load-bearing semantic axis; D-philosophy-02 remediated; advisory-only path documented in ADR-0061 §D61.5; CH-27 carves out the wire-tier tightening**
 
 - **Drifts closed**: **D-philosophy-02** (HIGH) — see [`m5_3/drifts/D-philosophy-02.md`](../../v0/implementation/m5_3/drifts/D-philosophy-02.md).
-- **Concept docs**: `core-philosophy.md` ("Organization has Projects (A Resource Type)"); `permissions/01-resource-ontology.md` (extends Composite list).
+- **Concept docs**: `core-philosophy.md` ("Organization has Projects (A Resource Type)"); `permissions/01-resource-ontology.md` (extends Composite list 8 → 10).
 - **Prerequisites**: **CH-25** (the unified-resource-model rule presupposes the new owner edge).
+- **Deliverables (SHIPPED at chunk-seal 2026-05-17)**:
+  - `Composite::OrganizationObject` + `Composite::ProjectObject` variants with `constituents() = [DataObject, IdentityPrincipal, Tag]` — cardinality 8 → 10.
+  - `tags: Vec<String>` field added to Organization + Project structs with `#[serde(default)]` (precedent: Session / Memory / Channel / AgentCredential).
+  - Migration `0018_org_project_tags.surql` — column add + instance-identity backfill (`organization:<uuid>` / `project:<uuid>`) + catalogue-entry backfill.
+  - `apply_org_creation` + `apply_project_creation` extended to populate tags + seed catalogue at-creation-time across both backends.
+  - 15 advisory `check_permission` invocations across 7 admin-page-1/3 handlers (D-philosophy-02:39 ≥ 3-hit invariant fully met). **Advisory-only consumption at CH-26 close** per implementer-time scope-revision (orchestrator-approved at gate-3 2026-05-16); CH-27 tightens to blocking gates per D-CH26-FOLLOWUP-01.
+  - 10 acceptance scenarios at `server/tests/acceptance_m5_3_composite_resources.rs` validate engine-level + per-handler shape verdicts.
+  - **ADR-0061** Accepted (NOT ADR-0043 — the forward-scope's `0043` prediction was documentary-stale; latest shipped pre-CH-26 was 0060 from CH-25, ADR-0061 META documented at §D61.6).
+- **NEW follow-up drift filed at chunk-seal**: [`D-CH26-FOLLOWUP-01`](../../v0/implementation/m5_3/drifts/D-CH26-FOLLOWUP-01.md) (LOW; closing chunk CH-27 below).
+- **Estimated effort (actual)**: ~5 engineer-days (vs original estimate ~3-4d — additional cost absorbed by F1.b + F2.b wide user-locks).
+
+### CH-27 — Blocking-gate enforcement + resolvers wiring + acceptance fixture extension (M5.3 carve-out extension)
+
+- **Drifts closed**: **D-CH26-FOLLOWUP-01** (LOW; filed at CH-26 close).
+- **Concept docs**: `permissions/04-manifest-and-resolution.md` (synth-grant widening to Observe / Inspect for owner-Agents); `m5_3/architecture/composite-resources-model.md` (tighten advisory → blocking).
+- **Prerequisites**: **CH-26** (advisory infrastructure must be in place).
 - **Deliverables**:
-  - `Composite::OrganizationObject` + `Composite::ProjectObject` variants with `constituents()`.
-  - Migration to backfill instance-identity tags on existing Organization + Project rows (cf CH-06 + CH-16 migration patterns).
-  - Refactor admin-page-1 (Orgs) + admin-page-3 (Projects) handlers to route through Permission Check engine instead of bespoke gates.
-  - Acceptance: Permission Check matches `org:O` and `project:P` as resource types in selectors.
-  - New ADR (next-free; likely **ADR-0043**).
-- **Estimated effort**: ~3-4 engineer-days.
+  - Tighten the 15 advisory `check_permission` invocations to blocking gates (return 403/404 on engine-deny via `denial_to_api_error` per CH-25 wire convention).
+  - Extend CH-25 synth-owner-grant rule (`step_2_resolve_grants`) to cover `Action::Observe` + `Action::Inspect` for owner-Agents (current scope: `[Allocate, Transfer]` per ADR-0060 §D60.2).
+  - Wire `projects::resolvers::*` background trait impls through `check_permission` (skipped at CH-26 due to no actor parameter — design + ship the actor-passthrough).
+  - Extend M3 + M4 + M5 acceptance fixtures with Edge::Owns / explicit-grant seeding where the blocking gate would otherwise break existing tests (e.g., `show_organization_post_filter_test.rs`, `m5_orgs_bootstrap_to_org_list_visibility`).
+  - Re-enable the 2 advisory-only-renamed acceptance tests at `acceptance_m5_3_composite_resources.rs` (`owner_allocate_via_show_organization_handler_path` → `owner_inspect_via_show_organization_handler_path`; `owner_allocate_via_dashboard_handler_path` → `owner_observe_via_dashboard_handler_path`) under their original Action verbs after synth-grant widens.
+  - New ADR (next-free; likely **ADR-0062**).
+- **Estimated effort**: ~6-10 engineer-days (handler tightening ~3 ed + fixture extension ~3-5 ed + synth-grant widening ~1-2 ed).
 
 ### Post-M5.3 actions
 
-- Re-run philosophy alignment audit (same 3-Explore-agent shape as 2026-04-28). Goal: confirm 12 → 14 ALIGNED claims, surface any third-order ripple effects.
-- M6 plan-mode opens against the now-unified foundation.
+- Re-run philosophy alignment audit (same 3-Explore-agent shape as 2026-04-28). Goal: confirm 12 → 14 ALIGNED claims, surface any third-order ripple effects. **Now waits on CH-27 close (not CH-26) per the M5.3 carve-out extension to 3-chunk {CH-25, CH-26, CH-27}.**
+- **M6 plan-mode opens after CH-27 close** (not CH-26 close — M5.3 carve-out extended per user routing 2026-05-16).
 - Smaller philosophy follow-ups (audit §4.5 `Memory.source_session_id`, audit §4.6 concept-`agent.md` field cleanup) route to their natural homes (M6-DEFERRED-04, next docs sweep) — NOT in M5.3.
 
 No M5.3 commitments orphaned.

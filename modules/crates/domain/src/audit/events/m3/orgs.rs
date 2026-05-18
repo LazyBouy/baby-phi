@@ -185,6 +185,7 @@ mod tests {
             system_agents: vec![AgentId::new(), AgentId::new()],
             approval_timeout: crate::model::ApprovalTimeout::ProjectDuration,
             approval_timeout_default_response: crate::model::TimeoutResponse::Deny,
+            tags: vec![],
             created_at: Utc::now(),
         }
     }

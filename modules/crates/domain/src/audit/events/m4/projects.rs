@@ -244,6 +244,7 @@ mod tests {
             objectives: vec![],
             key_results: vec![],
             resource_boundaries: Some(ResourceBoundaries::default()),
+            tags: vec![],
             created_at: Utc::now(),
         }
     }

@@ -267,6 +267,7 @@ async fn seed_session_launch_prereqs(
         objectives: vec![],
         key_results: vec![],
         resource_boundaries: Some(ResourceBoundaries::default()),
+        tags: vec![],
         created_at: now,
     };
     repo_dyn

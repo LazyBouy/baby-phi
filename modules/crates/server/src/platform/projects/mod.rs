@@ -88,6 +88,11 @@ pub enum ProjectError {
     /// Carries the typed [`AuthRequestAccessError`] variant for handler-
     /// side error mapping.
     AccessDenied(AuthRequestAccessError),
+    /// `403` — CH-26 / ADR-0061 §D61.5 — Permission Check engine
+    /// returned Denied for the requested action on the project (or
+    /// parent-org) URI. Maps to 403 `NO_GRANTS_HELD` per CH-25 wire
+    /// convention.
+    PermissionDenied(String),
     /// Repository returned an error.
     Repository(String),
     /// Audit emitter returned an error.
@@ -130,6 +135,7 @@ impl std::fmt::Display for ProjectError {
                 write!(f, "caller is not a designated approver for this AR")
             }
             ProjectError::AccessDenied(e) => write!(f, "AR access denied: {e}"),
+            ProjectError::PermissionDenied(m) => write!(f, "permission denied: {m}"),
             ProjectError::Repository(m) => write!(f, "repository: {m}"),
             ProjectError::AuditEmit(m) => write!(f, "audit emit: {m}"),
             ProjectError::Transition(m) => write!(f, "state transition: {m}"),

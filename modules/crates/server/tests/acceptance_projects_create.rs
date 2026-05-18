@@ -99,6 +99,7 @@ async fn seed_second_org(
         system_agents: vec![],
         approval_timeout: domain::model::ApprovalTimeout::ProjectDuration,
         approval_timeout_default_response: domain::model::TimeoutResponse::Deny,
+        tags: vec![format!("organization:{}", id)],
         created_at: Utc::now(),
     };
     store.create_organization(&org).await.unwrap();

@@ -2416,7 +2416,12 @@ impl Repository for SurrealStore {
                 "CREATE type::thing('auth_request', $ar_id_{i}) CONTENT $ar_body_{i} RETURN NONE;\n"
             ));
         }
-        // Catalogue entries.
+        // Catalogue entries. Per CH-26 / ADR-0061 §D61.4, the existing
+        // entry at `org:<id>` (seeded by the caller's `catalogue_entries`
+        // vec — see `orgs/create.rs:249`) already covers the canonical
+        // URI; no additional entry needed. The `resources_catalogue_owning_uri`
+        // UNIQUE index on `(owning_org, resource_uri)` prevents a separate
+        // canonical-entry insertion from succeeding.
         for i in 0..payload.catalogue_entries.len() {
             q.push_str(&format!(
                 "CREATE resources_catalogue SET owning_org = $org_id, \
@@ -2576,6 +2581,11 @@ impl Repository for SurrealStore {
                      SET id = type::thing('has_sponsor', $edge_hs_{i}) RETURN NONE;\n"
             ));
         }
+        // Per CH-26 / ADR-0061 §D61.4: the existing entry at
+        // `project:<id>` (seeded by the caller's `catalogue_entries`
+        // vec) already covers the canonical URI; no additional entry
+        // needed. The UNIQUE index on (owning_org, resource_uri)
+        // prevents a duplicate canonical-entry insertion.
         for i in 0..payload.catalogue_entries.len() {
             q.push_str(&format!(
                 "CREATE resources_catalogue SET owning_org = $org_id_0, \
