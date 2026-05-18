@@ -101,7 +101,7 @@ POST /api/v0/platform/mcp-servers/{id}/archive
 ## 12. Cross-References
 
 **Concept files:**
-- [concepts/permissions/01 § Composite Classes](../../concepts/permissions/01-resource-ontology.md#composite-classes-8) — `external_service_object` definition.
+- [concepts/permissions/01 § Composite Classes](../../concepts/permissions/01-resource-ontology.md#composite-classes-10) — `external_service_object` definition.
 - [concepts/permissions/07 § Tool Authority Manifest Examples § 8 `mcp_github`](../../concepts/permissions/07-templates-and-tools.md#8-mcp_github--mcp-adapter-tool-composite-form) — the tool manifest that references entries here.
 - [organizations/10-platform-infra.md](../../organizations/10-platform-infra.md) — the `external_services` catalogue section reflects this page's output.
 

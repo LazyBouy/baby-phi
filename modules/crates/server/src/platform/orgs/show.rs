@@ -55,12 +55,14 @@ pub struct OrganizationDetail {
 /// audit-event is emitted per filtered AR (silent post-filter — same
 /// UX as `archived_at IS NOT NULL` filtering).
 ///
-/// CH-26 / ADR-0061 §D61.5 — the viewer is gated through the Permission
-/// Check engine on `org:<id>` (Action::Inspect) before the org body is
-/// returned. The CH-25 synth-owner-grant rule resolves Allow for the
-/// owning Agent; strangers receive Denied → mapped to `Ok(None)` at
-/// the HTTP boundary (preserves the existing 404-on-missing wire shape;
-/// the AR-filter still applies as defence-in-depth on the list).
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — the viewer is
+/// gated through the Permission Check engine on `org:<id>`
+/// (Action::Inspect) before the org body is returned. The CH-25
+/// synth-owner-grant rule (widened to 4-verb scope at CH-27 / ADR-0062
+/// §D62.2) resolves Allow for the owning Agent; strangers receive
+/// Denied → propagated as `OrgError::PermissionDenied` mapped to HTTP
+/// 403 NO_GRANTS_HELD per CH-25 wire convention (`denial_to_api_error`).
+/// The bespoke AR-filter on the adoptions list stays as defence-in-depth.
 pub async fn show_organization(
     repo: Arc<dyn Repository>,
     id: OrgId,
@@ -75,16 +77,14 @@ pub async fn show_organization(
         None => return Ok(None),
     };
 
-    // CH-26 / ADR-0061 §D61.5 — engine-routed Inspect check on
-    // `org:<id>`. The engine is invoked for the load-bearing
-    // permission-semantics claim (owner-Agent + explicit-grant
-    // holders resolve Allow; cross-org strangers resolve Deny);
-    // the result is consumed advisorily in M3-shipped show
-    // semantics where any org-member can read the org body. The
-    // M3 per-AR filter at line ~80 below applies regardless.
-    // Future M6+ may tighten this gate to be blocking (the bespoke
-    // gating stays as defence-in-depth per plan §3.E Candidate 1).
-    let _engine_inspect_allowed = is_inspect_allowed(&*repo, viewer, id).await?;
+    // CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+    // Inspect check on `org:<id>`. **BLOCKING** as of CH-27: engine deny
+    // propagates as `OrgError::PermissionDenied` → HTTP 403 NO_GRANTS_HELD.
+    // The CH-25 synth-owner-grant rule (widened to 4-verb scope at CH-27
+    // / ADR-0062 §D62.2) resolves Allow for the owning Agent; cross-org
+    // strangers resolve Deny. The M3 per-AR filter at line ~80 below
+    // stays as defence-in-depth.
+    is_inspect_allowed(&*repo, viewer, id).await?;
 
     let members = repo
         .list_agents_in_org(id)
@@ -114,17 +114,20 @@ pub async fn show_organization(
     }))
 }
 
-/// CH-26 / ADR-0061 §D61.5 — engine-routed Inspect gate for org show.
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+/// Inspect gate for org show. **BLOCKING** as of CH-27.
 ///
-/// Builds the standard CheckContext shape used across CH-25 + CH-26
-/// handler refactors: explicit grants + CH-25 owned-resource slices +
-/// catalogue seeded with the instance URI. Returns `Ok(true)` iff the
-/// engine returns Allowed.
+/// Builds the standard CheckContext shape used across CH-25 + CH-26 +
+/// CH-27 handler refactors: explicit grants + CH-25 owned-resource
+/// slices + catalogue seeded with the instance URI. Returns `Ok(())`
+/// iff the engine returns Allowed; engine denials propagate as
+/// `OrgError::PermissionDenied` mapped to HTTP 403 NO_GRANTS_HELD per
+/// CH-25 wire convention.
 async fn is_inspect_allowed(
     repo: &dyn Repository,
     viewer: AgentId,
     org_id: OrgId,
-) -> Result<bool, OrgError> {
+) -> Result<(), OrgError> {
     let uri = format!("org:{}", org_id);
     let agent_grants = repo
         .list_grants_for_principal(&PrincipalRef::Agent(viewer))
@@ -171,5 +174,7 @@ async fn is_inspect_allowed(
         resource: vec!["identity_principal".to_string()],
         ..Default::default()
     };
-    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+    check_permission(&ctx, &manifest, &NoopMetrics)
+        .map(|_resolved| ())
+        .map_err(|api_err| OrgError::PermissionDenied(api_err.message))
 }

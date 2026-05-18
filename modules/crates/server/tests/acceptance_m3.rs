@@ -27,11 +27,16 @@
 
 mod acceptance_common;
 
+use std::sync::Arc;
+
 use acceptance_common::admin::spawn_claimed;
+use acceptance_common::owner_grants::seed_owner_grants;
 use acceptance_common::TEST_SESSION_SECRET;
+use domain::model::ids::{AgentId, OrgId};
 use domain::repository::Repository;
 use serde_json::{json, Value};
 use server::session::{sign_and_build_cookie, SessionKey};
+use uuid::Uuid;
 
 fn wizard_body() -> Value {
     json!({
@@ -215,6 +220,18 @@ async fn wizard_to_dashboard_phi_core_wire_shape_contracts_stable() {
     let receipt: Value = res.json().await.unwrap();
     let org_id_str = receipt["org_id"].as_str().unwrap().to_string();
     let ceo_agent_id = receipt["ceo_agent_id"].as_str().unwrap().to_string();
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed owner-grant
+    // for the platform admin on the freshly-minted org so the blocking
+    // gate at `show_organization` admits the admin viewer for the
+    // snapshot-shape assertion. The CEO viewer at the dashboard call
+    // below is auto-admitted by the synth-owner-grant rule.
+    let repo: Arc<dyn Repository> = admin.acc.store.clone();
+    let admin_agent_id = AgentId::from_uuid(Uuid::parse_str(&admin.agent_id).expect("uuid"));
+    let org_id = OrgId::from_uuid(Uuid::parse_str(&org_id_str).expect("uuid"));
+    seed_owner_grants(&repo, admin_agent_id, vec![org_id])
+        .await
+        .expect("seed_owner_grants");
 
     // Show endpoint carries the snapshot.
     let show = admin

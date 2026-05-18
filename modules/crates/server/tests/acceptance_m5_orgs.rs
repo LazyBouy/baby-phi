@@ -29,12 +29,28 @@
 
 mod acceptance_common;
 
+use std::sync::Arc;
+
 use acceptance_common::m5_bootstrap::{bootstrap_with_two_orgs, client_as};
+use acceptance_common::owner_grants::seed_owner_grants;
+use domain::model::ids::AgentId;
+use domain::repository::Repository;
 use serde_json::Value;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn m5_orgs_bootstrap_to_org_list_visibility() {
     let fx = bootstrap_with_two_orgs().await;
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed explicit
+    // owner-grants for the platform admin on both orgs so the per-row
+    // blocking-filter at `list_organizations` admits both rows for the
+    // admin viewer + the cross-check show endpoint admits the admin.
+    let repo: Arc<dyn Repository> = fx.admin.acc.store.clone();
+    let admin_agent_id = AgentId::from_uuid(Uuid::parse_str(&fx.admin.agent_id).expect("uuid"));
+    seed_owner_grants(&repo, admin_agent_id, vec![fx.org_a_id, fx.org_b_id])
+        .await
+        .expect("seed_owner_grants");
 
     // GET /api/v0/orgs returns both orgs the wizard just created.
     let res = fx
@@ -118,10 +134,15 @@ async fn m5_orgs_cross_org_list_isolation() {
         "Org-A CEO must not see Org-B dashboard"
     );
     let err: Value = res.json().await.expect("decode 403 envelope");
+    // CH-27 / ADR-0062 §D62.1 — blocking gate canonicalises engine
+    // denial to `NO_GRANTS_HELD` via `denial_to_api_error` (CH-25 wire
+    // convention). The bespoke `ORG_ACCESS_DENIED` remains as
+    // defence-in-depth at the membership tier but the engine-tier
+    // denial fires first for cross-org viewers.
     assert_eq!(
         err["code"].as_str(),
-        Some("ORG_ACCESS_DENIED"),
-        "cross-org dashboard access must surface ORG_ACCESS_DENIED"
+        Some("NO_GRANTS_HELD"),
+        "cross-org dashboard access must surface NO_GRANTS_HELD per CH-27 wire canonical"
     );
 
     // Symmetric assertion — Org-B CEO denied at Org-A.
@@ -136,7 +157,7 @@ async fn m5_orgs_cross_org_list_isolation() {
         .expect("GET Org-A dashboard as Org-B CEO");
     assert_eq!(res2.status().as_u16(), 403);
     let err2: Value = res2.json().await.expect("decode 403 envelope");
-    assert_eq!(err2["code"].as_str(), Some("ORG_ACCESS_DENIED"));
+    assert_eq!(err2["code"].as_str(), Some("NO_GRANTS_HELD"));
 
     // Sanity — each CEO CAN see their own org's dashboard. Proves
     // the assertion above is gate-driven, not generic 403.

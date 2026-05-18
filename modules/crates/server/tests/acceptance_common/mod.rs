@@ -14,6 +14,7 @@
 
 pub mod admin;
 pub mod m5_bootstrap;
+pub mod owner_grants;
 
 use std::net::{SocketAddr, TcpListener};
 use std::sync::{Arc, OnceLock};

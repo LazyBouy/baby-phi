@@ -32,6 +32,7 @@
 mod acceptance_common;
 
 use acceptance_common::admin::{spawn_claimed_with_org, ClaimedOrg};
+use acceptance_common::owner_grants::{seed_owner_grants, seed_owner_grants_on_projects};
 
 use chrono::Utc;
 use domain::model::composites_m4::ResourceBoundaries;
@@ -239,6 +240,19 @@ async fn full_m4_happy_path_bootstrap_to_dashboard() {
     // --- Create a Shape A project on page 10 --------------------------------
     let project_id = create_shape_a_project(&org, intern_id, "Atlas").await;
 
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed explicit
+    // Inspect/Observe owner-grants for the CEO on the new project URI.
+    // The CEO is the owner of the parent org (Edge::Owns admits org-level
+    // operations via synth-grant) but `apply_project_creation` emits
+    // Owns for the project LEAD (here `intern_id`), NOT the CEO. M6+
+    // resolvers wiring (deferred via D-CH27-FOLLOWUP-01 / F3.a) will
+    // surface org-ownership cascade through `project:<P>` selectors;
+    // until then, explicit-grant seeding is the canonical fixture path.
+    let repo: Arc<dyn Repository> = org.admin.acc.store.clone();
+    seed_owner_grants_on_projects(&repo, org.ceo_agent_id, vec![project_id])
+        .await
+        .expect("seed owner-grants on project for CEO viewer");
+
     // --- Read the project detail on page 11 (as CEO) -------------------------
     let detail = show_project_as_ceo(&org, project_id).await;
     assert_eq!(
@@ -329,6 +343,16 @@ async fn project_lead_viewer_role_surfaces_on_dashboard() {
 
     // Create a Shape A project with Eve as lead.
     let _project = create_shape_a_project(&org, eve_id, "Eve's project").await;
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — Eve is a member +
+    // project lead (org's CEO is the owner per `apply_org_creation`), but
+    // the blocking gate at `org_dashboard` requires Observe on `org:<O>`.
+    // Member-of-org alone does NOT carry a synth-grant; explicit seeding
+    // is the canonical F4.b path.
+    let repo: Arc<dyn Repository> = org.admin.acc.store.clone();
+    seed_owner_grants(&repo, eve_id, vec![org.org_id])
+        .await
+        .expect("seed owner-grants on org for Eve viewer");
 
     // Dashboard as Eve (she's a member + project lead → expects
     // `project_lead` role, NOT `admin`, NOT `member`).
@@ -505,7 +529,11 @@ async fn cross_org_project_show_denies_foreign_viewer() {
          name-collision must not leak across orgs"
     );
     let err: Value = res.json().await.unwrap();
-    assert_eq!(err["code"], "PROJECT_ACCESS_DENIED");
+    // CH-27 / ADR-0062 §D62.1 — blocking gate canonicalises engine
+    // denial to `NO_GRANTS_HELD` via `denial_to_api_error` (CH-25 wire
+    // convention). The bespoke `PROJECT_ACCESS_DENIED` code remains as
+    // defence-in-depth but the engine-tier denial fires first.
+    assert_eq!(err["code"], "NO_GRANTS_HELD");
 }
 
 /// Dashboard counter isolation — `count_projects_by_shape_in_org`

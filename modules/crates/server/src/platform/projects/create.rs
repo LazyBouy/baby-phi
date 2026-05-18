@@ -169,14 +169,11 @@ pub async fn create_project(
     // parent-org URI. The engine is invoked for the load-bearing
     // permission-semantics claim (CH-25 synth-owner-grant resolves
     // Allow for the owning Agent; cross-org strangers resolve Deny).
-    // The result is consumed advisorily in M4-shipped create-project
-    // semantics where the bespoke lead/member-in-owning-org gating
-    // (validate_lead_and_members) carries the wire-tier rejection
-    // surface. Future M6+ may tighten this gate to be blocking
-    // (the bespoke gating stays as defence-in-depth per plan
-    // §3.E Candidate 1).
-    let _engine_allocate_allowed =
-        is_allocate_allowed_on_org(&*repo, input.actor, input.org_id).await?;
+    // **BLOCKING** as of CH-27 / ADR-0062 §D62.1: engine deny propagates
+    // as `ProjectError::PermissionDenied` → HTTP 403 NO_GRANTS_HELD per
+    // CH-25 wire convention. The bespoke lead/member-in-owning-org
+    // gating (`validate_lead_and_members`) stays as defence-in-depth.
+    is_allocate_allowed_on_org(&*repo, input.actor, input.org_id).await?;
 
     // Pre-tx existence check — avoids a fragile string-match on the
     // SurrealDB duplicate error. A race between this check + the
@@ -207,16 +204,19 @@ pub async fn create_project(
 // Validation
 // ---------------------------------------------------------------------------
 
-/// CH-26 / ADR-0061 §D61.5 — engine-routed Allocate gate on the parent
-/// org URI. Symmetric peer to `orgs::dashboard::is_observe_allowed` and
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+/// Allocate gate on the parent org URI. **BLOCKING** as of CH-27.
+/// Symmetric peer to `orgs::dashboard::is_observe_allowed` and
 /// `orgs::show::is_inspect_allowed`. Resolves Allow via the CH-25
 /// synth-owner-grant rule when the actor owns `org:<O>`; otherwise
-/// resolves against explicit Allocate grants on the URI.
+/// resolves against explicit Allocate grants on the URI. Engine denials
+/// propagate as `ProjectError::PermissionDenied` mapped to HTTP 403
+/// NO_GRANTS_HELD per CH-25 wire convention.
 async fn is_allocate_allowed_on_org(
     repo: &dyn Repository,
     actor: AgentId,
     parent_org_id: OrgId,
-) -> Result<bool, ProjectError> {
+) -> Result<(), ProjectError> {
     let uri = format!("org:{}", parent_org_id);
     let agent_grants = repo
         .list_grants_for_principal(&PrincipalRef::Agent(actor))
@@ -263,7 +263,9 @@ async fn is_allocate_allowed_on_org(
         resource: vec!["identity_principal".to_string()],
         ..Default::default()
     };
-    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+    check_permission(&ctx, &manifest, &NoopMetrics)
+        .map(|_resolved| ())
+        .map_err(|api_err| ProjectError::PermissionDenied(api_err.message))
 }
 
 fn validate_input_shape(input: &CreateProjectInput) -> Result<(), ProjectError> {

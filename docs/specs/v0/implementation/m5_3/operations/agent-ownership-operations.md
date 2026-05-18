@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-18 by Claude Code (CH-27 / ADR-0062 P-DOCS — synth-grant action-vec table row + operator-troubleshooting bullet updated to reflect 4-verb scope `[Allocate, Transfer, Observe, Inspect]` per ADR-0062 §D62.2. Cycle hex `0edcaba9`.) -->
 <!-- Last verified: 2026-05-16 by Claude Code (CH-25 / ADR-0060 P3 — operations page paired with the agent-ownership-model architecture page; documents how operators inspect Owns edges + read synth-owner-grants in Permission Check decision logs.) -->
 
 # Agent ownership — operations page
@@ -59,12 +60,12 @@ Synth-owner-grants carry these distinctive fields:
 | `audit_class` | `AuditClass::Silent` | `AuditClass::Logged` (or per-template) |
 | `approval_mode` | `ApprovalMode::Implicit` | per-template (e.g., `PerSession` for Template C) |
 | `delegable` | `true` (owners can delegate) | per-template |
-| `action` | `[Action::Allocate, Action::Transfer]` exactly | any |
+| `action` | `[Action::Allocate, Action::Transfer, Action::Observe, Action::Inspect]` (4-verb universal-applicability per ADR-0062 §D62.2, widened at CH-27) | any |
 | `resource.uri` | `org:<uuid>` or `project:<uuid>` | varies |
 
 In decision logs, synth-owner-grants surface as the winning grant when:
 
-1. The manifest reach requests `[Action::Allocate]` or `[Action::Transfer]` over the owned-Org/Project URI.
+1. The manifest reach requests any of `[Action::Allocate, Action::Transfer, Action::Observe, Action::Inspect]` (post-CH-27 / ADR-0062 §D62.2 widened scope) over the owned-Org/Project URI.
 2. NO explicit grant covers the same reach.
 3. The agent is the owner per `Edge::Owns`.
 

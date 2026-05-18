@@ -134,16 +134,15 @@ pub async fn create_organization(
     // 1. Shape validation.
     validate_input(&input)?;
 
-    // CH-26 / ADR-0061 §D61.5 — engine-routed Allocate gate on
-    // `platform:root`. The actor (platform admin) is gated through the
-    // Permission Check engine to surface the gate symmetrically with
-    // the other org/project handlers. The bespoke `AuthenticatedSession`
-    // extractor + admin-claim discipline remains the deciding wire-tier
-    // gate (defence-in-depth); the engine result is consumed for
-    // explicit-grant resolution + audit-trail symmetry. Future M6+ may
-    // tighten this by requiring an explicit `Allocate` grant on
-    // `platform:root` (rather than session-claim being sufficient).
-    let _engine_allocate_allowed = is_platform_root_allocate_allowed(&*repo, input.actor).await?;
+    // CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+    // Allocate gate on `platform:root`. **BLOCKING** as of CH-27: engine
+    // deny propagates as `OrgError::PermissionDenied` → HTTP 403
+    // NO_GRANTS_HELD. The bespoke `AuthenticatedSession` extractor +
+    // admin-claim discipline stays as defence-in-depth at the wire tier;
+    // the engine now also blocks if no `Allocate`-on-`platform:root`
+    // grant is held (typically via the CH-25 synth-owner-grant rule for
+    // platform-owner Agents, or an explicitly seeded Allocate grant).
+    is_platform_root_allocate_allowed(&*repo, input.actor).await?;
 
     // 2. Resolve the snapshot. Default path: snapshot-copy current
     //    platform defaults (or platform factory if none persisted)
@@ -367,14 +366,14 @@ pub async fn create_organization(
 /// refactors (`show.rs`, `dashboard.rs`, `list.rs`); the platform-root
 /// catalogue entry is seeded ambiently (no per-call seed) and the
 /// engine returns Denied for actors without an explicit Allocate grant
-/// on `platform:root`. The result is consumed advisorily by
-/// `create_organization` (the wire-tier gate stays
-/// `AuthenticatedSession` per ADR-0061 §D61.5 "preserve bespoke gate
-/// as defence-in-depth").
+/// on `platform:root`. **BLOCKING** as of CH-27 / ADR-0062 §D62.1: the
+/// result propagates as `OrgError::PermissionDenied` on engine deny;
+/// the bespoke `AuthenticatedSession` extractor stays as defence-in-
+/// depth per ADR-0061 §D61.5 "preserve bespoke gate as defence-in-depth".
 async fn is_platform_root_allocate_allowed(
     repo: &dyn Repository,
     actor: AgentId,
-) -> Result<bool, OrgError> {
+) -> Result<(), OrgError> {
     let uri = "platform:root".to_string();
     let agent_grants = repo
         .list_grants_for_principal(&PrincipalRef::Agent(actor))
@@ -421,7 +420,9 @@ async fn is_platform_root_allocate_allowed(
         resource: vec!["identity_principal".to_string()],
         ..Default::default()
     };
-    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+    check_permission(&ctx, &manifest, &NoopMetrics)
+        .map(|_resolved| ())
+        .map_err(|api_err| OrgError::PermissionDenied(api_err.message))
 }
 
 fn validate_input(input: &CreateInput) -> Result<(), OrgError> {

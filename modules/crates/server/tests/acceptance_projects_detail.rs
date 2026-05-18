@@ -22,6 +22,7 @@
 mod acceptance_common;
 
 use acceptance_common::admin::{spawn_claimed_with_org_and_project, ClaimedProject};
+use acceptance_common::owner_grants::seed_owner_grants_on_projects;
 
 use chrono::Utc;
 use domain::model::ids::{AgentId, OrgId};
@@ -59,6 +60,21 @@ fn patch_okrs(project: &ClaimedProject, body: Value) -> reqwest::RequestBuilder 
 #[tokio::test]
 async fn show_happy_path() {
     let project = spawn_claimed_with_org_and_project(false).await;
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed Inspect grant
+    // for the CEO on `project:<P>`. The project lead (an LLM agent) is
+    // the synth-grant owner per `apply_project_creation`; the CEO views
+    // the project via the org-membership role-claim path but the
+    // blocking gate at CH-27 requires explicit project-URI grant.
+    let repo: Arc<dyn Repository> = project.claimed_org.admin.acc.store.clone();
+    seed_owner_grants_on_projects(
+        &repo,
+        project.claimed_org.ceo_agent_id,
+        vec![project.project_id],
+    )
+    .await
+    .expect("seed CEO grant on project URI");
+
     let res = get_show(&project).send().await.unwrap();
     assert_eq!(res.status().as_u16(), 200);
     let body: Value = res.json().await.unwrap();
@@ -170,7 +186,11 @@ async fn show_unrelated_viewer_returns_403() {
     let res = outsider_client.get(url).send().await.unwrap();
     assert_eq!(res.status().as_u16(), 403);
     let err: Value = res.json().await.unwrap();
-    assert_eq!(err["code"], "PROJECT_ACCESS_DENIED");
+    // CH-27 / ADR-0062 §D62.1 — blocking gate canonicalises engine
+    // denial to `NO_GRANTS_HELD` via `denial_to_api_error`. The bespoke
+    // `PROJECT_ACCESS_DENIED` remains as defence-in-depth but the
+    // engine-tier denial fires first for outsider viewers.
+    assert_eq!(err["code"], "NO_GRANTS_HELD");
 }
 
 // ---------------------------------------------------------------------------

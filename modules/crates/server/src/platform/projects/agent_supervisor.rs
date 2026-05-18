@@ -91,18 +91,15 @@ pub async fn set_agent_supervisor(
     event_bus: Arc<dyn EventBus>,
     input: SetSupervisorInput,
 ) -> Result<SetSupervisorOutcome, SetSupervisorError> {
-    // CH-26 / ADR-0061 §D61.5 — engine-routed Observe check on
-    // `project:<id>` before mutation. The engine is invoked for the
-    // load-bearing permission-semantics claim (CH-25 synth-owner-grant
-    // resolves Allow for the owning Agent of the project; cross-org
-    // strangers resolve Deny). The result is consumed advisorily in
-    // CH-23 set_supervisor semantics where the bespoke compound-tx
-    // discipline carries the wire-tier rejection surface (project +
-    // agent existence + active-status). Future M6+ may tighten this
-    // gate to be blocking (the bespoke gating stays as defence-in-
-    // depth per plan §3.E Candidate 1).
-    let _engine_observe_allowed =
-        is_observe_allowed_on_project(&*repo, input.actor, input.project_id).await?;
+    // CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+    // Observe check on `project:<id>` before mutation. **BLOCKING** as
+    // of CH-27: engine deny propagates as
+    // `SetSupervisorError::PermissionDenied` → HTTP 403 NO_GRANTS_HELD.
+    // The CH-25 synth-owner-grant rule (widened to 4-verb scope at CH-27
+    // / ADR-0062 §D62.2) resolves Allow for the owning Agent of the
+    // project. The bespoke compound-tx discipline (project + agent
+    // existence + active-status) stays as defence-in-depth.
+    is_observe_allowed_on_project(&*repo, input.actor, input.project_id).await?;
 
     let receipt = repo
         .create_has_agent_supervisor_edge(
@@ -136,14 +133,18 @@ pub async fn set_agent_supervisor(
     })
 }
 
-/// CH-26 / ADR-0061 §D61.5 — engine-routed Observe gate on `project:<id>`.
-/// Symmetric peer to the orgs-tier helpers; resolves Allow via the
-/// CH-25 synth-owner-grant rule when the actor owns the project.
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+/// Observe gate on `project:<id>`. **BLOCKING** as of CH-27. Symmetric
+/// peer to the orgs-tier helpers; resolves Allow via the CH-25
+/// synth-owner-grant rule when the actor owns the project (widened to
+/// 4-verb scope at CH-27 / ADR-0062 §D62.2). Engine denials propagate
+/// as `SetSupervisorError::PermissionDenied` mapped to HTTP 403
+/// NO_GRANTS_HELD per CH-25 wire convention.
 async fn is_observe_allowed_on_project(
     repo: &dyn Repository,
     actor: AgentId,
     project_id: ProjectId,
-) -> Result<bool, SetSupervisorError> {
+) -> Result<(), SetSupervisorError> {
     let uri = format!("project:{}", project_id);
     let agent_grants = repo
         .list_grants_for_principal(&PrincipalRef::Agent(actor))
@@ -190,5 +191,7 @@ async fn is_observe_allowed_on_project(
         resource: vec!["identity_principal".to_string()],
         ..Default::default()
     };
-    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+    check_permission(&ctx, &manifest, &NoopMetrics)
+        .map(|_resolved| ())
+        .map_err(|api_err| SetSupervisorError::PermissionDenied(api_err.message))
 }

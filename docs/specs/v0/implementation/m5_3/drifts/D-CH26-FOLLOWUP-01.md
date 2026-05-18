@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-18 by Claude Code (CH-27 P-SEAL — transitions `discovered → remediated`; ADR-0062 §D62.1 + §D62.2 + §D62.4 close the wire-tier + synth-grant-widening + acceptance-fixture-extension axes; §D62.3 (F3.a LOCKED) defers resolvers wiring to M6-DEFERRED-RESOLVERS-WIRING via NEW D-CH27-FOLLOWUP-01. §D62.5 META count-amend applied: body cardinality "15 advisory check_permission invocations" → "7 advisory check_permission invocations" with footnote citing plan §3 Artifact A enumeration. Cycle hex `0edcaba9`.) -->
 <!-- Last verified: 2026-05-17 by Claude Code (CH-26 P-DOCS — filed at chunk-seal per user-routed CH-27 carve-out decision 2026-05-16: keep advisory → blocking gate tightening + synth-grant widening + resolvers wiring + acceptance-fixture extension IN M5 carve-out rather than M6+ deferral; closing chunk CH-27 NOT M6-DEFERRED-NN.) -->
 
 # D-CH26-FOLLOWUP-01 — Advisory → blocking gate tightening + synth-grant widening + resolvers wiring + acceptance-fixture extension
@@ -7,7 +8,7 @@
 - **Phase of origin**: CH-26 chunk-seal (2026-05-17) — filed per user-routed CH-27 carve-out decision 2026-05-16.
 - **Discovery source**: chunk-implementer scope-revision (mid-cycle); orchestrator-confirmed at gate-3.
 - **Date discovered**: 2026-05-16
-- **Status**: `discovered`
+- **Status**: **remediated** (at CH-27 P-SEAL 2026-05-18; cycle hex `0edcaba9` — see lifecycle history below)
 - **Bucket**: B — advisory → blocking gate tightening + follow-on engine-scope widening
 - **Severity**: LOW
 - **Tags**: `advisory-to-blocking`, `synth-grant-scope-widening`, `resolvers-actor-passthrough`, `acceptance-fixture-extension`, `m5-3-carveout`
@@ -24,7 +25,9 @@
 ## Plan vs. reality
 - **Plan §3 + ADR-0061 §D61.5 said (F1.b user-lock)**: ≥ 7 handler refactor sites; engine result mapped to HTTP 403 via `denial_to_api_error` per CH-25 wire convention.
 - **Reality at CH-26 chunk-seal**:
-  - 15 `engine.check_permission` invocations land across 7 handlers (`orgs::{list, show, create, dashboard}` + `projects::{create, detail, agent_supervisor}`) — D-philosophy-02:39 ≥ 3-hit invariant FULLY met (15 ≫ 3).
+  - **7** advisory `engine.check_permission` invocations[^count-amendment] land across 7 handlers (`orgs::{list, show, create, dashboard}` + `projects::{create, detail, agent_supervisor}`) — D-philosophy-02:39 ≥ 3-hit invariant FULLY met (7 ≫ 3).
+
+[^count-amendment]: Body cardinality amended at CH-27 P-SEAL per ADR-0062 §D62.5 META: this drift's original CH-26-era body claimed "15 advisory check_permission invocations", which conflated production-call invocations + `use` imports + docstring references. The verified §3 Artifact A grep at CH-27 plan-time (`git grep -nE 'check_permission\(&ctx' modules/crates/server/src/platform/orgs/ modules/crates/server/src/platform/projects/`) returns exactly **7** production-call sites — one per handler. The amendment corrects the cardinality without changing the drift's invariants or remediation scope.
   - All invocations consumed advisorily (engine verdict captured but bespoke gate decides response status).
   - `projects::resolvers::*` background trait impls NOT wired through `check_permission` — no actor parameter on resolver trait shape.
   - CH-25 synth-owner-grant scope (`step_2_resolve_grants`) covers `[Action::Allocate, Action::Transfer]` only — `Action::Observe` + `Action::Inspect` (the natural verbs for show/list/dashboard) NOT covered.
@@ -67,6 +70,7 @@ The drift is **NOT M6-DEFERRED-NN** because the user explicitly requested closin
 ## Lifecycle history
 - 2026-05-16 — `discovered` — implementer-time scope-revision surfaced advisory-only consumption pattern; orchestrator-approved + user-routed to CH-27 carve-out.
 - 2026-05-17 — drift filed at CH-26 chunk-seal; CH-27 plan-open expected next.
+- 2026-05-18 — **remediated** at CH-27 P-SEAL (cycle hex `0edcaba9`). ADR-0062 §D62.1 closes the wire-tier axis (7 advisory `.is_ok()` invocations flipped to blocking `?`-propagation via `denial_to_api_error`; engine deny → HTTP 403 `NO_GRANTS_HELD`). ADR-0062 §D62.2 closes the synth-grant-widening axis (scope flipped to `[Allocate, Transfer, Observe, Inspect]` — 4 universal-applicability verbs). ADR-0062 §D62.4 (F4.b USER-DIVERGENT) ships the acceptance-fixture extension axis via NEW opt-in helper `seed_owner_grants` at `server/tests/acceptance_common/owner_grants.rs` (**9 explicit call-sites** across 6 M3+M4+M5 acceptance test files; planning band per plan §3 Artifact C was 12-18; cascade-collapse documented in ADR-0062 §D62.4 — tests using the `apply_org_creation` production path obtain `Edge::Owns` implicitly per CH-25 ADR-0060 §D60.1). ADR-0062 §D62.3 (F3.a LOCKED user-aligned) defers the resolvers-wiring axis to M6 via NEW [`D-CH27-FOLLOWUP-01`](D-CH27-FOLLOWUP-01.md) with explicit `M6-DEFERRED-RESOLVERS-WIRING` allocation. ADR-0062 §D62.5 META applies the count-amend "15" → "7" with footnote citing §3 Artifact A enumeration.
 
 ## Cross-references
 - [`ADR-0061`](../decisions/0061-org-project-as-composite-resources.md) §D61.5 — advisory-only revision rationale.

@@ -18,6 +18,7 @@
 mod acceptance_common;
 
 use acceptance_common::admin::{spawn_claimed_with_org, ClaimedOrg};
+use acceptance_common::owner_grants::seed_owner_grants;
 use acceptance_common::TEST_SESSION_SECRET;
 
 use chrono::Utc;
@@ -95,6 +96,16 @@ async fn dashboard_silently_filters_adoption_ars_for_unauthorised_viewer() {
     // requestor) — under the matrix's Approved × Read by Other cell,
     // the Template A adoption AR is filtered out silently.
     let outsider = seed_human(&store, org.org_id, "Outsider").await;
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed Observe
+    // grant for outsider on the org so the dashboard endpoint's
+    // blocking gate (CH-27 / ADR-0062 §D62.1) admits the outsider
+    // viewer. The CH-18 silent post-filter on adoption ARs (inside
+    // the dashboard body) still applies as defence-in-depth and
+    // silently filters out ARs the outsider is not authorised to read.
+    seed_owner_grants(&store, outsider, vec![org.org_id])
+        .await
+        .expect("seed Observe grant for outsider");
 
     // Snapshot audit events BEFORE the outsider's dashboard read.
     let events_before = store

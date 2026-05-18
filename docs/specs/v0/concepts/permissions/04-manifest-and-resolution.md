@@ -1,4 +1,5 @@
 <!-- Status: CONCEPTUAL -->
+<!-- Last verified: 2026-05-18 by Claude Code (CH-27 amendment: §"Owner-grant auto-issue rule" body refreshed — synth-grant scope widened from `[Allocate, Transfer]` (CH-25 baseline) to `[Allocate, Transfer, Observe, Inspect]` (4 universal-applicability verbs per concept-doc 03 line 44) per ADR-0062 §D62.2; "Operator implications" subsection updated to reflect the blocking-gate consumption at 7 admin handlers via `denial_to_api_error` per ADR-0062 §D62.1. Cycle hex `0edcaba9`.) -->
 <!-- Last verified: 2026-05-16 by Claude Code (CH-25 amendment: NEW §"Owner-grant auto-issue rule (CH-25 / ADR-0060)" subsection appended below covering the synth-owner-grant fired by `step_2_resolve_grants` for every `Edge::Owns` (Agent → Org/Project). The synth carries `[Allocate, Transfer]` on `IdentityPrincipal` over the owned-Org/Project URI; `descends_from = None` (synth — no AR provenance, exempt from the bootstrap-traceback invariant by design); `audit_class = Silent` (the underlying operation's audit emit covers the resolution). Refines the "every grant traces to bootstrap" wording at §"The Authority Chain" — synth-grants from structural Owns edges are an in-engine inference, NOT persisted grants, so the bootstrap-traceback walker does not visit them. Cycle hex `1e01618e`.) -->
 <!-- Last verified: 2026-05-08 by Claude Code (CH-14 amendment: §"The Authority Chain" lines 510–547 — every-grant-traces-to-bootstrap claim now backed by `Repository::walk_provenance_chain(grant) -> Vec<AuthRequest>` on both backends + `AuthRequest.descends_from_grant: Option<GrantId>` field-add (migration 0014) per ADR-0053 §D53.3/§D53.5; depth cap 32 + `RepositoryError::ProvenanceCycleDepthExceeded` defensive guard. Doc body unchanged.) -->
 <!-- Last verified: 2026-05-07 by Claude Code (CH-07 amendment: §"Mechanism 2: Scope Resolution" lines 354–375 + §"Key Invariants" line 310 lifted into typed Rust at domain::permissions::engine::step_5_scope_resolution (full 2-tier cascade body) per ADR-0051 §D51.1 + §D51.2. Doc body unchanged.) -->
@@ -593,9 +594,9 @@ For example, an org-default "read project workspace" grant can be defined once a
 CH-25 adds a third grant-issuance pathway alongside (1) template-driven issuance + (2) admin-issued explicit grants: **synth-grants from structural `Owns` edges**. The Permission Check engine's `step_2_resolve_grants` synthesises a candidate `Grant` for every `Edge::Owns { from: AgentId, to: OwnedResourceId }` whose `from` matches the calling agent. The synth carries:
 
 - `holder: PrincipalRef::Agent(<agent_id>)`
-- `action: [Action::Allocate, Action::Transfer]` (canonical Authority verbs per concept-doc 03 line 149)
+- `action: [Action::Allocate, Action::Transfer, Action::Observe, Action::Inspect]` (CH-27 / ADR-0062 §D62.2 widened scope — 4 universal-applicability verbs covering Authority + Discovery + Observability per concept-doc 03 line 44; CH-25 baseline was the 2-verb `[Allocate, Transfer]`)
 - `resource.uri: org:<id>` or `project:<id>`
-- `fundamentals: [IdentityPrincipal]` (the axis on which Authority-category actions operate)
+- `fundamentals: [IdentityPrincipal]` (the axis on which Authority-category actions operate; extended at CH-27 to also cover Discovery + Observability for owner-Agents per concept-doc 03 universal-applicability claim)
 - `descends_from: None` (synth — no AR provenance; structurally exempt from the bootstrap-traceback walker)
 - `delegable: true`
 - `approval_mode: Implicit`
@@ -609,7 +610,7 @@ The Owns edge itself IS persisted (in the SurrealDB `owns` relation table, decla
 
 ### Operator implications
 
-The CEO who creates an Org via the bootstrap-claim wizard or `POST /api/v0/orgs` auto-gains `[Allocate, Transfer]` on `org:<id>` WITHOUT any persisted explicit grant being seeded. M6+ admin pages (Orgs page 1 + Projects page 3) can plan against this unified owner-grant model rather than pre-seeding bespoke `[Allocate]` grants at every org/project creation site.
+The CEO who creates an Org via the bootstrap-claim wizard or `POST /api/v0/orgs` auto-gains `[Allocate, Transfer, Observe, Inspect]` on `org:<id>` (post-CH-27 / ADR-0062 §D62.2 widened scope) WITHOUT any persisted explicit grant being seeded. The 7 admin handlers in `server/src/platform/orgs/{list,show,create,dashboard}` + `server/src/platform/projects/{create,detail,agent_supervisor}` now consume this synth-grant via **blocking** `check_permission` invocations (CH-27 / ADR-0062 §D62.1): engine deny propagates as HTTP 403 `NO_GRANTS_HELD` via `denial_to_api_error`. M6+ admin pages plan against this unified owner-grant model rather than pre-seeding bespoke grants at every org/project creation site.
 
 See [`m5_3/architecture/agent-ownership-model.md`](../../implementation/m5_3/architecture/agent-ownership-model.md) for the full design and [ADR-0060](../../implementation/m5_3/decisions/0060-agent-as-creator-and-owner.md) for the decision record.
 

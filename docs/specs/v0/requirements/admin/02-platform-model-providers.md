@@ -106,7 +106,7 @@ POST /api/v0/platform/model-providers/{id}/archive
 
 **Concept files:**
 - [concepts/permissions/01 § Resource Catalogue](../../concepts/permissions/01-resource-ontology.md#resource-catalogue) — the precondition rule; entries here populate the catalogue.
-- [concepts/permissions/01 § Composite Classes](../../concepts/permissions/01-resource-ontology.md#composite-classes-8) — `model/runtime_object` definition.
+- [concepts/permissions/01 § Composite Classes](../../concepts/permissions/01-resource-ontology.md#composite-classes-10) — `model/runtime_object` definition.
 - [concepts/organization.md](../../concepts/organization.md) — how orgs reference platform resources.
 
 **Related admin pages:**

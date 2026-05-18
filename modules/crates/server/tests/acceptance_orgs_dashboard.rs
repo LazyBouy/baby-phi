@@ -168,7 +168,12 @@ async fn non_member_viewer_receives_403_access_denied() {
         "platform admin is not a member of the fixture org; expected 403"
     );
     let body: Value = res.json().await.unwrap();
-    assert_eq!(body["code"].as_str(), Some("ORG_ACCESS_DENIED"));
+    // CH-27 / ADR-0062 §D62.1 — blocking gate canonicalises engine
+    // denial to `NO_GRANTS_HELD` via `denial_to_api_error` (CH-25 wire
+    // convention). The bespoke `ORG_ACCESS_DENIED` remains as
+    // defence-in-depth at the membership tier but engine-tier denial
+    // fires first for non-member viewers.
+    assert_eq!(body["code"].as_str(), Some("NO_GRANTS_HELD"));
 }
 
 /// **Positive phi-core leverage invariant (P5.0 pre-audit)** — the

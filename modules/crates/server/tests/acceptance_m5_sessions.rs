@@ -46,9 +46,11 @@
 
 mod acceptance_common;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use acceptance_common::m5_bootstrap::{bootstrap_to_session_endable, client_as};
+use acceptance_common::owner_grants::seed_owner_grants_on_projects;
 use domain::Repository;
 use serde_json::{json, Value};
 
@@ -209,6 +211,22 @@ async fn m5_sessions_full_bootstrap_to_first_session_to_extraction_to_catalog() 
     // bound is `LIMIT 10` enforced at the SurrealQL layer. This
     // scenario asserts the freshly-launched + finalised session
     // appears on the panel with the expected id + status.
+    //
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed Inspect
+    // grant for CEO on `project:<P>`. The project lead (the LLM agent
+    // created via the fixture) is the synth-grant owner per
+    // `apply_project_creation`; the CEO views the project via the
+    // org-level role-claim path but the blocking gate requires explicit
+    // project-URI grant.
+    let repo_for_grant: Arc<dyn Repository> = project.claimed_org.admin.acc.store.clone();
+    seed_owner_grants_on_projects(
+        &repo_for_grant,
+        project.claimed_org.ceo_agent_id,
+        vec![project.project_id],
+    )
+    .await
+    .expect("seed CEO grant on project URI");
+
     let detail_url = project.url(&format!("/api/v0/projects/{}", project.project_id));
     let detail_res = ceo_client
         .get(&detail_url)

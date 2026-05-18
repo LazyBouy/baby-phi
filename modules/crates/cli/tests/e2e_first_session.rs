@@ -152,6 +152,21 @@ fn run_phi(args: &[&str], xdg: &std::path::Path) -> (i32, String, String) {
     (code, stdout, stderr)
 }
 
+/// Parse `human_agent_id: <uuid>` (or `human_agent_id   <uuid>`) from
+/// `phi bootstrap claim` stdout — the admin's typed AgentId.
+fn parse_claim_admin_agent_id(stdout: &str) -> String {
+    for line in stdout.lines() {
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix("human_agent_id:") {
+            return rest.trim().to_string();
+        }
+        if let Some(rest) = trimmed.strip_prefix("human_agent_id ") {
+            return rest.trim().to_string();
+        }
+    }
+    panic!("`phi bootstrap claim` stdout must include `human_agent_id` line; got: {stdout}")
+}
+
 /// Parse "  id:                 <uuid>" / "  ceo_agent:          <uuid>"
 /// lines out of `phi org create` non-JSON output. Returns
 /// (org_id, ceo_agent_id).
@@ -377,6 +392,9 @@ async fn e2e_first_session_full_flow() {
         stdout.contains("human_agent_id"),
         "claim stdout must include human_agent_id; got: {stdout}"
     );
+    let admin_agent_id_str = parse_claim_admin_agent_id(&stdout);
+    let admin_agent_id =
+        AgentId::from_uuid(uuid::Uuid::parse_str(&admin_agent_id_str).expect("admin uuid"));
     assert!(
         stdout.contains("session saved to"),
         "claim must persist cookie to XDG store; stdout: {stdout}"
@@ -424,6 +442,40 @@ async fn e2e_first_session_full_flow() {
     let ceo_agent_id = AgentId::from_uuid(
         uuid::Uuid::parse_str(&ceo_agent_str).expect("ceo_agent_id is valid uuid"),
     );
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed an explicit
+    // 4-verb owner-grant for the platform admin on `org:<O>` so the
+    // per-row blocking-filter at `list_organizations` admits the freshly
+    // -minted org in the upcoming `phi org list` invocation. Mirrors the
+    // `acceptance_common::owner_grants::seed_owner_grants` helper shape
+    // used by server-tier acceptance tests; inlined here because the CLI
+    // package does not consume the server-tier helper module.
+    let repo_dyn: Arc<dyn Repository> = repo.clone();
+    let admin_grant = Grant {
+        id: domain::model::ids::GrantId::new(),
+        holder: PrincipalRef::Agent(admin_agent_id),
+        action: vec![
+            Action::Allocate,
+            Action::Transfer,
+            Action::Observe,
+            Action::Inspect,
+        ],
+        resource: ResourceRef {
+            uri: format!("org:{}", org_id),
+        },
+        fundamentals: vec![Fundamental::IdentityPrincipal],
+        descends_from: None,
+        delegable: true,
+        issued_at: Utc::now(),
+        revoked_at: None,
+        approval_mode: ApprovalMode::Implicit,
+        audit_class: AuditClass::Silent,
+        allocate_refinement: None,
+    };
+    repo_dyn
+        .create_grant(&admin_grant)
+        .await
+        .expect("seed admin owner-grant on org");
 
     // -------- Step 3 — `phi org list` (CLI happy-path read) -----------------
     let (code, stdout, stderr) = run_phi(&["--server-url", &base, "org", "list"], xdg.path());

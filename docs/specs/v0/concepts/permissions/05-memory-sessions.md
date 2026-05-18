@@ -578,7 +578,7 @@ The forbidden shape is **multi-project AND multi-org on the same session**. When
 
 ## Inbox and Outbox (Agent Messaging)
 
-Every Agent has exactly one **Inbox** (messages received) and one **Outbox** (messages sent). These are the composites `inbox_object` and `outbox_object` declared in [01 § Composite Classes](01-resource-ontology.md#composite-classes-8). They are **distinct from the agent's task queue** (ASSIGNED_TO edges) and from delegation (DELEGATES_TO). Messaging is **peer-to-peer information flow**; task assignment and delegation are separate control-flow mechanisms.
+Every Agent has exactly one **Inbox** (messages received) and one **Outbox** (messages sent). These are the composites `inbox_object` and `outbox_object` declared in [01 § Composite Classes](01-resource-ontology.md#composite-classes-10). They are **distinct from the agent's task queue** (ASSIGNED_TO edges) and from delegation (DELEGATES_TO). Messaging is **peer-to-peer information flow**; task assignment and delegation are separate control-flow mechanisms.
 
 ### Resource Classes: `inbox_object`, `outbox_object`
 

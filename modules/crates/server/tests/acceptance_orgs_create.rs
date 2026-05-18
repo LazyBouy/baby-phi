@@ -23,8 +23,25 @@
 mod acceptance_common;
 
 use acceptance_common::admin::spawn_claimed;
+use acceptance_common::owner_grants::seed_owner_grants;
+use domain::model::ids::{AgentId, OrgId};
 use domain::repository::Repository;
 use serde_json::json;
+use std::sync::Arc;
+use uuid::Uuid;
+
+/// Parse the receipt's `"org_id"` string into a typed `OrgId` for the
+/// F4.b helper.
+fn parse_org_id(receipt: &serde_json::Value) -> OrgId {
+    let s = receipt["org_id"].as_str().expect("org_id");
+    OrgId::from_uuid(Uuid::parse_str(s).expect("uuid"))
+}
+
+/// Parse the harness's `admin.agent_id` string into a typed `AgentId`
+/// for the F4.b helper.
+fn parse_admin_agent_id(admin: &acceptance_common::admin::ClaimedAdmin) -> AgentId {
+    AgentId::from_uuid(Uuid::parse_str(&admin.agent_id).expect("uuid"))
+}
 
 fn happy_body() -> serde_json::Value {
     // Minimal-startup wizard payload — lets the server snapshot
@@ -166,11 +183,23 @@ async fn create_then_show_returns_defaults_snapshot_with_phi_core_fields() {
     let res = post_orgs(&admin, happy_body()).await;
     assert_eq!(res.status().as_u16(), 201);
     let receipt: serde_json::Value = res.json().await.unwrap();
-    let org_id = receipt["org_id"].as_str().unwrap().to_string();
+    let org_id_str = receipt["org_id"].as_str().unwrap().to_string();
+    let org_id = parse_org_id(&receipt);
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed explicit
+    // owner-grants for the platform admin on the freshly-minted org so
+    // the blocking gate at `show_organization` admits the admin viewer.
+    // Without this seed the admin lacks Inspect grant on `org:<O>` (the
+    // CEO is the only synth-grant owner via Edge::Owns at-create time)
+    // and the GET returns 403.
+    let repo: Arc<dyn Repository> = admin.acc.store.clone();
+    seed_owner_grants(&repo, parse_admin_agent_id(&admin), vec![org_id])
+        .await
+        .expect("seed_owner_grants");
 
     let show = admin
         .authed_client
-        .get(admin.url(&format!("/api/v0/orgs/{org_id}")))
+        .get(admin.url(&format!("/api/v0/orgs/{org_id_str}")))
         .send()
         .await
         .expect("get /orgs/:id");
@@ -321,11 +350,26 @@ async fn create_two_orgs_then_list_returns_both() {
 
     let r1 = post_orgs(&admin, happy_body()).await;
     assert_eq!(r1.status().as_u16(), 201);
+    let receipt1: serde_json::Value = r1.json().await.unwrap();
     let mut b2 = happy_body();
     b2["display_name"] = json!("BetaCorp");
     b2["ceo_channel_handle"] = json!("beta@betacorp.test");
     let r2 = post_orgs(&admin, b2).await;
     assert_eq!(r2.status().as_u16(), 201);
+    let receipt2: serde_json::Value = r2.json().await.unwrap();
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b USER-DIVERGENT) — seed explicit
+    // owner-grants for the platform admin on both freshly-minted orgs
+    // so the per-row blocking-filter at `list_organizations` admits
+    // both rows for the admin viewer.
+    let repo: Arc<dyn Repository> = admin.acc.store.clone();
+    seed_owner_grants(
+        &repo,
+        parse_admin_agent_id(&admin),
+        vec![parse_org_id(&receipt1), parse_org_id(&receipt2)],
+    )
+    .await
+    .expect("seed_owner_grants");
 
     let list = admin
         .authed_client
@@ -409,10 +453,20 @@ async fn regulated_enterprise_layout_persists_full_template_suite() {
         Some(5)
     );
 
-    let org_id = receipt["org_id"].as_str().unwrap().to_string();
+    let org_id_str = receipt["org_id"].as_str().unwrap().to_string();
+    // CH-27 / ADR-0062 §D62.4 (F4.b) — seed owner-grant for admin to
+    // pass the blocking gate at `show_organization`.
+    let repo: Arc<dyn Repository> = admin.acc.store.clone();
+    seed_owner_grants(
+        &repo,
+        parse_admin_agent_id(&admin),
+        vec![parse_org_id(&receipt)],
+    )
+    .await
+    .expect("seed_owner_grants");
     let show = admin
         .authed_client
-        .get(admin.url(&format!("/api/v0/orgs/{org_id}")))
+        .get(admin.url(&format!("/api/v0/orgs/{org_id_str}")))
         .send()
         .await
         .unwrap();
@@ -451,10 +505,19 @@ async fn mid_product_team_layout_persists_three_templates_and_slack_ceo() {
         Some(3)
     );
 
-    let org_id = receipt["org_id"].as_str().unwrap().to_string();
+    let org_id_str = receipt["org_id"].as_str().unwrap().to_string();
+    // CH-27 / ADR-0062 §D62.4 (F4.b) — seed owner-grant for admin.
+    let repo: Arc<dyn Repository> = admin.acc.store.clone();
+    seed_owner_grants(
+        &repo,
+        parse_admin_agent_id(&admin),
+        vec![parse_org_id(&receipt)],
+    )
+    .await
+    .expect("seed_owner_grants");
     let show = admin
         .authed_client
-        .get(admin.url(&format!("/api/v0/orgs/{org_id}")))
+        .get(admin.url(&format!("/api/v0/orgs/{org_id_str}")))
         .send()
         .await
         .unwrap();

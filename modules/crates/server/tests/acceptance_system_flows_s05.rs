@@ -35,6 +35,7 @@ use std::sync::Arc;
 use acceptance_common::admin::{
     spawn_claimed_with_org, spawn_claimed_with_org_and_project, ClaimedOrg, ClaimedProject,
 };
+use acceptance_common::owner_grants::seed_owner_grants_on_projects;
 use chrono::Utc;
 use domain::audit::AuditEmitter;
 use domain::events::{
@@ -316,6 +317,20 @@ async fn scenario_2_template_d_fires_on_has_agent_supervisor_edge_creation() {
     seed_template_d_adoption(&project.claimed_org).await;
     subscribe_template_d(&project.claimed_org);
 
+    // CH-27 / ADR-0062 §D62.4 (F4.b) — seed Observe grant for CEO on
+    // `project:<P>`. The set_agent_supervisor handler's blocking gate
+    // requires Observe-on-project; the CEO is the org-owner but not
+    // the project-lead (project lead is the LLM agent created by
+    // `spawn_claimed_with_org_and_project`).
+    let repo_for_grant: Arc<dyn Repository> = project.acc().store.clone();
+    seed_owner_grants_on_projects(
+        &repo_for_grant,
+        project.claimed_org.ceo_agent_id,
+        vec![project.project_id],
+    )
+    .await
+    .expect("seed CEO grant on project URI");
+
     let supervisor = project.project_member; // member is the supervisor
     let supervisee = project.project_lead; // lead becomes supervisee here
 
@@ -381,6 +396,18 @@ async fn scenario_3_a_c_d_all_fire_for_one_project_with_three_relationships() {
     subscribe_template_d(&project.claimed_org);
 
     let repo: Arc<dyn Repository> = project.acc().store.clone();
+
+    // CH-27 / ADR-0062 §D62.4 (F4.b) — seed Observe grant for CEO on
+    // `project:<P>` so the set_agent_supervisor handler's blocking
+    // gate admits the CEO viewer for the Template D fan-out call.
+    seed_owner_grants_on_projects(
+        &repo,
+        project.claimed_org.ceo_agent_id,
+        vec![project.project_id],
+    )
+    .await
+    .expect("seed CEO grant on project URI");
+
     let lead = project.project_lead;
     let manager = project.project_member;
 

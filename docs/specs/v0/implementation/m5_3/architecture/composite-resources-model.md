@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-18 by Claude Code (CH-27 / ADR-0062 P-DOCS — body amended for CH-27 closure: advisory-only § now describes the blocking-gate flip at CH-27; NEW §"Test-fixture pattern for owner-grant-required tests" documents the F4.b USER-DIVERGENT opt-in helper `seed_owner_grants` at `server/tests/acceptance_common/owner_grants.rs`; synth-grant scope narrative reflects 4-verb widening; D-CH26-FOLLOWUP-01 closure cross-ref added; cycle hex `0edcaba9`. SCOPE-NARROWING note on F4.b helper-body: plan §3 Artifact C literal called for `Repository::insert_edge` which does not exist; helper materialises explicit `Grant` via `Repository::create_grant` instead, preserving F4.b's wire-format-explicit per-test seeding spirit.) -->
 <!-- Last verified: 2026-05-17 by Claude Code (CH-26 / ADR-0061 P-DOCS — composite-resources-model design page paired with ADR-0061 §D61.1-§D61.7; documents the OrganizationObject + ProjectObject Composite variants, `tags: Vec<String>` field on Organization + Project structs, migration `0018_org_project_tags.surql`, the ≥ 7 advisory-only handler refactor (CH-27 carve-out tightens advisory → blocking gate per D-CH26-FOLLOWUP-01), and the K8s posture. Cycle hex `d1cb9e1f`.) -->
 
 # Composite resources model (Org/Project) — design page
@@ -130,27 +131,69 @@ CH-26 wires `handler_support::check_permission` invocations across ≥ 7 admin-p
 | `projects::detail::show_project` | `Inspect` | `project:<P>` |
 | `projects::agent_supervisor::list_agent_supervisors` | `Observe` | `project:<P>` |
 
-### Advisory-only: load-bearing semantic, not wire-tier gate
+### Blocking gates (CH-27 / ADR-0062 §D62.1)
 
-**Implementer-time scope-revision (2026-05-16, orchestrator-approved at gate-3)**: the 15 `engine.check_permission` invocations across these handlers are **consumed advisorily** — the bespoke gates (`AuthenticatedSession` extractors + per-handler role checks + AR-filter logic) **remain the wire-tier rejection surface**. The engine result is computed and logged but does not directly map to HTTP 403; the existing bespoke logic decides response status.
+**At CH-26 (now superseded)**: the 7 `engine.check_permission` invocations across these handlers were consumed **advisorily** — the bespoke gates (`AuthenticatedSession` extractors + per-handler role checks + AR-filter logic) remained the wire-tier rejection surface.
 
-The **load-bearing semantic claim** that CH-26 delivers (and that closes D-philosophy-02) is:
+**At CH-27 (M5.3 carve-out closure)**: the 7 invocations now **block** via `denial_to_api_error` propagation (CH-25 wire convention). Engine denials canonicalise to HTTP 403 `NO_GRANTS_HELD` (per `permission.rs:76+denial_to_api_error`). The bespoke gates remain as **defence-in-depth** layered AFTER the engine-tier gate.
+
+The **load-bearing semantic claim** that CH-26 delivered (and that closed D-philosophy-02) is:
 
 > The Permission Check engine matches `org:O` + `project:P` URIs as selectors against owner-Agent contexts via the CH-25 synth-owner-grant rule.
 
-This claim is **fully shipped + tested** at CH-26: the acceptance suite at `server/tests/acceptance_m5_3_composite_resources.rs` replays the exact `CheckContext` + `Manifest` shape each refactored handler builds and asserts the engine's verdict (Allow for owner, Deny for stranger) is correct.
+This claim is **fully shipped + tested** at CH-26: the acceptance suite at `server/tests/acceptance_m5_3_composite_resources.rs` replays the exact `CheckContext` + `Manifest` shape each refactored handler builds and asserts the engine's verdict (Allow for owner, Deny for stranger) is correct. CH-27 EXTENDS this suite with 4 NEW HTTP 403-block scenarios (`unauthorized_actor_blocked_at_{show_organization,org_dashboard,project_detail,set_agent_supervisor}_returns_403`) that hit the actual routes + assert the wire-tier closure.
 
-### CH-27 carve-out: advisory → blocking + synth-grant widening
+### CH-27 deliverables shipped (closes D-CH26-FOLLOWUP-01)
 
-The wire-tier tightening of advisory → blocking is **deferred to CH-27** (M5.3 carve-out extension), tracked by drift [`D-CH26-FOLLOWUP-01`](../drifts/D-CH26-FOLLOWUP-01.md) (Bucket B, Severity LOW). CH-27 ships:
+CH-27 (cycle hex `0edcaba9`, [ADR-0062](../decisions/0062-blocking-gate-and-synth-grant-widening.md)) ships:
 
-- Tightening of the 15 advisory invocations to blocking gates (engine-deny → HTTP 403/404 via `denial_to_api_error`).
-- Widening of the CH-25 synth-owner-grant rule (`step_2_resolve_grants`) to cover `Action::Observe` + `Action::Inspect` for owner-Agents (current scope: `[Allocate, Transfer]` per ADR-0060 §D60.2).
-- Wiring `projects::resolvers::*` background trait impls through `check_permission` (skipped at CH-26 — no actor parameter in the resolver trait shape; CH-27 designs the actor-passthrough).
-- M3 + M4 + M5 acceptance-fixture extension with Edge::Owns / explicit-grant seeding where the new blocking gate would otherwise break existing tests.
-- Re-enabling the Inspect/Observe handler-path acceptance scenarios that CH-26 pinned at the Allocate verb (per the synth-grant scope constraint).
+- **Wire-tier tightening (§D62.1)**: 7 advisory `.is_ok()` consumption sites flipped to blocking `?`-propagation via `denial_to_api_error`. Engine-deny → HTTP 403 `NO_GRANTS_HELD`. **Cardinality amendment** (§D62.5): D-CH26-FOLLOWUP-01 body originally claimed "15 advisory check_permission invocations" — verified count is **7** (one production-call per handler; the original "15" conflated invocations + use imports + docstring references).
+- **Synth-grant widening (§D62.2)**: `synth_owner_grant` at `domain::permissions::engine.rs:275-290` now emits `[Action::Allocate, Action::Transfer, Action::Observe, Action::Inspect]` — covering all 4 universal-applicability verbs per `concepts/permissions/03-action-vocabulary.md:44` for owner-Agents on owned Org/Project.
+- **Resolvers wiring DEFERRED to M6 (§D62.3, F3.a LOCKED)**: `projects::resolvers::*` actor-passthrough architectural design tracked via NEW [`D-CH27-FOLLOWUP-01`](../drifts/D-CH27-FOLLOWUP-01.md) with `M6-DEFERRED-RESOLVERS-WIRING` allocation. The background-listener trait shape has no actor parameter; designing actor-passthrough across all background-tier resolvers exceeds the M5.3 carve-out blast-radius envelope.
+- **Acceptance fixture extension via F4.b opt-in helper (§D62.4, USER-DIVERGENT)**: NEW [`seed_owner_grants`](../../../../../../modules/crates/server/tests/acceptance_common/owner_grants.rs) at `server/tests/acceptance_common/owner_grants.rs`. **9 explicit call-sites** across 6 M3+M4+M5 acceptance test files get explicit per-test owner-grant seeding (planning band per plan §3 Artifact C was 12-18 sites; cascade collapsed because tests using the `apply_org_creation` production path obtain `Edge::Owns` implicitly per CH-25 ADR-0060 §D60.1 — see ADR-0062 §D62.4 cascade-collapse note). See §"Test-fixture pattern" below for the canonical pattern.
+- **Renamed scenarios re-enabled (§D62.2 follow-on)**: the 2 advisory-only-renamed scenarios from CH-26 (`owner_allocate_via_show_organization_handler_path` + `owner_allocate_via_dashboard_handler_path`) renamed to `owner_inspect_via_show_organization_handler_path` + `owner_observe_via_dashboard_handler_path` with Action verbs flipped to the natural verbs for show/dashboard handler paths (now covered by the widened synth-grant scope).
 
-User routing decision (2026-05-16): keep the blocking-gate work in M5 carve-out as a NEW chunk rather than deferring to M6+. The M5.3 carve-out extends from 2-chunk {CH-25, CH-26} → 3-chunk {CH-25, CH-26, CH-27}; M6 plan-open shifts accordingly.
+User routing decision (2026-05-16): keep the blocking-gate work in M5 carve-out as a NEW chunk rather than deferring to M6+. The M5.3 carve-out closes with 3-chunk arc {CH-25, CH-26, CH-27}; M6 plan-open unblocks at CH-27 close.
+
+### Test-fixture pattern for owner-grant-required tests (CH-27 / ADR-0062 §D62.4 — F4.b USER-DIVERGENT)
+
+The canonical pattern for acceptance tests that need a viewer to pass the now-blocking engine gate:
+
+```rust
+use acceptance_common::owner_grants::seed_owner_grants;
+
+#[tokio::test]
+async fn my_test() {
+    // 1. Bootstrap an org via the wizard (admin actor creates the org;
+    //    CEO is the synth-grant owner via Edge::Owns at apply_org_creation).
+    let admin = spawn_claimed(false).await;
+    let receipt = post_orgs(&admin, wizard_body()).await;
+    let org_id: OrgId = /* parse from receipt */;
+
+    // 2. The platform admin (or any non-owner viewer) does NOT pass the
+    //    CH-27 blocking gate by default. Seed an explicit 4-verb owner-
+    //    grant on `org:<O>` for the viewer who will hit the endpoint.
+    let repo: Arc<dyn Repository> = admin.acc.store.clone();
+    seed_owner_grants(&repo, admin_agent_id, vec![org_id])
+        .await
+        .expect("seed_owner_grants");
+
+    // 3. The admin viewer now passes the gate at any of the 7 admin
+    //    handlers (Inspect / Observe / Allocate / Transfer covered by the
+    //    widened CH-27 / ADR-0062 §D62.2 synth-grant scope).
+    let show = admin.authed_client.get(/* /api/v0/orgs/{org_id} */).send().await;
+    assert_eq!(show.status().as_u16(), 200);
+}
+```
+
+**Helper variants** (all at `acceptance_common::owner_grants`):
+- `seed_owner_grants(repo, agent, org_ids)` — 4-verb grants on `org:<O>` URIs (the canonical case).
+- `seed_owner_grants_on_projects(repo, agent, project_ids)` — 4-verb grants on `project:<P>` URIs.
+- `seed_owner_grants_with_explicit_grants(repo, agent, vec![(org_id, vec![Action])])` — per-pair custom action sets for narrower scope tests (e.g., observer-only).
+
+**Why F4.b (opt-in) over F4.a (default-extension)**: cross-cycle user-preference for wire-format-explicit + opt-in-visible fixture patterns (CH-26 F2.b precedent + CH-25 F1.b precedent + i-phi CH-02b F4.b precedent). The explicit per-test call makes the owner-grant wire-up **audit-visible** and provides a canonical pattern for M6+ admin-page tests.
+
+**SCOPE-NARROWING note (CH-27 P-FIXTURES)**: the plan's §3 Artifact C helper-body literal called for `repo.insert_edge(Edge::Owns { ... })` — but the `Repository` trait does NOT expose an `insert_edge(Edge)` method nor a single-row `OwnsEdge` writer (the canonical Owns-edge emission path is the `apply_org_creation` / `apply_project_creation` compound-tx). The shipped helper materialises an explicit persisted `Grant` via `Repository::create_grant` (existing trait method) on the `org:<O>` / `project:<P>` URI, covering the 4-verb scope. The engine's Step 2 (Resolution) picks up the persisted grant in the candidate pool identically to the synth-grant, producing the same Allow verdict for the seeded agent. The narrowing PRESERVES F4.b's spirit (wire-format-explicit per-test grant seeding, audit-visible in test body) and matches the planner's optional variant `seed_owner_grants_with_explicit_grants`.
 
 ### Why F1.b (in-cycle handler refactor) over F1.a (defer to M7)?
 
@@ -178,25 +221,37 @@ No new blocker class is introduced. CH-27's advisory → blocking tightening is 
 
 ## §7 — Acceptance test surface
 
-The CH-26 acceptance suite at [`server/tests/acceptance_m5_3_composite_resources.rs`](../../../../../../modules/crates/server/tests/acceptance_m5_3_composite_resources.rs) covers 10 scenarios:
+The acceptance suite at [`server/tests/acceptance_m5_3_composite_resources.rs`](../../../../../../modules/crates/server/tests/acceptance_m5_3_composite_resources.rs) covers **14 scenarios at CH-27 close** (10 from CH-26 + 4 NEW HTTP 403-block scenarios; 2 scenarios renamed at CH-27 to use Inspect/Observe verbs covered by the widened synth-grant scope):
 
+**Engine-shape scenarios (10, from CH-26 + 2 renamed at CH-27)**:
 1. **catalogue_seed_succeeds_on_wizard_create** — `apply_org_creation` seeds the `org:<id>` catalogue entry at-creation-time.
 2. **applies_to_composite_for_organization_and_project_object** — pure-engine smoke that `Action::Allocate` / `Inspect` / `Observe` all apply to both new Composite variants (universal categories).
 3. **engine_resolves_allocate_over_owned_org_for_ceo** — engine round-trip against `org:<O>` with owner-Agent context returns Allow.
 4. **stranger_denied_allocate_on_org** — engine returns Deny for an unrelated Agent.
-5-6. **owner_allocate_via_show_organization_handler_path** + **stranger_allocate_via_show_organization_handler_path** — `show_organization` handler engine shape (per CH-25 synth-grant scope constraint: pinned at `Allocate` verb; CH-27 widens to `Inspect`).
-7-8. **owner_allocate_via_dashboard_handler_path** + **stranger_allocate_via_dashboard_handler_path** — `dashboard_summary` handler engine shape (same constraint; CH-27 widens to `Observe`).
+5. **owner_inspect_via_show_organization_handler_path** (RENAMED at CH-27 from `owner_allocate_via_*`) — `show_organization` engine shape at the Inspect verb (now covered by widened synth-grant per ADR-0062 §D62.2). Extended with HTTP-tier 200-pass assertion at CH-27 / P3.
+6. **stranger_allocate_via_show_organization_handler_path** — same handler shape returns Deny for stranger.
+7. **owner_observe_via_dashboard_handler_path** (RENAMED at CH-27 from `owner_allocate_via_*`) — `dashboard_summary` engine shape at the Observe verb. Extended with HTTP-tier 200-pass assertion at CH-27 / P3.
+8. **stranger_allocate_via_dashboard_handler_path** — same handler shape returns Deny for stranger.
 9-10. **owner_allocate_via_create_project_handler_path** + **stranger_allocate_via_create_project_handler_path** — `create_project` handler engine shape against the parent org.
 
-The per-handler scenarios replay the exact `CheckContext` + `Manifest` shape each refactored handler builds. Hitting the HTTP route would not distinguish the engine verdict from the bespoke verdict (since the engine result is advisory at CH-26); replaying the engine shape directly pins the invariant the chunk closes. CH-27 will re-enable the Inspect / Observe variants of these scenarios after widening the synth-grant scope.
+**HTTP-tier 403-block scenarios (4 NEW at CH-27 / P3)**:
+- **unauthorized_actor_blocked_at_show_organization_returns_403** — stranger Agent hits `GET /api/v0/orgs/:id` → HTTP 403 `NO_GRANTS_HELD`.
+- **unauthorized_actor_blocked_at_org_dashboard_returns_403** — stranger hits `GET /api/v0/orgs/:id/dashboard` → 403 `NO_GRANTS_HELD`.
+- **unauthorized_actor_blocked_at_project_detail_returns_403** — stranger hits `GET /api/v0/projects/:id` → 403 `NO_GRANTS_HELD`.
+- **unauthorized_actor_blocked_at_set_agent_supervisor_returns_403** — stranger hits `POST /api/v0/projects/:id/agents/:supervisee/supervisor` → 403 `NO_GRANTS_HELD`.
+
+The per-handler engine-shape scenarios pin the load-bearing semantic claim (engine verdict for owner / stranger across the URI shapes the handlers build). The HTTP 403-block scenarios pin the wire-tier closure (blocking gate → canonical `NO_GRANTS_HELD` envelope via `denial_to_api_error`). The two layers are complementary: engine-shape proves correctness; HTTP-tier proves the wire-tier blocking is wired correctly.
 
 ---
 
 ## §8 — Cross-references
 
-- [`ADR-0061`](../decisions/0061-org-project-as-composite-resources.md) — formal design record.
-- [`D-philosophy-02`](../drifts/D-philosophy-02.md) — drift closed at CH-26 P-SEAL.
-- [`D-CH26-FOLLOWUP-01`](../drifts/D-CH26-FOLLOWUP-01.md) — drift filed at CH-26 for CH-27 carve-out.
-- [`agent-ownership-model.md`](agent-ownership-model.md) — CH-25 design page for the Edge::Owns + synth-owner-grant rule that CH-26 builds on.
+- [`ADR-0061`](../decisions/0061-org-project-as-composite-resources.md) — CH-26 design record.
+- [`ADR-0062`](../decisions/0062-blocking-gate-and-synth-grant-widening.md) — CH-27 design record (blocking-gate closure + synth-grant widening + F4.b helper).
+- [`D-philosophy-02`](../drifts/D-philosophy-02.md) — drift closed at CH-26 P-SEAL (load-bearing semantic axis).
+- [`D-CH26-FOLLOWUP-01`](../drifts/D-CH26-FOLLOWUP-01.md) — drift closed at CH-27 P-SEAL (wire-tier + synth-grant + fixture axes).
+- [`D-CH27-FOLLOWUP-01`](../drifts/D-CH27-FOLLOWUP-01.md) — NEW drift filed at CH-27 (resolver actor-passthrough deferred to M6).
+- [`agent-ownership-model.md`](agent-ownership-model.md) — CH-25 design page for the Edge::Owns + synth-owner-grant rule (widened to 4 verbs at CH-27 / ADR-0062 §D62.2).
 - [`composite-resources-operations.md`](../operations/composite-resources-operations.md) — operator runbook.
-- Plan archive: [`plan/build/ch-26-org-project-as-composite-d1cb9e1f/plan.md`](../../../../plan/build/ch-26-org-project-as-composite-d1cb9e1f/plan.md).
+- Plan archive: [`plan/build/ch-26-org-project-as-composite-d1cb9e1f/plan.md`](../../../../plan/build/ch-26-org-project-as-composite-d1cb9e1f/plan.md) (CH-26).
+- Plan archive: [`plan/build/ch-27-blocking-gate-enforcement-resolvers-wiring-0edcaba9/plan.md`](../../../../plan/build/ch-27-blocking-gate-enforcement-resolvers-wiring-0edcaba9/plan.md) (CH-27).

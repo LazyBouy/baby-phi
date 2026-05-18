@@ -272,16 +272,13 @@ pub async fn dashboard_summary(
         .iter()
         .any(|p| org_project_ids.contains(&p.id));
     let viewer_role = resolve_viewer_role(&agents, viewer_agent_id, viewer_leads_here);
-    // CH-26 / ADR-0061 §D61.5 — engine-routed Observe check on
-    // `org:<id>`. The engine is invoked for the load-bearing
-    // permission-semantics claim (CH-25 synth-owner-grant resolves
-    // Allow for the owning Agent of the org; cross-org strangers
-    // resolve Deny). The result is consumed advisorily; the bespoke
-    // `ViewerRole::None` membership gate carries the wire-tier
-    // rejection surface (M3-shipped semantics). Future M6+ may
-    // tighten this gate to be blocking (the bespoke gating stays as
-    // defence-in-depth per plan §3.E Candidate 1).
-    let _engine_observe_allowed = is_observe_allowed(&*repo, viewer_agent_id, org_id).await?;
+    // CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+    // Observe check on `org:<id>`. **BLOCKING** as of CH-27: engine deny
+    // propagates as `OrgError::PermissionDenied` → HTTP 403 NO_GRANTS_HELD.
+    // The CH-25 synth-owner-grant rule (widened to 4-verb scope at CH-27
+    // / ADR-0062 §D62.2) resolves Allow for the owning Agent. The bespoke
+    // `ViewerRole::None` membership gate stays as defence-in-depth.
+    is_observe_allowed(&*repo, viewer_agent_id, org_id).await?;
     if matches!(viewer_role, ViewerRole::None) {
         return Ok(DashboardOutcome::AccessDenied);
     }
@@ -394,17 +391,19 @@ const RECENT_EVENT_LIMIT: usize = 5;
 /// **M4/P8**: the `ProjectLead` branch populates for the first time —
 /// prior to M4 `HAS_LEAD` edges had no production writers. Admin
 /// detection still narrows to "first Human in the org" (the CEO at
-/// CH-26 / ADR-0061 §D61.5 — engine-routed Observe gate for org dashboard.
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+/// Observe gate for org dashboard. **BLOCKING** as of CH-27.
 ///
-/// Builds the standard CheckContext used across CH-25 + CH-26 handler
-/// refactors and invokes the engine. Returns `Ok(true)` iff the engine
-/// returns Allowed (mirrors the synth-owner-grant + explicit-grant
-/// resolution paths).
+/// Builds the standard CheckContext used across CH-25 + CH-26 + CH-27
+/// handler refactors and invokes the engine. Returns `Ok(())` iff the
+/// engine returns Allowed; engine denials propagate as
+/// `OrgError::PermissionDenied` mapped to HTTP 403 NO_GRANTS_HELD per
+/// CH-25 wire convention.
 async fn is_observe_allowed(
     repo: &dyn Repository,
     viewer: AgentId,
     org_id: OrgId,
-) -> Result<bool, OrgError> {
+) -> Result<(), OrgError> {
     let uri = format!("org:{}", org_id);
     let agent_grants = repo
         .list_grants_for_principal(&PrincipalRef::Agent(viewer))
@@ -444,7 +443,9 @@ async fn is_observe_allowed(
         resource: vec!["identity_principal".to_string()],
         ..Default::default()
     };
-    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+    check_permission(&ctx, &manifest, &NoopMetrics)
+        .map(|_resolved| ())
+        .map_err(|api_err| OrgError::PermissionDenied(api_err.message))
 }
 
 /// creation time); a proper grant-walk lands once M5's permission-check

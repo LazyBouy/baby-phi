@@ -54,16 +54,15 @@ pub async fn list_organizations(
     // will add a proper `list_orgs` repo method + index once volume
     // warrants.
     //
-    // CH-26 / ADR-0061 §D61.5 — engine-routed Observe check per-row.
-    // The engine is invoked for the load-bearing permission-semantics
-    // claim (CH-25 synth-owner-grant resolves Allow for the owning
-    // Agent; cross-org strangers resolve Deny). The result is
-    // consumed advisorily; the M3/M5-shipped admin-list behaviour
-    // returns every persisted org to the platform-admin caller. The
-    // engine call surfaces the per-row gate-result on the load-
-    // bearing semantic claim (asserted by
-    // `acceptance_m5_3_composite_resources.rs`). Future M6+ may
-    // tighten this filter to be applied (per plan §3.E Candidate 1).
+    // CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+    // Observe check per-row. **BLOCKING-FILTER** as of CH-27: rows where
+    // the engine returns Deny are dropped from the returned summary list
+    // (the engine result IS the filter). The CH-25 synth-owner-grant
+    // rule (widened to 4-verb scope at CH-27 / ADR-0062 §D62.2) resolves
+    // Allow for the owning Agent of each org; rows the viewer does not
+    // own and has no explicit Observe grant on are silently filtered out
+    // (silent post-filter — same UX shape as the existing AR-list
+    // post-filter at `show_organization`).
     let all = repo
         .list_all_orgs()
         .await
@@ -84,16 +83,17 @@ pub async fn list_organizations(
         .map_err(|e| OrgError::Repository(e.to_string()))?;
     let mut summaries = Vec::with_capacity(all.len());
     for org in all {
-        // Invoke the engine per row for the load-bearing semantic
-        // claim. The result is computed but consumed advisorily
-        // (M3/M5 admin-list semantics return every persisted org).
-        let _engine_observe_allowed = engine_observe_allowed(
+        // CH-27 / ADR-0062 §D62.1 — engine result IS the filter; rows
+        // where the engine returns Deny are skipped silently.
+        if !engine_observe_allowed(
             viewer,
             org.id,
             &agent_grants,
             &agent_owned_orgs,
             &agent_owned_projects,
-        );
+        ) {
+            continue;
+        }
         let members = repo
             .list_agents_in_org(org.id)
             .await
@@ -109,10 +109,13 @@ pub async fn list_organizations(
     Ok(summaries)
 }
 
-/// CH-26 / ADR-0061 §D61.5 — synchronous per-row engine gate. Builds
-/// CheckContext from pre-loaded slices (callsite is responsible for
-/// fetching them once); invokes `check_permission` on `org:<id>` with
-/// `Action::Observe`.
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — synchronous
+/// per-row engine gate. Builds CheckContext from pre-loaded slices
+/// (callsite is responsible for fetching them once); invokes
+/// `check_permission` on `org:<id>` with `Action::Observe`. **CH-27**:
+/// the bool result is now a **filter** — the caller drops rows where
+/// this returns `false` (silent post-filter; same UX as the AR-list
+/// post-filter shape).
 fn engine_observe_allowed(
     viewer: AgentId,
     org_id: OrgId,

@@ -262,11 +262,14 @@ pub fn step_2_resolve_grants(ctx: &CheckContext<'_>) -> Vec<Candidate> {
     out
 }
 
-/// CH-25 / ADR-0060 §D60.3 — Build the in-memory synthesised owner-grant
-/// for one owned Org/Project URI. Not persisted: only lives for the
-/// duration of one [`check`] call. Carries `[Allocate, Transfer]` on the
-/// `IdentityPrincipal` fundamental class (the axis on which Authority-
-/// category actions operate per concept-doc 03 line 149 + 03 line 195).
+/// CH-25 / ADR-0060 §D60.3 + CH-27 / ADR-0062 §D62.2 — Build the in-memory
+/// synthesised owner-grant for one owned Org/Project URI. Not persisted:
+/// only lives for the duration of one [`check`] call. Carries
+/// `[Allocate, Transfer, Observe, Inspect]` on the `IdentityPrincipal`
+/// fundamental class — the 4 universal-applicability verbs per
+/// concept-doc 03 line 44 (Authority `Allocate` + `Transfer`; Discovery
+/// `Inspect`; Observability `Observe`) covering all natural owner-tier
+/// operations on owned Org/Project.
 ///
 /// Mirrors the persisted [`Grant`] shape exactly (every field set
 /// explicitly) so downstream consumers — [`resolve_grant`]'s Case D path,
@@ -276,15 +279,21 @@ fn synth_owner_grant(owner: AgentId, resource_uri: &str) -> Grant {
     Grant {
         id: GrantId::new(),
         holder: PrincipalRef::Agent(owner),
-        action: vec![Action::Allocate, Action::Transfer],
+        action: vec![
+            Action::Allocate,
+            Action::Transfer,
+            Action::Observe,
+            Action::Inspect,
+        ],
         resource: ResourceRef {
             uri: resource_uri.to_string(),
         },
         // Case D in `resolve_grant`: instance URI + explicit fundamentals.
-        // `[Allocate, Transfer]` is the Authority axis over identity
-        // principals (concept-doc 03 line 149 + line 195) — owner can
-        // allocate/transfer authority *of* their owned org/project to
-        // its child agents.
+        // `[Allocate, Transfer, Observe, Inspect]` covers all 4 universal-
+        // applicability verbs (Authority + Discovery + Observability) per
+        // concept-doc 03 line 44 — owner can allocate/transfer authority
+        // *of* their owned org/project to its child agents AND inspect /
+        // observe its state.
         fundamentals: vec![Fundamental::IdentityPrincipal],
         // No AR provenance — synth-grants are derived structurally from
         // the Owns edge, not minted by a template-driven Auth Request.
@@ -2549,9 +2558,10 @@ mod tests {
     }
 
     /// Single owned org → one synth candidate at `ScopeTier::Agent`
-    /// with `[Allocate, Transfer]` actions on `IdentityPrincipal`.
+    /// with `[Allocate, Transfer, Observe, Inspect]` actions on
+    /// `IdentityPrincipal` per ADR-0062 §D62.2 widened scope.
     #[test]
-    fn owner_grant_synth_owned_org_produces_allocate_transfer_candidate() {
+    fn owner_grant_synth_owned_org_produces_authority_and_observability_candidate() {
         let mut f = Fixture::new();
         let owned_org = OrgId::new();
         f.agent_owned_orgs = vec![owned_org];
@@ -2570,8 +2580,13 @@ mod tests {
         );
         assert_eq!(
             c.resolved.grant.action,
-            vec![Action::Allocate, Action::Transfer],
-            "owner-grants carry exactly [Allocate, Transfer] per F2.a lock"
+            vec![
+                Action::Allocate,
+                Action::Transfer,
+                Action::Observe,
+                Action::Inspect,
+            ],
+            "owner-grants carry exactly [Allocate, Transfer, Observe, Inspect] per ADR-0062 §D62.2"
         );
         assert_eq!(
             c.resolved.grant.resource.uri,
@@ -2593,10 +2608,11 @@ mod tests {
     }
 
     /// Single owned project → one synth candidate at `ScopeTier::Agent`
-    /// with `[Allocate, Transfer]` actions on `IdentityPrincipal`,
-    /// URI `project:<id>`. Symmetric to the owned-org case.
+    /// with `[Allocate, Transfer, Observe, Inspect]` actions on
+    /// `IdentityPrincipal`, URI `project:<id>`. Symmetric to the owned-org
+    /// case per ADR-0062 §D62.2 widened scope.
     #[test]
-    fn owner_grant_synth_owned_project_produces_allocate_transfer_candidate() {
+    fn owner_grant_synth_owned_project_produces_authority_and_observability_candidate() {
         let mut f = Fixture::new();
         let owned_project = ProjectId::new();
         f.agent_owned_projects = vec![owned_project];
@@ -2611,7 +2627,12 @@ mod tests {
         assert_eq!(c.tier, ScopeTier::Agent);
         assert_eq!(
             c.resolved.grant.action,
-            vec![Action::Allocate, Action::Transfer],
+            vec![
+                Action::Allocate,
+                Action::Transfer,
+                Action::Observe,
+                Action::Inspect,
+            ],
         );
         assert_eq!(
             c.resolved.grant.resource.uri,
@@ -2622,6 +2643,96 @@ mod tests {
             .resolved
             .fundamentals
             .contains(&Fundamental::IdentityPrincipal),);
+    }
+
+    /// Owned org → synth-grant allows `Action::Observe` verdict. CH-27 /
+    /// ADR-0062 §D62.2 — Observability axis is now part of the widened
+    /// 4-verb owner-grant scope; this test pins the per-verb verdict.
+    #[test]
+    fn owner_grant_synth_observe_on_owned_org_allows() {
+        let mut f = Fixture::new();
+        let owned_org = OrgId::new();
+        f.agent_owned_orgs = vec![owned_org];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(candidates.len(), 1);
+        let c = &candidates[0];
+        assert!(
+            c.resolved.grant.action.contains(&Action::Observe),
+            "owner-grant scope must include Observe per ADR-0062 §D62.2"
+        );
+        assert_eq!(
+            c.resolved.grant.resource.uri,
+            format!("org:{owned_org}"),
+            "Observe verdict binds to owned-org URI"
+        );
+    }
+
+    /// Owned org → synth-grant allows `Action::Inspect` verdict. CH-27 /
+    /// ADR-0062 §D62.2 — Discovery axis Inspect verb is now part of the
+    /// widened 4-verb owner-grant scope.
+    #[test]
+    fn owner_grant_synth_inspect_on_owned_org_allows() {
+        let mut f = Fixture::new();
+        let owned_org = OrgId::new();
+        f.agent_owned_orgs = vec![owned_org];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(candidates.len(), 1);
+        let c = &candidates[0];
+        assert!(
+            c.resolved.grant.action.contains(&Action::Inspect),
+            "owner-grant scope must include Inspect per ADR-0062 §D62.2"
+        );
+        assert_eq!(
+            c.resolved.grant.resource.uri,
+            format!("org:{owned_org}"),
+            "Inspect verdict binds to owned-org URI"
+        );
+    }
+
+    /// Owned project → synth-grant allows `Action::Observe` verdict.
+    /// Symmetric to owned-org Observe case per ADR-0062 §D62.2.
+    #[test]
+    fn owner_grant_synth_observe_on_owned_project_allows() {
+        let mut f = Fixture::new();
+        let owned_project = ProjectId::new();
+        f.agent_owned_projects = vec![owned_project];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(candidates.len(), 1);
+        let c = &candidates[0];
+        assert!(
+            c.resolved.grant.action.contains(&Action::Observe),
+            "owner-grant scope must include Observe per ADR-0062 §D62.2"
+        );
+        assert_eq!(
+            c.resolved.grant.resource.uri,
+            format!("project:{owned_project}"),
+            "Observe verdict binds to owned-project URI"
+        );
+    }
+
+    /// Owned project → synth-grant allows `Action::Inspect` verdict.
+    /// Symmetric to owned-org Inspect case per ADR-0062 §D62.2.
+    #[test]
+    fn owner_grant_synth_inspect_on_owned_project_allows() {
+        let mut f = Fixture::new();
+        let owned_project = ProjectId::new();
+        f.agent_owned_projects = vec![owned_project];
+        let ctx = f.ctx(ToolCall::default());
+        let candidates = step_2_resolve_grants(&ctx);
+        assert_eq!(candidates.len(), 1);
+        let c = &candidates[0];
+        assert!(
+            c.resolved.grant.action.contains(&Action::Inspect),
+            "owner-grant scope must include Inspect per ADR-0062 §D62.2"
+        );
+        assert_eq!(
+            c.resolved.grant.resource.uri,
+            format!("project:{owned_project}"),
+            "Inspect verdict binds to owned-project URI"
+        );
     }
 
     /// Multi-resource ownership: 2 orgs + 1 project → 3 synth

@@ -215,17 +215,15 @@ pub async fn project_detail(
     let on_roster = roster.iter().any(|m| m.agent_id == viewer_agent_id);
     let in_owning_org = matches!(viewer_org, Some(o) if owning_orgs.contains(&o));
 
-    // CH-26 / ADR-0061 §D61.5 — engine-routed Inspect check on
-    // `project:<id>`. The engine is invoked for the load-bearing
-    // permission-semantics claim (CH-25 synth-owner-grant resolves
-    // Allow for the owning Agent of the project; cross-org strangers
-    // resolve Deny). The result is consumed advisorily; the bespoke
-    // `on_roster`/`in_owning_org` membership gate carries the
-    // wire-tier rejection surface (M4-shipped semantics). Future M6+
-    // may tighten this gate to be blocking (the bespoke gating stays
-    // as defence-in-depth per plan §3.E Candidate 1).
-    let _engine_inspect_allowed =
-        is_inspect_allowed_on_project(&*repo, viewer_agent_id, project_id).await?;
+    // CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+    // Inspect check on `project:<id>`. **BLOCKING** as of CH-27: engine
+    // deny propagates as `ProjectError::PermissionDenied` → HTTP 403
+    // NO_GRANTS_HELD. The CH-25 synth-owner-grant rule (widened to 4-verb
+    // scope at CH-27 / ADR-0062 §D62.2) resolves Allow for the owning
+    // Agent; cross-org strangers resolve Deny. The bespoke
+    // `on_roster`/`in_owning_org` membership gate stays as
+    // defence-in-depth.
+    is_inspect_allowed_on_project(&*repo, viewer_agent_id, project_id).await?;
     if !on_roster && !in_owning_org {
         return Ok(DetailOutcome::AccessDenied);
     }
@@ -258,15 +256,18 @@ pub async fn project_detail(
 /// acceptance test (see `acceptance_m5_sessions.rs`).
 const RECENT_SESSIONS_LIMIT: u32 = 10;
 
-/// CH-26 / ADR-0061 §D61.5 — engine-routed Inspect gate on `project:<id>`.
-/// Symmetric peer to the orgs-tier helpers; resolves Allow via the
-/// CH-25 synth-owner-grant rule when the viewer owns the project, or
-/// via explicit Inspect grants.
+/// CH-26 / ADR-0061 §D61.5 + CH-27 / ADR-0062 §D62.1 — engine-routed
+/// Inspect gate on `project:<id>`. **BLOCKING** as of CH-27. Symmetric
+/// peer to the orgs-tier helpers; resolves Allow via the CH-25
+/// synth-owner-grant rule when the viewer owns the project (widened to
+/// 4-verb scope at CH-27 / ADR-0062 §D62.2), or via explicit Inspect
+/// grants. Engine denials propagate as `ProjectError::PermissionDenied`
+/// mapped to HTTP 403 NO_GRANTS_HELD per CH-25 wire convention.
 async fn is_inspect_allowed_on_project(
     repo: &dyn Repository,
     viewer: AgentId,
     project_id: ProjectId,
-) -> Result<bool, ProjectError> {
+) -> Result<(), ProjectError> {
     let uri = format!("project:{}", project_id);
     let agent_grants = repo
         .list_grants_for_principal(&PrincipalRef::Agent(viewer))
@@ -313,7 +314,9 @@ async fn is_inspect_allowed_on_project(
         resource: vec!["identity_principal".to_string()],
         ..Default::default()
     };
-    Ok(check_permission(&ctx, &manifest, &NoopMetrics).is_ok())
+    check_permission(&ctx, &manifest, &NoopMetrics)
+        .map(|_resolved| ())
+        .map_err(|api_err| ProjectError::PermissionDenied(api_err.message))
 }
 
 async fn build_roster(

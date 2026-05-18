@@ -18,17 +18,17 @@
 //!    against `org:<O>` with owner-Agent context returns `Allowed`.
 //! 4. **stranger_denied_on_org** — engine returns Denied + handler
 //!    shim maps to `NO_GRANTS_HELD` for an unrelated Agent.
-//! 5. **owner_allocate_via_show_organization_handler_path** —
-//!    `show_organization` handler's advisory engine call resolves
-//!    Allow for the owning CEO at the Allocate verb (synth-grant scope
-//!    per CH-25 ADR-0060 §D60.2; Inspect coverage pending CH-27 /
-//!    D-CH26-FOLLOWUP-01).
+//! 5. **owner_inspect_via_show_organization_handler_path** —
+//!    `show_organization` handler's **blocking** engine call resolves
+//!    Allow for the owning CEO at the Inspect verb (widened synth-grant
+//!    scope per CH-27 / ADR-0062 §D62.2; the handler's engine call is
+//!    blocking per ADR-0062 §D62.1).
 //! 6. **stranger_allocate_via_show_organization_handler_path** — same
 //!    handler shape returns Deny for an unrelated Agent.
-//! 7. **owner_allocate_via_dashboard_handler_path** —
-//!    `dashboard_summary` handler's advisory engine call resolves
-//!    Allow for the owning CEO at the Allocate verb (Observe coverage
-//!    pending CH-27).
+//! 7. **owner_observe_via_dashboard_handler_path** —
+//!    `dashboard_summary` handler's **blocking** engine call resolves
+//!    Allow for the owning CEO at the Observe verb (widened synth-grant
+//!    scope per CH-27 / ADR-0062 §D62.2).
 //! 8. **stranger_allocate_via_dashboard_handler_path** — same handler
 //!    shape returns Deny for an unrelated Agent.
 //! 9. **owner_allocate_via_create_project_handler_path** —
@@ -46,14 +46,15 @@
 //!
 //! ## Why "handler_path" replay vs hitting HTTP
 //!
-//! Per plan §D61.5 the engine invocation is **advisory** in the
-//! handler chain at CH-26 (the bespoke gating remains wire-tier; the
-//! engine call surfaces the load-bearing semantic claim). Hitting the
-//! HTTP route would not distinguish the engine verdict from the
-//! bespoke verdict. Replaying the engine shape directly pins the
-//! invariant the chunk closes: the synth-owner-grant axis carries
-//! Allow for owner-Agents and Deny for strangers across all four
-//! refactored handler URIs.
+//! Per CH-26 ADR-0061 §D61.5 the engine invocation was advisory in the
+//! handler chain at CH-26 (the bespoke gating carried the wire-tier
+//! rejection; the engine call surfaced the load-bearing semantic claim).
+//! CH-27 / ADR-0062 §D62.1 tightens these invocations to **blocking**
+//! (engine deny → HTTP 403 NO_GRANTS_HELD). These per-handler-path
+//! scenarios replay the engine shape directly to pin the load-bearing
+//! semantic claim. End-to-end HTTP 403-block scenarios live alongside
+//! these (added at CH-27 / P3) — they hit the route and assert the
+//! tightened wire-tier behaviour.
 
 mod acceptance_common;
 
@@ -316,21 +317,20 @@ async fn stranger_denied_allocate_on_org() {
 // 5-6. Per-handler shape — show_organization handler engine shape
 // ===========================================================================
 //
-// **CH-26 synth-grant action-verb constraint** (per CH-25 ADR-0060 §D60.2):
-// the synth-owner-grant rule provisions
-// `actions: [Action::Allocate, Action::Transfer]` ONLY. `Action::Inspect`
-// (the natural verb for show_*) is NOT covered. CH-26 closes with the
-// load-bearing semantic claim (engine resolves Allow for owner-Agents via
-// the synth-owner-grant rule) shipped at the Allocate verb. CH-27 will
-// widen the synth-grant rule to cover Action::Observe + Action::Inspect
-// for owner-Agents — see drift `D-CH26-FOLLOWUP-01` (Bucket B, Closing
-// chunk CH-27). The handler's advisory engine call lives in
-// `show_organization.rs`; this acceptance test pins the engine verdict
-// at the Allocate verb for the same target URI shape the handler builds.
+// **CH-27 synth-grant action-verb scope** (per ADR-0062 §D62.2): the
+// synth-owner-grant rule provisions
+// `actions: [Action::Allocate, Action::Transfer, Action::Observe, Action::Inspect]`
+// — covering all 4 universal-applicability verbs (Authority + Discovery +
+// Observability) per concept-doc 03 line 44. `Action::Inspect` (the natural
+// verb for show_*) is now covered, so this acceptance test pins the engine
+// verdict at the Inspect verb for the same target URI shape the
+// `show_organization` handler builds. The handler's engine call is
+// **blocking** as of CH-27 / ADR-0062 §D62.1 (engine deny → HTTP 403
+// NO_GRANTS_HELD via `denial_to_api_error`).
 
 #[tokio::test]
-async fn owner_allocate_via_show_organization_handler_path() {
-    let (_admin, fx) = bootstrap_org_via_wizard().await;
+async fn owner_inspect_via_show_organization_handler_path() {
+    let (admin, fx) = bootstrap_org_via_wizard().await;
     let uri = format!("org:{}", fx.org_id);
     let grants = fx
         .repo
@@ -351,7 +351,7 @@ async fn owner_allocate_via_show_organization_handler_path() {
         fx.ceo_agent_id,
         uri.clone(),
         "organization",
-        Action::Allocate,
+        Action::Inspect,
         Some(fx.org_id),
         &grants,
         &owned_orgs,
@@ -359,7 +359,27 @@ async fn owner_allocate_via_show_organization_handler_path() {
     );
     assert!(
         allowed,
-        "CEO viewer must resolve Allocate on {uri} via the show_organization handler's engine shape (Inspect coverage pending CH-27 / D-CH26-FOLLOWUP-01)"
+        "CEO viewer must resolve Inspect on {uri} via the show_organization handler's engine shape (CH-27 / ADR-0062 §D62.2 widened scope)"
+    );
+
+    // CH-27 / ADR-0062 §D62.1 — HTTP-tier extension: the CEO is the
+    // synth-grant owner of `org:<O>` (via Edge::Owns at `apply_org_creation`),
+    // so the blocking gate at `show_organization` admits the CEO viewer
+    // → HTTP 200. F4.b: the owner-grant wire-up is via the canonical
+    // CH-25 production path (no explicit `seed_owner_grants` call needed
+    // for the CEO because the synth-grant rule covers them; the helper
+    // is consumed elsewhere for non-owner viewers).
+    let ceo_client = acceptance_common::admin::authed_client_for(&admin, fx.ceo_agent_id)
+        .expect("mint CEO client");
+    let res = ceo_client
+        .get(admin.url(&format!("/api/v0/orgs/{}", fx.org_id)))
+        .send()
+        .await
+        .expect("GET /api/v0/orgs/:id as CEO");
+    assert_eq!(
+        res.status().as_u16(),
+        200,
+        "CEO (owner via synth-grant) must pass the CH-27 blocking gate on Inspect"
     );
 }
 
@@ -403,17 +423,17 @@ async fn stranger_allocate_via_show_organization_handler_path() {
 // 7-8. Per-handler shape — dashboard_summary handler engine shape
 // ===========================================================================
 //
-// **CH-26 synth-grant action-verb constraint** (per CH-25 ADR-0060 §D60.2):
-// see the corresponding note above scenarios 5-6. `Action::Observe` (the
-// natural verb for dashboard_*) is NOT covered by the synth-owner-grant
-// at CH-25; this acceptance test pins the engine verdict at the
-// `Action::Allocate` verb (which IS covered) for the same target URI
-// shape the dashboard handler builds. CH-27 widens synth-grant scope per
-// drift `D-CH26-FOLLOWUP-01`.
+// **CH-27 synth-grant action-verb scope** (per ADR-0062 §D62.2): see the
+// corresponding note above scenarios 5-6. `Action::Observe` (the natural
+// verb for dashboard_*) IS now covered by the widened synth-owner-grant
+// rule. This acceptance test pins the engine verdict at the
+// `Action::Observe` verb for the same target URI shape the dashboard
+// handler builds. The handler's engine call is **blocking** as of CH-27
+// / ADR-0062 §D62.1.
 
 #[tokio::test]
-async fn owner_allocate_via_dashboard_handler_path() {
-    let (_admin, fx) = bootstrap_org_via_wizard().await;
+async fn owner_observe_via_dashboard_handler_path() {
+    let (admin, fx) = bootstrap_org_via_wizard().await;
     let uri = format!("org:{}", fx.org_id);
     let grants = fx
         .repo
@@ -434,7 +454,7 @@ async fn owner_allocate_via_dashboard_handler_path() {
         fx.ceo_agent_id,
         uri.clone(),
         "organization",
-        Action::Allocate,
+        Action::Observe,
         Some(fx.org_id),
         &grants,
         &owned_orgs,
@@ -442,7 +462,23 @@ async fn owner_allocate_via_dashboard_handler_path() {
     );
     assert!(
         allowed,
-        "CEO viewer must resolve Allocate on {uri} via the dashboard_summary handler's engine shape (Observe coverage pending CH-27 / D-CH26-FOLLOWUP-01)"
+        "CEO viewer must resolve Observe on {uri} via the dashboard_summary handler's engine shape (CH-27 / ADR-0062 §D62.2 widened scope)"
+    );
+
+    // CH-27 / ADR-0062 §D62.1 — HTTP-tier extension: CEO via the
+    // canonical CH-25 synth-grant path passes the blocking gate at
+    // `org_dashboard` (Observe verb now covered by the widened scope).
+    let ceo_client = acceptance_common::admin::authed_client_for(&admin, fx.ceo_agent_id)
+        .expect("mint CEO client");
+    let res = ceo_client
+        .get(admin.url(&format!("/api/v0/orgs/{}/dashboard", fx.org_id)))
+        .send()
+        .await
+        .expect("GET /api/v0/orgs/:id/dashboard as CEO");
+    assert_eq!(
+        res.status().as_u16(),
+        200,
+        "CEO (owner via synth-grant) must pass the CH-27 blocking gate on Observe"
     );
 }
 
@@ -555,4 +591,116 @@ async fn stranger_allocate_via_create_project_handler_path() {
         !allowed,
         "stranger Agent must NOT resolve Allocate on parent {uri} via the create_project handler's engine shape"
     );
+}
+
+// ===========================================================================
+// CH-27 / ADR-0062 §D62.1 — HTTP-tier blocking-gate scenarios
+// ===========================================================================
+//
+// The 7 admin handlers tightened from advisory `.is_ok()` consumption to
+// blocking `?`-propagation via `denial_to_api_error` (CH-25 wire
+// convention). These scenarios hit the actual HTTP routes with a
+// stranger-Agent session and assert the canonical 403 + `NO_GRANTS_HELD`
+// envelope. Complementary to the engine-shape scenarios above which pin
+// the load-bearing semantic claim; these pin the wire-tier closure.
+
+/// HTTP 403-block — stranger calls `GET /api/v0/orgs/:id`.
+/// Engine deny on Inspect resolves to 403 NO_GRANTS_HELD per
+/// ADR-0062 §D62.1 + CH-25 wire convention.
+#[tokio::test]
+async fn unauthorized_actor_blocked_at_show_organization_returns_403() {
+    let (admin, fx) = bootstrap_org_via_wizard().await;
+    let stranger = AgentId::new();
+    let stranger_client = acceptance_common::admin::authed_client_for(&admin, stranger)
+        .expect("mint stranger client");
+    let res = stranger_client
+        .get(admin.url(&format!("/api/v0/orgs/{}", fx.org_id)))
+        .send()
+        .await
+        .expect("GET /api/v0/orgs/:id as stranger");
+    assert_eq!(
+        res.status().as_u16(),
+        403,
+        "stranger must be blocked at show_organization (CH-27 blocking gate)"
+    );
+    let err: Value = res.json().await.expect("decode 403 envelope");
+    assert_eq!(
+        err["code"].as_str(),
+        Some("NO_GRANTS_HELD"),
+        "blocking gate must canonicalise to NO_GRANTS_HELD per CH-25 wire convention"
+    );
+}
+
+/// HTTP 403-block — stranger calls `GET /api/v0/orgs/:id/dashboard`.
+#[tokio::test]
+async fn unauthorized_actor_blocked_at_org_dashboard_returns_403() {
+    let (admin, fx) = bootstrap_org_via_wizard().await;
+    let stranger = AgentId::new();
+    let stranger_client = acceptance_common::admin::authed_client_for(&admin, stranger)
+        .expect("mint stranger client");
+    let res = stranger_client
+        .get(admin.url(&format!("/api/v0/orgs/{}/dashboard", fx.org_id)))
+        .send()
+        .await
+        .expect("GET /api/v0/orgs/:id/dashboard as stranger");
+    assert_eq!(
+        res.status().as_u16(),
+        403,
+        "stranger must be blocked at org_dashboard (CH-27 blocking gate)"
+    );
+    let err: Value = res.json().await.expect("decode 403 envelope");
+    assert_eq!(err["code"].as_str(), Some("NO_GRANTS_HELD"));
+}
+
+/// HTTP 403-block — stranger calls `GET /api/v0/projects/:id`. The
+/// project is created via the canonical `spawn_claimed_with_org_and_project`
+/// fixture so the BELONGS_TO + Owns + roster edges are all in place.
+#[tokio::test]
+async fn unauthorized_actor_blocked_at_project_detail_returns_403() {
+    let project = acceptance_common::admin::spawn_claimed_with_org_and_project(false).await;
+    let stranger = AgentId::new();
+    let stranger_client =
+        acceptance_common::admin::authed_client_for(&project.claimed_org.admin, stranger)
+            .expect("mint stranger client");
+    let res = stranger_client
+        .get(project.url(&format!("/api/v0/projects/{}", project.project_id)))
+        .send()
+        .await
+        .expect("GET /api/v0/projects/:id as stranger");
+    assert_eq!(
+        res.status().as_u16(),
+        403,
+        "stranger must be blocked at project_detail (CH-27 blocking gate)"
+    );
+    let err: Value = res.json().await.expect("decode 403 envelope");
+    assert_eq!(err["code"].as_str(), Some("NO_GRANTS_HELD"));
+}
+
+/// HTTP 403-block — stranger calls `POST /api/v0/projects/:id/agents/:supervisee/supervisor`.
+#[tokio::test]
+async fn unauthorized_actor_blocked_at_set_agent_supervisor_returns_403() {
+    let project = acceptance_common::admin::spawn_claimed_with_org_and_project(false).await;
+    let stranger = AgentId::new();
+    let supervisor = AgentId::new();
+    let supervisee = AgentId::new();
+    let stranger_client =
+        acceptance_common::admin::authed_client_for(&project.claimed_org.admin, stranger)
+            .expect("mint stranger client");
+    let body = serde_json::json!({"supervisor_agent_id": supervisor.to_string()});
+    let res = stranger_client
+        .post(project.url(&format!(
+            "/api/v0/projects/{}/agents/{}/supervisor",
+            project.project_id, supervisee
+        )))
+        .json(&body)
+        .send()
+        .await
+        .expect("POST set supervisor as stranger");
+    assert_eq!(
+        res.status().as_u16(),
+        403,
+        "stranger must be blocked at set_agent_supervisor (CH-27 blocking gate)"
+    );
+    let err: Value = res.json().await.expect("decode 403 envelope");
+    assert_eq!(err["code"].as_str(), Some("NO_GRANTS_HELD"));
 }

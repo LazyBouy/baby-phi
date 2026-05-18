@@ -80,7 +80,7 @@ This is a graph-first model (think ontology, not relational tables), even if the
 | **Memory** | generated | Persistent knowledge across sessions |
 | **AgentConfig** | `config_name` | Root configuration document |
 | **PromptBlock** | `name` | One block within a system prompt strategy |
-| **InboxObject** | `agent_id` | An agent's received-messages queue. One per Agent; composite `inbox_object` per [permissions/01 § Composites](permissions/01-resource-ontology.md#composite-classes-8). Messages are `AgentMessage` value objects embedded on it. Separate from task queue. |
+| **InboxObject** | `agent_id` | An agent's received-messages queue. One per Agent; composite `inbox_object` per [permissions/01 § Composites](permissions/01-resource-ontology.md#composite-classes-10). Messages are `AgentMessage` value objects embedded on it. Separate from task queue. |
 | **OutboxObject** | `agent_id` | An agent's sent-messages log. One per Agent; composite `outbox_object`. Parallel to InboxObject. |
 
 > **Deferred-state footnote (CH-19 / drift D-new-25, 2026-05-10).** v0 InboxObject + OutboxObject scaffolds at [`domain/src/model/nodes.rs:772-784`](../../../../modules/crates/domain/src/model/nodes.rs#L772-L784) carry only `id`, `agent_id`, `created_at`; the embedded `messages: Vec<AgentMessage>` field is deferred to **M6-DEFERRED-02 (inter-agent messaging)** chunk. Concept body above is the long-term shape; current code is the minimal-scaffold subset. Ratified at ADR-0057 §D57.8.
