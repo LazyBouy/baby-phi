@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-20 by Claude Code (post-CH-28 retro plan archive `chunk-decomposition-and-fork-framing-76e04080.md` — retroactive re-frame: §5 per-chunk scope summary table extended with 2 NEW columns `Chunk-type` ∈ {FUNCTIONAL, TECHNICAL-PREREQUISITE} + `User-visible delivery`; §1 per-chunk narrative blocks (all 11 chunks CH-28..CH-38) extended with `Chunk-type:` + `Functional outcome:` + `Defers (with product impact):` lines; NEW §6 Q-CHAIN-1 open question on messaging-axis 3-consecutive-TECHNICAL-PREREQUISITE chain cap deviation with phase-planner-rec (a) accept-with-parallel-band-rationale. Distribution: 6 FUNCTIONAL (CH-32 + CH-33 + CH-34 + CH-35 + CH-36 + CH-37) + 5 TECHNICAL-PREREQUISITE (CH-28 + CH-29 + CH-30 + CH-31 + CH-38). Per chunk-planner v26 + phase-planner v2 + chunk-initiate skill 4-line gate-1 template + per-chunk-planning-template Pre-§1 Forks-section format rules + feature-inventory.md cross-chunk product-trajectory tracker.) -->
 <!-- Last verified: 2026-05-19 by Claude Code (CH-28 P-SEAL — CH-28 chunk-zero closes at cycle hex `0412eb06`; §1 Foundation tier CH-28 row deliverables shipped per ADR-0063 Accepted with 16 sub-decisions §D63.1–§D63.16 (iter-5 expanded from 13); F1.c hybrid Blueprint table + F2.b USES_PROFILE rename + F3.b split migrations 3-of-3 user-locked DIVERGENT at gate-1; NEW migrations 0019 schema + 0020 backfill; EDGE_KIND_NAMES cardinality 72 → 74; AgentProfile in-process struct preserved per §D63.13; write-boundary strip via AgentProfileWireRow per §D63.14; composite-write + read-path synthesis wired at P1.5-READ-BRIDGE per §D63.15; template-tier fan-out scope-narrowed to M6-DEFERRED-04 / CH-36 per §D63.16 + NEW D-CH28-FOLLOWUP-01 drift; concept-doc amendments at agent.md §Soul + ontology.md L98 + NEW m6/architecture/agent-profile-cardinality.md; M6+-OPEN-01 marker resolved; M6 chunk-zero close unblocks CH-29 + CH-36 + CH-37 dependency edges. Cycle hex `0412eb06`.) -->
 <!-- Last verified: 2026-05-18 by Claude Code (phase-planner v1 review-and-update pass; inaugural real-attribution invocation post-session-reload; 5 surgical updates applied to draft authored via general-purpose proxy at prior dispatch: (1) §1 CH-28 `ontology.md` cardinality citation line 92 → line 98 corrected against L98 `Agent | HAS_PROFILE | AgentProfile | 1:1 | Blueprint identity`; (2) §1 CH-28 `agent.md` §Soul citation lines 157–169 → lines 160–169 tightened against L160 `### Soul (Immutable Born Structure)`; (3) §3 preamble softened — M6-DEFERRED-RESOLVERS-WIRING was NOT a §3 marker in prior forward-scope (it was a §2.5 post-M5.3 closure cross-ref at L281); the inheritance bullet now reads "brought in-milestone via D-CH27-FOLLOWUP-01 closure → CH-38"; (4) §1 CH-32 phi-core leverage paragraph "CH-32 follow-on or CH-36" → "CH-32 follow-on or M6-DEFERRED-04 carve-out chunk per §6 Q1" (CH-36 is a04 My Work, not memory-supervisor); (5) §5 table CH-36 + CH-28 concept-doc cells given line cites for grep-verifiability. No structural re-decomposition; 11-chunk CH-28..CH-38 graph + 9 user-locked decisions preserved.) -->
 <!-- Last verified: 2026-05-18 by Claude Code (phase-planner v1 initial draft via general-purpose proxy; M6 forward-scope authored from base build-plan §M6 + prior forward-scope §3 + 2026-05-18 alignment audit + 9 user-locks per audit §4.0/§9; 11 chunks CH-28..CH-38; ~28–38 ed total). -->
@@ -40,6 +41,9 @@
 ### Foundation tier (architectural redesign + load-bearing primitives)
 
 **CH-28 — AgentProfile cardinality 1:1 → N:1 redesign** · ⚠HIGH · 3–4d
+- **Chunk-type**: TECHNICAL-PREREQUISITE
+- **Functional outcome**: NONE this chunk — technical prerequisite for CH-37 a05 + CH-36 a04. Schema reshape (1:1 → N:1 with hybrid Blueprint table) enables shared-template profile capability at CH-37 a05 editor surface + supervisor body inheritance at CH-36 a04. Per §D63.13 in-process projection, existing handlers continue to return the same AgentProfile shape; user observes no behavior change at CH-28 close.
+- **Defers (with product impact)**: `D-CH28-FOLLOWUP-01` listener template-tier fan-out → M6-DEFERRED-04 / CH-36. **User-visible impact while deferred**: when an admin upserts a shared template Blueprint, sibling agents' profile snapshots refresh only on next per-agent event (no immediate cross-agent broadcast). After CH-36 closes: immediate fan-out across all agents referencing the template.
 - **Drifts closed**: **M6+-OPEN-01** brought in-milestone per Q9 user-lock 2026-05-18 (NOT a `D-*` drift; this is a concept-redesign chunk surfaced as an OPEN question at CH-01 and routed for M6 plan-open per `forward-scope/remaining-scope-post-m5-p7-22035b2a.md:356-370`).
 - **Concept docs**: [`agent.md`](../../v0/concepts/agent.md) §"Soul" lines 160–169 (profile-as-genetics framing must be amended to template-sharing); [`ontology.md`](../../v0/concepts/ontology.md) line 98 (`Agent | HAS_PROFILE | AgentProfile | 1:1 | Blueprint identity` cardinality row — flip 1:1 → N:1).
 - **Prerequisites**: none (M5.3 closed at CH-27 0edcaba9).
@@ -49,6 +53,9 @@
 - **Unblocks**: CH-37 (a05 profile editor consumes the shared-profile shape); CH-36 (M6-DEFERRED-04 supervisor body references AgentProfile by id).
 
 **CH-29 — M6-DEFERRED-02 messaging substrate (Inbox/Outbox AgentMessage materialization, no routing)** · ⚠HIGH · 2.5–3.5d
+- **Chunk-type**: TECHNICAL-PREREQUISITE
+- **Functional outcome**: NONE this chunk — technical prerequisite for CH-30 routing + CH-33 a01. Ships AgentMessage value-object struct + Inbox/Outbox row materialization + basic write-and-read handlers. No cross-agent delivery yet. User observes nothing at CH-29 close; the inbox/outbox UI lands at CH-33.
+- **Defers (with product impact)**: cross-agent routing semantics (delivery guarantees + ordering + duplicate suppression) deferred to CH-30 per Q5 user-lock effort-split. **User-visible impact while deferred (i.e., between CH-29 and CH-30 close)**: agents can write messages to their own outbox / read their own inbox via direct write — but messages don't flow between agents. Final delivery semantics ship at CH-30.
 - **Drifts closed**: **D-new-25** (AgentMessage embedding on Inbox/Outbox composites; cited in [`ontology.md:86`](../../v0/concepts/ontology.md) deferred-state footnote pointing at M6-DEFERRED-02; ratified at ADR-0057 §D57.8). Partial closure for CH-30's routing-tier dependency.
 - **Concept docs**: [`ontology.md`](../../v0/concepts/ontology.md) §"Node Types — Social Structure" lines 83–87 (Inbox/Outbox composites) + §"Agent messaging value object" line 229 (`AgentMessage` 10-field shape: `{message_id, sender, recipient, subject, body, sent_at, thread_id, priority, delivered_to_inbox_at, read_at}`); [`permissions/05-memory-sessions.md`](../../v0/concepts/permissions/05-memory-sessions.md) §"AgentMessage Value Object" lines 590–618 (priority enum + tag vocabulary); [`agent.md`](../../v0/concepts/agent.md) line 21 (messaging-as-pure-information-flow: "no automatic reaction; recipient decides").
 - **Prerequisites**: **CH-28** (AgentProfile cardinality may affect the `sender`/`recipient` foreign-key shape if per-agent vs per-profile addressability is in play).
@@ -58,6 +65,9 @@
 - **Unblocks**: CH-30 (routing tier consumes the substrate), CH-33 (a01 read_inbox/send_message tool surface).
 
 **CH-30 — M6-DEFERRED-02 messaging routing (cross-agent delivery + ordering + duplicate suppression)** · ⚠HIGH · 2.5–3.5d
+- **Chunk-type**: TECHNICAL-PREREQUISITE
+- **Functional outcome**: NONE this chunk — technical prerequisite for CH-33 a01 (gives a01 the routing guarantees its tool surface relies on). User observes nothing at CH-30 close; the inbox/outbox UI + LLM tools land at CH-33.
+- **Defers (with product impact)**: none deferred at CH-30 — full routing semantics ship here per Q5 user-lock (the cheaper "outbox-only without delivery guarantee" option was rejected). Audit-event emission on every routing event is shipped at this chunk.
 - **Drifts closed**: **D-new-25** (final closure; the routing-tier half of M6-DEFERRED-02 per Q5 user-lock effort-split into 2 chunks).
 - **Concept docs**: [`agent.md`](../../v0/concepts/agent.md) line 21 (messaging-as-pure-information-flow); [`permissions/05-memory-sessions.md`](../../v0/concepts/permissions/05-memory-sessions.md) §"AgentMessage Value Object" lines 590–618 (priority enum drives delivery-ordering policy).
 - **Prerequisites**: **CH-29** (substrate must exist; routing wires atop it).
@@ -69,6 +79,9 @@
 ### Independent infrastructure tier (parallelizable with foundation tier)
 
 **CH-31 — M6-DEFERRED-03 EmbeddingProviderConfig domain node + admin lifecycle** · ⚠HIGH · 2–3d
+- **Chunk-type**: TECHNICAL-PREREQUISITE
+- **Functional outcome**: NONE direct user-visible page — TECHNICAL-PREREQUISITE for CH-37 a05 (Identity.embedding population). Admin endpoint to set platform-embedding-provider DOES exist + admin invokes it at org-bootstrap; treated as platform-tier infrastructure (operator-facing, not end-user-agent-facing). Batch re-embed handler fires on Approved Auth Request. Mock embedding provider at v0; real OpenAI/Voyage integrations are user-opt follow-ons.
+- **Defers (with product impact)**: real embedding provider integrations (OpenAI / Voyage / Cohere) → optional follow-on (user-opt). **User-visible impact while deferred**: mock provider returns deterministic dummy embeddings — useful for testing the surface end-to-end but Identity.embedding similarity scores are not semantically meaningful. After real-provider wire: semantic similarity works.
 - **Drifts closed**: **M6-DEFERRED-03** (no separate `D-*` drift file; covered by [`v0/implementation/m5_2/decisions/0038-identity-node-materialization.md`](../../v0/implementation/m5_2/decisions/0038-identity-node-materialization.md) §D38.3 deferral block).
 - **Concept docs**: [`agent.md`](../../v0/concepts/agent.md) §"Scoping the embedding model" lines 342–344 (platform-level config fixed at org-bootstrap) + line 344 ("Model change is an admin event") + §"Identity Node Content" line 332 (`embedding: Vec<f32>` field shape; dim configurable, default 1536).
 - **Prerequisites**: none (independent of CH-28/CH-29/CH-30 messaging track).
@@ -78,6 +91,9 @@
 - **Unblocks**: CH-37 (a05 profile editor + grants needs Identity.embedding populated to render the similarity surface).
 
 **CH-32 — C-M6-1 Memory tier: MemoryStore trait + default impl + retrieval gate** · ⚠HIGH · 3–4d
+- **Chunk-type**: FUNCTIONAL
+- **Functional outcome**: Agents can recall memory via `phi memory recall` CLI + `GET /api/v0/memory/recall?tag_intersection=...&viewer=...` HTTP API. Retrieval gate runs permission-over-time check: agents see only memory they currently have grants for (revoked grants forfeit read access immediately). Multi-tag ownership lets one memory carry agent/group/project/org tags simultaneously.
+- **Defers (with product impact)**: third-party storage backends (Chroma / Weaviate / LanceDB) → optional follow-on at M6+. **User-visible impact while deferred**: SurrealDB default impl works end-to-end; third-party impls are user-pluggable via the trait. Performance characteristics differ between backends but functionality is equivalent at the trait surface.
 - **Drifts closed**: **M6-DEFERRED-01** (carryover C-M6-1 from base build plan lines 306–315; Q8 user-locks ship trait + default impl + retrieval gate together); **D-new-16** (recall/store/delete actions); **D-new-28** (memory_type enum vs tag — decided at chunk plan-open).
 - **Concept docs**: [`build-plan-v01-36d0c6c5.md`](../build/build-plan-v01-36d0c6c5.md) §C-M6-1 lines 306–315 (3 sub-requirements: (i) trait contract + (ii) multi-tag ownership ALREADY ALIGNED per audit §3.1 / §4.B B.2 / `listeners.rs:709-723` + (iii) permission-over-time retrieval); [`system-agents.md`](../../v0/concepts/system-agents.md) §"Memory Extraction Agent" §"Behaviour" lines 80–117 + §"Allocation Rules" lines 119–135; [`permissions/05-memory-sessions.md`](../../v0/concepts/permissions/05-memory-sessions.md) §"Supervisor Extraction as Two Standard Grants" line 155+ + §"Memory as Resource Class" + §"tag vocabulary"; [`permissions/04-manifest-and-resolution.md`](../../v0/concepts/permissions/04-manifest-and-resolution.md) §"Authority Chain" (retrieval composes with authority traversal).
 - **Prerequisites**: none structural (parallelizable with CH-29/CH-30 + CH-31 + CH-38 per Q3 user-lock; M6+ Memory body upgrade CH-36 consumes this trait).
@@ -89,6 +105,9 @@
 ### a01 + agent-self-service consumer tier (Q2 strict serial gate)
 
 **CH-33 — a01 Inbox/Outbox UI + LLM tool surface (`read_inbox`, `send_message`)** · ⚠HIGH · 3–4d
+- **Chunk-type**: FUNCTIONAL
+- **Functional outcome**: Agents (both Human users via Web UI + LLM agents via tools) can see their inbox + outbox, send messages to other agents, and mark messages read. Human users get a Next.js page `app/(agent)/inbox` with priority badges + read/unread state + tag filters; LLM agents get `read_inbox` + `send_message` tools that integrate with the M5 session-launch tool-resolver. **First agent-self-service-tier consumer of phi-core's AgentTool trait.**
+- **Defers (with product impact)**: none deferred at CH-33 — full a01 surface ships. **Strict serial gate** per Q2 user-lock: CH-33 close unblocks {CH-34 a02, CH-35 a03, CH-36 a04} parallel band — all three depend on a01 inbox-routing for cross-page notification routing.
 - **Drifts closed**: a01 PARTIAL → ALIGNED (per audit §4.A row 1).
 - **Concept docs**: [`requirements/agent-self-service/a01-my-inbox-outbox.md`](../../v0/requirements/agent-self-service/a01-my-inbox-outbox.md) (CONCEPTUAL; 12-section page spec — §10 API Contract + §11 Acceptance Scenarios at lines 76+92); [`ontology.md`](../../v0/concepts/ontology.md) lines 83–87 (Inbox/Outbox composites); [`agent.md`](../../v0/concepts/agent.md) line 21 (messaging-as-information-flow framing).
 - **Prerequisites**: **CH-29** (substrate), **CH-30** (routing).
@@ -98,6 +117,9 @@
 - **Unblocks** **per Q2 user-lock**: blocks {CH-34 a02, CH-35 a03, CH-36 a04} — all three depend on a01 inbox-routing being operational for cross-page notification routing.
 
 **CH-34 — a02 My Auth Requests (inbound/outbound query + slot-action handlers + Next.js page)** · ⚠HIGH · 2.5–3.5d
+- **Chunk-type**: FUNCTIONAL
+- **Functional outcome**: Agents see their inbound + outbound Auth Requests in a Web UI page `app/(agent)/auth-requests` with state badges + slot-progress + approve/deny/reconsider/escalate action buttons. Cross-page notification: state transitions insert AgentMessages in interested-party inboxes via CH-30 routing.
+- **Defers (with product impact)**: none deferred at CH-34 — full a02 surface ships.
 - **Drifts closed**: a02 GAP → ALIGNED (per audit §4.A row 2). Domain logic (AR state machine + 2-of-2 Shape B slots) shipped at CH-10 + CH-18; this chunk is 100% HTTP + UI on top.
 - **Concept docs**: [`permissions/02-auth-request.md`](../../v0/concepts/permissions/02-auth-request.md) §"Per-State Access Matrix" lines 12–30 (state machine); [`requirements/agent-self-service/a02-my-auth-requests.md`](../../v0/requirements/agent-self-service/a02-my-auth-requests.md) (CONCEPTUAL; §10 API Contract + §11 Acceptance Scenarios).
 - **Prerequisites** **per Q2 user-lock**: **CH-33** (a01 must close first for inbox-based AR-event notification routing).
@@ -107,6 +129,9 @@
 - **Unblocks**: nothing (sibling to CH-35 + CH-36 in the post-a01 parallel band).
 
 **CH-35 — a03 My Consent Records (query + action handlers + Next.js page)** · ⚠HIGH · 2–3d
+- **Chunk-type**: FUNCTIONAL
+- **Functional outcome**: Agents see their consent records in a Web UI page `app/(agent)/consents` with acknowledge/decline/revoke actions; revoke cascades via engine logic. Cross-page notification (state transitions insert AgentMessages in inboxes per CH-30 routing).
+- **Defers (with product impact)**: none deferred at CH-35 — full a03 surface ships.
 - **Drifts closed**: a03 PARTIAL → ALIGNED (per audit §4.A row 3). Consent state machine shipped at CH-09+CH-10 + sweeper at CH-11; per-policy minter helpers at `domain::consents::minters`. This chunk is 100% HTTP + UI.
 - **Concept docs**: [`permissions/06-multi-scope-consent.md`](../../v0/concepts/permissions/06-multi-scope-consent.md) §"Consent state machine" lines 353–426; [`requirements/agent-self-service/a03-my-consent-records.md`](../../v0/requirements/agent-self-service/a03-my-consent-records.md) (CONCEPTUAL).
 - **Prerequisites** **per Q2 user-lock**: **CH-33** (a01 must close first for consent-event notification routing into requestor inboxes).
@@ -116,7 +141,10 @@
 - **Unblocks**: nothing.
 
 **CH-36 — a04 My Work (Task + Session query handlers + concurrency-cap enforcement + Next.js page)** · ⚠HIGH · 3–4d
-- **Drifts closed**: a04 GAP → ALIGNED (per audit §4.A row 4). Task node + ASSIGNED_TO edge shipped at M4; Session + RUNS_SESSION edge shipped at M5/P4; Task status transitions shipped at M4. Concurrency-cap query is the key NEW addition.
+- **Chunk-type**: FUNCTIONAL
+- **Functional outcome**: Agents see their tasks + sessions in a Web UI page `app/(agent)/work` with my-tasks panel + my-sessions panel + concurrency-cap status (cap-remaining metric joining active Session count + AgentProfile.parallelize). Per Q3 user-lock: display-only re: memory (no memory-recall surface at a04). **CH-36 ALSO absorbs M6-DEFERRED-04 LLM supervisor body** (per audit §6 Q1 routing) + **D-CH28-FOLLOWUP-01 listener template-tier fan-out** (per ADR-0063 §D63.16) — adding the NEW Repository method `list_agents_using_blueprint_template(BlueprintId)` + supervisor body that processes template-tier fan-out events.
+- **Defers (with product impact)**: none deferred at CH-36 — full a04 surface ships PLUS the M6-DEFERRED-04 + D-CH28-FOLLOWUP-01 closures. After CH-36: shared-template Blueprint upserts trigger immediate fan-out to all referencing agents (no more "only on next per-agent event" deferral state from CH-28).
+- **Drifts closed**: a04 GAP → ALIGNED (per audit §4.A row 4). Task node + ASSIGNED_TO edge shipped at M4; Session + RUNS_SESSION edge shipped at M5/P4; Task status transitions shipped at M4. Concurrency-cap query is the key NEW addition. **Additionally closes M6-DEFERRED-04 + D-CH28-FOLLOWUP-01.**
 - **Concept docs**: [`project.md`](../../v0/concepts/project.md) §"Task (Node Type — Optional Decomposition)" lines 107–149 (4 subsections: Properties + Status Flow + Edges + Who Creates Tasks); [`agent.md`](../../v0/concepts/agent.md) §"Parallelized Sessions" lines 209–221 (concurrency cap; cap-check is the new query); [`requirements/agent-self-service/a04-my-work.md`](../../v0/requirements/agent-self-service/a04-my-work.md) (CONCEPTUAL; 3 acceptance scenarios per audit §4.A; §10 API Contract). **Per Q3 user-lock**: display-only — a04 does NOT depend on C-M6-1 memory contract; renders existing Task + Session graph state without memory-recall integration.
 - **Prerequisites** **per Q2 user-lock**: **CH-33** (a01 must close first for task-blocked + session-error notification routing to project lead's inbox).
 - **Deliverables**: HTTP handlers `GET /api/v0/agents/:id/tasks` + `GET /api/v0/agents/:id/sessions` (scoped to viewer-agent via authority-chain traversal); `PATCH /api/v0/tasks/:id/status` (state-flow validation per project.md §"Task Status Flow"); concurrency-cap query (joins active Session + AgentProfile.parallelize at session-launch — new repo method `count_active_sessions_for_agent` was a stub at M4 and flipped to live query at M5 via C-M5-5; a04 now CONSUMES the live query, surfacing cap-remaining metric); Next.js page `app/(agent)/work/page.tsx` with my-tasks panel + my-sessions panel + concurrency-cap status; 5+ acceptance scenarios per a04 §11.
@@ -127,6 +155,9 @@
 ### Embedding-dependent agent-self-service tier (Q4 strict prereq)
 
 **CH-37 — a05 My Profile + Grants (profile editor + grants traversal + authority-chain expansion endpoint + Next.js page)** · ⚠HIGH · 3–4d
+- **Chunk-type**: FUNCTIONAL
+- **Functional outcome**: Agents see + edit their profile (with re-embed triggered on self_description PATCH) + see their grants + view authority-chain expansion in a Web UI page `app/(agent)/profile`. Shared-template awareness surfaces in editor per CH-28 cardinality redesign — user sees "this profile may be shared across N agents" when applicable. Authority-chain visualizer per NFR-observability R6.
+- **Defers (with product impact)**: none deferred at CH-37 — full a05 surface ships.
 - **Drifts closed**: a05 PARTIAL → ALIGNED (per audit §4.A row 5). Identity node shipped at CH-16; authority-chain traversal shipped at CH-14; embedding populated at CH-31.
 - **Concept docs**: [`agent.md`](../../v0/concepts/agent.md) §"Identity (Emergent, Event-Driven)" lines 270–344 (4-field Identity + embedding model) + §"Soul" lines 160–169 (immutable nature; sharing semantics per CH-28 cardinality redesign); [`permissions/04-manifest-and-resolution.md`](../../v0/concepts/permissions/04-manifest-and-resolution.md) §"Authority Chain" (HOLDS_GRANT + DESCENDS_FROM walk per NFR-observability R6); [`requirements/agent-self-service/a05-my-profile-and-grants.md`](../../v0/requirements/agent-self-service/a05-my-profile-and-grants.md) (CONCEPTUAL).
 - **Prerequisites** **per Q4 + Q2 user-lock**: **CH-31** (M6-DEFERRED-03 embedding provider closed — embedding-derivation must populate Identity.embedding before a05 surfaces it); **CH-33** (a01 must close first per Q2 strict serial gate); **CH-28** (AgentProfile cardinality redesign — a05 profile editor surfaces shared-profile awareness).
@@ -138,6 +169,9 @@
 ### M6-deferred follow-on tier (parallel with consumer tier)
 
 **CH-38 — M6-DEFERRED-RESOLVERS-WIRING (F3.b trait re-shape per Q6 user-lock)** · MEDIUM · 3–4d
+- **Chunk-type**: TECHNICAL-PREREQUISITE (closes D-CH27-FOLLOWUP-01 advisory-form; blocking-promotion is a separate M6 follow-on)
+- **Functional outcome**: NONE direct user-visible page. Closes D-CH27-FOLLOWUP-01 by extending 4 resolver trait defs with `actor: Option<AgentId>` parameter + emitting advisory `check_permission` audit events. User-observable effect at CH-38 close: audit log contains advisory permission-check events on resolver calls (visible to admin operators inspecting audit logs); no behavior change in resolver outcomes (advisory ≠ blocking).
+- **Defers (with product impact)**: blocking wire-tier promotion → M6 follow-on per ADR-0062 §D62.1. **User-visible impact while deferred**: advisory audit events fire but the resolvers do NOT reject calls when actor lacks `check_permission` clearance. After follow-on: resolvers reject + the rejection surfaces as a 403-class error to the caller.
 - **Drifts closed**: [`D-CH27-FOLLOWUP-01`](../../v0/implementation/m5_3/drifts/D-CH27-FOLLOWUP-01.md) (LOW; deferred at CH-27 P-SEAL with explicit `M6-DEFERRED-RESOLVERS-WIRING` allocation per ADR-0062 §D62.3 F3.a LOCKED).
 - **Concept docs**: [`core-philosophy.md`](../../v0/concepts/core-philosophy.md) lines 16, 28, 29 (ownership permission-gating principle); no standalone concept doc for resolver-actor routing (rationale in the drift body).
 - **Prerequisites**: none structural (independent of agent-self-service chunks; **per Q6 user-lock + audit §4.1**, can run parallel to CH-29..CH-37 after CH-28 closes).
@@ -261,23 +295,27 @@ Side-chain: `CH-31 → CH-37` (embedding provider gates a05 per Q4 user-lock).
 
 ---
 
-## §5 — Per-chunk scope summary table
+## §5 — Per-chunk scope summary table (v2 columns — Chunk-type + User-visible delivery added 2026-05-20 per phase-planner v2 + plan archive `chunk-decomposition-and-fork-framing-76e04080.md`)
 
-| Chunk | Title | Severity | Effort | Concept docs | Prerequisites | Closes-M6? |
-|---|---|---|---|---|---|---|
-| CH-28 | AgentProfile cardinality 1:1 → N:1 redesign | HIGH | 3–4d | agent.md §Soul L160–169, ontology.md L98 cardinality row | — | yes |
-| CH-29 | M6-DEFERRED-02 messaging substrate | HIGH | 2.5–3.5d | ontology.md L83–87 + L229, permissions/05 L590–618, agent.md L21 | CH-28 | yes |
-| CH-30 | M6-DEFERRED-02 messaging routing | HIGH | 2.5–3.5d | agent.md L21, permissions/05 L590–618 | CH-29 | yes |
-| CH-31 | M6-DEFERRED-03 EmbeddingProviderConfig | HIGH | 2–3d | agent.md L332 + L342–344 | — | yes |
-| CH-32 | C-M6-1 Memory tier (trait + default + retrieval gate) | HIGH | 3–4d | build-plan §306–315, system-agents L80–135, permissions/05 L155+, permissions/04 §Authority Chain | — | yes |
-| CH-33 | a01 Inbox/Outbox UI + LLM tool surface | HIGH | 3–4d | requirements/a01, ontology.md L83–87, agent.md L21 | CH-29, CH-30 | yes |
-| CH-34 | a02 My Auth Requests UI + handlers | HIGH | 2.5–3.5d | permissions/02 L12–30, requirements/a02 | CH-33 | yes |
-| CH-35 | a03 My Consent Records UI + handlers | HIGH | 2–3d | permissions/06 L353–426, requirements/a03 | CH-33 | yes |
-| CH-36 | a04 My Work (Task + Session + cap) | HIGH | 3–4d | project.md L107–149, agent.md L209–221 §Parallelized Sessions, requirements/a04 | CH-33 | yes |
-| CH-37 | a05 My Profile + Grants | HIGH | 3–4d | agent.md L270–344 + §Soul L160–169, permissions/04 §Authority Chain, requirements/a05 | CH-28, CH-31, CH-33 | yes |
-| CH-38 | M6-DEFERRED-RESOLVERS-WIRING (F3.b trait re-shape) | MEDIUM | 3–4d | core-philosophy.md L16, L28, L29 | — | yes |
+| Chunk | Title | Chunk-type | User-visible delivery | Severity | Effort | Concept docs | Prerequisites | Closes-M6? |
+|---|---|---|---|---|---|---|---|---|
+| CH-28 | AgentProfile cardinality 1:1 → N:1 redesign | TECHNICAL-PREREQUISITE | unblocks CH-37 a05 + CH-36 a04 (template-shared profile capability surfaces in editor + supervisor body) | HIGH | 3–4d | agent.md §Soul L160–169, ontology.md L98 cardinality row | — | yes |
+| CH-29 | M6-DEFERRED-02 messaging substrate | TECHNICAL-PREREQUISITE | unblocks CH-30 routing + CH-33 a01 (AgentMessage value-object + Inbox/Outbox row materialization; no cross-agent delivery yet) | HIGH | 2.5–3.5d | ontology.md L83–87 + L229, permissions/05 L590–618, agent.md L21 | CH-28 | yes |
+| CH-30 | M6-DEFERRED-02 messaging routing | TECHNICAL-PREREQUISITE | unblocks CH-33 a01 (cross-agent message delivery with ordering + duplicate suppression; no user-visible page yet) | HIGH | 2.5–3.5d | agent.md L21, permissions/05 L590–618 | CH-29 | yes |
+| CH-31 | M6-DEFERRED-03 EmbeddingProviderConfig | TECHNICAL-PREREQUISITE | unblocks CH-37 a05 (Identity.embedding populated; admin can set platform embedding provider + trigger batch re-embed) | HIGH | 2–3d | agent.md L332 + L342–344 | — | yes |
+| CH-32 | C-M6-1 Memory tier (trait + default + retrieval gate) | FUNCTIONAL | `phi memory recall` CLI + `GET /api/v0/memory/recall?tag_intersection=...&viewer=...` HTTP API; permission-over-time retrieval gates results to viewer's current grants | HIGH | 3–4d | build-plan §306–315, system-agents L80–135, permissions/05 L155+, permissions/04 §Authority Chain | — | yes |
+| CH-33 | a01 Inbox/Outbox UI + LLM tool surface | FUNCTIONAL | Web UI page `app/(agent)/inbox` for Humans + `read_inbox` / `send_message` LLM tools; agents see messages with priority badges + read/unread + tag filters | HIGH | 3–4d | requirements/a01, ontology.md L83–87, agent.md L21 | CH-29, CH-30 | yes |
+| CH-34 | a02 My Auth Requests UI + handlers | FUNCTIONAL | Web UI page `app/(agent)/auth-requests` showing inbound + outbound ARs with state badges + slot-progress + approve/deny/reconsider/escalate action buttons | HIGH | 2.5–3.5d | permissions/02 L12–30, requirements/a02 | CH-33 | yes |
+| CH-35 | a03 My Consent Records UI + handlers | FUNCTIONAL | Web UI page `app/(agent)/consents` showing consent records with acknowledge/decline/revoke actions; revoke cascades via engine | HIGH | 2–3d | permissions/06 L353–426, requirements/a03 | CH-33 | yes |
+| CH-36 | a04 My Work (Task + Session + cap) | FUNCTIONAL | Web UI page `app/(agent)/work` showing my-tasks panel + my-sessions panel + concurrency-cap status; status transitions per project.md task flow; CH-36 also absorbs M6-DEFERRED-04 LLM supervisor body + D-CH28-FOLLOWUP-01 template-tier fan-out (per ADR-0063 §D63.16) | HIGH | 3–4d | project.md L107–149, agent.md L209–221 §Parallelized Sessions, requirements/a04 | CH-33 | yes |
+| CH-37 | a05 My Profile + Grants | FUNCTIONAL | Web UI page `app/(agent)/profile` showing profile editor (with re-embed on self_description PATCH) + grants list + authority-chain visualizer; shared-template awareness surfaces in editor per CH-28 cardinality | HIGH | 3–4d | agent.md L270–344 + §Soul L160–169, permissions/04 §Authority Chain, requirements/a05 | CH-28, CH-31, CH-33 | yes |
+| CH-38 | M6-DEFERRED-RESOLVERS-WIRING (F3.b trait re-shape) | TECHNICAL-PREREQUISITE | unblocks nothing critical (standalone resolver-tier hardening — closes D-CH27-FOLLOWUP-01 advisory-form; blocking-promotion is a separate follow-on) | MEDIUM | 3–4d | core-philosophy.md L16, L28, L29 | — | yes |
 
 **Total upper-band: 38 engineer-days. Total lower-band: 28 engineer-days. Range: 28–38 ed for M6 close (11 chunks).**
+
+**Chunk-type distribution**: 6 FUNCTIONAL (CH-32 + CH-33 + CH-34 + CH-35 + CH-36 + CH-37) + 5 TECHNICAL-PREREQUISITE (CH-28 + CH-29 + CH-30 + CH-31 + CH-38).
+
+**Chain-cap evaluation (per phase-planner v2 max-2-consecutive-TECHNICAL-PREREQUISITE rule)**: serial messaging axis CH-28 → CH-29 → CH-30 → CH-33 is **3 consecutive TECHNICAL-PREREQUISITE** before FUNCTIONAL CH-33 lands → APPARENT violation. However, **CH-32 FUNCTIONAL runs in PARALLEL** with CH-29 + CH-30 (per §4 dep graph foundation band) — so the user observes FUNCTIONAL delivery (memory-recall CLI + HTTP) DURING the messaging-axis prerequisite chain. Net: the parallel-band scheduling absorbs the chain-cap concern. Surfaced as §6 Open Question Q-CHAIN-1 for explicit user lock at CH-29 plan-open.
 
 ---
 
@@ -340,6 +378,18 @@ The 9 alignment-audit user-locks (§9 of the audit) covered the macro-sequencing
   - **(c) Defer entirely to M7**: re-route CH-38 to M7+ if user prioritises agent-self-service surface over resolver hardening.
 - **Phase-planner recommendation**: **(a) parallel with foundation tier** — keeps M5.3 carve-out closure clean (D-CH27-FOLLOWUP-01 closes early in M6); cascade through 4 traits + 4 impls + 6 stubs has no cross-cutting handler dependencies per audit §4.C C.2.
 - **Target-decision-point**: user-decidable at chunk-zero gate (the M6 plan-mode opening; pre-CH-28).
+
+### Q-CHAIN-1 — Messaging-axis TECHNICAL-PREREQUISITE chain cap (added 2026-05-20 per phase-planner v2 + plan archive `chunk-decomposition-and-fork-framing-76e04080.md`)
+
+**Question**: The messaging axis CH-28 → CH-29 → CH-30 → CH-33 has **3 consecutive TECHNICAL-PREREQUISITE chunks** before FUNCTIONAL CH-33 lands. Per phase-planner v2 chain cap rule (max 2 consecutive TECHNICAL-PREREQUISITE before FUNCTIONAL), this is an APPARENT violation. Should the messaging axis be re-decomposed to interleave a FUNCTIONAL chunk, OR is the parallel-band scheduling sufficient to absorb the chain cap concern?
+
+**Sub-options**:
+- **(a) Accept the violation** — the §4 dep graph shows CH-32 FUNCTIONAL (memory-recall) + CH-31 TECHNICAL-PREREQUISITE + CH-38 TECHNICAL-PREREQUISITE all run IN PARALLEL with the messaging axis CH-29 + CH-30 post-CH-28. User observes FUNCTIONAL delivery (CH-32 memory-recall CLI + HTTP) during the messaging-axis prerequisite chain. The chain cap rule's spirit — "user shouldn't go 2+ chunks with no observable progress" — is satisfied via the parallel CH-32 FUNCTIONAL delivery.
+- **(b) Re-decompose to interleave** — split CH-30 routing into a FUNCTIONAL "outbox-only delivery with user-visible audit event surface" mid-chunk + the full routing closure as a separate chunk. Adds 1 chunk; tighter chain cap conformance but extra paperwork.
+- **(c) Re-frame CH-29 as a partial-FUNCTIONAL chunk** — argue CH-29 ships a user-visible audit-event surface (every message write emits an audit event the operator can see in the audit log). This redefines CH-29 as FUNCTIONAL (admin-operator-facing); the chain becomes CH-28 (TECH) → CH-29 (FUNC) → CH-30 (TECH) → CH-33 (FUNC). Conforms to chain cap.
+
+- **Planner-recommendation**: **(a) Accept the violation** — the parallel-band scheduling is the strongest evidence that the cap rule's spirit is preserved. CH-32 + CH-31 + CH-38 all running concurrent with CH-29 + CH-30 means the user sees continuous FUNCTIONAL delivery; the "chain" only exists if you serialize one axis arbitrarily. Surface the deviation in the gate-2.5 PAUSE at CH-29 plan-open + document the parallel-band rationale in cycle-audit §6.
+- **Target-decision-point**: user-decidable at CH-29 plan-open (the next M6 chunk after CH-28 close). Until decided, default to (a).
 
 ---
 

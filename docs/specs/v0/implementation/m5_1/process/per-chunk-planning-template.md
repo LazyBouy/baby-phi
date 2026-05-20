@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-20 by Claude Code (post-CH-28 retro standards-update batch: NEW §2.5 Functional outcome mandatory section + §3 fork-row format extension for user-facing framing + §4 Drifts closed table extended with Product impact during deferral column; closes CH-28-observed gaps in chunk-decomposition + fork-framing + deferred-feature-visibility per plan archive chunk-decomposition-and-fork-framing-76e04080.md). -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- Post-CH-22 addition (2026-04-27): §3.C "User-facing documentation impact map" is now mandatory; §10 "Docs aspect" extended to cover the user-facing doc tier (architecture / operations / user-guide). Reason: the milestone-era pattern shipped three peer doc trees per milestone, but chunks were silently dropping that tier — operators got stale docs. Pre-CH-22 chunks (CH-01, CH-02, CH-K8S-PREP, CH-22) are grandfathered with backfill bundled in this codification commit. -->
 
@@ -24,6 +25,35 @@ Each numbered section is mandatory. Sections may be lengthy or short depending o
 
 ---
 
+## Pre-§1 — "Forks for orchestrator" section (planner-authored above §1; format rules added 2026-05-20 per CH-28 retro plan archive `chunk-decomposition-and-fork-framing-76e04080.md`)
+
+When the chunk plan has architecture/scope decisions that need user-lock at gate-1, the planner adds a `## Forks for orchestrator` section ABOVE §1 (this section is NOT part of the numbered 12 — it's planner-authored only when forks exist; chunks with no user-decidable forks omit it).
+
+**Fork row format (mandatory for FUNCTIONAL chunks; release-by-label for TECHNICAL-PREREQUISITE chunks)**:
+
+Each fork has a header table with one row per option:
+
+```
+### F<N> — <fork-name>
+
+| Option | User-visible (what the user perceives) | Pros | Cons + Product trajectory | Status |
+|---|---|---|---|---|
+| F<N>.a (planner-rec) | <one-sentence behavior the end user perceives if this option ships> | <2-3 bullet pros, 1-sentence each> | <1-2 bullet cons + **Product trajectory:** <how this affects long-term product trajectory — what capabilities become easier/harder downstream>> | LOCKED / NOT chosen |
+| F<N>.b (...) | ... | ... | ... | ... |
+```
+
+**Discipline**:
+- The **User-visible** column states what the END USER perceives — NOT the implementation layer. Avoid architectural jargon ("wire-format-explicit", "auditability", "operator inspection window"). Frame in user-perceivable behavior ("templates can be shared across N agents", "schema applies before data migration so operators can inspect", etc.).
+- The **Product trajectory** line at the end of cons states the long-term product impact (better/worse for which downstream capabilities) — distinct from this chunk's engineering tradeoff.
+- For forks where **all options share zero user-visible delta** (purely engineering choice; e.g., `tokio::sync::Mutex` vs `std::sync::Mutex`), the fork header MUST be labeled `**TECHNICAL FORK** (no user-visible delta — pick on engineering merit only)`. This releases the planner from the User-visible + Product trajectory requirements for that fork; the row format collapses to standard pros/cons.
+- The chunk-planner agent (v26+) self-checks own draft for these substrings at draft-end + retries until present.
+
+**Locked fork details appendix** (existing v23 rule, preserved): when ≥ 1 fork locks at gate-1, the planner adds a `### Locked fork details` subsection BELOW the fork tables with one `#### F<N> = F<N>.<letter>` sub-section per locked fork carrying 3-6 sentences of plain-English semantics of what the lock means for implementer + downstream consumers + which open-questions it closes.
+
+**Why this format**: CH-28 retro observed that forks were framed in engineering terms ("hybrid Blueprint table", "split migrations") that the user could not translate to product-level decisions. The new mandatory **User-visible** column closes the framing gap structurally.
+
+---
+
 ### §1 — Context & principle
 
 - **Why this chunk** — one paragraph. What user-visible or concept-fidelity gap does this chunk close? Which drift IDs make it necessary?
@@ -42,6 +72,30 @@ Rules:
 - **Coverage** — every concept doc whose claims the chunk's code will touch appears in the table. No "we'll find out at implementation time."
 - **Permissions subtree hook** — if any of `permissions/01`–`permissions/09` docs are touched, `permissions/README.md` MUST be cited as the entry invariants source.
 - **phi-core-mapping hook** — if any surface overlaps with phi-core types, `concepts/phi-core-mapping.md` MUST appear in the table with the relevant row cited.
+
+### §2.5 — Functional outcome (mandatory; added 2026-05-20 per CH-28 retro plan archive `chunk-decomposition-and-fork-framing-76e04080.md`)
+
+Every chunk plan MUST declare whether it is FUNCTIONAL (ships user-visible capability) or TECHNICAL-PREREQUISITE (purely structural; no user-visible delivery; unblocks downstream FUNCTIONAL chunk). The declaration is a 1-paragraph statement at chunk-plan-draft time so the user reading the plan can immediately answer "what does this chunk give me as an end user?" without inferring from technical details.
+
+**Format**:
+
+For **FUNCTIONAL** chunks:
+```
+**Chunk-type**: FUNCTIONAL
+**User-visible delivery**: <one-paragraph description of what the end user can do post-chunk-close that they could not do before>.
+```
+
+For **TECHNICAL-PREREQUISITE** chunks:
+```
+**Chunk-type**: TECHNICAL-PREREQUISITE
+**User-visible delivery**: NONE this chunk.
+**Unblocks**: <CH-NN+M> which ships <user-visible feature>.
+**Why this prerequisite**: <one-sentence explanation a non-technical user can understand — e.g., "the synthesis read-path makes templates shareable across agents, which the supervisor surface at CH-36 needs to render correctly">.
+```
+
+**Discipline at plan-draft**: the planner must NOT bundle FUNCTIONAL + TECHNICAL-PREREQUISITE deliverables in a single chunk. If the candidate chunk mixes user-visible feature work + ≥ 30% supporting infrastructure with no user delivery, the planner MUST propose a split into 2 chunks (per phase-planner v2 decomposition discipline). The split rationale lands in §2.5 + the second chunk's plan picks up the TECHNICAL-PREREQUISITE tag with explicit "Unblocks" line.
+
+**Cross-cycle observation** (CH-28 evidence): chunks that bundle user-visible capabilities + multi-axis infrastructure ramp the iteration count (CH-28 ran 5 plan iterations in part because the chunk bundled hybrid Blueprint + edge rename + split migrations + composite-write + acceptance suite). Splitting reduces per-chunk decision surface + makes fork choices tractable.
 
 ### §3 — phi-core leverage map
 
@@ -167,7 +221,7 @@ CH-24 demonstrated mid-cycle architectural scope expansion as a viable workflow:
 
 **Default rule**: no candidates → write "(none anticipated)" + proceed. The section is empty for ratification chunks (no code surface), small for medium chunks (1-2 candidates), large for milestone-seal chunks (3-5 candidates).
 
-### §4 — Drifts closed
+### §4 — Drifts closed + Deferred functionality
 
 List every drift file in [`../drifts/`](../drifts/) this chunk transitions to `remediated` / `renegotiated` / `accepted-as-is`:
 
@@ -180,6 +234,22 @@ Rules:
 - If the chunk discovers new drifts mid-flight (see §6 *mid-flight pause*), the new drifts are added to this table before chunk seal.
 - Drift status transitions happen at chunk seal, not earlier. The lifecycle rules in [`drift-lifecycle.md`](./drift-lifecycle.md) govern permitted transitions.
 - **Non-terminal drifts MUST cite explicit `M*-DEFERRED-NN` allocation** (added 2026-05-11 per CH-24 retro Row 4, cycle hex `5778bb77`; chunk-planner v13). Drifts left at `Status: discovered` / `scoped` whose `Impl chunk` field reads `TBD` / `TBD — likely M6+` / `TBD pending design` are non-compliant. At plan-draft time, the planner inspects every drift file the plan touches; any `TBD` marker triggers a P-DOCS or P-SEAL deliverable to promote it to an explicit `M<N>-DEFERRED-<NN>` allocation (cross-referencing the relevant forward-scope §M6+/M7+/M7b section). For NEW drift files filed by the chunk (mid-flight discovery), the planner MUST populate `Impl chunk` with an explicit allocation at file-creation time. Never write `TBD`. CH-24 retro housekeeping precedent: 1-line patch to `D-new-28`'s stale `CH-19 (+ M6 review)` → `M6-DEFERRED-01`.
+
+#### §4.A — Deferred functionality (mandatory; added 2026-05-20 per CH-28 retro plan archive `chunk-decomposition-and-fork-framing-76e04080.md`)
+
+For every drift / follow-up / `M*-DEFERRED-NN` marker the chunk files OR carries forward, this sub-section adds a **user-facing translation row** so the user can trace deferred work back to product capability:
+
+| Drift ID | User-visible feature deferred | Product impact during deferral | Allocation chunk | Cross-chunk dep |
+|---|---|---|---|---|
+| `D-CH<NN>-FOLLOWUP-<MM>` | <one-phrase product feature name from the user's POV — NOT the technical layer> | <one-sentence description of what the user observes in the deferred state vs the final state, e.g., "agents sharing a template see independent profile changes instead of synchronized changes"> | `CH-<NN+M>` (or `M<N>-DEFERRED-<NN>` if cross-milestone) | <upstream chunks that must land first for the allocation chunk to ship> |
+
+**Rules**:
+- Every NEW drift filed by the chunk MUST have a row here, NOT just the §4 transition table above.
+- "User-visible feature deferred" cell MUST avoid technical jargon (no "trait method", "edge variant", "schema field"); it names what the END USER would describe wanting to do.
+- "Product impact during deferral" cell MUST state behavior in v0 vs final state in language a non-technical user understands.
+- Cross-ref to `docs/specs/v0/feature-inventory.md` — the deferred catalogue index in §3 of that doc must be kept in sync.
+
+**Why this sub-section**: CH-28 retro surfaced that `D-CH28-FOLLOWUP-01` (listener template-tier fan-out → M6-DEFERRED-04 / CH-36) framed the deferral architecturally ("5-step traversal not implemented") but did NOT name the user-visible product impact ("agents sharing a template see independent profile changes vs synchronized"). The user reading the drift could not trace the deferred work back to a product capability or assess v0 vs final state. §4.A closes that gap structurally.
 
 ### §5 — ADRs drafted
 
