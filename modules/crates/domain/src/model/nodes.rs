@@ -316,6 +316,18 @@ pub struct AgentProfile {
     pub agent_id: AgentId,
     /// Concurrent session cap (default 1); enforced at session-start time.
     /// phi-specific governance field — not on `phi_core::AgentProfile`.
+    ///
+    /// CH-28 / ADR-0063 §D63.13 + §D63.14 — `#[serde(default)]` enables
+    /// the in-process synthesized-projection invariant: post-migration-
+    /// 0019 the `agent_profile` SurrealDB row no longer carries this
+    /// field (the wire-row strip per §D63.14 omits it), so a raw
+    /// `SELECT *` on the row deserializes through this default-of-0
+    /// landing, and `read_agent_profile_via_blueprint_or_fallback` then
+    /// layers the real value from the override-tier or template-tier
+    /// Blueprint row (per §D63.15). Pre-0019 stored rows whose `parallelize`
+    /// survives the SCHEMAFULL field removal (half-migrated tolerance
+    /// window per §D63.12) deserialize into this same field directly.
+    #[serde(default)]
     pub parallelize: u32,
     /// The phi-core execution blueprint. Source of truth for
     /// `system_prompt`, `thinking_level`, `skills`, etc.
@@ -334,6 +346,90 @@ pub struct AgentProfile {
     /// wrapper; never placed on `blueprint` (phi-core inner). Bypassed
     /// at M7 when real providers dispatch via `ProviderRegistry`.
     /// `#[serde(default)]` so pre-CH-02 stored rows round-trip cleanly.
+    #[serde(default)]
+    pub mock_response: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// CH-28 / ADR-0063 §D63.1 — Identifier of a `Blueprint` row (hybrid
+/// template-or-override table; see [`Blueprint`]).
+///
+/// Hand-rolled UUID newtype (the `id_newtype!` macro lives in
+/// [`crate::model::ids`] and isn't exported; mirroring its shape inline
+/// here keeps `BlueprintId` co-located with the `Blueprint` struct per
+/// the iter-4 plan §7 P1 deliverable 1 placement).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct BlueprintId(pub uuid::Uuid);
+
+impl BlueprintId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+    pub fn from_uuid(uuid: uuid::Uuid) -> Self {
+        Self(uuid)
+    }
+    pub fn as_uuid(&self) -> &uuid::Uuid {
+        &self.0
+    }
+}
+
+impl Default for BlueprintId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for BlueprintId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// CH-28 / ADR-0063 §D63.1 + §D63.3 — Hybrid Blueprint table row.
+///
+/// F1.c USER-LOCKED DIVERGENT — introduces a NEW table separate from
+/// `AgentProfile` that holds BOTH shared template-Blueprints
+/// (`agent_id = None`, pointed to by N AgentProfile rows via
+/// `AGENT_PROFILE_USES_BLUEPRINT`) AND per-agent override-Blueprints
+/// (`agent_id = Some(_)`, pointed to from one Agent via
+/// `AGENT_USES_BLUEPRINT_OVERRIDE`). The discriminator is the
+/// `agent_id` field itself.
+///
+/// Per ADR-0063 §D63.13 (iter-4 clarification): F1.c's "fields removed
+/// from struct entirely" wording refers to PERSISTENCE-of-record only.
+/// The in-process [`AgentProfile`] struct field-set is PRESERVED as a
+/// synthesized projection — the `parallelize` / `model_config_id` /
+/// `mock_response` fields on [`AgentProfile`] are populated at read time
+/// by combining the shared template's Blueprint with any per-agent
+/// override Blueprint (see `get_agent_profile_for_agent` synthesis at
+/// P2-HANDLERS).
+///
+/// Per ADR-0063 §D63.5 + §D63.12 — the 1:1 invariant on override rows
+/// (one override row per Agent at most) is enforced at the REPOSITORY
+/// TIER inside a SurrealDB `BEGIN; ... COMMIT;` transaction in
+/// `upsert_agent_blueprint_override` (SurrealDB 2.6.5 does NOT support
+/// filtered UNIQUE indexes).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Blueprint {
+    pub id: BlueprintId,
+    /// `None` → template-tier row (shared across many AgentProfile rows).
+    /// `Some(_)` → per-agent override-tier row (one per Agent at most).
+    #[serde(default)]
+    pub agent_id: Option<AgentId>,
+    /// Concurrent session cap (per-agent override; `None` → inherit from
+    /// template). Same semantics as the legacy
+    /// `AgentProfile::parallelize` field; the field continues to exist
+    /// on [`AgentProfile`] as a synthesized projection per
+    /// ADR-0063 §D63.13.
+    #[serde(default)]
+    pub parallelize: Option<u32>,
+    /// Per-agent `ModelConfig` binding override (`None` → inherit from
+    /// template / org-default).
+    #[serde(default)]
+    pub model_config_id: Option<String>,
+    /// Optional dev/test override of the MockProvider response
+    /// (CH-02 / ADR-0032 D32.2; preserved at CH-28 via Blueprint table).
     #[serde(default)]
     pub mock_response: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -2227,5 +2323,81 @@ mod tests {
             PrincipalRef::Agent(agent_id),
             PrincipalRef::Agent(other_agent),
         );
+    }
+
+    // ---- CH-28 / ADR-0063 — Blueprint struct tests --------------------------
+
+    #[test]
+    fn blueprint_struct_serde_roundtrip_preserves_all_fields() {
+        // F1.c USER-LOCKED — hybrid Blueprint table. Serde roundtrip must
+        // preserve all five fields (id, agent_id, parallelize,
+        // model_config_id, mock_response, created_at) without loss.
+        let agent = AgentId::new();
+        let bp = Blueprint {
+            id: BlueprintId::new(),
+            agent_id: Some(agent),
+            parallelize: Some(5),
+            model_config_id: Some("openai:gpt-4o".into()),
+            mock_response: Some("Acknowledged.".into()),
+            created_at: Utc::now(),
+        };
+        let j = serde_json::to_string(&bp).expect("serialize Blueprint");
+        let back: Blueprint = serde_json::from_str(&j).expect("deserialize Blueprint");
+        assert_eq!(back.id, bp.id);
+        assert_eq!(back.agent_id, bp.agent_id);
+        assert_eq!(back.parallelize, bp.parallelize);
+        assert_eq!(back.model_config_id, bp.model_config_id);
+        assert_eq!(back.mock_response, bp.mock_response);
+        assert_eq!(back.created_at, bp.created_at);
+    }
+
+    #[test]
+    fn blueprint_template_row_has_agent_id_none() {
+        // ADR-0063 §D63.1 — the template-tier discriminator is
+        // `agent_id == None`. Constructing a template row must carry
+        // None, and the serde wire-form must reflect this.
+        let bp = Blueprint {
+            id: BlueprintId::new(),
+            agent_id: None,
+            parallelize: Some(1),
+            model_config_id: None,
+            mock_response: None,
+            created_at: Utc::now(),
+        };
+        assert!(bp.agent_id.is_none(), "template-tier row has agent_id None");
+        let j = serde_json::to_value(&bp).expect("serialize");
+        // Serde with `Option<AgentId>` + transparent UUID newtype emits
+        // a `null` for None. Confirm wire-form discriminator.
+        assert!(
+            j.get("agent_id").map(|v| v.is_null()).unwrap_or(false),
+            "wire form encodes agent_id None as null discriminator (got {j:?})"
+        );
+    }
+
+    #[test]
+    fn blueprint_override_row_has_agent_id_some() {
+        // ADR-0063 §D63.1 — the override-tier discriminator is
+        // `agent_id == Some(agent_id)`. Constructing an override row
+        // must carry the AgentId, and the serde wire-form must encode it.
+        let agent = AgentId::new();
+        let bp = Blueprint {
+            id: BlueprintId::new(),
+            agent_id: Some(agent),
+            parallelize: None,
+            model_config_id: None,
+            mock_response: Some("alt".into()),
+            created_at: Utc::now(),
+        };
+        assert_eq!(
+            bp.agent_id,
+            Some(agent),
+            "override-tier row has agent_id Some(_)"
+        );
+        let j = serde_json::to_value(&bp).expect("serialize");
+        let aid_str = j
+            .get("agent_id")
+            .and_then(|v| v.as_str())
+            .expect("override-tier wire form encodes agent_id as UUID string");
+        assert_eq!(aid_str, agent.to_string());
     }
 }

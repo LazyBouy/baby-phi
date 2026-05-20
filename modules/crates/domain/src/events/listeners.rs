@@ -991,7 +991,7 @@ impl EventHandler for MemoryExtractionListener {
 /// Agent-catalog listener — body shipped at CH-22.
 ///
 /// Subscribes to the 8 `DomainEvent` variants that drive catalog
-/// upserts (`AgentCreated`, `AgentArchived`, `HasProfileEdgeChanged`,
+/// upserts (`AgentCreated`, `AgentArchived`, `UsesProfileEdgeChanged`,
 /// `HasLeadEdgeCreated`, `ManagesEdgeCreated`,
 /// `HasAgentSupervisorEdgeCreated`, `SessionStarted`, `SessionEnded`).
 /// `SessionAborted` is in the subscription set but is a documented
@@ -1060,7 +1060,7 @@ fn agent_id_and_timestamp_for(event: &DomainEvent) -> Option<(AgentId, DateTime<
     match event {
         DomainEvent::AgentCreated { agent_id, at, .. } => Some((*agent_id, *at)),
         DomainEvent::AgentArchived { agent_id, at, .. } => Some((*agent_id, *at)),
-        DomainEvent::HasProfileEdgeChanged { agent_id, at, .. } => Some((*agent_id, *at)),
+        DomainEvent::UsesProfileEdgeChanged { agent_id, at, .. } => Some((*agent_id, *at)),
         DomainEvent::HasLeadEdgeCreated { lead, at, .. } => Some((*lead, *at)),
         DomainEvent::ManagesEdgeCreated { manager, at, .. } => Some((*manager, *at)),
         DomainEvent::HasAgentSupervisorEdgeCreated { supervisor, at, .. } => {
@@ -1086,12 +1086,54 @@ fn agent_id_and_timestamp_for(event: &DomainEvent) -> Option<(AgentId, DateTime<
         // Returning None short-circuits this listener; the
         // memory-extraction listener owns the reactive path.
         DomainEvent::MemoryExtracted { .. } => None,
+        // CH-28 / ADR-0063 §D63.1 — override-tier BlueprintUpserted
+        // (`agent_id = Some(a)`) refreshes the catalog snapshot for
+        // agent `a` only — the same single-agent path as
+        // UsesProfileEdgeChanged. Template-tier BlueprintUpserted
+        // (`agent_id = None`) is fanned out separately at the top of
+        // `on_event` and short-circuits to None here.
+        DomainEvent::BlueprintUpserted {
+            agent_id: Some(a),
+            at,
+            ..
+        } => Some((*a, *at)),
+        DomainEvent::BlueprintUpserted { agent_id: None, .. } => None,
     }
 }
 
 #[async_trait]
 impl EventHandler for AgentCatalogListener {
     async fn on_event(&self, event: &DomainEvent) {
+        // CH-28 / ADR-0063 §D63.1 + §D63.3 — template-tier
+        // BlueprintUpserted (`agent_id = None`) fans out across every
+        // Agent whose AgentProfile points at the upserted Blueprint
+        // via `AGENT_PROFILE_USES_BLUEPRINT`. At iter-4 P1 (additive-
+        // only) the fan-out path is structurally noted here but lands
+        // at P2-HANDLERS in lockstep with the synthesis read path —
+        // the listener's single-agent path (override-tier) ships now
+        // via `agent_id_and_timestamp_for` and operators can rely on
+        // an explicit override-tier emit to refresh a specific
+        // agent's catalog row. Template-tier upserts are rare
+        // (migration-time / org-creation seeding) and the catalog
+        // refresh can be deferred to the next per-agent event without
+        // operational regression. See ADR-0063 §D63.13 for the
+        // PERSISTENCE-of-record vs in-process-projection split.
+        if let DomainEvent::BlueprintUpserted {
+            agent_id: None,
+            blueprint_id,
+            event_id,
+            ..
+        } = event
+        {
+            tracing::info!(
+                blueprint = %blueprint_id,
+                event_id = %event_id,
+                "AgentCatalogListener: template-tier BlueprintUpserted received — \
+                 catalog snapshot refresh deferred to P2-HANDLERS read-path \
+                 synthesis (override-tier emits refresh per agent inline)",
+            );
+            return;
+        }
         let Some((agent_id, event_at)) = agent_id_and_timestamp_for(event) else {
             // SessionAborted: documented no-op per CH-22 plan.
             return;
@@ -1146,12 +1188,17 @@ impl EventHandler for AgentCatalogListener {
             .flatten();
 
         let profile_snapshot = match event {
-            DomainEvent::HasProfileEdgeChanged { .. } => {
-                match self.repo.get_agent_profile_for_agent(agent_id).await {
-                    Ok(Some(profile)) => serde_json::to_value(&profile.blueprint).ok(),
-                    _ => existing.as_ref().and_then(|e| e.profile_snapshot.clone()),
-                }
-            }
+            // CH-28 / ADR-0063 §D63.1 — override-tier BlueprintUpserted
+            // also refreshes the cached profile_snapshot for the
+            // affected agent (the override flips per-agent settings
+            // that the catalog row's projection depends on).
+            DomainEvent::UsesProfileEdgeChanged { .. }
+            | DomainEvent::BlueprintUpserted {
+                agent_id: Some(_), ..
+            } => match self.repo.get_agent_profile_for_agent(agent_id).await {
+                Ok(Some(profile)) => serde_json::to_value(&profile.blueprint).ok(),
+                _ => existing.as_ref().and_then(|e| e.profile_snapshot.clone()),
+            },
             _ => existing.as_ref().and_then(|e| e.profile_snapshot.clone()),
         };
 
@@ -2653,8 +2700,8 @@ mod tests {
         }
     }
 
-    fn has_profile_changed_event(agent_id: AgentId) -> DomainEvent {
-        DomainEvent::HasProfileEdgeChanged {
+    fn uses_profile_changed_event(agent_id: AgentId) -> DomainEvent {
+        DomainEvent::UsesProfileEdgeChanged {
             agent_id,
             old_profile_id: None,
             new_profile_id: crate::model::ids::NodeId::new(),
@@ -2815,10 +2862,10 @@ mod tests {
         );
     }
 
-    // ---- (5) HasProfileEdgeChanged refreshes profile_snapshot ------------
+    // ---- (5) UsesProfileEdgeChanged refreshes profile_snapshot ----------
 
     #[tokio::test]
-    async fn agent_catalog_listener_refreshes_profile_snapshot_on_has_profile_edge_changed() {
+    async fn agent_catalog_listener_refreshes_profile_snapshot_on_uses_profile_edge_changed() {
         let f = catalog_fixture().await;
 
         // Seed an AgentProfile so get_agent_profile_for_agent succeeds.
@@ -2840,7 +2887,7 @@ mod tests {
 
         let listener = make_catalog_listener(&f, CatalogAuditMode::Silent);
         listener
-            .on_event(&has_profile_changed_event(f.subject_agent_id))
+            .on_event(&uses_profile_changed_event(f.subject_agent_id))
             .await;
 
         let entry = f
@@ -2851,7 +2898,7 @@ mod tests {
             .expect("catalog row exists");
         let snapshot = entry
             .profile_snapshot
-            .expect("profile_snapshot populated on HasProfileEdgeChanged");
+            .expect("profile_snapshot populated on UsesProfileEdgeChanged");
         assert_eq!(
             snapshot.get("system_prompt").and_then(|v| v.as_str()),
             Some("you are a test subject"),

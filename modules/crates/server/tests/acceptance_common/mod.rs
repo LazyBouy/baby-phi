@@ -13,6 +13,7 @@
 //! pattern is documented in the Cargo book under "Integration tests".
 
 pub mod admin;
+pub mod blueprint_fixture;
 pub mod m5_bootstrap;
 pub mod owner_grants;
 

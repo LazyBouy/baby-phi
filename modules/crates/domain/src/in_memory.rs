@@ -128,6 +128,21 @@ struct State {
     /// UNIQUE on `agent_id`. Defensive Human-Agent guard at
     /// `Repository::upsert_identity` rejects writes for Human kind.
     identities: HashMap<AgentId, crate::model::nodes::Identity>,
+    /// CH-28 / ADR-0063 §D63.1 + §D63.3 — Hybrid Blueprint table rows
+    /// (BOTH template-tier rows `agent_id = None` AND override-tier
+    /// rows `agent_id = Some(_)`). Keyed by `BlueprintId`. The 1:1
+    /// override-per-Agent invariant is enforced in
+    /// `upsert_agent_blueprint_override` (matches the SurrealDB-tier
+    /// transactional enforcement per ADR-0063 §D63.5 + §D63.12).
+    blueprints: HashMap<crate::model::nodes::BlueprintId, crate::model::nodes::Blueprint>,
+    /// `AGENT_PROFILE_USES_BLUEPRINT` edges (AgentProfile id → template
+    /// Blueprint id). 1:1 from the AgentProfile side (a profile
+    /// references at most one template Blueprint).
+    agent_profile_uses_blueprint_edges: HashMap<NodeId, crate::model::nodes::BlueprintId>,
+    /// `AGENT_USES_BLUEPRINT_OVERRIDE` edges (Agent id → override
+    /// Blueprint id). 1:zero-or-one from the Agent side. UNIQUE on
+    /// `agent_id` enforced via the HashMap key.
+    agent_uses_blueprint_override_edges: HashMap<AgentId, crate::model::nodes::BlueprintId>,
 }
 
 /// CH-23 / ADR-0046 — In-memory row for the `manages` table.
@@ -327,9 +342,18 @@ impl Repository for InMemoryRepository {
     }
 
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
+        // CH-28 / ADR-0063 §D63.14 + §D63.15 — composite-write mirror.
+        // The in-memory store has no SCHEMAFULL constraint so the
+        // AgentProfile row is inserted whole; the override-Blueprint
+        // write is symmetric with the SurrealDB-tier composite so the
+        // in-memory + SurrealDB code paths stay observationally
+        // consistent (a synthesized read via the helper-mirror at
+        // `get_agent_profile_for_agent` returns the same shape).
         self.lock()?
             .agent_profiles
             .insert(profile.id, profile.clone());
+        let override_bp = override_blueprint_from_profile_in_memory(profile);
+        self.upsert_agent_blueprint_override(&override_bp).await?;
         Ok(())
     }
 
@@ -337,34 +361,160 @@ impl Repository for InMemoryRepository {
         &self,
         agent: AgentId,
     ) -> RepositoryResult<Option<AgentProfile>> {
-        Ok(self
-            .lock()?
-            .agent_profiles
-            .values()
-            .find(|p| p.agent_id == agent)
-            .cloned())
+        // CH-28 / ADR-0063 §D63.15 — synthesize the in-process
+        // projection by layering override > template > stored values
+        // onto the AgentProfile clone. Mirrors the SurrealDB-tier
+        // `read_agent_profile_via_blueprint_or_fallback` semantic.
+        // Steps run in three sequential await points so the mutex is
+        // never held across an await.
+        let mut profile = {
+            let g = self.lock()?;
+            let Some(p) = g
+                .agent_profiles
+                .values()
+                .find(|p| p.agent_id == agent)
+                .cloned()
+            else {
+                return Ok(None);
+            };
+            p
+        };
+        let override_bp = self.get_agent_blueprint_override_for_agent(agent).await?;
+        let template_bp = self.get_blueprint_for_agent_profile(profile.id).await?;
+        if let Some(p) = override_bp
+            .as_ref()
+            .and_then(|b| b.parallelize)
+            .or_else(|| template_bp.as_ref().and_then(|b| b.parallelize))
+        {
+            profile.parallelize = p;
+        }
+        if let Some(mcid) = override_bp
+            .as_ref()
+            .and_then(|b| b.model_config_id.clone())
+            .or_else(|| template_bp.as_ref().and_then(|b| b.model_config_id.clone()))
+        {
+            profile.model_config_id = Some(mcid);
+        }
+        if let Some(mr) = override_bp
+            .as_ref()
+            .and_then(|b| b.mock_response.clone())
+            .or_else(|| template_bp.as_ref().and_then(|b| b.mock_response.clone()))
+        {
+            profile.mock_response = Some(mr);
+        }
+        Ok(Some(profile))
     }
 
     async fn upsert_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
-        let mut g = self.lock()?;
-        // Remove any existing profile for the same agent (1:1 invariant)
-        // before inserting, so we don't accumulate duplicates when the
-        // caller passes a fresh `id` for an edit.
-        let existing: Vec<_> = g
-            .agent_profiles
-            .iter()
-            .filter_map(|(k, v)| {
-                if v.agent_id == profile.agent_id && *k != profile.id {
-                    Some(*k)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        for k in existing {
-            g.agent_profiles.remove(&k);
+        // CH-28 / ADR-0063 §D63.14 + §D63.15 — composite-write mirror.
+        // The 1:1 invariant on `agent_profiles` is preserved by the
+        // existing eviction-on-different-id loop; the override-Blueprint
+        // write follows as a sequential composite (mirrors the
+        // SurrealDB-tier semantic).
+        {
+            let mut g = self.lock()?;
+            let existing: Vec<_> = g
+                .agent_profiles
+                .iter()
+                .filter_map(|(k, v)| {
+                    if v.agent_id == profile.agent_id && *k != profile.id {
+                        Some(*k)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            for k in existing {
+                g.agent_profiles.remove(&k);
+            }
+            g.agent_profiles.insert(profile.id, profile.clone());
         }
-        g.agent_profiles.insert(profile.id, profile.clone());
+        let override_bp = override_blueprint_from_profile_in_memory(profile);
+        self.upsert_agent_blueprint_override(&override_bp).await?;
+        Ok(())
+    }
+
+    // ---- CH-28 / ADR-0063 §D63.1 + §D63.3 + §D63.5 — Blueprint methods ---
+
+    async fn get_blueprint_for_agent_profile(
+        &self,
+        profile_id: NodeId,
+    ) -> RepositoryResult<Option<crate::model::nodes::Blueprint>> {
+        let g = self.lock()?;
+        let Some(bp_id) = g
+            .agent_profile_uses_blueprint_edges
+            .get(&profile_id)
+            .copied()
+        else {
+            return Ok(None);
+        };
+        Ok(g.blueprints.get(&bp_id).cloned())
+    }
+
+    async fn get_agent_blueprint_override_for_agent(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Option<crate::model::nodes::Blueprint>> {
+        let g = self.lock()?;
+        let Some(bp_id) = g
+            .agent_uses_blueprint_override_edges
+            .get(&agent_id)
+            .copied()
+        else {
+            return Ok(None);
+        };
+        Ok(g.blueprints.get(&bp_id).cloned())
+    }
+
+    async fn upsert_blueprint_template(
+        &self,
+        blueprint: &crate::model::nodes::Blueprint,
+    ) -> RepositoryResult<()> {
+        // Template-tier discriminator: `agent_id == None`. Mirrors the
+        // SurrealDB-tier contract — the caller is expected to pass a
+        // template-shape Blueprint here. Override rows MUST go through
+        // `upsert_agent_blueprint_override`.
+        debug_assert!(
+            blueprint.agent_id.is_none(),
+            "upsert_blueprint_template received a row with agent_id Some(_); \
+             use upsert_agent_blueprint_override instead"
+        );
+        let mut g = self.lock()?;
+        g.blueprints.insert(blueprint.id, blueprint.clone());
+        Ok(())
+    }
+
+    async fn upsert_agent_blueprint_override(
+        &self,
+        blueprint: &crate::model::nodes::Blueprint,
+    ) -> RepositoryResult<()> {
+        // Override-tier discriminator: `agent_id == Some(_)`. Per
+        // ADR-0063 §D63.5 + §D63.12 the 1:1-override-per-Agent invariant
+        // is enforced HERE (not via a storage-level UNIQUE index). The
+        // in-memory map is keyed by AgentId for the
+        // `agent_uses_blueprint_override_edges` lookup, which provides
+        // the same 1:1 guarantee in-process.
+        let agent_id = blueprint.agent_id.expect(
+            "upsert_agent_blueprint_override received a row with agent_id None; \
+             use upsert_blueprint_template instead",
+        );
+        let mut g = self.lock()?;
+        // SELECT-then-UPSERT pattern mirroring the SurrealDB transaction.
+        // If an existing override row exists for this agent, evict the
+        // OLD blueprint row from `blueprints` (preserve the supplied id
+        // as the canonical record going forward).
+        if let Some(prev_bp_id) = g
+            .agent_uses_blueprint_override_edges
+            .get(&agent_id)
+            .copied()
+        {
+            if prev_bp_id != blueprint.id {
+                g.blueprints.remove(&prev_bp_id);
+            }
+        }
+        g.blueprints.insert(blueprint.id, blueprint.clone());
+        g.agent_uses_blueprint_override_edges
+            .insert(agent_id, blueprint.id);
         Ok(())
     }
 
@@ -2849,5 +2999,28 @@ fn principal_ref_to_node_id(p: &PrincipalRef) -> RepositoryResult<NodeId> {
             "PrincipalRef::System({s}) has no NodeId; apply_transfer_grant \
              does not target system axioms"
         ))),
+    }
+}
+
+/// CH-28 / ADR-0063 §D63.15 — Build an override-tier [`Blueprint`] from
+/// an in-process [`AgentProfile`]. Mirrors the SurrealDB-tier helper at
+/// `store::repo_impl::override_blueprint_from_profile`; the
+/// in-process struct keeps the 3 override fields verbatim, so the
+/// override-Blueprint carries them directly.
+///
+/// The Blueprint id is freshly minted on each call; the SurrealDB-tier
+/// + in-memory `upsert_agent_blueprint_override` impls evict any prior
+///   override row for the same agent so exactly one row persists per
+///   agent (the 1:1-override invariant per §D63.5 + §D63.12).
+fn override_blueprint_from_profile_in_memory(
+    profile: &AgentProfile,
+) -> crate::model::nodes::Blueprint {
+    crate::model::nodes::Blueprint {
+        id: crate::model::nodes::BlueprintId::new(),
+        agent_id: Some(profile.agent_id),
+        parallelize: Some(profile.parallelize),
+        model_config_id: profile.model_config_id.clone(),
+        mock_response: profile.mock_response.clone(),
+        created_at: profile.created_at,
     }
 }

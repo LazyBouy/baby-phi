@@ -446,14 +446,15 @@ pub async fn update_agent_profile(
         .await
         .map_err(|e| AgentError::AuditEmit(e.to_string()))?;
 
-    // CH-22 — emit `HasProfileEdgeChanged` only when the profile row
+    // CH-22 — emit `UsesProfileEdgeChanged` only when the profile row
     // actually changed (not on display_name-only or limits-only edits).
-    // The catalog listener uses this signal to refresh
-    // `profile_snapshot` on the catalog row.
+    // (Renamed from `HasProfileEdgeChanged` at CH-28 per ADR-0063 §D63.7
+    // — F2.b USER-LOCKED DIVERGENT.) The catalog listener uses this
+    // signal to refresh `profile_snapshot` on the catalog row.
     if profile_changed {
         if let Some(new_profile) = next_profile.as_ref() {
             event_bus
-                .emit(DomainEvent::HasProfileEdgeChanged {
+                .emit(DomainEvent::UsesProfileEdgeChanged {
                     agent_id,
                     old_profile_id: current_profile.as_ref().map(|p| p.id),
                     new_profile_id: new_profile.id,

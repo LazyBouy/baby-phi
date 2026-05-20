@@ -191,6 +191,42 @@ pub const EMBEDDED_MIGRATIONS: &[Migration] = &[
         slug: "org_project_tags",
         sql: include_str!("../migrations/0018_org_project_tags.surql"),
     },
+    // CH-28 — AgentProfile cardinality flip 1:1 → N:1 (schema-only)
+    // (ADR-0063 §D63.1 + §D63.3 + §D63.5). Drops the UNIQUE index on
+    // `agent_profile.agent_id` (lifting the 1:1 lock); DEFINEs the new
+    // `blueprint` SCHEMAFULL table with the hybrid template/override
+    // shape (F1.c user-lock divergent from planner-recommended F1.a);
+    // DEFINEs the renamed `uses_profile` relation table + two NEW
+    // Blueprint-pointer relation tables (`agent_profile_uses_blueprint`
+    // + `agent_uses_blueprint_override`); REMOVEs the per-agent override
+    // field definitions from `agent_profile` (rows retain stored values
+    // for the half-migrated-state tolerance window per ADR-0063
+    // §D63.12; 0020 cleans up). F3.b user-lock divergent from planner-
+    // recommended F3.a (split migrations 0019 schema + 0020 data).
+    Migration {
+        version: 19,
+        slug: "agent_profile_n_to_1_schema",
+        sql: include_str!("../migrations/0019_agent_profile_n_to_1_schema.surql"),
+    },
+    // CH-28 — AgentProfile cardinality flip 1:1 → N:1 (data-only backfill)
+    // (ADR-0063 §D63.3 + §D63.5). Pairs with 0019 (schema-only). Per F3.b
+    // user-lock divergent from planner-recommended F3.a: split migrations
+    // 0019 schema + 0020 data. For each pre-existing `agent_profile` row
+    // UPSERTs a template-tier `blueprint` row (`agent_id = NONE`,
+    // parallelize/model_config_id/mock_response copied from the
+    // agent_profile row's stored values per the post-0019 half-migrated
+    // tolerance window — ADR-0063 §D63.12), then RELATEs the agent_profile
+    // → blueprint pair via `agent_profile_uses_blueprint`. For each
+    // pre-existing `has_profile` edge row, RELATEs the agent → agent_profile
+    // pair via `uses_profile` (the renamed edge variant per F2.b) and
+    // DELETEs the legacy `has_profile` row. Override-tier blueprint rows
+    // (per-agent overrides) are NOT created at backfill — they are written
+    // lazily by application code at P1-BLUEPRINT-STRUCT.
+    Migration {
+        version: 20,
+        slug: "agent_profile_n_to_1_backfill",
+        sql: include_str!("../migrations/0020_agent_profile_n_to_1_backfill.surql"),
+    },
 ];
 
 #[derive(Debug, thiserror::Error)]

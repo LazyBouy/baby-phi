@@ -14,18 +14,22 @@ use domain::model::{
 // ---- Count invariants -----------------------------------------------------
 
 #[test]
-fn edge_count_bumps_from_sixty_six_to_seventy_two() {
+fn edge_count_bumps_from_sixty_six_to_seventy_four() {
     // M3/P1 added `HasLead` as variant #67. M4/P1 added
     // `HasSubproject` + `HasConfig` as #68 + #69. CH-23 added
     // `Manages` + `HasAgentSupervisor` as #70 + #71 per ADR-0046 to
     // give Templates C and D real production triggers. CH-25 added
     // `Owns` as #72 per ADR-0060 §D60.1 (F1.b USER-LOCKED) for
     // Agent→Org/Project ownership with typed `OwnedResourceId`
-    // payload. The compile-time count is pinned in `edges.rs`
-    // (`pub const EDGE_KIND_NAMES: [&str; 72]`); this test is a
-    // belt-and-braces check visible in the integration suite so
-    // count regressions surface under `cargo test --workspace`.
-    assert_eq!(EDGE_KIND_NAMES.len(), 72);
+    // payload. CH-28 added `AgentProfileUsesBlueprint` +
+    // `AgentUsesBlueprintOverride` as #73 + #74 per ADR-0063 §D63.1 +
+    // §D63.3 (F1.c USER-LOCKED) for the hybrid Blueprint table —
+    // AgentProfile pointing at its template Blueprint + Agent pointing
+    // at its per-agent override Blueprint. The compile-time count is
+    // pinned in `edges.rs` (`pub const EDGE_KIND_NAMES: [&str; 74]`);
+    // this test is a belt-and-braces check visible in the integration
+    // suite so count regressions surface under `cargo test --workspace`.
+    assert_eq!(EDGE_KIND_NAMES.len(), 74);
     for required in [
         "HAS_LEAD",
         "HAS_SUBPROJECT",
@@ -33,6 +37,8 @@ fn edge_count_bumps_from_sixty_six_to_seventy_two() {
         "MANAGES",
         "HAS_AGENT_SUPERVISOR",
         "OWNS",
+        "AGENT_PROFILE_USES_BLUEPRINT",
+        "AGENT_USES_BLUEPRINT_OVERRIDE",
     ] {
         assert!(
             EDGE_KIND_NAMES.contains(&required),

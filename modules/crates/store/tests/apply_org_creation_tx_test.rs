@@ -231,7 +231,7 @@ async fn happy_path_commits_every_row_and_returns_receipt() {
     assert_eq!(count_rows(&store, "has_inbox").await, 1);
     assert_eq!(count_rows(&store, "has_outbox").await, 1);
     assert_eq!(count_rows(&store, "has_channel").await, 1);
-    assert_eq!(count_rows(&store, "has_profile").await, 2);
+    assert_eq!(count_rows(&store, "uses_profile").await, 2);
 }
 
 #[tokio::test]

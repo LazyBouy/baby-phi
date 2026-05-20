@@ -159,6 +159,18 @@ CH-15 retro (cycle hex `c3f46f17`, 2026-05-08) is the first cycle to run under t
 
 **Validation footnote**: CH-15 also validated the new `Bash(bash /root/projects/phi/baby-phi/scripts/audit-tmp-*.sh*)` rule paired with the gate-4 `audit-tmp-cargo-counts.sh` script refactor (CH-14 retro Row 8). The CH-14 4-stage `cargo test | grep | sed | awk` pipeline cluster (14 prompts) is also at 0 prompts in CH-15 — both clusters resolved by the same literal-script-name approach.
 
+### 2.8 — CH-28 empirical-quirk record: trailing `; echo "EXIT=$?"` semicolon-chain breaks cargo-test rule prefix-glob
+
+CH-28 retro (cycle hex `0412eb06`, 2026-05-20) surfaced a new matcher-quirk class: the trailing `; echo "EXIT=$?"` chained command on `cargo test ... > /tmp/X.log 2>&1 ; echo "EXIT=$?"` shape fires PermissionRequests against `Bash(/root/rust-env/cargo/bin/cargo test *)` despite the rule's prefix glob nominally covering the cargo-test invocation.
+
+**5-prompt cluster** observed at CH-28 (per `permissions-audit` skill v4.2 §B Hot allow-rule candidates).
+
+**Root cause hypothesis**: the matcher tokenises at the `;` semicolon and treats each statement as a separate command. The leading `cargo test ...` matches `Bash(/root/rust-env/cargo/bin/cargo test *)` cleanly; the trailing `echo "EXIT=$?"` does NOT match any allow-rule (no `Bash(echo *)` rule). The whole compound returns to the user prompt because BOTH statements must match their respective rules.
+
+**Recommended workaround**: write a wrapper script `scripts/run-cargo-test-with-exit.sh` that captures cargo-test output + exit code in a single invocation; invoke as `bash /abs/path/scripts/run-cargo-test-with-exit.sh <args>` — single command, single allow-rule reach. Pattern parallels CH-14 retro Row 8 (`audit-tmp-cargo-counts.sh`).
+
+**Lifecycle**: discovered CH-28; status `discovered`; allocated to workaround-via-wrapper-script at next cycle that needs cargo-test+exit-capture (no immediate elevation to `matcher-bug-confirmed` since the semantic of `;` as statement-separator is documented in shell grammar — the matcher's behavior is correct per shell semantics; the workflow needs adjusting to single-command invocations).
+
 ### 2.4 — Empirical observation from CH-07 (redirect+pipe combo defeats single-`*` glob)
 
 CH-07 telemetry (cycle hex `cc912d07`, 2026-05-07) surfaced a third matcher quirk:

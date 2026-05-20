@@ -28,9 +28,10 @@ use domain::model::ids::{
     ProjectId, SessionId, TurnNodeId, UserId,
 };
 use domain::model::nodes::{
-    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
-    LoopRecordNode, Memory, Organization, OutboxObject, PrincipalRef, Project, ProjectShape,
-    ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest, TurnNode, User,
+    Agent, AgentProfile, AgentRole, AuthRequest, Blueprint, BlueprintId, Channel, Consent, Grant,
+    InboxObject, LoopRecordNode, Memory, Organization, OutboxObject, PrincipalRef, Project,
+    ProjectShape, ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest,
+    TurnNode, User,
 };
 use domain::model::{
     AgentCatalogEntry, AgentExecutionLimitsOverride, RecentSessionEntry, SessionDetail,
@@ -456,6 +457,173 @@ fn audit_class_from_str(s: &str) -> RepositoryResult<domain::audit::AuditClass> 
 }
 
 // ============================================================================
+// CH-28 / ADR-0063 §D63.12 + §D63.14 + §D63.15 — Blueprint-table bridge
+// ============================================================================
+
+/// CH-28 / ADR-0063 §D63.14 — SurrealDB write-boundary strip for
+/// `agent_profile` rows. Mirrors `domain::AgentProfile`'s field-set
+/// MINUS the 3 per-agent override fields (`parallelize`,
+/// `model_config_id`, `mock_response`) whose persistence-of-record
+/// moved to the `blueprint` table at migration 0019. The override
+/// values for each agent persist via `upsert_agent_blueprint_override`
+/// in a composite-write paired with the `agent_profile` row write (per
+/// §D63.15). On read the synthesized projection is rebuilt by
+/// `read_agent_profile_via_blueprint_or_fallback` from the override-
+/// tier or template-tier Blueprint rows.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct AgentProfileWireRow<'a> {
+    pub id: NodeId,
+    pub agent_id: AgentId,
+    pub blueprint: &'a phi_core::agents::profile::AgentProfile,
+    pub created_at: DateTime<Utc>,
+}
+
+impl<'a> From<&'a AgentProfile> for AgentProfileWireRow<'a> {
+    fn from(p: &'a AgentProfile) -> Self {
+        Self {
+            id: p.id,
+            agent_id: p.agent_id,
+            blueprint: &p.blueprint,
+            created_at: p.created_at,
+        }
+    }
+}
+
+/// Raw `agent_profile` row read from SurrealDB. Used internally by
+/// [`read_agent_profile_via_blueprint_or_fallback`] to avoid recursing
+/// through the public `get_agent_profile_for_agent` (which itself
+/// delegates to that helper per §D63.15).
+///
+/// Deserialization is tolerant of the half-migrated 0019↔0020 window:
+/// after migration 0019, `REMOVE FIELD` drops the SCHEMAFULL definition
+/// for `parallelize` / `model_config_id` / `mock_response` but the
+/// stored values persist on existing rows (per ADR-0063 §D63.12). Rows
+/// written via the post-P1.5 wire-row strip simply omit them. Either
+/// way, `#[serde(default)]` lets the row deserialize either with the
+/// legacy stored values OR with synthesized `None` / `0` placeholders.
+async fn read_legacy_agent_profile_row(
+    store: &SurrealStore,
+    agent: AgentId,
+) -> RepositoryResult<Option<AgentProfile>> {
+    let mut resp = store
+        .client()
+        .query(
+            "SELECT *, record::id(id) AS _rid OMIT id FROM agent_profile \
+             WHERE agent_id = $agent LIMIT 1",
+        )
+        .bind(("agent", agent.to_string()))
+        .await
+        .map_err(backend)?;
+    let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
+    let Some(mut row) = rows.into_iter().next() else {
+        return Ok(None);
+    };
+    let rid = row
+        .as_object_mut()
+        .and_then(|m| m.remove("_rid"))
+        .and_then(|v| v.as_str().map(str::to_string))
+        .ok_or_else(|| RepositoryError::Backend("agent_profile row missing _rid".into()))?;
+    let profile_id = NodeId::from_uuid(parse_uuid(&rid)?);
+    let row = inject_id(row, profile_id)?;
+    Ok(Some(serde_json::from_value(row).map_err(backend)?))
+}
+
+/// Resolve an [`AgentProfile`] for the given Agent, tolerating the
+/// 0019↔0020 half-migrated window. Returns the same shape callers expect
+/// from `get_agent_profile_for_agent` (the legacy 1:1 lookup), but the
+/// per-agent override fields (`parallelize` / `model_config_id` /
+/// `mock_response`) are now resolved via the hybrid Blueprint table when
+/// available — with fallback to the legacy `agent_profile` row
+/// properties if the Blueprint relation is empty (the half-migrated
+/// inspection window between migration 0019 first-apply and 0020 first-
+/// apply per F3.b user-lock).
+///
+/// Lookup priority for each per-agent override field:
+///   1. The per-agent override Blueprint row (Agent →
+///      `AGENT_USES_BLUEPRINT_OVERRIDE` → Blueprint).
+///   2. The template-tier Blueprint row (AgentProfile →
+///      `AGENT_PROFILE_USES_BLUEPRINT` → Blueprint).
+///   3. The legacy stored properties on the `agent_profile` row itself
+///      (un-asserted properties surviving `REMOVE FIELD` per migration
+///      0019 step (d) — the half-migrated tolerance) or the
+///      `#[serde(default)]` placeholder (0 / None) when the row was
+///      written post-strip and no Blueprint row exists yet.
+///
+/// Returns `Ok(None)` if no `agent_profile` row exists for the agent
+/// (Human-kind agents have no profile row — same contract as
+/// `get_agent_profile_for_agent`).
+///
+/// The helper is removed in a future cycle (M7 NFR-observability) once
+/// the migration is universally applied; for now it lives at the
+/// repository tier per ADR-0063 §D63.12 + §D63.15 to keep handler
+/// call-sites agnostic to the half-migrated state.
+pub(crate) async fn read_agent_profile_via_blueprint_or_fallback(
+    store: &SurrealStore,
+    agent: AgentId,
+) -> RepositoryResult<Option<AgentProfile>> {
+    // Step 1: pull the legacy `agent_profile` row by `agent_id` via a
+    // raw SELECT. Do NOT call `store.get_agent_profile_for_agent` here
+    // — that method delegates to THIS helper per §D63.15 and would
+    // recurse. The raw read is tolerant of the wire-row-stripped shape
+    // via `#[serde(default)]` on `AgentProfile.parallelize` /
+    // `model_config_id` / `mock_response`.
+    let Some(mut profile) = read_legacy_agent_profile_row(store, agent).await? else {
+        return Ok(None);
+    };
+    // Step 2: override-tier Blueprint (highest priority).
+    let override_bp = store.get_agent_blueprint_override_for_agent(agent).await?;
+    // Step 3: template-tier Blueprint (medium priority).
+    let template_bp = store.get_blueprint_for_agent_profile(profile.id).await?;
+    // Layer the override fields onto the in-process projection.
+    // Priority: override > template > legacy agent_profile property
+    // (or `#[serde(default)]` placeholder).
+    if let Some(p) = override_bp
+        .as_ref()
+        .and_then(|b| b.parallelize)
+        .or_else(|| template_bp.as_ref().and_then(|b| b.parallelize))
+    {
+        profile.parallelize = p;
+    }
+    if let Some(mcid) = override_bp
+        .as_ref()
+        .and_then(|b| b.model_config_id.clone())
+        .or_else(|| template_bp.as_ref().and_then(|b| b.model_config_id.clone()))
+    {
+        profile.model_config_id = Some(mcid);
+    }
+    if let Some(mr) = override_bp
+        .as_ref()
+        .and_then(|b| b.mock_response.clone())
+        .or_else(|| template_bp.as_ref().and_then(|b| b.mock_response.clone()))
+    {
+        profile.mock_response = Some(mr);
+    }
+    Ok(Some(profile))
+}
+
+/// CH-28 / ADR-0063 §D63.15 — Build an override-tier Blueprint row from
+/// an in-process [`AgentProfile`]. Used by the composite-write path at
+/// `create_agent_profile` + `upsert_agent_profile` to persist the 3
+/// per-agent override fields (`parallelize` / `model_config_id` /
+/// `mock_response`) into the `blueprint` table after the
+/// `agent_profile` wire-row write succeeds.
+///
+/// The Blueprint row carries `agent_id = Some(profile.agent_id)` (the
+/// override-tier discriminator per §D63.5) and all 3 override fields
+/// populated (mirrors the in-process struct's values verbatim,
+/// preserving round-trip integrity).
+fn override_blueprint_from_profile(profile: &AgentProfile) -> Blueprint {
+    Blueprint {
+        id: BlueprintId::new(),
+        agent_id: Some(profile.agent_id),
+        parallelize: Some(profile.parallelize),
+        model_config_id: profile.model_config_id.clone(),
+        mock_response: profile.mock_response.clone(),
+        created_at: profile.created_at,
+    }
+}
+
+// ============================================================================
 // The Repository impl
 // ============================================================================
 
@@ -560,7 +728,14 @@ impl Repository for SurrealStore {
     }
 
     async fn create_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
-        let body = strip_id(serde_json::to_value(profile).map_err(backend)?);
+        // CH-28 / ADR-0063 §D63.14 + §D63.15 — write-boundary strip via
+        // `AgentProfileWireRow`. Migration 0019 removed the 3 override
+        // field DEFINITIONs from the SCHEMAFULL `agent_profile` table;
+        // writes carrying them are rejected at the SurrealDB layer.
+        // Strip them at the boundary + persist them in the override-tier
+        // Blueprint via the composite-write below.
+        let wire = AgentProfileWireRow::from(profile);
+        let body = strip_id(serde_json::to_value(&wire).map_err(backend)?);
         self.client()
             .query("CREATE type::thing('agent_profile', $id) CONTENT $body RETURN NONE")
             .bind(("id", profile.id.to_string()))
@@ -569,6 +744,18 @@ impl Repository for SurrealStore {
             .map_err(backend)?
             .check()
             .map_err(backend)?;
+        // Composite-write per §D63.15 Candidate 5 (a): sequential write
+        // of the override-Blueprint after the agent_profile row write
+        // succeeds. `upsert_agent_blueprint_override` wraps its own
+        // BEGIN/COMMIT — outer transaction wrapping is intentionally
+        // omitted (SurrealDB 2.6.5 nested transactions are unsupported).
+        // Failure-mode: if THIS write fails after the agent_profile
+        // write succeeded, the row exists without an override row;
+        // `read_agent_profile_via_blueprint_or_fallback` falls back to
+        // template defaults — the same semantic as a fresh agent that
+        // hasn't yet had overrides specified. Caller retry reconciles.
+        let override_bp = override_blueprint_from_profile(profile);
+        self.upsert_agent_blueprint_override(&override_bp).await?;
         Ok(())
     }
 
@@ -576,35 +763,22 @@ impl Repository for SurrealStore {
         &self,
         agent: AgentId,
     ) -> RepositoryResult<Option<AgentProfile>> {
-        let mut resp = self
-            .client()
-            .query(
-                "SELECT *, record::id(id) AS _rid OMIT id FROM agent_profile \
-                 WHERE agent_id = $agent LIMIT 1",
-            )
-            .bind(("agent", agent.to_string()))
-            .await
-            .map_err(backend)?;
-        let rows: Vec<serde_json::Value> = resp.take(0).map_err(backend)?;
-        let Some(mut row) = rows.into_iter().next() else {
-            return Ok(None);
-        };
-        let rid = row
-            .as_object_mut()
-            .and_then(|m| m.remove("_rid"))
-            .and_then(|v| v.as_str().map(str::to_string))
-            .ok_or_else(|| RepositoryError::Backend("agent_profile row missing _rid".into()))?;
-        let profile_id = NodeId::from_uuid(parse_uuid(&rid)?);
-        let row = inject_id(row, profile_id)?;
-        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+        // CH-28 / ADR-0063 §D63.15 — delegate to the synthesis helper.
+        // The helper performs the raw `agent_profile` read directly +
+        // layers override + template Blueprint values onto the
+        // synthesized projection. This handles the half-migrated
+        // 0019↔0020 tolerance window AND the post-strip steady state.
+        read_agent_profile_via_blueprint_or_fallback(self, agent).await
     }
 
     async fn upsert_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()> {
-        let body = strip_id(serde_json::to_value(profile).map_err(backend)?);
-        // UPSERT semantics: delete any existing row for this agent
-        // (1:1 invariant), then upsert the supplied id. Two statements
-        // are wrapped in a single transaction so a failure on the
-        // second leaves no orphaned row.
+        // CH-28 / ADR-0063 §D63.14 + §D63.15 — write-boundary strip via
+        // `AgentProfileWireRow`. The existing BEGIN/COMMIT transaction
+        // with DELETE-then-UPDATE preserves the 1:1 invariant on the
+        // `agent_profile` table side. The override-Blueprint write
+        // follows as a SEQUENTIAL composite (per Candidate 5 (a)).
+        let wire = AgentProfileWireRow::from(profile);
+        let body = strip_id(serde_json::to_value(&wire).map_err(backend)?);
         self.client()
             .query(
                 "BEGIN TRANSACTION; \
@@ -615,6 +789,164 @@ impl Repository for SurrealStore {
             .bind(("agent", profile.agent_id.to_string()))
             .bind(("id", profile.id.to_string()))
             .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        // Composite-write per §D63.15 Candidate 5 (a): see
+        // `create_agent_profile` above for failure-mode rationale.
+        let override_bp = override_blueprint_from_profile(profile);
+        self.upsert_agent_blueprint_override(&override_bp).await?;
+        Ok(())
+    }
+
+    // ---- CH-28 / ADR-0063 §D63.1 + §D63.3 + §D63.5 — Blueprint methods ---
+
+    async fn get_blueprint_for_agent_profile(
+        &self,
+        profile_id: NodeId,
+    ) -> RepositoryResult<Option<Blueprint>> {
+        // Walk the AGENT_PROFILE_USES_BLUEPRINT edge from the supplied
+        // profile id to the template-tier Blueprint row. SurrealDB 2.6.5
+        // doesn't reliably project `record::id(id) AS _rid` through a
+        // path-traversal expression (`$p->edge->blueprint`) — the alias
+        // is resolved against the outer scope, not the target row. We
+        // split into two statements: first fetch the blueprint ID via
+        // the traversal (VALUE-typed); then SELECT against that bound
+        // ID with the standard `record::id(id) AS _rid` projection.
+        let mut resp = self
+            .client()
+            .query(
+                "LET $p = type::thing('agent_profile', $pid); \
+                 LET $bp = (SELECT VALUE out FROM agent_profile_uses_blueprint \
+                              WHERE in = $p LIMIT 1)[0]; \
+                 SELECT *, record::id(id) AS _rid OMIT id FROM $bp;",
+            )
+            .bind(("pid", profile_id.to_string()))
+            .await
+            .map_err(backend)?;
+        // 3 statements run; results live in indexes 0, 1, 2. The
+        // SELECT projection is the third (index 2).
+        let rows: Vec<serde_json::Value> = resp.take(2).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| RepositoryError::Backend("blueprint row missing _rid".into()))?;
+        let bp_id = BlueprintId::from_uuid(parse_uuid(&rid)?);
+        let row = inject_id(row, bp_id)?;
+        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+    }
+
+    async fn get_agent_blueprint_override_for_agent(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Option<Blueprint>> {
+        // Walk the AGENT_USES_BLUEPRINT_OVERRIDE edge from the supplied
+        // agent id to the per-agent override-tier Blueprint row. Same
+        // two-statement pattern as `get_blueprint_for_agent_profile`
+        // for the `record::id(id) AS _rid` projection (see that
+        // function's comment for rationale).
+        let mut resp = self
+            .client()
+            .query(
+                "LET $a = type::thing('agent', $aid); \
+                 LET $bp = (SELECT VALUE out FROM agent_uses_blueprint_override \
+                              WHERE in = $a LIMIT 1)[0]; \
+                 SELECT *, record::id(id) AS _rid OMIT id FROM $bp;",
+            )
+            .bind(("aid", agent_id.to_string()))
+            .await
+            .map_err(backend)?;
+        let rows: Vec<serde_json::Value> = resp.take(2).map_err(backend)?;
+        let Some(mut row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+        let rid = row
+            .as_object_mut()
+            .and_then(|m| m.remove("_rid"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .ok_or_else(|| RepositoryError::Backend("blueprint row missing _rid".into()))?;
+        let bp_id = BlueprintId::from_uuid(parse_uuid(&rid)?);
+        let row = inject_id(row, bp_id)?;
+        Ok(Some(serde_json::from_value(row).map_err(backend)?))
+    }
+
+    async fn upsert_blueprint_template(&self, blueprint: &Blueprint) -> RepositoryResult<()> {
+        // Template-tier discriminator: `agent_id == None`. Mirrors the
+        // in-memory contract. UPSERT-on-id semantics: SurrealDB 2.x
+        // `UPDATE` only modifies existing records; `UPSERT` is the
+        // create-or-update keyword (see CH-28 P1.5-READ-BRIDGE debug
+        // probe `upsert_agent_blueprint_override_writes_discoverable_row`
+        // for the validation). No additional UNIQUE invariant on the
+        // template tier (many template rows may coexist; relation edges
+        // from AgentProfile rows pick which template each profile
+        // inherits).
+        debug_assert!(
+            blueprint.agent_id.is_none(),
+            "upsert_blueprint_template received a row with agent_id Some(_); \
+             use upsert_agent_blueprint_override instead"
+        );
+        let body = strip_id(serde_json::to_value(blueprint).map_err(backend)?);
+        self.client()
+            .query("UPSERT type::thing('blueprint', $id) CONTENT $body RETURN NONE")
+            .bind(("id", blueprint.id.to_string()))
+            .bind(("body", body))
+            .await
+            .map_err(backend)?
+            .check()
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn upsert_agent_blueprint_override(&self, blueprint: &Blueprint) -> RepositoryResult<()> {
+        // Per ADR-0063 §D63.5 + §D63.12 the 1:1-override-per-Agent
+        // invariant is enforced HERE (the storage-level
+        // `blueprint_agent_id` index is NON-UNIQUE because SurrealDB
+        // 2.6.5 does NOT support filtered UNIQUE indexes such as
+        // `DEFINE INDEX ... UNIQUE WHERE agent_id != NONE`).
+        //
+        // Transaction:
+        //   (1) DELETE any existing override Blueprint row(s) whose
+        //       `agent_id` matches the supplied agent AND whose id !=
+        //       the supplied blueprint.id (evict stale overrides);
+        //   (2) UPDATE type::thing('blueprint', $id) CONTENT $body
+        //       (upsert the supplied row in-place);
+        //   (3) (re-)RELATE the AGENT_USES_BLUEPRINT_OVERRIDE edge so
+        //       the per-agent override pointer reflects the current
+        //       row. To preserve 1:1, the prior edge is first cleared
+        //       via DELETE on the matching relation rows.
+        let agent_id = blueprint.agent_id.expect(
+            "upsert_agent_blueprint_override received a row with agent_id None; \
+             use upsert_blueprint_template instead",
+        );
+        let body = strip_id(serde_json::to_value(blueprint).map_err(backend)?);
+        let edge_id = EdgeId::new();
+        // Transaction-body keyword note: SurrealDB 2.x `UPDATE` ONLY
+        // modifies existing records; `UPSERT` is the create-or-update
+        // keyword. The blueprint row is created-or-updated via UPSERT
+        // so the 1:1-override-per-Agent invariant holds whether or not
+        // a prior override row exists for this agent.
+        self.client()
+            .query(
+                "BEGIN TRANSACTION; \
+                 DELETE blueprint WHERE agent_id = $agent AND id != type::thing('blueprint', $id); \
+                 UPSERT type::thing('blueprint', $id) CONTENT $body RETURN NONE; \
+                 LET $a = type::thing('agent', $agent); \
+                 LET $b = type::thing('blueprint', $id); \
+                 DELETE agent_uses_blueprint_override WHERE in = $a; \
+                 RELATE $a -> agent_uses_blueprint_override -> $b \
+                    SET id = type::thing('agent_uses_blueprint_override', $edge) \
+                    RETURN NONE; \
+                 COMMIT TRANSACTION;",
+            )
+            .bind(("agent", agent_id.to_string()))
+            .bind(("id", blueprint.id.to_string()))
+            .bind(("body", body))
+            .bind(("edge", edge_id.to_string()))
             .await
             .map_err(backend)?
             .check()
@@ -2334,15 +2666,23 @@ impl Repository for SurrealStore {
         });
 
         // Pre-serialise system agents + profiles (in their input order
-        // so the receipt's ids stay deterministic).
+        // so the receipt's ids stay deterministic). Per CH-28 / ADR-0063
+        // §D63.14 the agent_profile rows are stripped of the 3 override
+        // fields at the SurrealDB write boundary via `AgentProfileWireRow`;
+        // override values land via the composite-write to
+        // `upsert_agent_blueprint_override` after the transaction commits.
         let sys_agent_0_body =
             strip_id(serde_json::to_value(&payload.system_agents[0].0).map_err(backend)?);
         let sys_agent_1_body =
             strip_id(serde_json::to_value(&payload.system_agents[1].0).map_err(backend)?);
-        let sys_profile_0_body =
-            strip_id(serde_json::to_value(&payload.system_agents[0].1).map_err(backend)?);
-        let sys_profile_1_body =
-            strip_id(serde_json::to_value(&payload.system_agents[1].1).map_err(backend)?);
+        let sys_profile_0_body = {
+            let wire = AgentProfileWireRow::from(&payload.system_agents[0].1);
+            strip_id(serde_json::to_value(&wire).map_err(backend)?)
+        };
+        let sys_profile_1_body = {
+            let wire = AgentProfileWireRow::from(&payload.system_agents[1].1);
+            strip_id(serde_json::to_value(&wire).map_err(backend)?)
+        };
 
         // Pre-serialise adoption auth requests.
         let mut adoption_ar_bodies: Vec<serde_json::Value> =
@@ -2396,10 +2736,10 @@ impl Repository for SurrealStore {
                  SET id = type::thing('has_outbox', $edge_ho_ceo) RETURN NONE;\n\
              RELATE $ceo -> has_channel -> $ceo_ch \
                  SET id = type::thing('has_channel', $edge_hc_ceo) RETURN NONE;\n\
-             RELATE $sys0 -> has_profile -> $prof0 \
-                 SET id = type::thing('has_profile', $edge_hp_s0) RETURN NONE;\n\
-             RELATE $sys1 -> has_profile -> $prof1 \
-                 SET id = type::thing('has_profile', $edge_hp_s1) RETURN NONE;\n\
+             RELATE $sys0 -> uses_profile -> $prof0 \
+                 SET id = type::thing('uses_profile', $edge_hp_s0) RETURN NONE;\n\
+             RELATE $sys1 -> uses_profile -> $prof1 \
+                 SET id = type::thing('uses_profile', $edge_hp_s1) RETURN NONE;\n\
              RELATE $ceo -> owns -> $org \
                  SET id = type::thing('owns', $edge_owns_ceo), \
                      edge_id = $edge_owns_ceo, \
@@ -2490,6 +2830,16 @@ impl Repository for SurrealStore {
                 .bind((format!("cat_kind_{i}"), kind.clone()));
         }
         binder.await.map_err(backend)?.check().map_err(backend)?;
+
+        // CH-28 / ADR-0063 §D63.15 — composite-write for system-agent
+        // override-tier Blueprints (sequential per Candidate 5 (a)).
+        // The 3 per-agent override fields stripped from the system-
+        // agent profile rows at the SurrealDB write boundary land here
+        // in their override-Blueprint rows.
+        for sys in &payload.system_agents {
+            let override_bp = override_blueprint_from_profile(&sys.1);
+            self.upsert_agent_blueprint_override(&override_bp).await?;
+        }
 
         let adoption_ar_ids = payload
             .adoption_auth_requests
@@ -2686,8 +3036,17 @@ impl Repository for SurrealStore {
         let agent_body = strip_id(serde_json::to_value(&payload.agent).map_err(backend)?);
         let inbox_body = strip_id(serde_json::to_value(&payload.inbox).map_err(backend)?);
         let outbox_body = strip_id(serde_json::to_value(&payload.outbox).map_err(backend)?);
+        // CH-28 / ADR-0063 §D63.14 — strip the 3 per-agent override fields
+        // at the SurrealDB write boundary via `AgentProfileWireRow`. The
+        // override values persist via the composite-write to
+        // `upsert_agent_blueprint_override` below (after the transaction
+        // commits successfully). Same semantic as
+        // `create_agent_profile` + `upsert_agent_profile`.
         let profile_body = match payload.profile.as_ref() {
-            Some(p) => Some(strip_id(serde_json::to_value(p).map_err(backend)?)),
+            Some(p) => {
+                let wire = AgentProfileWireRow::from(p);
+                Some(strip_id(serde_json::to_value(&wire).map_err(backend)?))
+            }
             None => None,
         };
         let mut grant_bodies: Vec<serde_json::Value> =
@@ -2726,8 +3085,8 @@ impl Repository for SurrealStore {
             q.push_str(
                 "CREATE type::thing('agent_profile', $prof_id) CONTENT $prof_body RETURN NONE;\n\
                  LET $prof = type::thing('agent_profile', $prof_id);\n\
-                 RELATE $a -> has_profile -> $prof \
-                     SET id = type::thing('has_profile', $edge_hp) RETURN NONE;\n",
+                 RELATE $a -> uses_profile -> $prof \
+                     SET id = type::thing('uses_profile', $edge_hp) RETURN NONE;\n",
             );
         }
         if payload.initial_execution_limits_override.is_some() {
@@ -2815,6 +3174,16 @@ impl Repository for SurrealStore {
         }
 
         binder.await.map_err(backend)?.check().map_err(backend)?;
+
+        // CH-28 / ADR-0063 §D63.15 — composite-write for the override-tier
+        // Blueprint (sequential per Candidate 5 (a); see
+        // `create_agent_profile` for the failure-mode rationale). The
+        // override Blueprint carries the 3 per-agent override fields
+        // that the wire-row strip removed from the `agent_profile` row.
+        if let Some(profile) = payload.profile.as_ref() {
+            let override_bp = override_blueprint_from_profile(profile);
+            self.upsert_agent_blueprint_override(&override_bp).await?;
+        }
 
         Ok(AgentCreationReceipt {
             agent_id: payload.agent.id,

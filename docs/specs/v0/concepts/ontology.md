@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-19 by Claude Code (CH-28 P-DOCS — §"Edge Types" line 98 flipped per F2.b USES_PROFILE rename + F1.c N:1 cardinality: was `Agent | HAS_PROFILE | AgentProfile | 1:1 | Blueprint identity`, now `Agent | USES_PROFILE | AgentProfile | N:1 | Blueprint identity (shared template)`. Two NEW rows added directly below: `AgentProfile | AGENT_PROFILE_USES_BLUEPRINT | Blueprint | N:1 | Template Blueprint pointer` + `Agent | AGENT_USES_BLUEPRINT_OVERRIDE | Blueprint | 1:N (zero-or-one) | Per-agent override Blueprint pointer`. §"Edge Types" header total flipped 71 → 74 (rename keeps count flat; F1.c adds 2 NEW edge variants per ADR-0063 §D63.10). Edge-count history narrative at L92 extended with the CH-28 bump. Cycle hex `0412eb06`.) -->
 <!-- Status: § "Node Types — Core Identity" [EXISTS] as of CH-16 (M5.2 / 2026-04-28); MANAGES + HAS_AGENT_SUPERVISOR edges [EXISTS] as of CH-23 (M5.2 / 2026-04-30); other sections still CONCEPTUAL -->
 <!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Edge Types" header reconciled 66 → 71 (D-new-21 ratified at ADR-0057 §D57.7); §"Node Types — Social Structure" InboxObject/OutboxObject row gains 1-line deferred-state footnote pointing at M6-DEFERRED-02 (D-new-25 ratified at ADR-0057 §D57.8). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-30 by Claude Code (CH-23: MANAGES + HAS_AGENT_SUPERVISOR edges land as first-class `Edge` variants with `org` / `project` carriers; migration 0011 adds `manages` + `has_agent_supervisor` SurrealDB tables; production HTTP writers + acceptance suite ship per ADR-0046. Doc body UNCHANGED.) -->
@@ -87,15 +88,17 @@ This is a graph-first model (think ontology, not relational tables), even if the
 
 ---
 
-## Edge Types (71 total)
+## Edge Types (74 total)
 
-> **Edge-count history (CH-19 reconcile, 2026-05-10).** 67 edges at M3 close; M4/P1 adds `HAS_SUBPROJECT` + `HAS_CONFIG` (+2 → 69); CH-23 adds `MANAGES` + `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges (+2 → 71). Canonical count is the test-asserted invariant `EDGE_KIND_NAMES.len() == 71` at [`domain/src/model/edges.rs`](../../../../modules/crates/domain/src/model/edges.rs); ratified at ADR-0057 §D57.7. Closes drift D-new-21.
+> **Edge-count history (CH-19 reconcile + CH-25 + CH-28 bumps).** 67 edges at M3 close; M4/P1 adds `HAS_SUBPROJECT` + `HAS_CONFIG` (+2 → 69); CH-23 adds `MANAGES` + `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges (+2 → 71); CH-25 adds `OWNS` per ADR-0060 (+1 → 72); **CH-28 adds `AGENT_PROFILE_USES_BLUEPRINT` + `AGENT_USES_BLUEPRINT_OVERRIDE` per ADR-0063 §D63.10 hybrid Blueprint table (+2 → 74)**. CH-28 also renames `HAS_PROFILE` → `USES_PROFILE` per ADR-0063 §D63.2 (rename, not add — count stays flat for that change). Canonical count is the test-asserted invariant `EDGE_KIND_NAMES.len() == 74` at [`domain/src/model/edges.rs`](../../../../modules/crates/domain/src/model/edges.rs); ratified at ADR-0057 §D57.7 (amended at ADR-0063 §D63.10).
 
 ### Agent-Centric (first-order)
 
 | From | Edge | To | Cardinality | Meaning |
 |------|------|----|-------------|---------|
-| Agent | `HAS_PROFILE` | AgentProfile | 1:1 | Blueprint identity |
+| Agent | `USES_PROFILE` | AgentProfile | N:1 | Blueprint identity (shared template; renamed from `HAS_PROFILE` at CH-28 / ADR-0063 §D63.2) |
+| AgentProfile | `AGENT_PROFILE_USES_BLUEPRINT` | Blueprint | N:1 | Template Blueprint pointer (NEW at CH-28 / ADR-0063 §D63.10) |
+| Agent | `AGENT_USES_BLUEPRINT_OVERRIDE` | Blueprint | 1:N (zero-or-one) | Per-agent override Blueprint pointer (NEW at CH-28 / ADR-0063 §D63.10) |
 | Agent | `USES_MODEL` | ModelConfig | N:1 | Current LLM backing |
 | Agent | `HAS_TOOL` | ToolDefinition | 1:N | Available tools |
 | Agent | `HAS_SKILL` | Skill | 1:N | Loaded skills |

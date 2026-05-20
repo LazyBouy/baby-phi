@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-19 by Claude Code (CH-28 P-DOCS — §"Soul (Immutable Born Structure)" lines 160–169 amended per F1.c hybrid Blueprint table lock + F2.b USES_PROFILE rename: Soul is REFRAMED from "agent's genetics, defined at creation, never mutated" (1:1 profile-as-genetics) to "template-Blueprint, shareable across agent instances + per-agent override-Blueprint for governance fields" (N:1 + hybrid Blueprint per ADR-0063 §D63.1); the immutability semantic is preserved at the template-row level (templates are still write-once; sharing is the new semantic); per-agent override Blueprint rows are explicit governance events with their own audit trail per ADR-0063 §D63.7. §"Parallelized Sessions" L209–221 footnote-amended to point to the per-agent override-Blueprint storage location (was on AgentProfile literal; now on the per-agent Blueprint override row per F1.c lock). Cycle hex `0412eb06`.) -->
 <!-- Status: § "Identity (Emergent, Event-Driven)" + § "Identity Node Content" + § "Materialization" [EXISTS] as of CH-16 (M5.2 / 2026-04-28); §"Participation in Projects" ownership semantics now ALSO [EXISTS] partially as of CH-25 (M5.3 / 2026-05-16) — Agent → Org ownership via the new `Edge::Owns` variant; other sections still CONCEPTUAL -->
 <!-- Last verified: 2026-05-16 by Claude Code (CH-25 P3 — Agent ownership semantics from concept-doc `core-philosophy.md` lines 9 + 23 + 24 (*"Agent owns Organization"*, *"Agent create Projects"*, *"Agents own Resources"*) are now first-class as of CH-25: the NEW `Edge::Owns { from: AgentId, to: OwnedResourceId::{Org, Project} }` variant + `Edge::Created` emission at `apply_org_creation` + `apply_project_creation` compound transactions. The owner-Agent gains `[Allocate, Transfer]` authority over the owned-Org/Project via the synth-grant rule at `step_2_resolve_grants`. See ADR-0060 + `m5_3/architecture/agent-ownership-model.md` for the full design. The forward-pointing concept claim *"Agent spawn other Agents (Ownership)"* remains [PLANNED] — CH-25 ships the Org + Project axis; the Agent-spawns-Agent axis is deferred to a future M6+ chunk. Cycle hex `1e01618e`.) -->
 <!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Soul (Immutable Born Structure)" tail gains 1-paragraph refresh documenting the additive `--model-config-id` CLI flag convention: at M5/P7 close, the CLI ships both `--patch-json` (M4 surface, free-form JSON) and `--model-config-id` (M5/P7 addition, slug shorthand for the model-config rebind) on `phi agent update`; both flags are mutually exclusive at runtime and both reach `PATCH /api/v0/agents/:id/profile`. Backward-compatible with M4 operators. Ratified at ADR-0057 §D57.4 (closes drift D7.2). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
@@ -157,19 +158,22 @@ An LLM Agent is not just a config wrapper. It has **nature** (Soul), **capabilit
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Soul (Immutable Born Structure)
+### Soul (Template Blueprint + per-agent overrides)
 
-The Soul is the agent's **genetics** — defined at creation, never mutated.
+The Soul is the agent's **template Blueprint** — a shared row defining what the agent *is* by default, with explicit per-agent override rows for the governance fields that need to vary per agent.
 
-| Component | phi-core Source | Meaning |
-|-----------|----------------|---------|
-| Profile snapshot | `AgentProfile` (frozen) | system_prompt, thinking_level, temperature, personality |
-| Model binding | `ModelConfig` (frozen) | which LLM was assigned at birth |
-| System prompt | `SystemPrompt` (frozen) | the original assembled prompt |
+| Component | phi-core Source | Storage location | Meaning |
+|-----------|----------------|------------------|---------|
+| Profile snapshot | `AgentProfile` (frozen wrap of `phi_core::agents::profile::AgentProfile`) | `agent_profile` row (template-keyed) | system_prompt, thinking_level, temperature, personality |
+| Model binding | `ModelConfig` (frozen) | template `blueprint` row + per-agent override `blueprint` row | which LLM is bound (may differ per agent within the same profile family) |
+| System prompt | `SystemPrompt` (frozen) | derived at session-launch time from the effective (template + override) blueprint | the assembled prompt |
+| Per-agent overrides | — | per-agent `blueprint` override row (keyed by `agent_id`) | `parallelize`, `model_config_id`, `mock_response` — read with template-default fallback |
 
-> **Immutability:** The Soul node is write-once. If you need to change an agent's fundamental nature, you create a new agent. The old agent's history remains intact. This is "genetics" — you don't edit DNA, you breed new organisms.
+> **Template-sharing (post-CH-28 / ADR-0063):** Each `AgentProfile` row is a shared *template* — N agents may point at the same `agent_profile` via the `USES_PROFILE` edge (`N:1` cardinality). The template carries the immutable identity-shaping fields (system prompt assembly, personality). Per-agent governance fields (`parallelize`, `model_config_id`, `mock_response`) live on a separate per-agent `blueprint` override row reached via `AGENT_USES_BLUEPRINT_OVERRIDE` (`1:N (zero-or-one)`); when no override row exists, the template's defaults apply. See [`m6/architecture/agent-profile-cardinality.md`](../implementation/m6/architecture/agent-profile-cardinality.md) for the full design.
 
-> **Open question:** Should there be a `REINCARNATED_FROM` edge when a new agent is created from a modified Soul? This preserves lineage while allowing evolution.
+> **Immutability (preserved at the template-row level):** The template Blueprint is write-once — you don't rewrite a shared template; you author a new one. Per-agent override-Blueprint rows ARE mutable, but every mutation is an explicit governance event with its own audit trail (`UsesProfileEdgeChanged` / `BlueprintUpserted` per ADR-0063 §D63.7). The pre-CH-28 "genetics, never mutated" framing held at the level of the *whole agent shape*; the post-CH-28 framing splits that into two rows: template (write-once) + per-agent override (auditable mutation). The historical claim that "you breed new organisms" still applies to the template axis.
+
+> **Open question:** Should there be a `REINCARNATED_FROM` edge when a new agent is created with a modified override Blueprint? This preserves lineage at the per-agent axis while allowing evolution. (Pre-CH-28 this question was framed at the Soul-as-whole axis; post-CH-28 it splits between template-Blueprint re-authoring and per-agent override-Blueprint mutation.)
 
 > **CLI flag convention for model rebind (CH-19 / drift D7.2, 2026-05-10).** Operators rebind an agent's `ModelConfig` via `phi agent update`. The CLI ships **two mutually-exclusive flags** that both reach the same `PATCH /api/v0/agents/:id/profile` endpoint: (a) `--patch-json '<JSON>'` (M4 surface — free-form profile patch including `model_config_id`); (b) `--model-config-id <slug>` (M5/P7 addition — slug shorthand for the common model-rebind case). The two flags are additive: both work, both compose with `phi agent update`, but a single invocation must carry exactly one. Backward-compatible with M4 `--patch-json` workflows. Ratified at ADR-0057 §D57.4.
 
@@ -218,7 +222,7 @@ An AgentProfile carries a `parallelize: u32` field (default `1`) that bounds how
 - **Configurable at adoption; tightenable per project.** The `parallelize` value is set on the AgentProfile in the owning org's agent roster. A project may **tighten** (reduce) the effective `parallelize` for an agent working within its scope, but cannot raise it above the profile's declared maximum.
 - **`parallelize: 1` is the default** — the traditional single-session agent. Values > 1 are opt-in per profile.
 
-**Why parallelize per profile, not per agent instance:** the profile defines what the agent *is*; `parallelize` is about the agent's concurrency capacity under that profile. An org with 5 agents sharing a profile has 5 × `parallelize` total concurrent sessions possible from that profile family.
+**Why parallelize per agent (post-CH-28 / ADR-0063 §D63.1):** the template profile defines what the agent *is* by default; `parallelize` is per-agent concurrency capacity and now lives on the per-agent override Blueprint row (`blueprint.parallelize`) reached via `AGENT_USES_BLUEPRINT_OVERRIDE`. When no override row exists, the agent inherits the template's default `parallelize` value from the shared `blueprint` template row. An org with 5 agents sharing a template profile has `Σ(effective parallelize per agent)` total concurrent sessions possible — equal to `5 × template-default` when no agent overrides, or summed individually when overrides exist. The "5 × `parallelize`" arithmetic from the pre-CH-28 framing still holds when every agent inherits the template default. See [`m6/architecture/agent-profile-cardinality.md`](../implementation/m6/architecture/agent-profile-cardinality.md) for the storage-location detail.
 
 **Typical values:**
 

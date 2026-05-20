@@ -117,8 +117,22 @@ async fn row_exists(store: &SurrealStore, table: &str, id: &str) -> bool {
 
 #[tokio::test]
 async fn create_agent_profile_persists_row() {
+    // CH-28 / ADR-0063 §D63.14 + §D63.15 — post-P1.5-READ-BRIDGE the raw
+    // `agent_profile` row no longer carries the 3 override fields
+    // (`parallelize` / `model_config_id` / `mock_response`); they
+    // persist into the override-tier `blueprint` row via the
+    // composite-write at `create_agent_profile`. This test verifies:
+    //   1. The `agent_profile` row exists post-create.
+    //   2. The phi-core inner blueprint fields round-trip via the row.
+    //   3. The override values surface through
+    //      `get_agent_profile_for_agent` (the public synthesis surface
+    //      per §D63.15) — preserves the original test's intent on the
+    //      Repository contract.
+    //   4. The raw `agent_profile` row does NOT carry `parallelize` —
+    //      the wire-row strip is in effect.
     let (store, _dir) = fresh_store().await;
     let id = NodeId::new();
+    let agent_id = AgentId::new();
     let blueprint = phi_core::agents::profile::AgentProfile {
         profile_id: "alice-profile".into(),
         name: Some("Alice-profile".into()),
@@ -129,7 +143,7 @@ async fn create_agent_profile_persists_row() {
     store
         .create_agent_profile(&AgentProfile {
             id,
-            agent_id: AgentId::new(),
+            agent_id,
             parallelize: 4,
             blueprint,
             model_config_id: None,
@@ -140,16 +154,14 @@ async fn create_agent_profile_persists_row() {
         .unwrap();
     assert!(row_exists(&store, "agent_profile", &id.to_string()).await);
 
-    // Confirm the `parallelize` field landed (not just the row).
-    let p: Vec<u32> = store
-        .client()
-        .query("SELECT parallelize FROM type::thing('agent_profile', $id)")
-        .bind(("id", id.to_string()))
+    // Confirm `parallelize = 4` surfaces through the synthesis surface
+    // (override-Blueprint composite-write per §D63.15).
+    let synthesized = store
+        .get_agent_profile_for_agent(agent_id)
         .await
         .unwrap()
-        .take((0, "parallelize"))
-        .unwrap();
-    assert_eq!(p.first().copied(), Some(4));
+        .expect("synthesized projection exists post-create");
+    assert_eq!(synthesized.parallelize, 4);
 
     // Confirm the phi-core blueprint round-trips (system_prompt preserved).
     let prompts: Vec<Option<String>> = store
@@ -164,6 +176,26 @@ async fn create_agent_profile_persists_row() {
         prompts.first().and_then(|p| p.clone()).as_deref(),
         Some("You are Alice."),
         "phi-core blueprint fields must round-trip through SurrealDB"
+    );
+
+    // Wire-row strip is in effect: the raw `agent_profile` row has NO
+    // `parallelize` field (it was removed by 0019's REMOVE FIELD + the
+    // wire-row strip omits it on write per §D63.14). A projection
+    // returns Null for absent / undefined fields under SurrealDB
+    // SCHEMAFULL post-0019.
+    let raw_rows: Vec<serde_json::Value> = store
+        .client()
+        .query("SELECT parallelize FROM type::thing('agent_profile', $id)")
+        .bind(("id", id.to_string()))
+        .await
+        .unwrap()
+        .take(0)
+        .unwrap();
+    let raw = raw_rows.first();
+    assert!(
+        raw.map(|r| r.get("parallelize").map(|v| v.is_null()).unwrap_or(true))
+            .unwrap_or(true),
+        "post-strip raw row carries no parallelize: {raw:?}"
     );
 }
 
@@ -198,6 +230,239 @@ async fn agent_profile_mock_response_roundtrips_through_repo() {
         Some("Test fixture response"),
         "mock_response must round-trip through SurrealDB via migration 0006"
     );
+}
+
+/// CH-28 P1.5-READ-BRIDGE — debug-tier test of the
+/// `upsert_agent_blueprint_override` repository method directly.
+/// Validates that the SurrealDB-tier transaction-body writes a
+/// blueprint row that's discoverable via `SELECT * FROM blueprint`.
+/// Covers the latent `UPDATE` vs `UPSERT` keyword discrepancy:
+/// SurrealDB 2.x `UPDATE` only modifies existing records, so the
+/// blueprint upserts must use the `UPSERT` keyword to create-or-update.
+#[tokio::test]
+async fn upsert_agent_blueprint_override_writes_discoverable_row() {
+    use domain::model::nodes::{Blueprint, BlueprintId};
+    let (store, _dir) = fresh_store().await;
+    let agent_id = AgentId::new();
+    let bp = Blueprint {
+        id: BlueprintId::new(),
+        agent_id: Some(agent_id),
+        parallelize: Some(3),
+        model_config_id: Some("claude-3".into()),
+        mock_response: Some("dbg".into()),
+        created_at: Utc::now(),
+    };
+    store.upsert_agent_blueprint_override(&bp).await.unwrap();
+
+    let rows: Vec<serde_json::Value> = store
+        .client()
+        .query("SELECT agent_id, parallelize, model_config_id, mock_response FROM blueprint")
+        .await
+        .unwrap()
+        .take(0)
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one blueprint row: {rows:?}");
+    let row = &rows[0];
+    assert_eq!(
+        row.get("agent_id").and_then(|v| v.as_str()),
+        Some(agent_id.to_string().as_str())
+    );
+    assert_eq!(row.get("parallelize").and_then(|v| v.as_i64()), Some(3));
+    assert_eq!(
+        row.get("model_config_id").and_then(|v| v.as_str()),
+        Some("claude-3")
+    );
+    assert_eq!(
+        row.get("mock_response").and_then(|v| v.as_str()),
+        Some("dbg")
+    );
+}
+
+/// CH-28 P1.5-READ-BRIDGE Tier B/C — verifies `AgentProfileWireRow`
+/// strips the 3 per-agent override fields at the SurrealDB write
+/// boundary per ADR-0063 §D63.14. Companion to the composite-write at
+/// `create_agent_profile` which persists the override values into the
+/// hybrid `blueprint` table (override-tier discriminator
+/// `agent_id = Some(_)`).
+///
+/// Asserts:
+///   (a) The raw `agent_profile` row carries NO `parallelize` /
+///       `model_config_id` / `mock_response` (wire-row strip in effect).
+///   (b) The override-Blueprint row carries them (composite-write
+///       success, override-tier discriminator).
+#[tokio::test]
+async fn agent_profile_wire_row_strips_override_fields_at_surreal_boundary() {
+    let (store, _dir) = fresh_store().await;
+    let profile_id = NodeId::new();
+    let agent_id = AgentId::new();
+    store
+        .create_agent_profile(&AgentProfile {
+            id: profile_id,
+            agent_id,
+            parallelize: 4,
+            blueprint: phi_core::agents::profile::AgentProfile::default(),
+            model_config_id: Some("gpt-4o".into()),
+            mock_response: Some("X".into()),
+            created_at: Utc::now(),
+        })
+        .await
+        .unwrap();
+
+    // (a) The raw row does NOT carry the 3 override fields. We project
+    // each field into a `serde_json::Value` (NONE deserializes as Null
+    // when the field is absent / undefined per SurrealDB SCHEMAFULL
+    // post-0019). The field is gone if the projected Value is Null OR
+    // the projection returns an empty rows vector (depends on driver
+    // version + table state).
+    let raw_rows: Vec<serde_json::Value> = store
+        .client()
+        .query(
+            "SELECT parallelize, model_config_id, mock_response \
+             FROM type::thing('agent_profile', $id)",
+        )
+        .bind(("id", profile_id.to_string()))
+        .await
+        .unwrap()
+        .take(0)
+        .unwrap();
+    assert_eq!(raw_rows.len(), 1, "exactly one row returned");
+    let raw = &raw_rows[0];
+    assert!(
+        raw.get("parallelize").map(|v| v.is_null()).unwrap_or(true),
+        "raw row carries no parallelize (wire-row strip): {:?}",
+        raw.get("parallelize")
+    );
+    assert!(
+        raw.get("model_config_id")
+            .map(|v| v.is_null())
+            .unwrap_or(true),
+        "raw row carries no model_config_id (wire-row strip): {:?}",
+        raw.get("model_config_id")
+    );
+    assert!(
+        raw.get("mock_response")
+            .map(|v| v.is_null())
+            .unwrap_or(true),
+        "raw row carries no mock_response (wire-row strip): {:?}",
+        raw.get("mock_response")
+    );
+
+    // (b) The override-Blueprint row carries them. The override-tier
+    // discriminator is `agent_id = Some(agent_id)` per §D63.5.
+    let bp_rows: Vec<serde_json::Value> = store
+        .client()
+        .query(
+            "SELECT parallelize, model_config_id, mock_response \
+             FROM blueprint WHERE agent_id = $agent",
+        )
+        .bind(("agent", agent_id.to_string()))
+        .await
+        .unwrap()
+        .take(0)
+        .unwrap();
+    assert_eq!(
+        bp_rows.len(),
+        1,
+        "exactly one override-Blueprint row exists per Agent: {bp_rows:?}"
+    );
+    let bp = &bp_rows[0];
+    assert_eq!(bp.get("parallelize").and_then(|v| v.as_i64()), Some(4));
+    assert_eq!(
+        bp.get("model_config_id").and_then(|v| v.as_str()),
+        Some("gpt-4o")
+    );
+    assert_eq!(bp.get("mock_response").and_then(|v| v.as_str()), Some("X"));
+}
+
+/// CH-28 P1.5-READ-BRIDGE Tier B/C — verifies the composite-write at
+/// `upsert_agent_profile` persists both the wire-row-stripped
+/// `agent_profile` row AND the override-Blueprint row per ADR-0063
+/// §D63.15. Exercises a create-then-update sequence to confirm the
+/// override-Blueprint UPSERT semantic (single row per agent).
+#[tokio::test]
+async fn upsert_agent_profile_composite_write_persists_override_blueprint() {
+    let (store, _dir) = fresh_store().await;
+    let profile_id = NodeId::new();
+    let agent_id = AgentId::new();
+    let created_at = Utc::now();
+    // Initial create with parallelize=2, mock_response="v1".
+    store
+        .create_agent_profile(&AgentProfile {
+            id: profile_id,
+            agent_id,
+            parallelize: 2,
+            blueprint: phi_core::agents::profile::AgentProfile::default(),
+            model_config_id: None,
+            mock_response: Some("v1".into()),
+            created_at,
+        })
+        .await
+        .unwrap();
+
+    // Upsert with parallelize=7, mock_response="v2".
+    store
+        .upsert_agent_profile(&AgentProfile {
+            id: profile_id,
+            agent_id,
+            parallelize: 7,
+            blueprint: phi_core::agents::profile::AgentProfile::default(),
+            model_config_id: Some("gpt-4o-mini".into()),
+            mock_response: Some("v2".into()),
+            created_at,
+        })
+        .await
+        .unwrap();
+
+    // (a) `agent_profile` row reflects the upsert. The `agent_profile`
+    // row count remains 1 (1:1 invariant preserved by the existing
+    // DELETE-then-UPDATE transaction).
+    let counts: Vec<i64> = store
+        .client()
+        .query("SELECT count() FROM agent_profile WHERE agent_id = $agent GROUP ALL")
+        .bind(("agent", agent_id.to_string()))
+        .await
+        .unwrap()
+        .take((0, "count"))
+        .unwrap();
+    assert_eq!(counts.into_iter().next().unwrap_or(0), 1);
+
+    // (b) Override-Blueprint count remains 1 (per-agent 1:1 invariant
+    // per §D63.5 + §D63.12), reflecting the latest upsert.
+    let bp_rows: Vec<serde_json::Value> = store
+        .client()
+        .query(
+            "SELECT parallelize, mock_response, model_config_id \
+             FROM blueprint WHERE agent_id = $agent",
+        )
+        .bind(("agent", agent_id.to_string()))
+        .await
+        .unwrap()
+        .take(0)
+        .unwrap();
+    assert_eq!(
+        bp_rows.len(),
+        1,
+        "exactly one override-Blueprint after upsert"
+    );
+    let bp = &bp_rows[0];
+    assert_eq!(bp.get("parallelize").and_then(|v| v.as_i64()), Some(7));
+    assert_eq!(
+        bp.get("model_config_id").and_then(|v| v.as_str()),
+        Some("gpt-4o-mini")
+    );
+    assert_eq!(bp.get("mock_response").and_then(|v| v.as_str()), Some("v2"));
+
+    // (c) `get_agent_profile_for_agent` synthesizes the AgentProfile
+    // with the latest override values (the synthesis surface per
+    // §D63.15 sees the override-Blueprint).
+    let synthesized = store
+        .get_agent_profile_for_agent(agent_id)
+        .await
+        .unwrap()
+        .expect("profile exists post-upsert");
+    assert_eq!(synthesized.parallelize, 7);
+    assert_eq!(synthesized.model_config_id.as_deref(), Some("gpt-4o-mini"));
+    assert_eq!(synthesized.mock_response.as_deref(), Some("v2"));
 }
 
 #[tokio::test]

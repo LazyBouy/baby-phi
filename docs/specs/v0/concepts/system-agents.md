@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-19 by Claude Code (CH-28 P-DOCS doc-sync sweep — §"AgentCatalogAgent" system_prompt line 159 + §Behaviour bullet 1 line 183 updated `HAS_PROFILE` → `USES_PROFILE` per ADR-0063 §D63.2 edge rename. Concept-doc points at the post-CH-28 truth (catalog agent listens to USES_PROFILE edge-change events post-CH-28 P-EDGE-RENAME). Cycle hex `0412eb06`.) -->
 <!-- Status: CONCEPTUAL -->
 <!-- Last verified: 2026-05-10 by Claude Code (CH-19 P1 — §"Properties Shared by All System Agents" tail gains 1-paragraph refresh documenting the 3-way union bucketing convention used by `list_standard_agents` at [`server/src/platform/system_agents/list.rs`](../../../modules/crates/server/src/platform/system_agents/list.rs): a row counts as "standard" if it matches the canonical slug OR appears in `Organization.system_agents` registry OR has `AgentRole::System`. Robust against M3-era fixture rows pre-dating M5 canonical slugs. Ratified at ADR-0057 §D57.3 (closes drift D6.3). Doc body otherwise UNCHANGED. cycle hex `2c520ba7`.) -->
 <!-- Last verified: 2026-04-28 by Claude Code (CH-21 amendment: §"Memory Extraction Agent" storage substrate clauses now honored at v0 — `MemoryExtractionListener::on_event` body mints 1 Memory per non-aborted SessionEnded, derives tags from session, decides `{private,public}` scope, upserts Identity, emits `platform.memory.extracted` (Logged) + `platform.identity.updated` (Logged) audits, and calls `record_system_agent_fire` (drift D6.1 first call site). LLM-driven supervisor body — § Behaviour 2/3/4 (LLM judgment, 4-pool routing, `store_memory` tool path) + § Grants enforcement — preserved silent-in-code; deferred to **M6-DEFERRED-04** per ADR-0040 § Out-of-Scope. Drift D6.1 terminally remediated. See ADR-0040 + ADR-0041.) -->
@@ -156,7 +157,7 @@ system_agent:
     system_prompt: |
       You are the Agent Catalog Agent. Your job is to maintain a complete,
       up-to-date index of all active Agents in this organization. You observe
-      MEMBER_OF, DELEGATES_TO, HAS_AGENT, and HAS_PROFILE edge changes and
+      MEMBER_OF, DELEGATES_TO, HAS_AGENT, and USES_PROFILE edge changes and
       update the catalogue accordingly. When other agents query the catalogue,
       you return authoritative, read-only answers.
     thinking_level: low
@@ -180,7 +181,7 @@ system_agent:
 
 ### Behaviour
 
-1. **Reactive updates.** Subscribes to `AgentEvent` streams filtered for edge changes on `MEMBER_OF`, `DELEGATES_TO`, `HAS_AGENT`, `HAS_PROFILE`, and Authority Template fires (Template A/C/D edge creation/removal).
+1. **Reactive updates.** Subscribes to `AgentEvent` streams filtered for edge changes on `MEMBER_OF`, `DELEGATES_TO`, `HAS_AGENT`, `USES_PROFILE` (renamed from `HAS_PROFILE` at CH-28 / ADR-0063 §D63.2), and Authority Template fires (Template A/C/D edge creation/removal).
 2. **Catalogue storage.** The catalogue lives in a dedicated `control_plane_object` instance (identifier: `agent-catalogue` in the org's `resources_catalogue`). Updates are writes to this single resource; reads from other agents are authorised by the catalogue's access grants.
 3. **Queryable API.** Exposes a `query_agents(org_id, filters)` tool. Filters include: `role`, `project`, `agent_kind` (System/Standard/Intern/Contract), `min_rating`, `active_since`, `has_skill`, `current_parallelize`. Returns agent IDs + profile summaries.
 4. **Lifecycle events.** On Agent creation, adds the agent to the catalogue with their profile reference. On promotion (Intern → Contract), updates the agent's kind. On role change in a project, updates the catalogue's project-role index. On archival, marks the agent inactive but retains the record for audit.

@@ -15,7 +15,7 @@
 //!   firing).
 //! - **Agent catalog triggers** —
 //!   [`DomainEvent::AgentCreated`], [`DomainEvent::AgentArchived`],
-//!   [`DomainEvent::HasProfileEdgeChanged`] (consumed by the P8
+//!   [`DomainEvent::UsesProfileEdgeChanged`] (consumed by the P8
 //!   agent-catalog listener).
 //!
 //! See `docs/specs/v0/implementation/m5/architecture/event-bus-m5-extensions.md`
@@ -52,7 +52,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::model::ids::{AgentId, AuditEventId, MemoryId, NodeId, OrgId, ProjectId, SessionId};
-use crate::model::nodes::{AgentKind, AgentRole};
+use crate::model::nodes::{AgentKind, AgentRole, BlueprintId};
 
 pub mod bus;
 pub mod listeners;
@@ -179,10 +179,24 @@ pub enum DomainEvent {
         event_id: AuditEventId,
     },
 
-    /// Emitted when an agent's `HAS_PROFILE` edge is rewritten
+    /// Emitted when an agent's `USES_PROFILE` edge is rewritten
     /// (profile swap on the update-agent path). The catalog listener
     /// refreshes the cached profile snapshot on the catalog entry.
-    HasProfileEdgeChanged {
+    ///
+    /// Renamed from `HasProfileEdgeChanged` per CH-28 / ADR-0063 §D63.7
+    /// (F2.b USER-LOCKED DIVERGENT). The enclosing enum carries
+    /// `#[serde(tag = "kind", rename_all = "snake_case")]`, so this
+    /// variant serializes with `"kind": "uses_profile_edge_changed"` by
+    /// default. The `serde(rename = "uses_profile_edge_changed", alias
+    /// = "has_profile_edge_changed")` attribute pins the wire-format
+    /// `kind` value for new emissions while accepting the legacy
+    /// `has_profile_edge_changed` form on deserialization (back-compat
+    /// per ADR-0063 §D63.7).
+    #[serde(
+        rename = "uses_profile_edge_changed",
+        alias = "has_profile_edge_changed"
+    )]
+    UsesProfileEdgeChanged {
         agent_id: AgentId,
         old_profile_id: Option<NodeId>,
         new_profile_id: NodeId,
@@ -221,6 +235,30 @@ pub enum DomainEvent {
         extracted_at: DateTime<Utc>,
         event_id: AuditEventId,
     },
+
+    /// CH-28 / ADR-0063 §D63.1 + §D63.3 (F1.c USER-LOCKED DIVERGENT) —
+    /// emitted after a Blueprint row is upserted (either template-tier
+    /// or per-agent override-tier). Consumers reactively refresh the
+    /// cached `profile_snapshot` on every `AgentCatalogEntry` row whose
+    /// Agent points at the upserted Blueprint:
+    ///   - For an override-tier row (`agent_id = Some(a)`): refresh the
+    ///     catalog entry for Agent `a`.
+    ///   - For a template-tier row (`agent_id = None`): refresh the
+    ///     catalog entries of all Agents whose AgentProfile points at
+    ///     the upserted Blueprint via `AGENT_PROFILE_USES_BLUEPRINT`.
+    ///
+    /// The listener arm lives at
+    /// [`crate::events::listeners::AgentCatalogListener::on_event`].
+    BlueprintUpserted {
+        blueprint_id: BlueprintId,
+        /// `None` → template-tier Blueprint (refresh catalogs of all
+        /// agents pointing at the blueprint via
+        /// `AGENT_PROFILE_USES_BLUEPRINT`); `Some(_)` → override-tier
+        /// Blueprint (refresh catalog of that specific agent).
+        agent_id: Option<AgentId>,
+        at: DateTime<Utc>,
+        event_id: AuditEventId,
+    },
 }
 
 /// CH-16 / ADR-0038 §D38.5 — what triggered the identity update. Keyed
@@ -252,9 +290,10 @@ impl DomainEvent {
             }
             DomainEvent::AgentCreated { .. } => "agent_created",
             DomainEvent::AgentArchived { .. } => "agent_archived",
-            DomainEvent::HasProfileEdgeChanged { .. } => "has_profile_edge_changed",
+            DomainEvent::UsesProfileEdgeChanged { .. } => "uses_profile_edge_changed",
             DomainEvent::IdentityUpdated { .. } => "identity_updated",
             DomainEvent::MemoryExtracted { .. } => "memory_extracted",
+            DomainEvent::BlueprintUpserted { .. } => "blueprint_upserted",
         }
     }
 
@@ -270,9 +309,10 @@ impl DomainEvent {
             | DomainEvent::HasAgentSupervisorEdgeCreated { event_id, .. }
             | DomainEvent::AgentCreated { event_id, .. }
             | DomainEvent::AgentArchived { event_id, .. }
-            | DomainEvent::HasProfileEdgeChanged { event_id, .. }
+            | DomainEvent::UsesProfileEdgeChanged { event_id, .. }
             | DomainEvent::IdentityUpdated { event_id, .. }
-            | DomainEvent::MemoryExtracted { event_id, .. } => *event_id,
+            | DomainEvent::MemoryExtracted { event_id, .. }
+            | DomainEvent::BlueprintUpserted { event_id, .. } => *event_id,
         }
     }
 }
@@ -521,10 +561,10 @@ mod tests {
         assert_eq!(sample_agent_archived().kind(), "agent_archived");
     }
 
-    // ---- HasProfileEdgeChanged -------------------------------------------
+    // ---- UsesProfileEdgeChanged ------------------------------------------
 
-    fn sample_has_profile_edge_changed() -> DomainEvent {
-        DomainEvent::HasProfileEdgeChanged {
+    fn sample_uses_profile_edge_changed() -> DomainEvent {
+        DomainEvent::UsesProfileEdgeChanged {
             agent_id: AgentId::new(),
             old_profile_id: Some(NodeId::new()),
             new_profile_id: NodeId::new(),
@@ -534,9 +574,9 @@ mod tests {
     }
 
     #[test]
-    fn has_profile_edge_changed_roundtrips() {
-        match roundtrip(&sample_has_profile_edge_changed()) {
-            DomainEvent::HasProfileEdgeChanged { old_profile_id, .. } => {
+    fn uses_profile_edge_changed_roundtrips() {
+        match roundtrip(&sample_uses_profile_edge_changed()) {
+            DomainEvent::UsesProfileEdgeChanged { old_profile_id, .. } => {
                 assert!(old_profile_id.is_some());
             }
             other => panic!("unexpected variant: {other:?}"),
@@ -544,11 +584,60 @@ mod tests {
     }
 
     #[test]
-    fn has_profile_edge_changed_kind_is_stable() {
+    fn uses_profile_edge_changed_kind_is_stable() {
         assert_eq!(
-            sample_has_profile_edge_changed().kind(),
-            "has_profile_edge_changed"
+            sample_uses_profile_edge_changed().kind(),
+            "uses_profile_edge_changed"
         );
+    }
+
+    // ---- Serde back-compat alias: legacy `has_profile_edge_changed` ------
+    // deserializes into the renamed variant per CH-28 / ADR-0063 §D63.7
+    // (F2.b USER-LOCKED DIVERGENT). Validates the `#[serde(alias =
+    // "has_profile_edge_changed")]` decorator absorbs already-serialized
+    // rows produced before this chunk (e.g., audit-event payloads, in-flight
+    // wire-format snapshots) without panicking. Pairs with the rename arm's
+    // forward-tag pinning at `"uses_profile_edge_changed"`.
+    #[test]
+    fn uses_profile_edge_changed_deserializes_from_legacy_has_profile_via_alias() {
+        let agent_id = AgentId::new();
+        let old_profile_id = NodeId::new();
+        let new_profile_id = NodeId::new();
+        let event_id = AuditEventId::new();
+        let at = Utc::now();
+
+        // Hand-build the legacy JSON wire-form using the pre-rename
+        // `"kind": "has_profile_edge_changed"` tag.
+        let legacy_json = serde_json::json!({
+            "kind": "has_profile_edge_changed",
+            "agent_id": agent_id,
+            "old_profile_id": old_profile_id,
+            "new_profile_id": new_profile_id,
+            "at": at,
+            "event_id": event_id,
+        });
+
+        let parsed: DomainEvent = serde_json::from_value(legacy_json)
+            .expect("legacy `has_profile_edge_changed` wire-form deserializes via serde alias");
+
+        match parsed {
+            DomainEvent::UsesProfileEdgeChanged {
+                agent_id: a,
+                old_profile_id: opi,
+                new_profile_id: npi,
+                event_id: eid,
+                ..
+            } => {
+                assert_eq!(a, agent_id);
+                assert_eq!(opi, Some(old_profile_id));
+                assert_eq!(npi, new_profile_id);
+                assert_eq!(eid, event_id);
+            }
+            other => panic!(
+                "legacy `has_profile_edge_changed` payload deserialized into the \
+                 wrong variant: {other:?}"
+            ),
+        }
     }
 
     // ---- event_id() parity across all variants ---------------------------
@@ -614,7 +703,7 @@ mod tests {
                 at: Utc::now(),
                 event_id: fresh,
             },
-            DomainEvent::HasProfileEdgeChanged {
+            DomainEvent::UsesProfileEdgeChanged {
                 agent_id: AgentId::new(),
                 old_profile_id: None,
                 new_profile_id: NodeId::new(),
@@ -634,6 +723,12 @@ mod tests {
                 org_scope: Some(OrgId::new()),
                 tags: vec![],
                 extracted_at: Utc::now(),
+                event_id: fresh,
+            },
+            DomainEvent::BlueprintUpserted {
+                blueprint_id: BlueprintId::new(),
+                agent_id: None,
+                at: Utc::now(),
                 event_id: fresh,
             },
         ];
@@ -722,5 +817,69 @@ mod tests {
             let back: IdentityUpdateTrigger = serde_json::from_str(&j).expect("deserialize");
             assert_eq!(back, variant);
         }
+    }
+
+    // ---- CH-28 / ADR-0063 §D63.1 + §D63.3 — BlueprintUpserted event -----
+
+    #[test]
+    fn blueprint_upserted_event_roundtrips() {
+        // F1.c USER-LOCKED — verify serde roundtrip preserves all fields
+        // (blueprint_id, agent_id, at, event_id) for BOTH template-tier
+        // (agent_id None) AND override-tier (agent_id Some) shapes.
+        let template_evt = DomainEvent::BlueprintUpserted {
+            blueprint_id: BlueprintId::new(),
+            agent_id: None,
+            at: Utc::now(),
+            event_id: AuditEventId::new(),
+        };
+        match roundtrip(&template_evt) {
+            DomainEvent::BlueprintUpserted {
+                agent_id,
+                blueprint_id,
+                ..
+            } => {
+                assert!(
+                    agent_id.is_none(),
+                    "template-tier wire form preserves agent_id None"
+                );
+                if let DomainEvent::BlueprintUpserted {
+                    blueprint_id: orig, ..
+                } = template_evt
+                {
+                    assert_eq!(blueprint_id, orig, "blueprint_id preserved on roundtrip");
+                }
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
+
+        let agent = AgentId::new();
+        let override_evt = DomainEvent::BlueprintUpserted {
+            blueprint_id: BlueprintId::new(),
+            agent_id: Some(agent),
+            at: Utc::now(),
+            event_id: AuditEventId::new(),
+        };
+        match roundtrip(&override_evt) {
+            DomainEvent::BlueprintUpserted { agent_id, .. } => {
+                assert_eq!(
+                    agent_id,
+                    Some(agent),
+                    "override-tier wire form preserves agent_id Some(_)"
+                );
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn blueprint_upserted_event_kind_is_stable() {
+        // Wire-format stability — `kind()` is the listener-dispatch key.
+        let evt = DomainEvent::BlueprintUpserted {
+            blueprint_id: BlueprintId::new(),
+            agent_id: None,
+            at: Utc::now(),
+            event_id: AuditEventId::new(),
+        };
+        assert_eq!(evt.kind(), "blueprint_upserted");
     }
 }

@@ -1,9 +1,13 @@
-//! The 72 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
+//! The 74 edge types the v0 ontology defines (67 at M3 close; M4/P1 adds
 //! `HAS_SUBPROJECT` + `HAS_CONFIG` per the project-node edge table in
 //! `concepts/project.md §Project Edges`; CH-23 adds `MANAGES` +
 //! `HAS_AGENT_SUPERVISOR` per ADR-0046 Template C/D HTTP edges; CH-25
 //! adds `OWNS` per ADR-0060 §D60.1 for Agent→Org/Project ownership with
-//! typed [`crate::model::ids::OwnedResourceId`] payload, F1.b USER-LOCKED).
+//! typed [`crate::model::ids::OwnedResourceId`] payload, F1.b USER-LOCKED;
+//! CH-28 adds `AGENT_PROFILE_USES_BLUEPRINT` + `AGENT_USES_BLUEPRINT_OVERRIDE`
+//! per ADR-0063 §D63.1 + §D63.3 for the hybrid Blueprint table —
+//! `AgentProfile→Blueprint(template)` + `Agent→Blueprint(override)` —
+//! F1.c USER-LOCKED).
 //!
 //! Edges are modelled as a single tagged enum [`Edge`]. Each variant's payload
 //! carries the edge's ID and the IDs of its `from` and `to` nodes. Where the
@@ -22,15 +26,22 @@ use super::ids::{
     AgentId, AuthRequestId, ConsentId, EdgeId, GrantId, MemoryId, NodeId, OrgId, OwnedResourceId,
     ProjectId, SessionId, TemplateId, UserId,
 };
+use super::nodes::BlueprintId;
 
 /// Every edge type in the v0 ontology.
 ///
-/// Count: **72** (invariant asserted in [`tests`]).
+/// Count: **74** (invariant asserted in [`tests`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "edge")]
 pub enum Edge {
     // --- Agent-Centric (22) ----------------------------------------------
-    HasProfile {
+    /// Renamed from `HasProfile` per CH-28 / ADR-0063 §D63.7 (F2.b USER-LOCKED
+    /// DIVERGENT). The `serde(rename = "USES_PROFILE", alias = "HAS_PROFILE")`
+    /// attribute pins the wire-format edge tag to `USES_PROFILE` for new
+    /// writes while accepting `HAS_PROFILE` for legacy reads (back-compat
+    /// per ADR-0063 §D63.7).
+    #[serde(rename = "USES_PROFILE", alias = "HAS_PROFILE")]
+    UsesProfile {
         id: EdgeId,
         from: AgentId,
         to: NodeId,
@@ -445,6 +456,29 @@ pub enum Edge {
         from: ConsentId,
         to: OrgId,
     },
+
+    // --- Hybrid Blueprint table (2 — CH-28 / ADR-0063 §D63.1 + §D63.3) ----
+    /// CH-28 / ADR-0063 §D63.1 + §D63.3 (F1.c USER-LOCKED DIVERGENT) —
+    /// AgentProfile → template-Blueprint relation. 1:1 from the
+    /// AgentProfile side; N:1 from the Blueprint side (many AgentProfile
+    /// rows MAY share one template Blueprint — the load-bearing sharing
+    /// semantic). Wire-name: `AGENT_PROFILE_USES_BLUEPRINT`.
+    AgentProfileUsesBlueprint {
+        id: EdgeId,
+        from: NodeId,
+        to: BlueprintId,
+    },
+    /// CH-28 / ADR-0063 §D63.1 + §D63.3 (F1.c USER-LOCKED DIVERGENT) —
+    /// Agent → per-agent override-Blueprint relation. 1:zero-or-one
+    /// from the Agent side; 1:1 from the Blueprint side. The 1:1
+    /// invariant on override rows is enforced at the repository tier
+    /// per ADR-0063 §D63.5 + §D63.12 (SurrealDB 2.6.5 does NOT support
+    /// filtered UNIQUE indexes). Wire-name: `AGENT_USES_BLUEPRINT_OVERRIDE`.
+    AgentUsesBlueprintOverride {
+        id: EdgeId,
+        from: AgentId,
+        to: BlueprintId,
+    },
 }
 
 impl Edge {
@@ -452,7 +486,7 @@ impl Edge {
     /// UPPER_SNAKE_CASE form.
     pub fn name(&self) -> &'static str {
         match self {
-            Edge::HasProfile { .. } => "HAS_PROFILE",
+            Edge::UsesProfile { .. } => "USES_PROFILE",
             Edge::UsesModel { .. } => "USES_MODEL",
             Edge::HasTool { .. } => "HAS_TOOL",
             Edge::HasSkill { .. } => "HAS_SKILL",
@@ -531,20 +565,26 @@ impl Edge {
 
             Edge::HasConsent { .. } => "HAS_CONSENT",
             Edge::ScopedTo { .. } => "SCOPED_TO",
+
+            Edge::AgentProfileUsesBlueprint { .. } => "AGENT_PROFILE_USES_BLUEPRINT",
+            Edge::AgentUsesBlueprintOverride { .. } => "AGENT_USES_BLUEPRINT_OVERRIDE",
         }
     }
 }
 
 /// Every edge kind name, in the same order as the concept doc's tables.
 ///
-/// Used by tests to assert the 72 count: 67 at M3 close, +2 at M4/P1
+/// Used by tests to assert the 74 count: 67 at M3 close, +2 at M4/P1
 /// (`HasSubproject`, `HasConfig`), +2 at CH-23 for Template C/D
 /// triggers (`Manages`, `HasAgentSupervisor`), +1 at CH-25 (`Owns`)
 /// per ADR-0060 §D60.1 for Agent→Org/Project ownership (F1.b
-/// USER-LOCKED DIVERGENT). Strings here mirror [`Edge::name`] outputs
-/// for the same variant order.
-pub const EDGE_KIND_NAMES: [&str; 72] = [
-    "HAS_PROFILE",
+/// USER-LOCKED DIVERGENT), +2 at CH-28
+/// (`AgentProfileUsesBlueprint`, `AgentUsesBlueprintOverride`) per
+/// ADR-0063 §D63.1 + §D63.3 for the hybrid Blueprint table edges
+/// (F1.c USER-LOCKED DIVERGENT). Strings here mirror [`Edge::name`]
+/// outputs for the same variant order.
+pub const EDGE_KIND_NAMES: [&str; 74] = [
+    "USES_PROFILE",
     "USES_MODEL",
     "HAS_TOOL",
     "HAS_SKILL",
@@ -616,6 +656,8 @@ pub const EDGE_KIND_NAMES: [&str; 72] = [
     "HOLDS_GRANT(agent-governance-listing)",
     "HAS_CONSENT",
     "SCOPED_TO",
+    "AGENT_PROFILE_USES_BLUEPRINT",
+    "AGENT_USES_BLUEPRINT_OVERRIDE",
 ];
 
 // ============================================================================
@@ -696,18 +738,21 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn edge_kind_names_is_exactly_seventy_two() {
+    fn edge_kind_names_cardinality_is_74_pinned_at_compile_time() {
         // 67 at M3 close + 2 at M4/P1 (HasSubproject, HasConfig) + 2
         // at CH-23 (Manages, HasAgentSupervisor — Template C/D
         // production triggers, ADR-0046) + 1 at CH-25 (Owns — Agent
-        // ownership of Org/Project per ADR-0060 §D60.1, F1.b USER-LOCKED).
-        assert_eq!(EDGE_KIND_NAMES.len(), 72);
+        // ownership of Org/Project per ADR-0060 §D60.1, F1.b USER-LOCKED) +
+        // 2 at CH-28 (AgentProfileUsesBlueprint, AgentUsesBlueprintOverride
+        // — hybrid Blueprint table edges per ADR-0063 §D63.1 + §D63.3,
+        // F1.c USER-LOCKED).
+        assert_eq!(EDGE_KIND_NAMES.len(), 74);
     }
 
     #[test]
     fn edge_kind_names_are_distinct() {
         let set: HashSet<_> = EDGE_KIND_NAMES.iter().collect();
-        assert_eq!(set.len(), 72);
+        assert_eq!(set.len(), 74);
     }
 
     #[test]
@@ -839,5 +884,35 @@ mod tests {
             }
             other => panic!("expected Owns variant, got {:?}", other),
         }
+    }
+
+    // ---- CH-28 / ADR-0063 §D63.1 + §D63.3 — hybrid Blueprint table edges --
+
+    #[test]
+    fn agent_profile_uses_blueprint_edge_name_is_canonical() {
+        // F1.c USER-LOCKED — verify the AGENT_PROFILE_USES_BLUEPRINT
+        // edge variant emits the concept-doc-mandated wire name from
+        // `Edge::name()` and is present in `EDGE_KIND_NAMES`.
+        let edge = Edge::AgentProfileUsesBlueprint {
+            id: EdgeId::new(),
+            from: crate::model::ids::NodeId::new(),
+            to: crate::model::nodes::BlueprintId::new(),
+        };
+        assert_eq!(edge.name(), "AGENT_PROFILE_USES_BLUEPRINT");
+        assert!(EDGE_KIND_NAMES.contains(&"AGENT_PROFILE_USES_BLUEPRINT"));
+    }
+
+    #[test]
+    fn agent_uses_blueprint_override_edge_name_is_canonical() {
+        // F1.c USER-LOCKED — verify the AGENT_USES_BLUEPRINT_OVERRIDE
+        // edge variant emits the concept-doc-mandated wire name from
+        // `Edge::name()` and is present in `EDGE_KIND_NAMES`.
+        let edge = Edge::AgentUsesBlueprintOverride {
+            id: EdgeId::new(),
+            from: AgentId::new(),
+            to: crate::model::nodes::BlueprintId::new(),
+        };
+        assert_eq!(edge.name(), "AGENT_USES_BLUEPRINT_OVERRIDE");
+        assert!(EDGE_KIND_NAMES.contains(&"AGENT_USES_BLUEPRINT_OVERRIDE"));
     }
 }

@@ -118,7 +118,7 @@ pub struct ShapeBPendingProject {
 /// - `AgentArchived` — `active = false`.
 /// - `HasLeadEdgeCreated` / `ManagesEdgeCreated` /
 ///   `HasAgentSupervisorEdgeCreated` — role-index refresh.
-/// - `HasProfileEdgeChanged` — `profile_snapshot` refresh.
+/// - `UsesProfileEdgeChanged` — `profile_snapshot` refresh.
 ///
 /// The `profile_snapshot` is a serialised snapshot of the agent's
 /// `AgentProfile` at last-catalog-refresh time (kept as JSON to avoid
@@ -136,7 +136,7 @@ pub struct AgentCatalogEntry {
     #[serde(default = "default_active_true")]
     pub active: bool,
     /// Serialised snapshot of the agent's governance `AgentProfile` at
-    /// last refresh. `None` before the first `HasProfileEdgeChanged`.
+    /// last refresh. `None` before the first `UsesProfileEdgeChanged`.
     #[serde(default)]
     pub profile_snapshot: Option<JsonValue>,
     pub last_seen_at: DateTime<Utc>,

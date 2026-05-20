@@ -57,7 +57,7 @@ use crate::model::ids::{
     NodeId, OrgId, ProjectId, SecretId, SessionId,
 };
 use crate::model::nodes::{
-    Agent, AgentProfile, AgentRole, AuthRequest, Channel, Consent, Grant, InboxObject,
+    Agent, AgentProfile, AgentRole, AuthRequest, Blueprint, Channel, Consent, Grant, InboxObject,
     LoopRecordNode, Memory, Organization, OutboxObject, PrincipalRef, Project, ProjectShape,
     ResourceRef, Session, SessionGovernanceState, Template, ToolAuthorityManifest, TurnNode, User,
 };
@@ -465,7 +465,7 @@ pub struct HasAgentSupervisorEdgeReceipt {
 ///
 /// Atomic write: Agent + inbox + outbox + optional profile + optional
 /// initial `ExecutionLimits` override + default grants + the edge set
-/// (`HAS_INBOX`, `HAS_OUTBOX`, `MEMBER_OF`, optional `HAS_PROFILE`).
+/// (`HAS_INBOX`, `HAS_OUTBOX`, `MEMBER_OF`, optional `USES_PROFILE`).
 ///
 /// ## phi-core leverage
 ///
@@ -627,6 +627,51 @@ pub trait Repository: Send + Sync + 'static {
     /// Upsert the profile row (matched on `id`). Used by M4/P5's
     /// profile editor to persist blueprint + parallelize edits.
     async fn upsert_agent_profile(&self, profile: &AgentProfile) -> RepositoryResult<()>;
+
+    // ---- CH-28 / ADR-0063 §D63.1 + §D63.3 + §D63.5 — hybrid Blueprint table
+
+    /// Fetch the template-tier `Blueprint` row pointed at by the given
+    /// `AgentProfile` row's `AGENT_PROFILE_USES_BLUEPRINT` edge.
+    /// Returns `Ok(None)` if no edge exists yet (e.g. pre-CH-28 rows
+    /// before any backfill — runtime falls back to the legacy
+    /// `agent_profile` row properties per ADR-0063 §D63.12).
+    async fn get_blueprint_for_agent_profile(
+        &self,
+        profile_id: NodeId,
+    ) -> RepositoryResult<Option<Blueprint>>;
+
+    /// Fetch the per-agent override-tier `Blueprint` row pointed at by
+    /// the given Agent's `AGENT_USES_BLUEPRINT_OVERRIDE` edge.
+    /// Returns `Ok(None)` if no override is configured for the agent
+    /// (the common case — most agents inherit the template Blueprint).
+    async fn get_agent_blueprint_override_for_agent(
+        &self,
+        agent_id: AgentId,
+    ) -> RepositoryResult<Option<Blueprint>>;
+
+    /// Upsert a template-tier `Blueprint` row (`agent_id = None`).
+    /// Matched on `Blueprint::id`. Used by handler paths that mint or
+    /// refresh shared template Blueprints (e.g., org-creation seeding).
+    async fn upsert_blueprint_template(&self, blueprint: &Blueprint) -> RepositoryResult<()>;
+
+    /// Upsert a per-agent override-tier `Blueprint` row
+    /// (`agent_id = Some(_)`). Per ADR-0063 §D63.5 + §D63.12 the 1:1
+    /// invariant (at most one override row per Agent) is enforced
+    /// HERE at the repository tier inside a SurrealDB
+    /// `BEGIN; ... COMMIT;` transaction (the storage-level
+    /// `blueprint_agent_id` index is NON-UNIQUE because SurrealDB 2.6.5
+    /// does NOT support filtered UNIQUE indexes).
+    ///
+    /// The transaction MUST first SELECT any existing override row for
+    /// the given `agent_id`; if one exists, UPDATE in place (preserve
+    /// the row id); if not, CREATE the supplied row.
+    ///
+    /// Errors:
+    /// - [`RepositoryError::Backend`] for SurrealDB faults.
+    /// - Panics-by-design (`debug_assert!`) if `blueprint.agent_id` is
+    ///   `None` — the caller violated the override-tier discriminator
+    ///   contract (use `upsert_blueprint_template` for template rows).
+    async fn upsert_agent_blueprint_override(&self, blueprint: &Blueprint) -> RepositoryResult<()>;
 
     async fn create_user(&self, user: &User) -> RepositoryResult<()>;
 
@@ -1406,7 +1451,7 @@ pub trait Repository: Send + Sync + 'static {
     // Grant + 2 system agents + 2 AgentProfile nodes + TokenBudgetPool
     // + N adoption Auth Requests + the edge set
     // (HasCeo / HasMember / MemberOf / HasInbox / HasOutbox / HasChannel
-    // / HasProfile) + catalogue seeds.
+    // / UsesProfile) + catalogue seeds.
     //
     // See ADR-0022 for the compound-tx rationale; ADR-0023 pins the
     // inherit-from-snapshot invariant (no per-agent phi-core-wrap
@@ -1476,7 +1521,7 @@ pub trait Repository: Send + Sync + 'static {
     /// - Optional `agent_execution_limits` override row.
     /// - N default grants.
     /// - Edges: `HAS_INBOX`, `HAS_OUTBOX`, `MEMBER_OF` to owning org,
-    ///   optional `HAS_PROFILE`.
+    ///   optional `USES_PROFILE`.
     /// - Catalogue seeds.
     ///
     /// On `Err(_)`, no partial state survives.
