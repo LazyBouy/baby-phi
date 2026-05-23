@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-23 by Claude Code (CH-28b P4 — NEW §3 Deferred catalogue row `D-PHICORE-08-FOLLOWUP-01 — Composition I adoption` inserted between M7b-DEFERRED-02 and D-CH28-FOLLOWUP-01 rows; documents the phi-core 0.8.0 opt-in braking layer adoption deferral; allocation `M6+-FUTURE-COMPOSITION-I-ADOPTION` placeholder per F3.a planner-rec lock + ADR-0064 §D64.5; cycle hex `d5b776ac`.) -->
 <!-- Last verified: 2026-05-20 by Claude Code (initial authoring per CH-28 retro plan archive `chunk-decomposition-and-fork-framing-76e04080.md`; cross-chunk product-trajectory tracker; baby-phi v0.1 scope). -->
 
 # baby-phi v0.1 — Feature inventory
@@ -120,6 +121,13 @@ Every `M*-DEFERRED-NN` marker + every `D-CH<NN>-FOLLOWUP-*` drift filed across t
 - **User-visible state at final (post-v0)**: microservice carve-out for hot-path services (session-launch, memory-recall) with independent scaling.
 - **Allocation chunk**: M7b-DEFERRED-02 → post-v0 milestone.
 - **10 captured items**: see `docs/specs/v0/implementation/m7b/architecture/deferred-from-ch-k8s-prep.md` (CHK8S-D-01..CHK8S-D-10).
+
+### D-PHICORE-08-FOLLOWUP-01 — Composition I adoption (phi-core 0.8.0 opt-in braking layer)
+- **Feature impact**: F-agent-context-management (post-0.8.0 opt-in tree-structured braking layer; complements existing compaction surface).
+- **User-visible state in v0 (at CH-28b close, 2026-05-23)**: agents continue to operate on the pre-0.8.0 monotonically-growing-context posture; compaction (existing `BlockCompactionStrategy` + `compact_messages`) is the only relief. Composition I is opt-in upstream + remains opt-out in baby-phi via `AgentLoopConfig.revert_pending: None` at `launch.rs:577`.
+- **User-visible state at final (at future M6+ Composition I adoption chunk close)**: agents call `revert_to_state` between turns to abandon failed/finished/completed/step-summary branches (the 4 `RevertCategory` cases); active context stays lean; compaction fires less often; no user-perceived behavior delta beyond efficiency (faster turns + lower token cost).
+- **Allocation chunk**: M6+-FUTURE-COMPOSITION-I-ADOPTION (placeholder; no specific CH-NN slot reserved at CH-28b close; future planning session decides whether adoption lands as a dedicated FUNCTIONAL chunk OR bundles into an existing M6+ FUNCTIONAL chunk that touches BasicAgent construction).
+- **Cross-chunk dependency**: requires 4 prerequisites (per drift body §"Remediation scope"): (1) `BasicAgent::with_revert_tool()` builder call at the construction site (`launch.rs` or `cli/agent.rs` or NEW factory); (2) optional `RevertApplied` event surfacing in `BabyPhiSessionRecorder`; (3) skill / prompt teaching the agent the revert discipline (load-bearing axis — without it, enabling the tool is a no-op); (4) `RevertRenderPolicy` tuning for baby-phi's compaction posture.
 
 ### D-CH28-FOLLOWUP-01 — Listener template-tier fan-out for BlueprintUpserted
 - **Feature impact**: F-agent-profile-cardinality (the template-tier broadcast path).

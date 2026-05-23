@@ -565,6 +565,15 @@ pub(super) fn spawn_agent_task(
             // a separate carry-forward chunk to wire structured-output
             // into baby-phi handlers (out of CH-25 scope).
             response_format: phi_core::provider::traits::ResponseFormat::default(),
+            // CH-28b P2 workspace-health carrier-fix (per ADR-0064 §D64.3):
+            // phi-core 0.8.0 introduces Composition I (opt-in tree-structured
+            // braking layer) and adds the `revert_pending` field to
+            // `AgentLoopConfig`. `None` preserves the opt-out posture —
+            // Composition I is NOT enabled at session launch; agents continue
+            // to operate identically to the pre-0.8.0 monotonically-growing-
+            // context shape. Future Composition I adoption tracked via
+            // D-PHICORE-08-FOLLOWUP-01 (M6+ FUNCTIONAL chunk TBD).
+            revert_pending: None,
         };
         let prompts = vec![AgentMessage::Llm(LlmMessage::new(Message::user(prompt)))];
 

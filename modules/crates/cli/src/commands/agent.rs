@@ -665,6 +665,13 @@ async fn demo(prompt_override: Option<String>) -> i32 {
                     usage.input, usage.output, usage.total_tokens
                 );
             }
+            // CH-28b P3 explicit-arm coverage (per ADR-0064 §D64.6):
+            // phi-core 0.8.0's Composition I emits `RevertApplied` when a
+            // tree-structured revert lands; baby-phi opts out at session
+            // launch (see launch.rs:577 `revert_pending: None`), so this
+            // arm is cosmetic + signals 0.8.0 variant awareness.
+            // Composition I adoption tracked via D-PHICORE-08-FOLLOWUP-01.
+            AgentEvent::RevertApplied { .. } => {}
             _ => {}
         }
     }
