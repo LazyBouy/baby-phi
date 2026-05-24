@@ -14,7 +14,7 @@ license = "MIT"
 repository = "https://github.com/LazyBouy/phi"
 
 [workspace.dependencies]
-phi-core = "0.8"
+phi-core = "0.9"
 
 domain = { path = "modules/crates/domain" }
 store  = { path = "modules/crates/store" }

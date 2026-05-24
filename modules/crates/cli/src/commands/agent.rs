@@ -672,6 +672,16 @@ async fn demo(prompt_override: Option<String>) -> i32 {
             // arm is cosmetic + signals 0.8.0 variant awareness.
             // Composition I adoption tracked via D-PHICORE-08-FOLLOWUP-01.
             AgentEvent::RevertApplied { .. } => {}
+            // CH-28c P2 explicit-arm coverage (per ADR-0065 §D65.3):
+            // phi-core 0.9.0's per-turn debug capture emits `TurnRequest`
+            // once per turn (before the retry-loop's first provider.stream()
+            // call) regardless of recorder configuration. baby-phi does NOT
+            // enable capture (SessionRecorderConfig::capture_turn_requests
+            // defaults to false; the recorder above uses
+            // SessionRecorderConfig::default()), so this arm is cosmetic +
+            // signals 0.9.0 variant awareness for future readers.
+            // Adoption tracked via D-PHICORE-09-FOLLOWUP-01.
+            AgentEvent::TurnRequest { .. } => {}
             _ => {}
         }
     }
