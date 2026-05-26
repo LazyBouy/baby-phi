@@ -1,3 +1,4 @@
+<!-- Last verified: 2026-05-26 by Claude Code (Chunk D `36caa39f` intermediate-stabilization plan §"Chunk D" — outer phi chunk-planner v32 iter-2 re-arch, orchestrator-direct paperwork cycle). Adds `## §1 — Locked fork details — [DRAFT planner-rec bodies; pre-lock]` populated-at-iter-1 template structure consumed by chunk-planner v32 P-plan-1-v32 + outer CLAUDE.md P-orch-8 gate-1.5 skip-condition. Project-agnostic (consumed by both baby-phi AND i-phi planner cycles). Companion: deprecates chunk-planner v22 P13 / v23 P-plan-3 ALWAYS-FIRE iter-2-respawn for planner-rec-clean cycles via 2-3-cycle cross-project hold-period. -->
 <!-- Last verified: 2026-05-20 by Claude Code (post-CH-28 retro standards-update batch: NEW §2.5 Functional outcome mandatory section + §3 fork-row format extension for user-facing framing + §4 Drifts closed table extended with Product impact during deferral column; closes CH-28-observed gaps in chunk-decomposition + fork-framing + deferred-feature-visibility per plan archive chunk-decomposition-and-fork-framing-76e04080.md). -->
 <!-- Last verified: 2026-04-27 by Claude Code -->
 <!-- Post-CH-22 addition (2026-04-27): §3.C "User-facing documentation impact map" is now mandatory; §10 "Docs aspect" extended to cover the user-facing doc tier (architecture / operations / user-guide). Reason: the milestone-era pattern shipped three peer doc trees per milestone, but chunks were silently dropping that tier — operators got stale docs. Pre-CH-22 chunks (CH-01, CH-02, CH-K8S-PREP, CH-22) are grandfathered with backfill bundled in this codification commit. -->
@@ -51,6 +52,51 @@ Each fork has a header table with one row per option:
 **Locked fork details appendix** (existing v23 rule, preserved): when ≥ 1 fork locks at gate-1, the planner adds a `### Locked fork details` subsection BELOW the fork tables with one `#### F<N> = F<N>.<letter>` sub-section per locked fork carrying 3-6 sentences of plain-English semantics of what the lock means for implementer + downstream consumers + which open-questions it closes.
 
 **Why this format**: CH-28 retro observed that forks were framed in engineering terms ("hybrid Blueprint table", "split migrations") that the user could not translate to product-level decisions. The new mandatory **User-visible** column closes the framing gap structurally.
+
+---
+
+## §1 — Locked fork details (per chunk-planner v32 iter-1 template; planner-rec bodies pre-filled)
+
+> **Added 2026-05-26 per Chunk D `36caa39f` intermediate-stabilization plan §"Chunk D"** — outer phi chunk-planner v32 iter-2 re-arch. Project-agnostic; consumed by both baby-phi AND i-phi planner cycles. Companion to chunk-planner v32 P-plan-1-v32 + outer CLAUDE.md gate-1.5 P-orch-8 skip-condition + chunk-initiate Phase 1.5 Step A flip + chunk-archive-plan hard-assertion.
+
+> **Pre-lock state at iter-1 draft**: the planner ships draft bodies for each fork's planner-rec option below at iter-1 plan-draft time (NOT as a placeholder; NOT deferred to iter-2 re-spawn). Each `#### F<N> = F<N>.<planner-rec-letter>` subsection carries 3–6 sentences of Code-level binding / Rationale / Defers. **At gate-1 lock**:
+>
+> - If user selects planner-rec for ALL forks → archive directly at iter-1 (per outer CLAUDE.md P-orch-8 skip-condition + chunk-initiate Phase 1.5 Step A skip-condition); these bodies become the locked record verbatim.
+> - If user selects USER-DIVERGENT on any fork → iter-2 re-spawn fires per Step B material-scope-expansion; ONLY the divergent F<N> subsections re-authored; planner-rec subsections preserved at iter-1 draft.
+
+```markdown
+#### F<N> = F<N>.<planner-rec-letter> *(pre-lock draft; finalizes at gate-1)*
+
+**Code-level binding** (3 sentences): <what code site changes; what struct/trait/method/file:line absorbs the lock; how the locked option manifests in source-tree shape (NEW file vs EXTEND file vs trait-method addition vs config schema add)>.
+
+**Rationale** (3 sentences): <why this planner-rec over the named alternatives in §"Forks for orchestrator"; cite the decisive tradeoff axis (user-visible delivery vs cycle scope vs precedent-alignment vs cascade footprint); reference any cross-cycle pattern that informed the recommendation>.
+
+**Defers (if chosen)** (3 sentences): <what features NOT shipping under this option; cite allocation chunk-IDs (e.g., M6-DEFERRED-NN / CH-NN+) or "none deferred" if the option ships the full surface for this chunk; note any downstream consumer that inherits the deferred state>.
+
+#### F<N+1> = F<N+1>.<planner-rec-letter> *(pre-lock draft; finalizes at gate-1)*
+
+... <repeat for each fork in `## Forks for orchestrator`>
+```
+
+**Rules**:
+
+- **Always-populated at iter-1**: the planner authors all `#### F<N>` subsections in the iter-1 draft. No "to be filled at gate-1.5 iter-2 re-spawn" placeholder. The chunk-template-validate-locked-appendix skill enforces this at planner end-of-draft + at chunk-archive-plan hard-assertion (belt-and-suspenders).
+- **3-sentence minimum** per body block (Code-level binding / Rationale / Defers each ≥ 3 sentences; total ≥ 9 sentences per `#### F<N>` block).
+- **TECHNICAL FORK release**: for `**TECHNICAL FORK** (no user-visible delta — pick on engineering merit only)`-labeled forks, the §1 subsection bodies MAY collapse Code-level binding to a 1-sentence form citing the engineering-merit decision; Rationale + Defers retain 3-sentence minimums.
+- **USER-DIVERGENT path**: at iter-2 re-spawn after gate-1, ONLY the subsection(s) corresponding to divergent fork(s) are re-authored (the planner-rec letter changes to the user-divergent letter; the body re-derives Code-level binding / Rationale / Defers for the divergent option). Planner-rec subsections preserve their iter-1 wording.
+
+**Cross-references**:
+
+- chunk-planner v32 P-plan-1-v32 — origin rule (defines the iter-1 template change + deprecates v22 P13 / v23 P-plan-3 ALWAYS-FIRE iter-2 re-spawn for planner-rec-clean cycles).
+- chunk-template-validate-locked-appendix skill — mechanical 4-step PASS/FAIL validation at planner end-of-draft + chunk-archive-plan invocation.
+- chunk-archive-plan v4 hard-assertion — invokes chunk-template-validate-locked-appendix BEFORE minting cycle-folder; refuses archive on FAIL.
+- chunk-initiate Phase 1.5 Step A skip-condition — flips iter-2 re-spawn from ALWAYS-FIRE to UNLESS-planner-rec-clean-AND-§1-populated.
+- Outer CLAUDE.md gate-1.5 P-orch-8 — orchestrator-side skip-condition mirror.
+- User memory `feedback_locked_fork_details_appendix.md` — original directive (locked-fork-details section before approval; v32 satisfies via iter-1-populated bodies, not iter-2 re-spawn).
+
+---
+
+> **Note on section numbering (v32 transition)**: the body sections below (§1 Context & principle through §12 Verification recipe) are conceptually §2–§13 under the v32 template (§1 above carries Locked fork details). Existing template body retains the §1–§12 numbering for backward compatibility with pre-CH-32-canonical plans. Future plans authored under v32 MAY renumber §1→§2 / §2→§3 / ... / §12→§13 to fully align with the v32 convention; the chunk-template-validate-locked-appendix skill is renumber-agnostic (validates the `## §1 — Locked fork details` heading regardless of body-section numbering).
 
 ---
 
