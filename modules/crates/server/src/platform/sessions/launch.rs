@@ -574,6 +574,23 @@ pub(super) fn spawn_agent_task(
             // context shape. Future Composition I adoption tracked via
             // D-PHICORE-08-FOLLOWUP-01 (M6+ FUNCTIONAL chunk TBD).
             revert_pending: None,
+            // CH-28d P2 workspace-health carrier-fix (per ADR-0066 §D66.3):
+            // phi-core 0.10.0 adds two new public fields to AgentLoopConfig:
+            // (1) `revert_render_policy: RevertRenderPolicy` — kind-aware decay
+            //     window for Composition I `Lesson`/`Note` trunk-context tag
+            //     rendering. Active only when `active_node_id.is_some()` (revert
+            //     mode); baby-phi does NOT enable revert mode at v0 (Composition I
+            //     adoption deferred per D-PHICORE-08-FOLLOWUP-01). Default value
+            //     preserves byte-for-byte pre-0.10 behaviour.
+            // (2) `current_tool: Option<Arc<Mutex<Option<CurrentToolExecution>>>>`
+            //     — shared slot the agent loop writes around every
+            //     AgentTool::execute() invocation. Backs the new
+            //     BasicAgent::current_tool_timeout(&self) introspection method.
+            //     baby-phi is per-request stateless (ADR-0034 §D34.6) + has no
+            //     pause-time tool-timeout surface today; `None` disables the slot.
+            // Live wire-through deferred to D-PHICORE-10-FOLLOWUP-01.
+            revert_render_policy: phi_core::types::node_tag::RevertRenderPolicy::default(),
+            current_tool: None,
         };
         let prompts = vec![AgentMessage::Llm(LlmMessage::new(Message::user(prompt)))];
 
