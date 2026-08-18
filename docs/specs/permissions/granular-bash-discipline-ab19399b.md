@@ -252,6 +252,17 @@ Verified: `jq -r '.permissions.allow[] // .permissions.deny[]' /root/projects/ph
 
 ---
 
+## §6.5 — Matcher-bug pipe-combo class + `ci-guards-run` single-call discipline (added 2026-08-18 per joint-retro `06f9e112..53c7780f` #9)
+
+**Confirmed matcher-bug (external-bug-pending) — do NOT keep iterating settings.json rules for it.** The `*`-glob in a space-form allow rule (`Bash(bash …/docker-cargo.sh {test,clippy,…}*)`, `Bash(bash …/scripts/check-*.sh*)`, `Bash(git -C /abs *)`) does NOT span a downstream `| tail` / `| grep` / `; echo "EXIT=$?"` / `&&` / `for g in …; do …; done` combo — the matcher splits at the shell operator and the tail subcommand has no rule. The MA-cluster batch-2 permissions audit logged **~253 of 354 prompts** as this class (docker-cargo 92 + check-*.sh 57 + git-piped 42 + other 62). These are **NOT missing rules** — the rule exists; the invocation shape defeats it. **Subtract this class from any workflow-regression trend count.**
+
+**The durable fixes (workflow, not rules):**
+- **The 5 CI guards** → run via the **`ci-guards-run` skill / a single `scripts/ci-guards-run.sh` wrapper** invoked as ONE allow-listed call, NOT a `for g in …; do bash scripts/check-$g.sh; done` loop or five piped `check-*.sh 2>&1 | tail; echo "EXIT=$?"` invocations.
+- **Cardinality-extraction / multi-stage pipelines** → write to a `scripts/*.sh` file and run `bash /abs/script.sh` as one call (per §2 4-stage-pipe rule).
+- **A viewing tail on a long command** → prefer a separate Bash call for the view, or accept the single prompt rather than re-patterning the rule.
+
+**Plain-rule anomaly (NEW this batch — verify once):** 47 prompts (`git -C /abs {status,branch,diff}` plain + `docker volume rm iphi-cargo-target` plain) hit `outcome:"prompted"` despite an exactly-matching allow rule and NO compound. Either a `git -C <abspath> *` / `docker volume rm <glob>` space-form matcher limitation, OR the project `settings.json` was not fully active in the runtime. **One-time check**: confirm the orchestrator loads `/root/projects/phi/.claude/settings.json` at session start; if it does, file the plain-`git -C <abspath> *` reproducer upstream alongside the CH-14 matcher-bug report.
+
 ## §7 — Sister docs in `baby-phi/docs/specs/permissions/`
 
 - `project-permissions-hardening-478b9384.md` — initial allow/deny + scope-edits + block-destructive-bash hooks setup.

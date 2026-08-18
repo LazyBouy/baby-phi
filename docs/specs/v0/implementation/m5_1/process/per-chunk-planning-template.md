@@ -463,6 +463,8 @@ Drafted BEFORE implementation starts so audit scope is fixed.
 
 Concrete commands a reviewer can run to replay the chunk's close verification.
 
+> **Baseline for chunk-delta greps — use the PRE-CHUNK commit, NOT `main` (added 2026-08-18 per joint-retro `06f9e112..53c7780f` #4).** Any `git diff … | grep`-style chunk-delta assertion in §3 / §11 / §12 (and the ADR Verification block) MUST diff against the **pre-chunk baseline commit** (the `HEAD` captured at plan-archive, e.g. the forward-scope prerequisite commit), NOT `git diff main`. `main` can trail the working branch by hundreds of commits (MA-08: `main` was 254 behind `dev`), so `git diff main` returns the whole inter-milestone history — a spurious false-FAIL (MA-08's RED-FLAG seam grep returned 2307 vs the true 0-line, and the phi-core-use grep 35 vs 0). Write `git diff <cycle-baseline-commit>` (or `git diff HEAD` when the chunk is uncommitted on top of that baseline). The `git diff main` shorthand originated at ADR-0044 and propagated; retire it in new plans/ADRs.
+
 ```bash
 cd /root/projects/phi/baby-phi
 
