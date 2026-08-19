@@ -3354,9 +3354,9 @@ dependencies = [
 
 [[package]]
 name = "phi-core"
-version = "0.10.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "771a99ce635966b1cc6962088c825e7b59c64d6508fc77a7e6f4c5a6e89fc844"
+checksum = "320a60e020671acc779f9aac9c7d0b2240352af0bdf0da0d29be703d7ac261b6"
 dependencies = [
  "async-trait",
  "base64 0.22.1",

@@ -591,6 +591,14 @@ pub(super) fn spawn_agent_task(
             // Live wire-through deferred to D-PHICORE-10-FOLLOWUP-01.
             revert_render_policy: phi_core::types::node_tag::RevertRenderPolicy::default(),
             current_tool: None,
+            // phi-core 0.11.0 adds `provider_wire_sink` (raw-wire capture tee) and
+            // 0.12.0 (KC-05) adds `progressive_tool_catalog` (reduced tool-catalog
+            // disclosure, OFF by default). baby-phi captures no wire and does not use
+            // progressive disclosure at v0; `None` + `default()` (OFF) preserve the
+            // historical launch behaviour byte-for-byte. Minimal carrier-fix to build
+            // against the published phi-core 0.12.0.
+            provider_wire_sink: None,
+            progressive_tool_catalog: phi_core::agent_loop::ProgressiveToolCatalog::default(),
         };
         let prompts = vec![AgentMessage::Llm(LlmMessage::new(Message::user(prompt)))];
 
